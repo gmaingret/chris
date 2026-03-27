@@ -1,0 +1,1 @@
+CREATE INDEX "pensieve_embeddings_embedding_idx" ON "pensieve_embeddings" USING hnsw ("embedding" vector_cosine_ops);

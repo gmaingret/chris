@@ -8,6 +8,13 @@
       "when": 1774619324485,
       "tag": "0000_kind_mesmero",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1774620480709,
+      "tag": "0001_crazy_thunderbolt",
+      "breakpoints": true
     }
   ]
 }

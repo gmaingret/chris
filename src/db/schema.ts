@@ -86,6 +86,7 @@ export const pensieveEmbeddings = pgTable(
   },
   (table) => [
     index('pensieve_embeddings_entry_id_idx').on(table.entryId),
+    index('pensieve_embeddings_embedding_idx').using('hnsw', table.embedding.op('vector_cosine_ops')),
   ],
 );
 
