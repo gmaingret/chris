@@ -70,8 +70,22 @@ vi.mock('../../memory/conversation.js', () => ({
 
 // ── Mock context builder ───────────────────────────────────────────────────
 const mockBuildMessageHistory = vi.fn();
+const mockBuildPensieveContext = vi.fn();
 vi.mock('../../memory/context-builder.js', () => ({
   buildMessageHistory: mockBuildMessageHistory,
+  buildPensieveContext: mockBuildPensieveContext,
+}));
+
+// ── Mock searchPensieve (needed by interrogate handler) ────────────────────
+const mockSearchPensieve = vi.fn();
+vi.mock('../../pensieve/retrieve.js', () => ({
+  searchPensieve: mockSearchPensieve,
+}));
+
+// ── Mock handleInterrogate (to verify engine routing) ──────────────────────
+const mockHandleInterrogate = vi.fn();
+vi.mock('../modes/interrogate.js', () => ({
+  handleInterrogate: mockHandleInterrogate,
 }));
 
 // ── Import modules under test after mocks ──────────────────────────────────
@@ -392,7 +406,7 @@ describe('processMessage (engine)', () => {
     await expect(processMessage(CHAT_ID, USER_ID, TEST_TEXT)).rejects.toThrow(LLMError);
   });
 
-  it('routes INTERROGATE to JOURNAL handler (S05 placeholder)', async () => {
+  it('routes INTERROGATE to handleInterrogate', async () => {
     mockCreate.mockReset();
     mockSaveMessage.mockReset();
     mockStorePensieveEntry.mockReset();
@@ -401,14 +415,11 @@ describe('processMessage (engine)', () => {
     mockEmbedAndStore.mockReset();
     mockLogInfo.mockReset();
     mockLogWarn.mockReset();
+    mockHandleInterrogate.mockReset();
 
     mockCreate.mockResolvedValueOnce(makeLLMResponse('{"mode": "INTERROGATE"}'));
-    mockCreate.mockResolvedValueOnce(makeLLMResponse("Let me think about that."));
     mockSaveMessage.mockResolvedValue({ id: 'conv-1' });
-    mockStorePensieveEntry.mockResolvedValue({ id: ENTRY_ID, content: TEST_TEXT });
-    mockBuildMessageHistory.mockResolvedValue([]);
-    mockTagEntry.mockResolvedValue(null);
-    mockEmbedAndStore.mockResolvedValue(undefined);
+    mockHandleInterrogate.mockResolvedValue("You mentioned growing up by the coast.");
 
     const response = await processMessage(
       CHAT_ID,
@@ -416,8 +427,11 @@ describe('processMessage (engine)', () => {
       'Have I ever talked about my childhood?',
     );
 
-    // Still gets a response (routed to journal for now)
-    expect(response).toBe("Let me think about that.");
+    expect(response).toBe("You mentioned growing up by the coast.");
+    expect(mockHandleInterrogate).toHaveBeenCalledWith(
+      CHAT_ID,
+      'Have I ever talked about my childhood?',
+    );
     // Mode is saved as INTERROGATE
     expect(mockSaveMessage).toHaveBeenCalledWith(
       CHAT_ID,
@@ -425,5 +439,23 @@ describe('processMessage (engine)', () => {
       'Have I ever talked about my childhood?',
       'INTERROGATE',
     );
+  });
+
+  it('INTERROGATE mode does NOT call storePensieveEntry', async () => {
+    mockCreate.mockReset();
+    mockSaveMessage.mockReset();
+    mockStorePensieveEntry.mockReset();
+    mockHandleInterrogate.mockReset();
+    mockLogInfo.mockReset();
+
+    mockCreate.mockResolvedValueOnce(makeLLMResponse('{"mode": "INTERROGATE"}'));
+    mockSaveMessage.mockResolvedValue({ id: 'conv-1' });
+    mockHandleInterrogate.mockResolvedValue("I don't have memories about that.");
+
+    await processMessage(CHAT_ID, USER_ID, 'What did I say about work?');
+
+    expect(mockStorePensieveEntry).not.toHaveBeenCalled();
+    expect(mockTagEntry).not.toHaveBeenCalled();
+    expect(mockEmbedAndStore).not.toHaveBeenCalled();
   });
 });
