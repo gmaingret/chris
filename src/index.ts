@@ -2,27 +2,53 @@ import express from 'express';
 import { webhookCallback } from 'grammy';
 import { bot } from './bot/bot.js';
 import { sql } from './db/connection.js';
+import { runMigrations } from './db/migrate.js';
 import { config } from './config.js';
 import { logger } from './utils/logger.js';
+
+function createApp(): express.Express {
+  const app = express();
+  app.use(express.json());
+
+  app.get('/health', async (_req, res) => {
+    try {
+      await sql`SELECT 1`;
+      res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown database error';
+      logger.warn({ err }, 'Health check failed');
+      res.status(503).json({ status: 'error', error: message });
+    }
+  });
+
+  return app;
+}
 
 async function main() {
   logger.info('Chris starting...');
 
-  if (config.webhookUrl) {
-    const app = express();
-    app.use(express.json());
+  await runMigrations();
 
+  const port = parseInt(process.env.PORT || '3000', 10);
+
+  if (config.webhookUrl) {
+    const app = createApp();
     app.use(`/${bot.token}`, webhookCallback(bot, 'express'));
 
-    const port = parseInt(process.env.PORT || '3000', 10);
     await bot.api.setWebhook(`${config.webhookUrl}/${bot.token}`);
 
     app.listen(port, () => {
       logger.info({ mode: 'webhook', port }, 'Chris is listening');
     });
   } else {
+    // In polling mode, start a minimal Express server for health checks
+    const app = createApp();
+    app.listen(port, () => {
+      logger.info({ mode: 'polling', port }, 'Health server listening');
+    });
+
     await bot.start({
-      onStart: () => logger.info({ mode: 'polling' }, 'Chris is listening'),
+      onStart: () => logger.info({ mode: 'polling' }, 'Chris bot is listening'),
     });
   }
 }
