@@ -1,4 +1,5 @@
 import { getRecentHistory } from './conversation.js';
+import type { SearchResult } from '../pensieve/retrieve.js';
 
 export interface AnthropicMessage {
   role: 'user' | 'assistant';
@@ -40,4 +41,32 @@ export async function buildMessageHistory(
   }
 
   return merged;
+}
+
+/** Minimum cosine similarity score for a search result to be included in context. */
+const SIMILARITY_THRESHOLD = 0.3;
+
+/**
+ * Build a formatted context string from Pensieve search results for the
+ * interrogate system prompt.
+ *
+ * Filters out results with score < 0.3, then formats each remaining result
+ * as a numbered citation block: `[1] (2025-03-15 | EXPERIENCE | 0.87) "content"`.
+ * Returns empty string if no results pass the threshold.
+ */
+export function buildPensieveContext(results: SearchResult[]): string {
+  const filtered = results.filter((r) => r.score >= SIMILARITY_THRESHOLD);
+
+  if (filtered.length === 0) return '';
+
+  return filtered
+    .map((r, i) => {
+      const date = r.entry.createdAt
+        ? new Date(r.entry.createdAt).toISOString().slice(0, 10)
+        : 'unknown-date';
+      const tag = r.entry.epistemicTag ?? 'UNTAGGED';
+      const score = r.score.toFixed(2);
+      return `[${i + 1}] (${date} | ${tag} | ${score}) "${r.entry.content}"`;
+    })
+    .join('\n');
 }

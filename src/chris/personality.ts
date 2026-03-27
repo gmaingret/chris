@@ -1,17 +1,19 @@
-import { JOURNAL_SYSTEM_PROMPT } from '../llm/prompts.js';
+import { JOURNAL_SYSTEM_PROMPT, INTERROGATE_SYSTEM_PROMPT } from '../llm/prompts.js';
 
 type ChrisMode = 'JOURNAL' | 'INTERROGATE';
 
 /**
  * Return the system prompt for a given mode.
- * INTERROGATE is a placeholder until S05 implements retrieval-augmented responses.
+ * For INTERROGATE, interpolates the pensieveContext into the prompt template.
  */
-export function buildSystemPrompt(mode: ChrisMode): string {
+export function buildSystemPrompt(mode: ChrisMode, pensieveContext?: string): string {
   switch (mode) {
     case 'JOURNAL':
       return JOURNAL_SYSTEM_PROMPT;
     case 'INTERROGATE':
-      // S05 will replace this with a retrieval-augmented prompt
-      return JOURNAL_SYSTEM_PROMPT;
+      return INTERROGATE_SYSTEM_PROMPT.replace(
+        '{pensieveContext}',
+        pensieveContext || 'No relevant memories found.',
+      );
   }
 }

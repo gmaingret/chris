@@ -2,6 +2,7 @@ import { anthropic, HAIKU_MODEL } from '../llm/client.js';
 import { MODE_DETECTION_PROMPT } from '../llm/prompts.js';
 import { saveMessage } from '../memory/conversation.js';
 import { handleJournal } from './modes/journal.js';
+import { handleInterrogate } from './modes/interrogate.js';
 import { LLMError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 
@@ -68,8 +69,10 @@ export async function processMessage(
     // Save user message to conversation history
     await saveMessage(chatId, 'USER', text, mode);
 
-    // Route to handler (INTERROGATE falls through to JOURNAL until S05)
-    const response = await handleJournal(chatId, text);
+    // Route to handler based on detected mode
+    const response = mode === 'INTERROGATE'
+      ? await handleInterrogate(chatId, text)
+      : await handleJournal(chatId, text);
 
     // Save assistant response to conversation history
     await saveMessage(chatId, 'ASSISTANT', response, mode);
