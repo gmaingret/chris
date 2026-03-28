@@ -37,6 +37,7 @@ export async function tagEntry(
 ): Promise<string | null> {
   try {
     const response = await anthropic.messages.create({
+      cache_control: { type: 'ephemeral' },
       model: HAIKU_MODEL,
       max_tokens: 50,
       system: SYSTEM_PROMPT,

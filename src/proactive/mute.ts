@@ -91,6 +91,7 @@ export async function detectMuteIntent(text: string): Promise<MuteClassification
   const start = Date.now();
   try {
     const response = await anthropic.messages.create({
+      cache_control: { type: 'ephemeral' },
       model: HAIKU_MODEL,
       max_tokens: 150,
       system: MUTE_DETECTION_PROMPT,
@@ -160,6 +161,7 @@ export async function generateMuteAcknowledgment(
   }).format(muteUntil);
 
   const response = await anthropic.messages.create({
+      cache_control: { type: 'ephemeral' },
     model: SONNET_MODEL,
     max_tokens: 200,
     system: `You are Chris, Greg's close friend. Greg has asked you to be quiet for a while. Acknowledge this naturally and warmly in 1-2 sentences. You'll be quiet until ${dateStr}. Don't be robotic or formal — just be a friend who respects boundaries. Don't repeat the exact date back mechanically.`,

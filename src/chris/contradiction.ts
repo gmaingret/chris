@@ -116,6 +116,7 @@ export async function detectContradictions(
       .replace('{candidateEntries}', candidateEntries);
 
     const response = await anthropic.messages.create({
+      cache_control: { type: 'ephemeral' },
       model: HAIKU_MODEL,
       max_tokens: 500,
       system: prompt,

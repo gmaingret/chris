@@ -40,6 +40,7 @@ export async function detectMode(text: string): Promise<ChrisMode> {
   const start = Date.now();
   try {
     const response = await anthropic.messages.create({
+      cache_control: { type: 'ephemeral' },
       model: HAIKU_MODEL,
       max_tokens: 50,
       system: MODE_DETECTION_PROMPT,

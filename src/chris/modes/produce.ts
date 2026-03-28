@@ -49,6 +49,7 @@ export async function handleProduce(
 
   try {
     const response = await anthropic.messages.create({
+      cache_control: { type: 'ephemeral' },
       model: SONNET_MODEL,
       max_tokens: 1500,
       system: systemPrompt,
