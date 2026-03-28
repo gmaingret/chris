@@ -4,7 +4,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                    Docker Host (Proxmox 192.168.1.50)               │
+│                    Docker Host (Proxmox <PROXMOX_HOST>)               │
 │                                                                     │
 │  ┌──────────┐  ┌──────────────────────────┐  ┌───────────────────┐ │
 │  │ Telegram  │  │       Chris App           │  │   PostgreSQL 16   │ │
@@ -62,7 +62,7 @@
 - [x] Chris engine — Interrogate mode (Sonnet + retrieval-augmented, citation formatting)
 - [x] LLM integration (Anthropic client, three-tier model strategy)
 - [x] Conversation history persistence (last 20 messages)
-- [x] Docker Compose deployment on Proxmox 192.168.1.50
+- [x] Docker Compose deployment on Proxmox <PROXMOX_HOST>
 - [x] /health endpoint with DB probe + pgvector extension check
 - [x] Multi-stage Dockerfile with pre-cached bge-m3 model
 
@@ -154,4 +154,4 @@ These are implemented but their validation text in REQUIREMENTS.md was written b
 
 ## Current State
 
-All 5 milestones complete. Chris is deployed and running on Proxmox 192.168.1.50. 285 tests passing across 16 test files. Both containers healthy.
+All 5 milestones complete. Chris is deployed and running on Proxmox <PROXMOX_HOST>. 285 tests passing across 16 test files. Both containers healthy.
