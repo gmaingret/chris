@@ -17,6 +17,11 @@ export const config = {
   maxContextTokens: parseInt(process.env.MAX_CONTEXT_TOKENS || '80000', 10),
   logLevel: process.env.LOG_LEVEL || 'info',
 
+  // Model IDs — override via env vars when Anthropic retires/updates models
+  haikuModel: process.env.HAIKU_MODEL || 'claude-haiku-4-5-20251001',
+  sonnetModel: process.env.SONNET_MODEL || 'claude-sonnet-4-6',
+  opusModel: process.env.OPUS_MODEL || 'claude-opus-4-6',
+
   // Google OAuth (optional — required only for Gmail sync)
   googleClientId: process.env.GOOGLE_CLIENT_ID || '',
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
