@@ -161,10 +161,12 @@ export async function processMessage(
           await saveMessage(chatId, 'USER', `${text}\n\n${photoResult.photoContext}`, mode);
           userMessageSaved = true;
         } else {
-          // No photos found — fall back to journal mode with a natural response
+          // No photos found — tell the user naturally instead of falling back to journal
+          // which wouldn't know photos were attempted
           await saveMessage(chatId, 'USER', text, 'JOURNAL');
           userMessageSaved = true;
-          response = await handleJournal(chatId, text);
+          const noPhotosContext = `${text}\n\n[Note: Chris searched the photo library but found no matching photos for this request.]`;
+          response = await handleJournal(chatId, noPhotosContext);
         }
         break;
       }
