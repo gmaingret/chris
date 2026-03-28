@@ -1,3 +1,4 @@
+import { fetchWithTimeout } from '../utils/http.js';
 import { config } from '../config.js';
 import { ImmichSyncError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
@@ -61,7 +62,7 @@ export async function fetchAssets(
 
     let response: Response;
     try {
-      response = await fetch(`${baseUrl}/api/search/metadata`, {
+      response = await fetchWithTimeout(`${baseUrl}/api/search/metadata`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -133,7 +134,7 @@ export async function fetchRecentPhotos(options?: {
 
   let response: Response;
   try {
-    response = await fetch(`${baseUrl}/api/search/metadata`, {
+    response = await fetchWithTimeout(`${baseUrl}/api/search/metadata`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -180,7 +181,7 @@ export async function fetchAssetThumbnail(assetId: string): Promise<{
 
   let response: Response;
   try {
-    response = await fetch(`${baseUrl}/api/assets/${assetId}/thumbnail?size=preview`, {
+    response = await fetchWithTimeout(`${baseUrl}/api/assets/${assetId}/thumbnail?size=preview`, {
       headers: { 'x-api-key': apiKey },
     });
   } catch (err) {

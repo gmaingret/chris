@@ -104,7 +104,7 @@ export async function loadTokens(
 
   if (!found) return null;
 
-  const row = rows[0];
+  const row = rows[0]!;
   return {
     accessToken: row.accessToken,
     refreshToken: row.refreshToken ?? null,

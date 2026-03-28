@@ -30,7 +30,7 @@ const { mockDb, memoryRows, pensieveRows, conversationRows } = vi.hoisted(() => 
   const mockSelect = vi.fn().mockImplementation(() => {
     const idx = selectCallIndex;
     selectCallIndex = (selectCallIndex + 1) % 3;
-    return { from: chains[idx].from };
+    return { from: chains[idx]!.from };
   });
 
   const mockDb = {

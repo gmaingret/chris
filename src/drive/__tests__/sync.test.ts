@@ -82,7 +82,7 @@ function setupSelectChain(results: (() => any[])[]) {
   selectChain.from = vi.fn().mockReturnValue(selectChain);
   selectChain.where = vi.fn().mockReturnValue(selectChain);
   selectChain.limit = vi.fn().mockImplementation(() => {
-    const fn = results[Math.min(callIdx, results.length - 1)];
+    const fn = results[Math.min(callIdx, results.length - 1)]!;
     callIdx++;
     return Promise.resolve(fn());
   });
@@ -168,7 +168,7 @@ describe('Drive sync orchestrator', () => {
       expect(mockStorePensieveEntryUpsert).toHaveBeenCalledTimes(2);
 
       // Verify source and metadata shape
-      const firstCall = mockStorePensieveEntryUpsert.mock.calls[0];
+      const firstCall = mockStorePensieveEntryUpsert.mock.calls[0]!;
       expect(firstCall[1]).toBe('gdrive');
       expect(firstCall[2]).toMatchObject({ fileId: 'f1', fileName: 'Doc A' });
       expect(firstCall[3]).toBe('fileId');

@@ -59,7 +59,7 @@ export function stripQuotedReplies(text: string): string {
 export function collapseThread(thread: GmailThread): CollapsedThread {
   const messages = thread.messages ?? [];
   const subject = messages.length > 0
-    ? (getMessageHeader(messages[0], 'Subject') ?? '(no subject)')
+    ? (getMessageHeader(messages[0]!, 'Subject') ?? '(no subject)')
     : '(no subject)';
 
   const participantSet = new Set<string>();

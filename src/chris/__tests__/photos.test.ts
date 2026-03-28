@@ -166,7 +166,7 @@ describe('handlePhotos', () => {
 
     await handlePhotos(CHAT_ID, 'Show me photos');
 
-    const call = mockCreate.mock.calls[0][0];
+    const call = mockCreate.mock.calls[0]![0];
     const userMessage = call.messages[call.messages.length - 1];
     const metaBlock = userMessage.content.find(
       (b: any) => b.type === 'text' && b.text.includes('Photo metadata'),
@@ -220,7 +220,7 @@ describe('handlePhotos', () => {
     await handlePhotos(CHAT_ID, 'Mes photos');
 
     expect(mockFetchAssetThumbnail).toHaveBeenCalledTimes(3);
-    const call = mockCreate.mock.calls[0][0];
+    const call = mockCreate.mock.calls[0]![0];
     const userContent = call.messages[call.messages.length - 1].content;
     const imageBlocks = userContent.filter((b: any) => b.type === 'image');
     expect(imageBlocks).toHaveLength(3);

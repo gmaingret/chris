@@ -79,12 +79,12 @@ describe('searchPensieve', () => {
     const results = await searchPensieve('topic');
 
     expect(results).toHaveLength(2);
-    expect(results[0].entry.id).toBe('aaa');
-    expect(results[0].score).toBeCloseTo(0.9); // 1 - 0.1
-    expect(results[1].entry.id).toBe('bbb');
-    expect(results[1].score).toBeCloseTo(0.6); // 1 - 0.4
+    expect(results[0]!.entry.id).toBe('aaa');
+    expect(results[0]!.score).toBeCloseTo(0.9); // 1 - 0.1
+    expect(results[1]!.entry.id).toBe('bbb');
+    expect(results[1]!.score).toBeCloseTo(0.6); // 1 - 0.4
     // First result has higher similarity
-    expect(results[0].score).toBeGreaterThan(results[1].score);
+    expect(results[0]!.score).toBeGreaterThan(results[1]!.score);
   });
 
   it('respects the limit parameter', async () => {
@@ -133,9 +133,9 @@ describe('searchPensieve', () => {
 
     const results = await searchPensieve('relevant topic');
 
-    expect(results[0].entry.id).toBe('old');
-    expect(results[1].entry.id).toBe('new');
-    expect(results[0].score).toBeGreaterThan(results[1].score);
+    expect(results[0]!.entry.id).toBe('old');
+    expect(results[1]!.entry.id).toBe('new');
+    expect(results[0]!.score).toBeGreaterThan(results[1]!.score);
   });
 
   it('returns empty array when DB returns no rows', async () => {
@@ -229,8 +229,8 @@ describe('searchPensieve', () => {
 
     // Should return only one result for the entry — the best-scoring chunk
     expect(results).toHaveLength(1);
-    expect(results[0].entry.id).toBe('same-entry');
-    expect(results[0].score).toBeCloseTo(0.9); // 1 - 0.1 (best)
+    expect(results[0]!.entry.id).toBe('same-entry');
+    expect(results[0]!.score).toBeCloseTo(0.9); // 1 - 0.1 (best)
   });
 
   it('deduplicates across entries — keeps best chunk per entry — retrieval dedup', async () => {
@@ -247,10 +247,10 @@ describe('searchPensieve', () => {
     const results = await searchPensieve('query');
 
     expect(results).toHaveLength(2);
-    expect(results[0].entry.id).toBe('entry-a');
-    expect(results[0].score).toBeCloseTo(0.95); // 1 - 0.05
-    expect(results[1].entry.id).toBe('entry-b');
-    expect(results[1].score).toBeCloseTo(0.85); // 1 - 0.15
+    expect(results[0]!.entry.id).toBe('entry-a');
+    expect(results[0]!.score).toBeCloseTo(0.95); // 1 - 0.05
+    expect(results[1]!.entry.id).toBe('entry-b');
+    expect(results[1]!.score).toBeCloseTo(0.85); // 1 - 0.15
   });
 });
 describe('hybridSearch', () => {
@@ -271,11 +271,11 @@ describe('hybridSearch', () => {
     const results = await hybridSearch('topic');
 
     expect(results).toHaveLength(2);
-    expect(results[0].entry.id).toBe('aaa');
-    expect(results[0].score).toBeCloseTo(0.9); // 1 - 0.1
-    expect(results[1].entry.id).toBe('bbb');
-    expect(results[1].score).toBeCloseTo(0.6); // 1 - 0.4
-    expect(results[0].score).toBeGreaterThan(results[1].score);
+    expect(results[0]!.entry.id).toBe('aaa');
+    expect(results[0]!.score).toBeCloseTo(0.9); // 1 - 0.1
+    expect(results[1]!.entry.id).toBe('bbb');
+    expect(results[1]!.score).toBeCloseTo(0.6); // 1 - 0.4
+    expect(results[0]!.score).toBeGreaterThan(results[1]!.score);
   });
 
   it('filters by epistemic tags when tags option is provided', async () => {
@@ -288,7 +288,7 @@ describe('hybridSearch', () => {
     const results = await hybridSearch('feelings', { tags: ['EMOTION'] });
 
     expect(results).toHaveLength(1);
-    expect(results[0].entry.epistemicTag).toBe('EMOTION');
+    expect(results[0]!.entry.epistemicTag).toBe('EMOTION');
     // Verify that where was called (with the tag filter via and())
     expect(mockWhere).toHaveBeenCalled();
   });
@@ -311,9 +311,9 @@ describe('hybridSearch', () => {
 
     expect(results).toHaveLength(2);
     // Recent entry should rank higher after temporal weighting
-    expect(results[0].entry.id).toBe('recent');
-    expect(results[1].entry.id).toBe('old');
-    expect(results[0].score).toBeGreaterThan(results[1].score);
+    expect(results[0]!.entry.id).toBe('recent');
+    expect(results[1]!.entry.id).toBe('old');
+    expect(results[0]!.score).toBeGreaterThan(results[1]!.score);
   });
 
   it('minScore filters out entries with blended score below threshold', async () => {
@@ -328,8 +328,8 @@ describe('hybridSearch', () => {
     const results = await hybridSearch('topic', { minScore: 0.5 });
 
     expect(results).toHaveLength(1);
-    expect(results[0].entry.id).toBe('good');
-    expect(results[0].score).toBeGreaterThanOrEqual(0.5);
+    expect(results[0]!.entry.id).toBe('good');
+    expect(results[0]!.score).toBeGreaterThanOrEqual(0.5);
   });
 
   it('limit option restricts number of returned results', async () => {

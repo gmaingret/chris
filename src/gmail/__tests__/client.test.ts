@@ -39,7 +39,7 @@ describe('gmail client', () => {
         maxResults: 100,
       });
       expect(result.threads).toHaveLength(1);
-      expect(result.threads[0].id).toBe('t1');
+      expect(result.threads[0]!.id).toBe('t1');
     });
 
     it('passes pageToken for pagination', async () => {

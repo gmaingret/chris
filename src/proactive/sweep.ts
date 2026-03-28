@@ -111,7 +111,7 @@ export async function runSweep(): Promise<SweepResult> {
 
     // 5. Select winner by priority (lowest number = highest priority)
     fired.sort((a, b) => a.priority - b.priority);
-    const winner = fired[0];
+    const winner = fired[0]!;
 
     logger.info(
       {
@@ -142,9 +142,10 @@ export async function runSweep(): Promise<SweepResult> {
       ],
     });
 
+    const firstBlock = response.content[0];
     const messageText =
-      response.content[0].type === 'text'
-        ? response.content[0].text
+      firstBlock?.type === 'text'
+        ? firstBlock.text
         : '';
 
     if (!messageText) {

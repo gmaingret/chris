@@ -29,7 +29,7 @@ export const VALID_MODES = new Set<ChrisMode>([
  */
 function stripFences(text: string): string {
   const match = text.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
-  return match ? match[1].trim() : text.trim();
+  return match ? match[1]!.trim() : text.trim();
 }
 
 /**
@@ -87,6 +87,14 @@ export async function processMessage(
   userId: number,
   text: string,
 ): Promise<string> {
+  // Input validation
+  if (!text || text.trim().length === 0) {
+    throw new LLMError('Empty message text');
+  }
+  if (text.length > 100_000) {
+    throw new LLMError('Message too long (max 100,000 characters)');
+  }
+
   const start = Date.now();
 
   try {

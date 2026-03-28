@@ -21,6 +21,10 @@ export async function saveMessage(
     .values({ chatId, role, content, mode })
     .returning();
 
+  if (!row) {
+    throw new Error('Failed to insert conversation message — no row returned');
+  }
+
   logger.info({ chatId: chatId.toString(), role, mode }, 'memory.conversation.save');
 
   return row;

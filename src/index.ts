@@ -14,14 +14,45 @@ function createApp(): express.Express {
   app.use(express.json());
 
   app.get('/health', async (_req, res) => {
+    const checks: Record<string, 'ok' | 'error' | 'unconfigured'> = {};
+    let overallStatus: 'ok' | 'degraded' | 'error' = 'ok';
+
+    // Database check
     try {
       await sql`SELECT 1`;
-      res.json({ status: 'ok', timestamp: new Date().toISOString() });
+      checks.database = 'ok';
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown database error';
-      logger.warn({ err }, 'Health check failed');
-      res.status(503).json({ status: 'error', error: message });
+      checks.database = 'error';
+      overallStatus = 'error';
+      logger.warn({ err }, 'Health check: database failed');
     }
+
+    // Immich check (optional — only if configured)
+    if (config.immichApiUrl && config.immichApiKey) {
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 5000);
+        const immichResp = await fetch(
+          `${config.immichApiUrl.replace(/\/+$/, '')}/api/server/ping`,
+          { headers: { 'x-api-key': config.immichApiKey }, signal: controller.signal },
+        );
+        clearTimeout(timer);
+        checks.immich = immichResp.ok ? 'ok' : 'error';
+        if (!immichResp.ok) overallStatus = overallStatus === 'error' ? 'error' : 'degraded';
+      } catch {
+        checks.immich = 'error';
+        if (overallStatus !== 'error') overallStatus = 'degraded';
+      }
+    } else {
+      checks.immich = 'unconfigured';
+    }
+
+    const statusCode = overallStatus === 'error' ? 503 : 200;
+    res.status(statusCode).json({
+      status: overallStatus,
+      checks,
+      timestamp: new Date().toISOString(),
+    });
   });
 
   return app;

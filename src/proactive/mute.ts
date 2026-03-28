@@ -109,7 +109,7 @@ export async function detectMuteIntent(text: string): Promise<MuteClassification
     // K003: Strip markdown fences before parsing
     let jsonText = (textBlock as { type: 'text'; text: string }).text.trim();
     const fenceMatch = jsonText.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
-    if (fenceMatch) jsonText = fenceMatch[1].trim();
+    if (fenceMatch) jsonText = fenceMatch[1]!.trim();
 
     const parsed: HaikuMuteResponse = JSON.parse(jsonText);
 

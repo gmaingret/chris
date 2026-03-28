@@ -96,7 +96,7 @@ export async function runOpusAnalysis(
     const fenceMatch = jsonText.match(
       /```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/,
     );
-    if (fenceMatch) jsonText = fenceMatch[1].trim();
+    if (fenceMatch) jsonText = fenceMatch[1]!.trim();
 
     const parsed: OpusAnalysisResult = JSON.parse(jsonText);
 

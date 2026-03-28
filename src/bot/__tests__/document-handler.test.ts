@@ -101,6 +101,7 @@ describe('document handler', () => {
     // Verify file download URL construction
     expect(mockFetch).toHaveBeenCalledWith(
       'https://api.telegram.org/file/bottest-bot-token/documents/file_0.pdf',
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
 
     // Verify extraction called with buffer and MIME type

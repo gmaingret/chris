@@ -183,6 +183,20 @@ export async function handlePhotos(
 
     return responseText;
   } catch (error) {
+    // Graceful degradation: if Immich is down, return a friendly message instead of crashing
+    const errMsg = error instanceof Error ? error.message : String(error);
+    const isImmichDown = /network|ECONNREFUSED|ENOTFOUND|timeout|Immich API/i.test(errMsg);
+
+    if (isImmichDown) {
+      const latencyMs = Date.now() - start;
+      logger.warn(
+        { chatId: chatId.toString(), error: errMsg, latencyMs },
+        'chris.photos.immich_unavailable',
+      );
+      // Return empty string — engine will fall back to journal mode
+      return '';
+    }
+
     if (error instanceof LLMError) throw error;
 
     const latencyMs = Date.now() - start;

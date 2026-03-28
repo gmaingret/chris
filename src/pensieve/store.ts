@@ -35,6 +35,10 @@ export async function storePensieveEntry(
       })
       .returning();
 
+    if (!entry) {
+      throw new StorageError('Insert returned no rows');
+    }
+
     logger.info({ entryId: entry.id, source }, 'pensieve.store');
 
     return entry;
@@ -90,6 +94,10 @@ export async function storePensieveEntryDedup(
         metadata: metadata ?? null,
       })
       .returning();
+
+    if (!entry) {
+      throw new StorageError('Insert returned no rows');
+    }
 
     logger.info({ entryId: entry.id, source, contentHash }, 'pensieve.store');
 
@@ -149,7 +157,7 @@ export async function storePensieveEntryUpsert(
       .limit(1);
 
     if (existing.length > 0) {
-      const entry = existing[0];
+      const entry = existing[0]!;
 
       // Same hash → skip
       if (entry.contentHash === contentHash) {
@@ -170,6 +178,10 @@ export async function storePensieveEntryUpsert(
         })
         .where(eq(pensieveEntries.id, entry.id))
         .returning();
+
+      if (!updated) {
+        throw new StorageError('Update returned no rows');
+      }
 
       await db
         .delete(pensieveEmbeddings)
@@ -193,6 +205,10 @@ export async function storePensieveEntryUpsert(
         metadata: metadata ?? null,
       })
       .returning();
+
+    if (!entry) {
+      throw new StorageError('Insert returned no rows');
+    }
 
     logger.info(
       { entryId: entry.id, action: 'created', externalId: String(externalId) },

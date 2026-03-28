@@ -201,7 +201,7 @@ describe('sync command handler', () => {
       await handleSyncCommand(ctx);
 
       // Extract the callback passed to syncImmich and invoke it
-      const sendMessage = mockSyncImmich.mock.calls[0][0];
+      const sendMessage = mockSyncImmich.mock.calls[0]![0];
       await sendMessage('progress update');
       expect(ctx.reply).toHaveBeenCalledWith('progress update');
     });

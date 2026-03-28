@@ -31,6 +31,7 @@ export async function buildMessageHistory(
 
   for (const row of rows) {
     const role = ROLE_MAP[row.role];
+    if (!role) continue; // skip unknown roles
     const last = merged[merged.length - 1];
 
     if (last && last.role === role) {

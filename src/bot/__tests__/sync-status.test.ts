@@ -114,7 +114,7 @@ describe('/sync status command', () => {
     const ctx = createCtx('/sync status');
     await handleSyncCommand(ctx);
 
-    const reply = ctx.reply.mock.calls[0][0] as string;
+    const reply = ctx.reply.mock.calls[0]![0] as string;
     expect(reply).toContain('📊 Sync Status');
     expect(reply).toContain('📄 Drive');
     expect(reply).toContain('📧 Gmail');
@@ -132,7 +132,7 @@ describe('/sync status command', () => {
     const ctx = createCtx('/sync status');
     await handleSyncCommand(ctx);
 
-    const reply = ctx.reply.mock.calls[0][0] as string;
+    const reply = ctx.reply.mock.calls[0]![0] as string;
     expect(reply).toContain('📧 Gmail');
     expect(reply).not.toContain('📷 Photos');
     expect(reply).not.toContain('📄 Drive');
@@ -151,7 +151,7 @@ describe('/sync status command', () => {
     const ctx = createCtx('/sync status');
     await handleSyncCommand(ctx);
 
-    const reply = ctx.reply.mock.calls[0][0] as string;
+    const reply = ctx.reply.mock.calls[0]![0] as string;
     expect(reply).toContain('⚠️');
     expect(reply).toContain('error');
     expect(reply).toContain('OAuth token expired');
@@ -165,7 +165,7 @@ describe('/sync status command', () => {
     const ctx = createCtx('/sync status');
     await handleSyncCommand(ctx);
 
-    const reply = ctx.reply.mock.calls[0][0] as string;
+    const reply = ctx.reply.mock.calls[0]![0] as string;
     expect(reply).toContain('🔄');
   });
 
@@ -177,7 +177,7 @@ describe('/sync status command', () => {
     const ctx = createCtx('/sync status');
     await handleSyncCommand(ctx);
 
-    const reply = ctx.reply.mock.calls[0][0] as string;
+    const reply = ctx.reply.mock.calls[0]![0] as string;
     expect(reply).toContain('⏳');
     expect(reply).toContain('never');
   });

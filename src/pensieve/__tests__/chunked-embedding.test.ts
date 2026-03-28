@@ -80,8 +80,8 @@ describe('chunkText — chunked embedding', () => {
 
     expect(result.length).toBeGreaterThan(1);
     // The end of chunk[0] should overlap with start of chunk[1]
-    const tailOfFirst = result[0].slice(-20);
-    const headOfSecond = result[1].slice(0, 20);
+    const tailOfFirst = result[0]!.slice(-20);
+    const headOfSecond = result[1]!.slice(0, 20);
     expect(tailOfFirst).toBe(headOfSecond);
   });
 

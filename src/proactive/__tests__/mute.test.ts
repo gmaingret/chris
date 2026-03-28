@@ -274,7 +274,7 @@ describe('generateMuteAcknowledgment', () => {
     );
 
     // System prompt should contain a formatted date string
-    const systemPrompt = mockCreate.mock.calls[0][0].system;
+    const systemPrompt = mockCreate.mock.calls[0]![0].system;
     expect(systemPrompt).toMatch(/April/);
   });
 });

@@ -59,7 +59,7 @@ export function createCommitmentTrigger(staleDays: number): TriggerDetector {
       }
 
       // Use the oldest entry (first in ASC order)
-      const oldest = staleEntries[0];
+      const oldest = staleEntries[0]!;
       const oldestDate = new Date(oldest.createdAt!);
       const ageDays = Math.round(
         (Date.now() - oldestDate.getTime()) / MS_PER_DAY,

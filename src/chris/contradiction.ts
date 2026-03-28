@@ -43,7 +43,7 @@ type HaikuContradictionResult = {
  */
 function stripFences(text: string): string {
   const match = text.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
-  return match ? match[1].trim() : text.trim();
+  return match ? match[1]!.trim() : text.trim();
 }
 
 // ── Core Detection ─────────────────────────────────────────────────────────
@@ -185,7 +185,7 @@ export async function detectContradictions(
         continue; // invalid index from Haiku
       }
 
-      const matchedEntry = candidates[candidateIndex].entry;
+      const matchedEntry = candidates[candidateIndex]!.entry;
 
       // Dedup: check if this contradiction pair already exists
       if (entryId) {

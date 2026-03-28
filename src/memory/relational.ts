@@ -24,7 +24,7 @@ export type RelationalMemory = {
  */
 function stripFences(text: string): string {
   const match = text.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
-  return match ? match[1].trim() : text.trim();
+  return match ? match[1]!.trim() : text.trim();
 }
 
 /**

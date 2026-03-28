@@ -13,7 +13,7 @@ describe('M003 integration: real DB', () => {
   beforeAll(async () => {
     // Verify DB connection
     const result = await sql`SELECT 1 as ok`;
-    expect(result[0].ok).toBe(1);
+    expect(result[0]!.ok).toBe(1);
   });
 
   afterAll(async () => {
@@ -40,11 +40,11 @@ describe('M003 integration: real DB', () => {
 
       const rows = await db.select().from(syncStatus).where(eq(syncStatus.source, 'gmail'));
       expect(rows).toHaveLength(1);
-      expect(rows[0].source).toBe('gmail');
-      expect(rows[0].status).toBe('complete');
-      expect(rows[0].entryCount).toBe(42);
-      expect(rows[0].errorCount).toBe(0);
-      expect(rows[0].lastHistoryId).toBe('12345');
+      expect(rows[0]!.source).toBe('gmail');
+      expect(rows[0]!.status).toBe('complete');
+      expect(rows[0]!.entryCount).toBe(42);
+      expect(rows[0]!.errorCount).toBe(0);
+      expect(rows[0]!.lastHistoryId).toBe('12345');
     });
 
     it('enforces unique constraint on source', async () => {
@@ -102,11 +102,11 @@ describe('M003 integration: real DB', () => {
         .where(eq(syncStatus.source, 'gmail'));
 
       const rows = await db.select().from(syncStatus).where(eq(syncStatus.source, 'gmail'));
-      expect(rows[0].status).toBe('error');
-      expect(rows[0].entryCount).toBe(15);
-      expect(rows[0].errorCount).toBe(3);
-      expect(rows[0].lastError).toBe('OAuth token expired');
-      expect(rows[0].lastSyncAt).toBeInstanceOf(Date);
+      expect(rows[0]!.status).toBe('error');
+      expect(rows[0]!.entryCount).toBe(15);
+      expect(rows[0]!.errorCount).toBe(3);
+      expect(rows[0]!.lastError).toBe('OAuth token expired');
+      expect(rows[0]!.lastSyncAt).toBeInstanceOf(Date);
     });
   });
 
@@ -122,10 +122,10 @@ describe('M003 integration: real DB', () => {
 
       const rows = await db.select().from(oauthTokens).where(eq(oauthTokens.provider, 'google'));
       expect(rows).toHaveLength(1);
-      expect(rows[0].provider).toBe('google');
-      expect(rows[0].accessToken).toBe('test-access-token');
-      expect(rows[0].refreshToken).toBe('test-refresh-token');
-      expect(rows[0].scope).toBe('gmail.readonly drive.readonly');
+      expect(rows[0]!.provider).toBe('google');
+      expect(rows[0]!.accessToken).toBe('test-access-token');
+      expect(rows[0]!.refreshToken).toBe('test-refresh-token');
+      expect(rows[0]!.scope).toBe('gmail.readonly drive.readonly');
     });
 
     it('enforces unique constraint on provider', async () => {
@@ -165,9 +165,9 @@ describe('M003 integration: real DB', () => {
         .returning();
 
       expect(inserted).toHaveLength(1);
-      expect(inserted[0].source).toBe('gmail');
-      expect(inserted[0].metadata).toEqual({ threadId: 'abc123', subject: 'Q1 Planning' });
-      expect(inserted[0].contentHash).toBe('hash-abc123');
+      expect(inserted[0]!.source).toBe('gmail');
+      expect(inserted[0]!.metadata).toEqual({ threadId: 'abc123', subject: 'Q1 Planning' });
+      expect(inserted[0]!.contentHash).toBe('hash-abc123');
     });
 
     it('stores entries from multiple sources', async () => {
@@ -208,11 +208,12 @@ describe('M003 integration: real DB', () => {
           contentHash: 'hash-chunked',
         })
         .returning();
+      expect(entry).toBeDefined();
 
       // Insert 3 embedding chunks
       for (let i = 0; i < 3; i++) {
         await db.insert(pensieveEmbeddings).values({
-          entryId: entry.id,
+          entryId: entry!.id,
           embedding: Array(1024).fill(0.1),
           chunkIndex: i,
         });
@@ -221,7 +222,7 @@ describe('M003 integration: real DB', () => {
       const embeddings = await db
         .select()
         .from(pensieveEmbeddings)
-        .where(eq(pensieveEmbeddings.entryId, entry.id));
+        .where(eq(pensieveEmbeddings.entryId, entry!.id));
       expect(embeddings).toHaveLength(3);
       const indices = embeddings.map((e) => e.chunkIndex).sort();
       expect(indices).toEqual([0, 1, 2]);
@@ -258,7 +259,7 @@ describe('M003 integration: real DB', () => {
       // 3. Add embeddings for each entry
       for (const entry of entries) {
         await db.insert(pensieveEmbeddings).values({
-          entryId: entry.id,
+          entryId: entry!.id,
           embedding: Array(1024).fill(0.01),
           chunkIndex: 0,
         });
@@ -278,8 +279,8 @@ describe('M003 integration: real DB', () => {
 
       // 5. Verify final state
       const [status] = await db.select().from(syncStatus).where(eq(syncStatus.source, 'gmail'));
-      expect(status.status).toBe('complete');
-      expect(status.entryCount).toBe(3);
+      expect(status!.status).toBe('complete');
+      expect(status!.entryCount).toBe(3);
 
       const allEntries = await db
         .select()

@@ -151,7 +151,7 @@ describe('runOpusAnalysis', () => {
 
     await runOpusAnalysis('test context');
 
-    const callArgs = mockCreate.mock.calls[0][0];
+    const callArgs = mockCreate.mock.calls[0]![0];
     expect(callArgs.system).toContain('ONLY report findings that are directly grounded');
     expect(callArgs.system).toContain('Do NOT infer, speculate, or hallucinate');
     expect(callArgs.system).toContain('False negatives are safe');
@@ -162,7 +162,7 @@ describe('runOpusAnalysis', () => {
 
     await runOpusAnalysis('my sweep context data');
 
-    const callArgs = mockCreate.mock.calls[0][0];
+    const callArgs = mockCreate.mock.calls[0]![0];
     expect(callArgs.messages[0].content).toBe('my sweep context data');
   });
 
@@ -171,7 +171,7 @@ describe('runOpusAnalysis', () => {
 
     await runOpusAnalysis('test');
 
-    const callArgs = mockCreate.mock.calls[0][0];
+    const callArgs = mockCreate.mock.calls[0]![0];
     expect(callArgs.model).toBe('claude-opus-4-6');
     expect(callArgs.max_tokens).toBe(512);
   });

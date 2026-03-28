@@ -215,7 +215,7 @@ describe('buildMessageHistory', () => {
     const result = await buildMessageHistory(12345n);
 
     expect(result).toHaveLength(2);
-    expect(result[0].content).toBe('First\n\nSecond');
-    expect(result[1].content).toBe('Response');
+    expect(result[0]!.content).toBe('First\n\nSecond');
+    expect(result[1]!.content).toBe('Response');
   });
 });

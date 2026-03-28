@@ -327,7 +327,7 @@ describe('proactive sweep', () => {
     );
 
     // System prompt should NOT contain the placeholder
-    const callArgs = mockCreate.mock.calls[0][0];
+    const callArgs = mockCreate.mock.calls[0]![0];
     expect(callArgs.system).not.toContain('{triggerContext}');
   });
 

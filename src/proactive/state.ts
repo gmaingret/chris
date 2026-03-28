@@ -15,7 +15,7 @@ async function getValue(key: string): Promise<unknown | null> {
     .from(proactiveState)
     .where(eq(proactiveState.key, key))
     .limit(1);
-  return rows.length > 0 ? rows[0].value : null;
+  return rows.length > 0 ? rows[0]!.value : null;
 }
 
 async function setValue(key: string, value: unknown): Promise<void> {

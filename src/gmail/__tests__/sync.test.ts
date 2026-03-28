@@ -83,7 +83,7 @@ function setupSelectChain(results: (() => any[])[]) {
   selectChain.from = vi.fn().mockReturnValue(selectChain);
   selectChain.where = vi.fn().mockReturnValue(selectChain);
   selectChain.limit = vi.fn().mockImplementation(() => {
-    const fn = results[Math.min(callIdx, results.length - 1)];
+    const fn = results[Math.min(callIdx, results.length - 1)]!;
     callIdx++;
     return Promise.resolve(fn());
   });

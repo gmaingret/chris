@@ -1,3 +1,4 @@
+import { fetchWithTimeout } from '../../utils/http.js';
 import { config } from '../../config.js';
 import { logger } from '../../utils/logger.js';
 import { extractText } from '../../utils/file-extract.js';
@@ -39,7 +40,7 @@ export async function handleDocument(ctx: {
 
     // 2. Download the file binary
     const fileUrl = `https://api.telegram.org/file/bot${config.telegramBotToken}/${file.file_path}`;
-    const response = await fetch(fileUrl);
+    const response = await fetchWithTimeout(fileUrl, { timeoutMs: 60_000 });
     if (!response.ok) {
       throw new Error(`File download failed: HTTP ${response.status}`);
     }

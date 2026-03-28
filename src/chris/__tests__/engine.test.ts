@@ -610,8 +610,8 @@ describe('processMessage (engine)', () => {
 
     // Two calls: one USER, one ASSISTANT
     expect(mockSaveMessage).toHaveBeenCalledTimes(2);
-    expect(mockSaveMessage.mock.calls[0][1]).toBe('USER');
-    expect(mockSaveMessage.mock.calls[1][1]).toBe('ASSISTANT');
+    expect(mockSaveMessage.mock.calls[0]![1]).toBe('USER');
+    expect(mockSaveMessage.mock.calls[1]![1]).toBe('ASSISTANT');
   });
 
   it('logs chris.engine.process on success', async () => {
@@ -1025,5 +1025,20 @@ describe('processMessage (engine)', () => {
     );
     expect(assistantCall).toBeDefined();
     expect(assistantCall![2]).toContain('💡 I noticed something');
+  });
+
+  // ── Input validation tests ────────────────────────────────────────────────
+
+  it('rejects empty string', async () => {
+    await expect(processMessage(CHAT_ID, USER_ID, '')).rejects.toThrow('Empty message text');
+  });
+
+  it('rejects whitespace-only string', async () => {
+    await expect(processMessage(CHAT_ID, USER_ID, '   ')).rejects.toThrow('Empty message text');
+  });
+
+  it('rejects message over 100,000 characters', async () => {
+    const longText = 'a'.repeat(100_001);
+    await expect(processMessage(CHAT_ID, USER_ID, longText)).rejects.toThrow('Message too long');
   });
 });

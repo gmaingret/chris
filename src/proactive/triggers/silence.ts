@@ -41,7 +41,7 @@ function computeAverageGap(timestamps: Date[]): number {
 
   let totalGapMs = 0;
   for (let i = 0; i < timestamps.length - 1; i++) {
-    totalGapMs += timestamps[i].getTime() - timestamps[i + 1].getTime();
+    totalGapMs += timestamps[i]!.getTime() - timestamps[i + 1]!.getTime();
   }
 
   return totalGapMs / (timestamps.length - 1) / MS_PER_HOUR;
@@ -78,8 +78,8 @@ export function createSilenceTrigger(
       }
 
       const timestamps = messages.map((m) => new Date(m.createdAt!));
-      const oldest = timestamps[timestamps.length - 1];
-      const newest = timestamps[0];
+      const oldest = timestamps[timestamps.length - 1]!;
+      const newest = timestamps[0]!;
 
       // Check that history spans at least baselineDays
       const historySpanMs = newest.getTime() - oldest.getTime();

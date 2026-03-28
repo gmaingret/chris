@@ -68,7 +68,7 @@ export async function embedText(text: string): Promise<number[] | null> {
     const vectors: number[][] = output.tolist();
     const latencyMs = Date.now() - start;
     logger.info({ latencyMs, model: config.embeddingModel }, 'pensieve.embed.latency');
-    return vectors[0];
+    return vectors[0] ?? null;
   } catch (error) {
     logger.warn(
       { error: error instanceof Error ? error.message : String(error) },
@@ -126,7 +126,8 @@ export async function embedAndStoreChunked(
     const chunks = chunkText(content);
 
     for (let i = 0; i < chunks.length; i++) {
-      const embedding = await embedText(chunks[i]);
+      const chunk = chunks[i]!;
+      const embedding = await embedText(chunk);
       if (!embedding) {
         logger.warn(
           { entryId, chunkIndex: i, error: 'embedText returned null' },

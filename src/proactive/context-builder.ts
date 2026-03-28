@@ -166,9 +166,9 @@ function buildGapAnalysis(
     .map((r) => new Date(r.createdAt!).getTime())
     .sort((a, b) => b - a); // DESC
 
-  const lastMessageDate = new Date(timestamps[0]);
+  const lastMessageDate = new Date(timestamps[0]!);
   const daysSinceLast = Math.round(
-    (Date.now() - timestamps[0]) / MS_PER_DAY * 10,
+    (Date.now() - timestamps[0]!) / MS_PER_DAY * 10,
   ) / 10;
 
   // Count messages in last 30 days
@@ -180,7 +180,7 @@ function buildGapAnalysis(
   if (timestamps.length >= 2) {
     let totalGap = 0;
     for (let i = 0; i < timestamps.length - 1; i++) {
-      totalGap += timestamps[i] - timestamps[i + 1];
+      totalGap += timestamps[i]! - timestamps[i + 1]!;
     }
     avgGapDays =
       Math.round((totalGap / (timestamps.length - 1) / MS_PER_DAY) * 10) / 10;

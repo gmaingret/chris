@@ -201,7 +201,7 @@ describe('detectContradictions', () => {
       description: 'Previously said never corporate, now excited about corporate offer',
       confidence: 0.92,
     });
-    expect(results[0].entryDate).toBeInstanceOf(Date);
+    expect(results[0]!.entryDate).toBeInstanceOf(Date);
   });
 
   // ── 2. No contradiction ────────────────────────────────────────────────
@@ -251,7 +251,7 @@ describe('detectContradictions', () => {
     const results = await detectContradictions(NEW_TEXT, 'entry-new-1');
 
     expect(results).toHaveLength(1);
-    expect(results[0].confidence).toBe(0.75);
+    expect(results[0]!.confidence).toBe(0.75);
   });
 
   // ── 4. Short message skip ──────────────────────────────────────────────
@@ -312,7 +312,7 @@ describe('detectContradictions', () => {
     const results = await detectContradictions(NEW_TEXT, 'entry-new-1');
 
     expect(results).toHaveLength(1);
-    expect(results[0].confidence).toBe(0.90);
+    expect(results[0]!.confidence).toBe(0.90);
   });
 
   // ── 8. Deduplication ───────────────────────────────────────────────────

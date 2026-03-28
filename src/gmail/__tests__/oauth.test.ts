@@ -298,7 +298,7 @@ describe('oauth', () => {
       await getAuthenticatedClient();
 
       // Get the refresh callback registered via client.on('tokens', cb)
-      const refreshCallback = oauthClientMock.on.mock.calls[0][1];
+      const refreshCallback = oauthClientMock.on.mock.calls[0]![1];
       expect(refreshCallback).toBeDefined();
 
       // Simulate token refresh
