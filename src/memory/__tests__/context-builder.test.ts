@@ -53,7 +53,6 @@ function makeResult(
       source: 'telegram',
       deletedAt: null,
       metadata: null,
-      updatedAt: null,
     },
     score: overrides.score ?? 0.85,
   } as SearchResult;
@@ -217,5 +216,75 @@ describe('buildMessageHistory', () => {
     expect(result).toHaveLength(2);
     expect(result[0]!.content).toBe('First\n\nSecond');
     expect(result[1]!.content).toBe('Response');
+  });
+});
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+describe('buildRelationalContext', async () => {
+  const { buildRelationalContext } = await import('../context-builder.js');
+
+  it('returns fallback message for empty array', () => {
+    const result = buildRelationalContext([]);
+    expect(result).toBe('No observations accumulated yet.');
+  });
+
+  it('formats a single observation with date, type, and confidence', () => {
+    const result = buildRelationalContext([
+      {
+        id: 'rm1',
+        type: 'PATTERN',
+        content: 'Avoids conflict in work situations',
+        confidence: 0.85,
+        createdAt: new Date('2026-03-15'),
+      },
+    ]);
+
+    expect(result).toContain('[1]');
+    expect(result).toContain('2026-03-15');
+    expect(result).toContain('PATTERN');
+    expect(result).toContain('0.85');
+    expect(result).toContain('Avoids conflict');
+  });
+
+  it('formats multiple observations as numbered list', () => {
+    const result = buildRelationalContext([
+      {
+        id: 'rm1', type: 'PATTERN', content: 'First',
+        confidence: 0.8, createdAt: new Date('2026-03-10'),
+      },
+      {
+        id: 'rm2', type: 'INSIGHT', content: 'Second',
+        confidence: 0.6, createdAt: new Date('2026-03-12'),
+      },
+    ]);
+
+    expect(result).toContain('[1]');
+    expect(result).toContain('[2]');
+    expect(result).toContain('PATTERN');
+    expect(result).toContain('INSIGHT');
+  });
+
+  it('uses default confidence 0.50 when null', () => {
+    const result = buildRelationalContext([
+      {
+        id: 'rm1', type: 'OBSERVATION', content: 'Something',
+        confidence: null, createdAt: new Date('2026-03-15'),
+      },
+    ]);
+
+    expect(result).toContain('0.50');
+  });
+
+  it('uses unknown-date when createdAt is null', () => {
+    const result = buildRelationalContext([
+      {
+        id: 'rm1', type: 'CONCERN', content: 'Something',
+        confidence: 0.7, createdAt: null,
+      },
+    ]);
+
+    expect(result).toContain('unknown-date');
   });
 });

@@ -254,4 +254,42 @@ describe('handlePhotos', () => {
       'chris.photos.response',
     );
   });
+
+  it('returns empty string when Immich throws network error (graceful degradation)', async () => {
+    mockFetchRecentPhotos.mockRejectedValue(new TypeError('fetch failed: ECONNREFUSED'));
+
+    const result = await handlePhotos(CHAT_ID, 'Show me photos');
+
+    expect(result).toBe('');
+    expect(mockLogWarn).toHaveBeenCalledWith(
+      expect.objectContaining({ error: expect.stringContaining('ECONNREFUSED') }),
+      'chris.photos.immich_unavailable',
+    );
+  });
+
+  it('returns empty string when Immich times out', async () => {
+    mockFetchRecentPhotos.mockRejectedValue(new Error('timeout'));
+
+    const result = await handlePhotos(CHAT_ID, 'Show me photos');
+
+    expect(result).toBe('');
+  });
+
+  it('throws LLMError when Claude vision fails (not Immich)', async () => {
+    mockFetchRecentPhotos.mockResolvedValue([MOCK_ASSET]);
+    mockFetchAssetThumbnail.mockResolvedValue(MOCK_THUMB);
+    mockCreate.mockRejectedValue(new Error('Sonnet unavailable'));
+
+    await expect(handlePhotos(CHAT_ID, 'Show me photos')).rejects.toThrow();
+  });
+
+  it('parses "last week" / "la semaine dernière" correctly', () => {
+    const en = parseDateHint('What did I photograph last week?');
+    expect(en.takenAfter).toBeDefined();
+    expect(en.takenBefore).toBeDefined();
+
+    const fr = parseDateHint('Mes photos de la semaine dernière');
+    expect(fr.takenAfter).toBeDefined();
+    expect(fr.takenBefore).toBeDefined();
+  });
 });

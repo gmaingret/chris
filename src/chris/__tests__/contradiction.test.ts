@@ -498,3 +498,25 @@ describe('resolveContradiction', () => {
     );
   });
 });
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+describe('detectContradictions — no candidates path', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns empty and logs skip when hybridSearch returns results that all get filtered', async () => {
+    // hybridSearch returns results but all have the same entryId as the new entry
+    mockHybridSearch.mockResolvedValue([
+      { entry: { id: 'same-entry', content: 'test', createdAt: new Date() }, score: 0.9 },
+    ]);
+
+    const result = await detectContradictions('Some new text that is long enough', 'same-entry');
+
+    expect(result).toEqual([]);
+  });
+});

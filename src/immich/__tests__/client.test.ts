@@ -179,3 +179,149 @@ describe('Immich client', () => {
     (configMod.config as any).immichApiUrl = origUrl;
   });
 });
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+import { fetchRecentPhotos, fetchAssetThumbnail } from '../client.js';
+
+describe('fetchRecentPhotos', () => {
+  let fetchSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(globalThis, 'fetch');
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('fetches recent IMAGE assets with default limit 10', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({ assets: { items: [makeAsset('a1'), makeAsset('a2')] } }),
+    );
+
+    const result = await fetchRecentPhotos();
+
+    expect(result).toHaveLength(2);
+    const body = JSON.parse(fetchSpy.mock.calls[0]![1]?.body as string);
+    expect(body.type).toBe('IMAGE');
+    expect(body.size).toBe(10);
+    expect(body.order).toBe('desc');
+    expect(body.withExif).toBe(true);
+    expect(body.withPeople).toBe(true);
+  });
+
+  it('passes takenAfter and takenBefore when provided', async () => {
+    fetchSpy.mockResolvedValueOnce(jsonResponse({ assets: { items: [] } }));
+
+    await fetchRecentPhotos({
+      takenAfter: '2026-03-28T00:00:00.000Z',
+      takenBefore: '2026-03-28T23:59:59.999Z',
+      limit: 5,
+    });
+
+    const body = JSON.parse(fetchSpy.mock.calls[0]![1]?.body as string);
+    expect(body.takenAfter).toBe('2026-03-28T00:00:00.000Z');
+    expect(body.takenBefore).toBe('2026-03-28T23:59:59.999Z');
+    expect(body.size).toBe(5);
+  });
+
+  it('returns empty array when no assets match', async () => {
+    fetchSpy.mockResolvedValueOnce(jsonResponse({ assets: { items: [] } }));
+
+    const result = await fetchRecentPhotos();
+
+    expect(result).toEqual([]);
+  });
+
+  it('throws ImmichSyncError on network failure', async () => {
+    fetchSpy.mockRejectedValueOnce(new TypeError('fetch failed'));
+
+    await expect(fetchRecentPhotos()).rejects.toThrow(ImmichSyncError);
+  });
+
+  it('throws ImmichSyncError on non-200 response', async () => {
+    fetchSpy.mockResolvedValueOnce(new Response('Unauthorized', { status: 401 }));
+
+    await expect(fetchRecentPhotos()).rejects.toThrow('HTTP 401');
+  });
+
+  it('throws ImmichSyncError on unparseable JSON', async () => {
+    fetchSpy.mockResolvedValueOnce(new Response('not json', { status: 200 }));
+
+    await expect(fetchRecentPhotos()).rejects.toThrow(ImmichSyncError);
+  });
+
+  it('throws ImmichSyncError when API URL not configured', async () => {
+    const configMod = await import('../../config.js');
+    const origUrl = configMod.config.immichApiUrl;
+    (configMod.config as any).immichApiUrl = '';
+
+    await expect(fetchRecentPhotos()).rejects.toThrow('not configured');
+
+    (configMod.config as any).immichApiUrl = origUrl;
+  });
+});
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+describe('fetchAssetThumbnail', () => {
+  let fetchSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(globalThis, 'fetch');
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('returns base64 encoded JPEG thumbnail', async () => {
+    const fakeImage = Buffer.from('fake-jpeg-data');
+    fetchSpy.mockResolvedValueOnce(new Response(fakeImage, { status: 200 }));
+
+    const result = await fetchAssetThumbnail('asset-123');
+
+    expect(result.base64).toBe(fakeImage.toString('base64'));
+    expect(result.mediaType).toBe('image/jpeg');
+  });
+
+  it('calls correct thumbnail URL with preview size', async () => {
+    fetchSpy.mockResolvedValueOnce(new Response(Buffer.from('img'), { status: 200 }));
+
+    await fetchAssetThumbnail('asset-456');
+
+    expect(fetchSpy.mock.calls[0]![0]).toContain('/api/assets/asset-456/thumbnail?size=preview');
+  });
+
+  it('passes API key header', async () => {
+    fetchSpy.mockResolvedValueOnce(new Response(Buffer.from('img'), { status: 200 }));
+
+    await fetchAssetThumbnail('asset-789');
+
+    const headers = fetchSpy.mock.calls[0]![1]?.headers as Record<string, string>;
+    expect(headers['x-api-key']).toBe('test-api-key');
+  });
+
+  it('throws ImmichSyncError on non-200 response', async () => {
+    fetchSpy.mockResolvedValueOnce(new Response('Not Found', { status: 404 }));
+
+    await expect(fetchAssetThumbnail('bad-id')).rejects.toThrow('HTTP 404');
+  });
+
+  it('throws ImmichSyncError on network error', async () => {
+    fetchSpy.mockRejectedValueOnce(new TypeError('fetch failed'));
+
+    await expect(fetchAssetThumbnail('asset-1')).rejects.toThrow(ImmichSyncError);
+  });
+
+  it('throws ImmichSyncError when API URL not configured', async () => {
+    const configMod = await import('../../config.js');
+    const origUrl = configMod.config.immichApiUrl;
+    (configMod.config as any).immichApiUrl = '';
+
+    await expect(fetchAssetThumbnail('asset-1')).rejects.toThrow('not configured');
+
+    (configMod.config as any).immichApiUrl = origUrl;
+  });
+});
