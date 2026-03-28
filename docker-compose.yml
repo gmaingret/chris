@@ -3,7 +3,7 @@ services:
     image: pgvector/pgvector:pg16
     environment:
       POSTGRES_USER: chris
-      POSTGRES_PASSWORD: chris
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: chris
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -21,7 +21,7 @@ services:
         condition: service_healthy
     env_file: .env
     environment:
-      DATABASE_URL: postgresql://chris:chris@postgres:5432/chris
+      DATABASE_URL: postgresql://chris:${POSTGRES_PASSWORD}@postgres:5432/chris
     ports:
       - "3000:3000"
     healthcheck:

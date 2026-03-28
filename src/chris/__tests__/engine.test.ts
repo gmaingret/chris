@@ -40,8 +40,9 @@ vi.mock('../../llm/client.js', () => ({
   anthropic: {
     messages: { create: mockCreate },
   },
-  HAIKU_MODEL: 'claude-3-5-haiku-20241022',
+  HAIKU_MODEL: 'claude-haiku-4-5-20251001',
   SONNET_MODEL: 'claude-sonnet-4-20250514',
+  OPUS_MODEL: 'claude-opus-4-6',
 }));
 
 // ── Mock pensieve store ────────────────────────────────────────────────────
@@ -60,6 +61,12 @@ vi.mock('../../pensieve/tagger.js', () => ({
 const mockEmbedAndStore = vi.fn();
 vi.mock('../../pensieve/embeddings.js', () => ({
   embedAndStore: mockEmbedAndStore,
+}));
+
+// ── Mock relational memory writer (fire-and-forget) ────────────────────────
+const mockWriteRelationalMemory = vi.fn();
+vi.mock('../../memory/relational.js', () => ({
+  writeRelationalMemory: mockWriteRelationalMemory,
 }));
 
 // ── Mock conversation ──────────────────────────────────────────────────────
@@ -82,17 +89,45 @@ vi.mock('../../pensieve/retrieve.js', () => ({
   searchPensieve: mockSearchPensieve,
 }));
 
+// ── Mock contradiction detector ────────────────────────────────────────────
+const mockDetectContradictions = vi.fn();
+vi.mock('../../contradiction/detector.js', () => ({
+  detectContradictions: mockDetectContradictions,
+}));
+
 // ── Mock handleInterrogate (to verify engine routing) ──────────────────────
 const mockHandleInterrogate = vi.fn();
 vi.mock('../modes/interrogate.js', () => ({
   handleInterrogate: mockHandleInterrogate,
 }));
 
+// ── Mock 4 new mode handlers (to verify engine routing) ────────────────────
+const mockHandleReflect = vi.fn();
+vi.mock('../modes/reflect.js', () => ({
+  handleReflect: mockHandleReflect,
+}));
+
+const mockHandleCoach = vi.fn();
+vi.mock('../modes/coach.js', () => ({
+  handleCoach: mockHandleCoach,
+}));
+
+const mockHandlePsychology = vi.fn();
+vi.mock('../modes/psychology.js', () => ({
+  handlePsychology: mockHandlePsychology,
+}));
+
+const mockHandleProduce = vi.fn();
+vi.mock('../modes/produce.js', () => ({
+  handleProduce: mockHandleProduce,
+}));
+
 // ── Import modules under test after mocks ──────────────────────────────────
 const { detectMode, processMessage } = await import('../engine.js');
 const { handleJournal } = await import('../modes/journal.js');
 const { buildSystemPrompt } = await import('../personality.js');
-const { JOURNAL_SYSTEM_PROMPT, MODE_DETECTION_PROMPT } = await import(
+const { formatContradictionNotice } = await import('../personality.js');
+const { JOURNAL_SYSTEM_PROMPT, MODE_DETECTION_PROMPT, REFLECT_SYSTEM_PROMPT, COACH_SYSTEM_PROMPT, PSYCHOLOGY_SYSTEM_PROMPT, PRODUCE_SYSTEM_PROMPT } = await import(
   '../../llm/prompts.js'
 );
 const { LLMError } = await import('../../utils/errors.js');
@@ -106,6 +141,74 @@ const CHAT_ID = 12345n;
 const USER_ID = 42;
 const TEST_TEXT = 'Had the most amazing conversation with an old friend today';
 const ENTRY_ID = 'entry-uuid-001';
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+describe('formatContradictionNotice', () => {
+  it('returns empty string for empty array', () => {
+    expect(formatContradictionNotice([])).toBe('');
+  });
+
+  it('formats a single contradiction with date and content', () => {
+    const result = formatContradictionNotice([
+      {
+        entryId: 'entry-1',
+        entryDate: new Date('2025-03-15'),
+        entryContent: "I'll never go back to corporate work.",
+        description: 'That seems to conflict with what you\'re sharing now.',
+        confidence: 0.92,
+      },
+    ]);
+
+    expect(result).toContain('---');
+    expect(result).toContain('💡 I noticed something');
+    expect(result).toContain('March 15, 2025');
+    expect(result).toContain("I'll never go back to corporate work.");
+    expect(result).toContain('people change');
+    expect(result).toContain('What do you think?');
+  });
+
+  it('formats multiple contradictions as separate paragraphs', () => {
+    const result = formatContradictionNotice([
+      {
+        entryId: 'entry-1',
+        entryDate: new Date('2025-03-15'),
+        entryContent: "I'll never go back to corporate work.",
+        description: 'conflicts with current excitement about corporate offer.',
+        confidence: 0.92,
+      },
+      {
+        entryId: 'entry-2',
+        entryDate: new Date('2025-02-10'),
+        entryContent: 'Remote work is the only way I can be productive.',
+        description: 'conflicts with considering an in-office role.',
+        confidence: 0.85,
+      },
+    ]);
+
+    expect(result).toContain('March 15, 2025');
+    expect(result).toContain('February 10, 2025');
+    // Two separate notices
+    const lightbulbCount = (result.match(/💡/g) || []).length;
+    expect(lightbulbCount).toBe(2);
+  });
+
+  it('truncates long entry content to 120 characters', () => {
+    const longContent = 'A'.repeat(200);
+    const result = formatContradictionNotice([
+      {
+        entryId: 'entry-1',
+        entryDate: new Date('2025-01-01'),
+        entryContent: longContent,
+        description: 'conflict description.',
+        confidence: 0.80,
+      },
+    ]);
+
+    expect(result).not.toContain(longContent);
+    expect(result).toContain('...');
+  });
+});
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -137,6 +240,70 @@ describe('buildSystemPrompt', () => {
     expect(typeof result).toBe('string');
     expect(result.length).toBeGreaterThan(0);
   });
+
+  it('returns REFLECT_SYSTEM_PROMPT for REFLECT mode', () => {
+    const result = buildSystemPrompt('REFLECT');
+    expect(typeof result).toBe('string');
+    expect(result.length).toBeGreaterThan(0);
+  });
+
+  it('REFLECT mode interpolates pensieveContext', () => {
+    const withContext = buildSystemPrompt('REFLECT', 'Pattern: avoids conflict');
+    expect(withContext).toContain('Pattern: avoids conflict');
+    const withoutContext = buildSystemPrompt('REFLECT');
+    expect(withoutContext).toContain('No relevant memories found.');
+  });
+
+  it('INTERROGATE mode interpolates pensieveContext', () => {
+    const withContext = buildSystemPrompt('INTERROGATE', 'Mentioned childhood');
+    expect(withContext).toContain('Mentioned childhood');
+    const withoutContext = buildSystemPrompt('INTERROGATE');
+    expect(withoutContext).toContain('No relevant memories found.');
+  });
+
+  it('returns COACH_SYSTEM_PROMPT for COACH mode (interpolated)', () => {
+    const result = buildSystemPrompt('COACH');
+    expect(result).toContain('No relevant memories found.');
+    expect(result).toContain('No observations accumulated yet.');
+    expect(result).toContain('Greg has come to you with a challenge');
+  });
+
+  it('COACH mode interpolates pensieveContext and relationalContext', () => {
+    const result = buildSystemPrompt('COACH', 'memory-data-here', 'relational-data-here');
+    expect(result).toContain('memory-data-here');
+    expect(result).toContain('relational-data-here');
+    expect(result).not.toContain('{pensieveContext}');
+    expect(result).not.toContain('{relationalContext}');
+  });
+
+  it('PSYCHOLOGY mode interpolates pensieveContext and relationalContext', () => {
+    const result = buildSystemPrompt('PSYCHOLOGY', 'memory-data-here', 'relational-data-here');
+    expect(result).toContain('memory-data-here');
+    expect(result).toContain('relational-data-here');
+    expect(result).not.toContain('{pensieveContext}');
+    expect(result).not.toContain('{relationalContext}');
+  });
+
+  it('returns PRODUCE_SYSTEM_PROMPT for PRODUCE mode with context interpolated', () => {
+    const result = buildSystemPrompt('PRODUCE');
+    expect(result).toContain('No relevant memories found.');
+    expect(result).not.toContain('{pensieveContext}');
+    expect(result).toContain('Be a genuine thinking partner');
+  });
+
+  it('interpolates pensieveContext in PRODUCE mode', () => {
+    const result = buildSystemPrompt('PRODUCE', 'Test memory entry');
+    expect(result).toContain('Test memory entry');
+    expect(result).not.toContain('{pensieveContext}');
+  });
+
+  it('returns non-empty string for every mode', () => {
+    const modes = ['JOURNAL', 'INTERROGATE', 'REFLECT', 'COACH', 'PSYCHOLOGY', 'PRODUCE'] as const;
+    for (const mode of modes) {
+      const result = buildSystemPrompt(mode);
+      expect(result.length).toBeGreaterThan(0);
+    }
+  });
 });
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -154,7 +321,7 @@ describe('detectMode', () => {
     expect(mode).toBe('JOURNAL');
     expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: 'claude-3-5-haiku-20241022',
+        model: 'claude-haiku-4-5-20251001',
         system: MODE_DETECTION_PROMPT,
       }),
     );
@@ -209,6 +376,68 @@ describe('detectMode', () => {
       expect.objectContaining({ mode: 'JOURNAL', latencyMs: expect.any(Number) }),
       'chris.mode.detect',
     );
+  });
+
+  // ── 4 new mode detection tests ───────────────────────────────────────────
+
+  it('classifies REFLECT messages', async () => {
+    mockCreate.mockResolvedValueOnce(makeLLMResponse('{"mode": "REFLECT"}'));
+
+    const mode = await detectMode('What patterns do you see in how I handle conflict?');
+
+    expect(mode).toBe('REFLECT');
+  });
+
+  it('classifies COACH messages', async () => {
+    mockCreate.mockResolvedValueOnce(makeLLMResponse('{"mode": "COACH"}'));
+
+    const mode = await detectMode(
+      'I need you to push back on this — am I making excuses about the gym?',
+    );
+
+    expect(mode).toBe('COACH');
+  });
+
+  it('classifies PSYCHOLOGY messages', async () => {
+    mockCreate.mockResolvedValueOnce(makeLLMResponse('{"mode": "PSYCHOLOGY"}'));
+
+    const mode = await detectMode(
+      'Can you do a deep analysis of my relationship with authority?',
+    );
+
+    expect(mode).toBe('PSYCHOLOGY');
+  });
+
+  it('classifies PRODUCE messages', async () => {
+    mockCreate.mockResolvedValueOnce(makeLLMResponse('{"mode": "PRODUCE"}'));
+
+    const mode = await detectMode(
+      'Help me think through whether I should take this new job offer',
+    );
+
+    expect(mode).toBe('PRODUCE');
+  });
+
+  // ── Fence-stripping (K003) ───────────────────────────────────────────────
+
+  it('parses mode from markdown-fenced JSON (K003)', async () => {
+    mockCreate.mockResolvedValueOnce(
+      makeLLMResponse('```json\n{"mode": "COACH"}\n```'),
+    );
+
+    const mode = await detectMode('Push me harder on the gym excuse');
+
+    expect(mode).toBe('COACH');
+  });
+
+  it('parses mode from bare-fenced JSON (K003)', async () => {
+    mockCreate.mockResolvedValueOnce(
+      makeLLMResponse('```\n{"mode": "REFLECT"}\n```'),
+    );
+
+    const mode = await detectMode('What themes do you notice?');
+
+    expect(mode).toBe('REFLECT');
   });
 });
 
@@ -325,6 +554,7 @@ describe('processMessage (engine)', () => {
     mockBuildMessageHistory.mockResolvedValue([]);
     mockTagEntry.mockResolvedValue(null);
     mockEmbedAndStore.mockResolvedValue(undefined);
+    mockDetectContradictions.mockResolvedValue([]);
   });
 
   it('detects mode, routes to journal, and returns response', async () => {
@@ -457,5 +687,318 @@ describe('processMessage (engine)', () => {
     expect(mockStorePensieveEntry).not.toHaveBeenCalled();
     expect(mockTagEntry).not.toHaveBeenCalled();
     expect(mockEmbedAndStore).not.toHaveBeenCalled();
+  });
+
+  // ── Routing tests for 4 new modes ─────────────────────────────────────────
+
+  it('routes REFLECT to handleReflect', async () => {
+    mockCreate.mockReset();
+    mockSaveMessage.mockReset();
+    mockStorePensieveEntry.mockReset();
+    mockHandleReflect.mockReset();
+
+    mockCreate.mockResolvedValueOnce(makeLLMResponse('{"mode": "REFLECT"}'));
+    mockSaveMessage.mockResolvedValue({ id: 'conv-1' });
+    mockHandleReflect.mockResolvedValue("I'm still building out my ability to reflect.");
+
+    const response = await processMessage(
+      CHAT_ID,
+      USER_ID,
+      'What patterns do you see in how I handle conflict?',
+    );
+
+    expect(response).toBe("I'm still building out my ability to reflect.");
+    expect(mockHandleReflect).toHaveBeenCalledWith(
+      CHAT_ID,
+      'What patterns do you see in how I handle conflict?',
+    );
+    expect(mockSaveMessage).toHaveBeenCalledWith(
+      CHAT_ID,
+      'USER',
+      'What patterns do you see in how I handle conflict?',
+      'REFLECT',
+    );
+    expect(mockSaveMessage).toHaveBeenCalledWith(
+      CHAT_ID,
+      'ASSISTANT',
+      "I'm still building out my ability to reflect.",
+      'REFLECT',
+    );
+    expect(mockStorePensieveEntry).not.toHaveBeenCalled();
+  });
+
+  it('routes COACH to handleCoach', async () => {
+    mockCreate.mockReset();
+    mockSaveMessage.mockReset();
+    mockStorePensieveEntry.mockReset();
+    mockHandleCoach.mockReset();
+
+    mockCreate.mockResolvedValueOnce(makeLLMResponse('{"mode": "COACH"}'));
+    mockSaveMessage.mockResolvedValue({ id: 'conv-1' });
+    mockHandleCoach.mockResolvedValue("I'm still building out my coaching mode.");
+
+    const response = await processMessage(
+      CHAT_ID,
+      USER_ID,
+      'Am I making excuses about the gym?',
+    );
+
+    expect(response).toBe("I'm still building out my coaching mode.");
+    expect(mockHandleCoach).toHaveBeenCalledWith(
+      CHAT_ID,
+      'Am I making excuses about the gym?',
+    );
+    expect(mockSaveMessage).toHaveBeenCalledWith(
+      CHAT_ID,
+      'USER',
+      'Am I making excuses about the gym?',
+      'COACH',
+    );
+    expect(mockSaveMessage).toHaveBeenCalledWith(
+      CHAT_ID,
+      'ASSISTANT',
+      "I'm still building out my coaching mode.",
+      'COACH',
+    );
+    expect(mockStorePensieveEntry).not.toHaveBeenCalled();
+  });
+
+  it('routes PSYCHOLOGY to handlePsychology', async () => {
+    mockCreate.mockReset();
+    mockSaveMessage.mockReset();
+    mockStorePensieveEntry.mockReset();
+    mockHandlePsychology.mockReset();
+
+    mockCreate.mockResolvedValueOnce(makeLLMResponse('{"mode": "PSYCHOLOGY"}'));
+    mockSaveMessage.mockResolvedValue({ id: 'conv-1' });
+    mockHandlePsychology.mockResolvedValue("I'm still developing the depth for analysis.");
+
+    const response = await processMessage(
+      CHAT_ID,
+      USER_ID,
+      'Deep analysis of my relationship with authority?',
+    );
+
+    expect(response).toBe("I'm still developing the depth for analysis.");
+    expect(mockHandlePsychology).toHaveBeenCalledWith(
+      CHAT_ID,
+      'Deep analysis of my relationship with authority?',
+    );
+    expect(mockSaveMessage).toHaveBeenCalledWith(
+      CHAT_ID,
+      'USER',
+      'Deep analysis of my relationship with authority?',
+      'PSYCHOLOGY',
+    );
+    expect(mockSaveMessage).toHaveBeenCalledWith(
+      CHAT_ID,
+      'ASSISTANT',
+      "I'm still developing the depth for analysis.",
+      'PSYCHOLOGY',
+    );
+    expect(mockStorePensieveEntry).not.toHaveBeenCalled();
+  });
+
+  it('routes PRODUCE to handleProduce', async () => {
+    mockCreate.mockReset();
+    mockSaveMessage.mockReset();
+    mockStorePensieveEntry.mockReset();
+    mockHandleProduce.mockReset();
+
+    mockCreate.mockResolvedValueOnce(makeLLMResponse('{"mode": "PRODUCE"}'));
+    mockSaveMessage.mockResolvedValue({ id: 'conv-1' });
+    mockHandleProduce.mockResolvedValue("I'm still building out brainstorming.");
+
+    const response = await processMessage(
+      CHAT_ID,
+      USER_ID,
+      'Should I take the new job offer?',
+    );
+
+    expect(response).toBe("I'm still building out brainstorming.");
+    expect(mockHandleProduce).toHaveBeenCalledWith(
+      CHAT_ID,
+      'Should I take the new job offer?',
+    );
+    expect(mockSaveMessage).toHaveBeenCalledWith(
+      CHAT_ID,
+      'USER',
+      'Should I take the new job offer?',
+      'PRODUCE',
+    );
+    expect(mockSaveMessage).toHaveBeenCalledWith(
+      CHAT_ID,
+      'ASSISTANT',
+      "I'm still building out brainstorming.",
+      'PRODUCE',
+    );
+    expect(mockStorePensieveEntry).not.toHaveBeenCalled();
+  });
+
+  // ── Relational memory writer integration tests ────────────────────────────
+
+  it('calls writeRelationalMemory after JOURNAL exchange', async () => {
+    const response = await processMessage(CHAT_ID, USER_ID, TEST_TEXT);
+
+    expect(response).toBe("That's a lovely memory.");
+    expect(mockWriteRelationalMemory).toHaveBeenCalledWith(
+      CHAT_ID,
+      TEST_TEXT,
+      "That's a lovely memory.",
+    );
+  });
+
+  it('does not call writeRelationalMemory for INTERROGATE mode', async () => {
+    mockCreate.mockReset();
+    mockSaveMessage.mockReset();
+    mockHandleInterrogate.mockReset();
+    mockWriteRelationalMemory.mockReset();
+
+    mockCreate.mockResolvedValueOnce(makeLLMResponse('{"mode": "INTERROGATE"}'));
+    mockSaveMessage.mockResolvedValue({ id: 'conv-1' });
+    mockHandleInterrogate.mockResolvedValue('You mentioned that before.');
+
+    await processMessage(CHAT_ID, USER_ID, 'What did I say about work?');
+
+    expect(mockWriteRelationalMemory).not.toHaveBeenCalled();
+  });
+
+  it('does not call writeRelationalMemory for REFLECT mode', async () => {
+    mockCreate.mockReset();
+    mockSaveMessage.mockReset();
+    mockHandleReflect.mockReset();
+    mockWriteRelationalMemory.mockReset();
+
+    mockCreate.mockResolvedValueOnce(makeLLMResponse('{"mode": "REFLECT"}'));
+    mockSaveMessage.mockResolvedValue({ id: 'conv-1' });
+    mockHandleReflect.mockResolvedValue('I notice a pattern of avoidance.');
+
+    await processMessage(CHAT_ID, USER_ID, 'What patterns do you see?');
+
+    expect(mockWriteRelationalMemory).not.toHaveBeenCalled();
+  });
+
+  // ── Contradiction detection integration tests ─────────────────────────────
+
+  it('JOURNAL mode calls detectContradictions with user text', async () => {
+    await processMessage(CHAT_ID, USER_ID, TEST_TEXT);
+
+    expect(mockDetectContradictions).toHaveBeenCalledWith(TEST_TEXT);
+  });
+
+  it('PRODUCE mode calls detectContradictions with user text', async () => {
+    mockCreate.mockReset();
+    mockSaveMessage.mockReset();
+    mockHandleProduce.mockReset();
+    mockDetectContradictions.mockReset();
+    mockDetectContradictions.mockResolvedValue([]);
+
+    mockCreate.mockResolvedValueOnce(makeLLMResponse('{"mode": "PRODUCE"}'));
+    mockSaveMessage.mockResolvedValue({ id: 'conv-1' });
+    mockHandleProduce.mockResolvedValue('Let me help you think through this.');
+
+    await processMessage(CHAT_ID, USER_ID, 'Should I take the corporate job?');
+
+    expect(mockDetectContradictions).toHaveBeenCalledWith('Should I take the corporate job?');
+  });
+
+  it('other modes do NOT call detectContradictions', async () => {
+    const modes = [
+      { mode: 'INTERROGATE', handler: mockHandleInterrogate },
+      { mode: 'REFLECT', handler: mockHandleReflect },
+      { mode: 'COACH', handler: mockHandleCoach },
+      { mode: 'PSYCHOLOGY', handler: mockHandlePsychology },
+    ];
+
+    for (const { mode, handler } of modes) {
+      mockCreate.mockReset();
+      mockSaveMessage.mockReset();
+      handler.mockReset();
+      mockDetectContradictions.mockReset();
+      mockDetectContradictions.mockResolvedValue([]);
+
+      mockCreate.mockResolvedValueOnce(makeLLMResponse(`{"mode": "${mode}"}`));
+      mockSaveMessage.mockResolvedValue({ id: 'conv-1' });
+      handler.mockResolvedValue('Mode response.');
+
+      await processMessage(CHAT_ID, USER_ID, 'Test message for mode check');
+
+      expect(mockDetectContradictions).not.toHaveBeenCalled();
+    }
+  });
+
+  it('appends contradiction notice to response when contradictions found', async () => {
+    const contradictions = [
+      {
+        entryId: 'old-entry-1',
+        entryDate: new Date('2025-03-15'),
+        entryContent: "I'll never go back to corporate work.",
+        description: 'That seems to conflict with what you\'re sharing now.',
+        confidence: 0.92,
+      },
+    ];
+    mockDetectContradictions.mockResolvedValue(contradictions);
+
+    const response = await processMessage(CHAT_ID, USER_ID, TEST_TEXT);
+
+    expect(response).toContain("That's a lovely memory.");
+    expect(response).toContain('---');
+    expect(response).toContain('💡 I noticed something');
+    expect(response).toContain('March 15, 2025');
+    expect(response).toContain("I'll never go back to corporate work.");
+  });
+
+  it('response unmodified when no contradictions detected', async () => {
+    mockDetectContradictions.mockResolvedValue([]);
+
+    const response = await processMessage(CHAT_ID, USER_ID, TEST_TEXT);
+
+    expect(response).toBe("That's a lovely memory.");
+  });
+
+  it('detection failure does not break response', async () => {
+    mockDetectContradictions.mockRejectedValue(new Error('Detection DB error'));
+
+    const response = await processMessage(CHAT_ID, USER_ID, TEST_TEXT);
+
+    expect(response).toBe("That's a lovely memory.");
+    expect(mockLogWarn).toHaveBeenCalledWith(
+      expect.objectContaining({ error: 'Detection DB error' }),
+      'chris.engine.contradiction.error',
+    );
+  });
+
+  it('detection timeout returns response without notice', async () => {
+    // Simulate a detection call that never resolves within the timeout
+    mockDetectContradictions.mockImplementation(
+      () => new Promise((resolve) => setTimeout(() => resolve([{ entryId: 'x', entryDate: new Date(), entryContent: 'old', description: 'conflict', confidence: 0.9 }]), 5000)),
+    );
+
+    const response = await processMessage(CHAT_ID, USER_ID, TEST_TEXT);
+
+    // The 3-second timeout should win, returning [] from Promise.race
+    expect(response).toBe("That's a lovely memory.");
+  }, 10000);
+
+  it('saved assistant message includes contradiction notice when present', async () => {
+    const contradictions = [
+      {
+        entryId: 'old-entry-1',
+        entryDate: new Date('2025-03-15'),
+        entryContent: "I'll never go back to corporate work.",
+        description: 'That seems to conflict with what you\'re sharing now.',
+        confidence: 0.92,
+      },
+    ];
+    mockDetectContradictions.mockResolvedValue(contradictions);
+
+    await processMessage(CHAT_ID, USER_ID, TEST_TEXT);
+
+    // The ASSISTANT saveMessage call should include the notice
+    const assistantCall = mockSaveMessage.mock.calls.find(
+      (call: unknown[]) => call[1] === 'ASSISTANT',
+    );
+    expect(assistantCall).toBeDefined();
+    expect(assistantCall![2]).toContain('💡 I noticed something');
   });
 });

@@ -34,22 +34,33 @@ vi.mock('../../llm/client.js', () => ({
   anthropic: {
     messages: { create: mockCreate },
   },
-  HAIKU_MODEL: 'claude-haiku-4-5-20251001',
   SONNET_MODEL: 'claude-sonnet-4-20250514',
 }));
 
-// ── Mock searchPensieve ────────────────────────────────────────────────────
-const mockSearchPensieve = vi.fn();
+// ── Mock hybridSearch + PRODUCE_SEARCH_OPTIONS ─────────────────────────────
+const mockHybridSearch = vi.fn();
 vi.mock('../../pensieve/retrieve.js', () => ({
-  searchPensieve: mockSearchPensieve,
+  hybridSearch: mockHybridSearch,
+  PRODUCE_SEARCH_OPTIONS: {
+    recencyBias: 0.3,
+    limit: 10,
+  },
+}));
+
+// ── Mock relational memories (for negative assertion) ──────────────────────
+const mockGetRelationalMemories = vi.fn();
+vi.mock('../../memory/relational.js', () => ({
+  getRelationalMemories: mockGetRelationalMemories,
 }));
 
 // ── Mock context builder ───────────────────────────────────────────────────
 const mockBuildMessageHistory = vi.fn();
 const mockBuildPensieveContext = vi.fn();
+const mockBuildRelationalContext = vi.fn();
 vi.mock('../../memory/context-builder.js', () => ({
   buildMessageHistory: mockBuildMessageHistory,
   buildPensieveContext: mockBuildPensieveContext,
+  buildRelationalContext: mockBuildRelationalContext,
 }));
 
 // ── Mock personality ───────────────────────────────────────────────────────
@@ -77,9 +88,10 @@ vi.mock('../../pensieve/embeddings.js', () => ({
 }));
 
 // ── Import module under test after mocks ───────────────────────────────────
-const { handleInterrogate } = await import('../modes/interrogate.js');
+const { handleProduce } = await import('../modes/produce.js');
 const { LLMError } = await import('../../utils/errors.js');
-const { INTERROGATE_SYSTEM_PROMPT } = await import('../../llm/prompts.js');
+const { PRODUCE_SYSTEM_PROMPT } = await import('../../llm/prompts.js');
+const { PRODUCE_SEARCH_OPTIONS } = await import('../../pensieve/retrieve.js');
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function makeLLMResponse(text: string) {
@@ -87,105 +99,105 @@ function makeLLMResponse(text: string) {
 }
 
 const CHAT_ID = 12345n;
-const TEST_QUERY = 'Have I ever talked about my childhood?';
+const TEST_QUERY = 'Should I take the new job offer or stay where I am?';
 
 const MOCK_SEARCH_RESULTS = [
   {
     entry: {
       id: 'entry-1',
-      content: 'I grew up in a small town near the coast',
+      content: 'I value stability but also want career growth',
       createdAt: new Date('2025-01-15'),
-      epistemicTag: 'EXPERIENCE',
+      epistemicTag: 'VALUE',
       source: 'telegram',
       deletedAt: null,
     },
-    score: 0.87,
+    score: 0.85,
   },
   {
     entry: {
       id: 'entry-2',
-      content: 'My parents always encouraged me to read',
+      content: 'I intend to prioritize financial security this year',
       createdAt: new Date('2025-02-10'),
-      epistemicTag: 'REFLECTION',
+      epistemicTag: 'INTENTION',
       source: 'telegram',
       deletedAt: null,
     },
-    score: 0.72,
+    score: 0.71,
   },
 ];
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-describe('INTERROGATE_SYSTEM_PROMPT', () => {
-  it('enforces citation/provenance instructions (R006)', () => {
-    expect(INTERROGATE_SYSTEM_PROMPT).toMatch(/cite/i);
-    expect(INTERROGATE_SYSTEM_PROMPT).toMatch(/date/i);
+describe('PRODUCE_SYSTEM_PROMPT', () => {
+  it('has {pensieveContext} placeholder', () => {
+    expect(PRODUCE_SYSTEM_PROMPT).toContain('{pensieveContext}');
   });
 
-  it('enforces no-fabrication instruction (R011)', () => {
-    // The prompt contains "Do NOT guess or fabricate" and "NEVER invent details"
-    expect(INTERROGATE_SYSTEM_PROMPT).toMatch(/fabricat/i);
-    expect(INTERROGATE_SYSTEM_PROMPT).toMatch(/never.*invent/i);
+  it('does NOT have {relationalContext} placeholder', () => {
+    expect(PRODUCE_SYSTEM_PROMPT).not.toContain('{relationalContext}');
   });
+});
 
-  it('enforces uncertainty flagging instruction (R011)', () => {
-    // The prompt instructs to flag uncertainty when only weak matches exist
-    expect(INTERROGATE_SYSTEM_PROMPT).toMatch(/uncertain/i);
-  });
+describe('buildSystemPrompt interpolates for PRODUCE', () => {
+  it('replaces {pensieveContext} placeholder', () => {
+    const result = PRODUCE_SYSTEM_PROMPT.replace('{pensieveContext}', 'some pensieve data');
 
-  it('instructs honest empty-state response', () => {
-    expect(INTERROGATE_SYSTEM_PROMPT).toMatch(/don't have any memories/i);
+    expect(result).toContain('some pensieve data');
+    expect(result).not.toContain('{pensieveContext}');
   });
 });
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-describe('handleInterrogate', () => {
+describe('handleProduce', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockSearchPensieve.mockResolvedValue(MOCK_SEARCH_RESULTS);
+    mockHybridSearch.mockResolvedValue(MOCK_SEARCH_RESULTS);
     mockBuildPensieveContext.mockReturnValue(
-      '[1] (2025-01-15 | EXPERIENCE | 0.87) "I grew up in a small town near the coast"\n' +
-        '[2] (2025-02-10 | REFLECTION | 0.72) "My parents always encouraged me to read"',
+      '[1] (2025-01-15 | VALUE | 0.85) "I value stability but also want career growth"\n' +
+        '[2] (2025-02-10 | INTENTION | 0.71) "I intend to prioritize financial security this year"',
     );
     mockBuildMessageHistory.mockResolvedValue([
       { role: 'user', content: 'previous question' },
       { role: 'assistant', content: 'previous answer' },
     ]);
-    mockBuildSystemPrompt.mockReturnValue('interpolated system prompt');
+    mockBuildSystemPrompt.mockReturnValue('interpolated produce system prompt');
     mockCreate.mockResolvedValue(
-      makeLLMResponse('Yes, you mentioned growing up near the coast.'),
+      makeLLMResponse("Let's think through the trade-offs — what matters most to you about this decision?"),
     );
   });
 
-  it('calls searchPensieve with correct query and limit', async () => {
-    await handleInterrogate(CHAT_ID, TEST_QUERY);
+  it('calls hybridSearch with the user text and PRODUCE_SEARCH_OPTIONS', async () => {
+    await handleProduce(CHAT_ID, TEST_QUERY);
 
-    expect(mockSearchPensieve).toHaveBeenCalledWith(TEST_QUERY, 10);
+    expect(mockHybridSearch).toHaveBeenCalledWith(TEST_QUERY, PRODUCE_SEARCH_OPTIONS);
   });
 
   it('passes search results to buildPensieveContext', async () => {
-    await handleInterrogate(CHAT_ID, TEST_QUERY);
+    await handleProduce(CHAT_ID, TEST_QUERY);
 
     expect(mockBuildPensieveContext).toHaveBeenCalledWith(MOCK_SEARCH_RESULTS);
   });
 
-  it('builds system prompt with INTERROGATE mode and context', async () => {
-    await handleInterrogate(CHAT_ID, TEST_QUERY);
+  it('builds system prompt with PRODUCE mode and pensieve context (two args only)', async () => {
+    await handleProduce(CHAT_ID, TEST_QUERY);
 
     expect(mockBuildSystemPrompt).toHaveBeenCalledWith(
-      'INTERROGATE',
+      'PRODUCE',
       expect.any(String),
     );
+    // Verify exactly 2 arguments (no relational context)
+    expect(mockBuildSystemPrompt.mock.calls[0]).toHaveLength(2);
   });
 
-  it('calls Sonnet with system prompt, history, and current message', async () => {
-    await handleInterrogate(CHAT_ID, TEST_QUERY);
+  it('calls Sonnet with max_tokens 1500, system prompt, history + current message', async () => {
+    await handleProduce(CHAT_ID, TEST_QUERY);
 
     expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         model: 'claude-sonnet-4-20250514',
-        system: 'interpolated system prompt',
+        max_tokens: 1500,
+        system: 'interpolated produce system prompt',
         messages: [
           { role: 'user', content: 'previous question' },
           { role: 'assistant', content: 'previous answer' },
@@ -196,63 +208,69 @@ describe('handleInterrogate', () => {
   });
 
   it('returns Sonnet response text', async () => {
-    const result = await handleInterrogate(CHAT_ID, TEST_QUERY);
+    const result = await handleProduce(CHAT_ID, TEST_QUERY);
 
-    expect(result).toBe('Yes, you mentioned growing up near the coast.');
+    expect(result).toBe("Let's think through the trade-offs — what matters most to you about this decision?");
   });
 
   it('does NOT call storePensieveEntry', async () => {
-    await handleInterrogate(CHAT_ID, TEST_QUERY);
+    await handleProduce(CHAT_ID, TEST_QUERY);
 
     expect(mockStorePensieveEntry).not.toHaveBeenCalled();
   });
 
   it('does NOT call tagEntry', async () => {
-    await handleInterrogate(CHAT_ID, TEST_QUERY);
+    await handleProduce(CHAT_ID, TEST_QUERY);
 
     expect(mockTagEntry).not.toHaveBeenCalled();
   });
 
   it('does NOT call embedAndStore', async () => {
-    await handleInterrogate(CHAT_ID, TEST_QUERY);
+    await handleProduce(CHAT_ID, TEST_QUERY);
 
     expect(mockEmbedAndStore).not.toHaveBeenCalled();
   });
 
+  it('does NOT call getRelationalMemories', async () => {
+    await handleProduce(CHAT_ID, TEST_QUERY);
+
+    expect(mockGetRelationalMemories).not.toHaveBeenCalled();
+  });
+
   it('handles empty search results gracefully', async () => {
-    mockSearchPensieve.mockResolvedValue([]);
+    mockHybridSearch.mockResolvedValue([]);
     mockBuildPensieveContext.mockReturnValue('');
 
     mockCreate.mockResolvedValue(
-      makeLLMResponse("I don't have any memories about that."),
+      makeLLMResponse("Tell me more about what you're weighing — I can help you think it through."),
     );
 
-    const result = await handleInterrogate(CHAT_ID, TEST_QUERY);
+    const result = await handleProduce(CHAT_ID, TEST_QUERY);
 
-    expect(result).toBe("I don't have any memories about that.");
+    expect(result).toBe("Tell me more about what you're weighing — I can help you think it through.");
     expect(mockBuildPensieveContext).toHaveBeenCalledWith([]);
   });
 
-  it('logs chris.interrogate.empty when no results pass threshold', async () => {
-    mockSearchPensieve.mockResolvedValue([]);
+  it('logs chris.produce.empty when search results are empty', async () => {
+    mockHybridSearch.mockResolvedValue([]);
     mockBuildPensieveContext.mockReturnValue('');
     mockCreate.mockResolvedValue(
-      makeLLMResponse("I don't have any memories about that."),
+      makeLLMResponse("Tell me more about this decision."),
     );
 
-    await handleInterrogate(CHAT_ID, TEST_QUERY);
+    await handleProduce(CHAT_ID, TEST_QUERY);
 
     expect(mockLogInfo).toHaveBeenCalledWith(
       expect.objectContaining({
         chatId: CHAT_ID.toString(),
         query: TEST_QUERY.slice(0, 50),
       }),
-      'chris.interrogate.empty',
+      'chris.produce.empty',
     );
   });
 
-  it('logs chris.interrogate.response on success with chatId, resultCount, latencyMs', async () => {
-    await handleInterrogate(CHAT_ID, TEST_QUERY);
+  it('logs chris.produce.response on success with chatId, resultCount, latencyMs', async () => {
+    await handleProduce(CHAT_ID, TEST_QUERY);
 
     expect(mockLogInfo).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -260,14 +278,14 @@ describe('handleInterrogate', () => {
         resultCount: expect.any(Number),
         latencyMs: expect.any(Number),
       }),
-      'chris.interrogate.response',
+      'chris.produce.response',
     );
   });
 
-  it('logs chris.interrogate.error on Sonnet failure', async () => {
+  it('logs chris.produce.error on Sonnet failure', async () => {
     mockCreate.mockRejectedValue(new Error('Sonnet unavailable'));
 
-    await expect(handleInterrogate(CHAT_ID, TEST_QUERY)).rejects.toThrow();
+    await expect(handleProduce(CHAT_ID, TEST_QUERY)).rejects.toThrow();
 
     expect(mockLogWarn).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -275,27 +293,27 @@ describe('handleInterrogate', () => {
         error: 'Sonnet unavailable',
         latencyMs: expect.any(Number),
       }),
-      'chris.interrogate.error',
+      'chris.produce.error',
     );
   });
 
   it('throws LLMError on Sonnet failure', async () => {
     mockCreate.mockRejectedValue(new Error('Sonnet unavailable'));
 
-    await expect(handleInterrogate(CHAT_ID, TEST_QUERY)).rejects.toThrow(LLMError);
+    await expect(handleProduce(CHAT_ID, TEST_QUERY)).rejects.toThrow(LLMError);
   });
 
   it('throws LLMError when response has no text block', async () => {
     mockCreate.mockResolvedValue({ content: [] });
 
-    await expect(handleInterrogate(CHAT_ID, TEST_QUERY)).rejects.toThrow(LLMError);
+    await expect(handleProduce(CHAT_ID, TEST_QUERY)).rejects.toThrow(LLMError);
   });
 
   it('re-throws LLMError directly (not double-wrapped)', async () => {
     mockCreate.mockResolvedValue({ content: [{ type: 'image', source: {} }] });
 
     try {
-      await handleInterrogate(CHAT_ID, TEST_QUERY);
+      await handleProduce(CHAT_ID, TEST_QUERY);
       expect.fail('should have thrown');
     } catch (error) {
       expect(error).toBeInstanceOf(LLMError);
