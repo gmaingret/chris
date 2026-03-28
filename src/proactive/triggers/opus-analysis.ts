@@ -33,7 +33,7 @@ const SAFE_DEFAULT: OpusAnalysisResult = {
   thread: { detected: false, description: '', evidence: [], confidence: 0 },
 };
 
-const OPUS_SYSTEM_PROMPT = `You are an analytical assistant reviewing relational context about a friendship between Chris and Greg.
+const OPUS_SYSTEM_PROMPT = `You are an analytical assistant reviewing relational context about a friendship between Chris and John.
 
 Your task: analyze the provided relational memory, pensieve entries, and conversation data for two things:
 1. **Recurring patterns** — themes, behaviors, or dynamics that appear multiple times across the evidence.

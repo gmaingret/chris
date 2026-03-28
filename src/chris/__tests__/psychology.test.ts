@@ -132,7 +132,7 @@ const MOCK_RELATIONAL_MEMORIES = [
   {
     id: 'rel-1',
     type: 'PATTERN',
-    content: 'Greg reports anxiety spikes immediately after positive events or achievements',
+    content: 'John reports anxiety spikes immediately after positive events or achievements',
     confidence: 0.88,
     createdAt: new Date('2025-03-01'),
   },
@@ -182,7 +182,7 @@ describe('handlePsychology', () => {
         '[2] (2025-02-10 | DREAM | 0.76) "I had a dream where I was climbing a mountain and kept letting go of the rope on purpose"',
     );
     mockBuildRelationalContext.mockReturnValue(
-      '[1] (2025-03-01 | PATTERN | 0.88) "Greg reports anxiety spikes immediately after positive events or achievements"\n' +
+      '[1] (2025-03-01 | PATTERN | 0.88) "John reports anxiety spikes immediately after positive events or achievements"\n' +
         '[2] (2025-03-05 | INSIGHT | 0.72) "Self-sabotage pattern may be linked to early experiences where success was followed by loss"',
     );
     mockBuildMessageHistory.mockResolvedValue([

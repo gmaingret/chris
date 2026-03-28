@@ -29,7 +29,7 @@ function stripFences(text: string): string {
 
 /**
  * Analyze a journal exchange via Haiku and write an observation to relational memory
- * if the exchange reveals something genuinely new about Greg.
+ * if the exchange reveals something genuinely new about John.
  *
  * Fire-and-forget contract: never throws. All errors are logged at warn level and swallowed.
  */
@@ -55,7 +55,7 @@ export async function writeRelationalMemory(
       .join('\n');
 
     // Format prompt with exchange and context
-    const exchange = `Greg: ${userText}\n\nChris: ${assistantResponse}`;
+    const exchange = `John: ${userText}\n\nChris: ${assistantResponse}`;
     const systemPrompt = RELATIONAL_MEMORY_PROMPT
       .replace('{exchange}', exchange)
       .replace('{recentContext}', recentContext || '(no prior context)');

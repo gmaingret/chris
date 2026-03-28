@@ -114,7 +114,7 @@ function mockLLMResponse(text: string) {
   });
 }
 
-function mockSilenceFired(context = 'Greg has been quiet for 3.0 days. His usual rhythm is about 1.0 day between messages.') {
+function mockSilenceFired(context = 'John has been quiet for 3.0 days. His usual rhythm is about 1.0 day between messages.') {
   mockSilenceDetect.mockResolvedValueOnce({
     triggered: true,
     triggerType: 'silence',
@@ -147,7 +147,7 @@ function mockSilenceInsufficientData() {
   });
 }
 
-function mockCommitmentFired(context = 'Greg made a commitment 14 days ago: "I want to start running every morning". There\'s been no follow-up.') {
+function mockCommitmentFired(context = 'John made a commitment 14 days ago: "I want to start running every morning". There\'s been no follow-up.') {
   mockCommitmentDetect.mockResolvedValueOnce({
     triggered: true,
     triggerType: 'commitment',
@@ -307,7 +307,7 @@ describe('proactive sweep', () => {
   });
 
   it('passes trigger context into system prompt for LLM', async () => {
-    const context = 'Greg has been quiet for 5.0 days. His usual rhythm is about 1.2 days between messages.';
+    const context = 'John has been quiet for 5.0 days. His usual rhythm is about 1.2 days between messages.';
     mockSilenceFired(context);
     mockCommitmentNotFired();
     mockLLMResponse('Miss hearing from you, mate.');
@@ -440,7 +440,7 @@ describe('proactive sweep', () => {
   });
 
   it('commitment context is passed to LLM when commitment is the winner', async () => {
-    const commitmentContext = 'Greg made a commitment 14 days ago: "I want to start running every morning". There\'s been no follow-up.';
+    const commitmentContext = 'John made a commitment 14 days ago: "I want to start running every morning". There\'s been no follow-up.';
     mockSilenceNotFired();
     mockCommitmentFired(commitmentContext);
     mockLLMResponse('How is the running going?');
@@ -513,7 +513,7 @@ describe('proactive sweep', () => {
   it('calls Opus phase when no SQL trigger fires — pattern trigger fires', async () => {
     mockSilenceNotFired();
     mockCommitmentNotFired();
-    mockBuildSweepContext.mockResolvedValueOnce('## Relational Memory\n- [PATTERN] Greg often mentions work stress on Mondays');
+    mockBuildSweepContext.mockResolvedValueOnce('## Relational Memory\n- [PATTERN] John often mentions work stress on Mondays');
     mockRunOpusAnalysis.mockResolvedValueOnce({
       pattern: { detected: true, description: 'Monday stress pattern', evidence: ['Work stress mentions'], confidence: 0.8 },
       thread: { detected: false, description: '', evidence: [], confidence: 0 },

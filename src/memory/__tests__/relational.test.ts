@@ -79,7 +79,7 @@ describe('writeRelationalMemory', () => {
     const haikuResponse = JSON.stringify({
       observe: true,
       type: 'CONCERN',
-      content: 'Greg is seriously considering a career change driven by sustained stress, not just a bad week.',
+      content: 'John is seriously considering a career change driven by sustained stress, not just a bad week.',
       confidence: 0.8,
     });
     mockCreate.mockResolvedValueOnce(makeLLMResponse(haikuResponse));
@@ -89,7 +89,7 @@ describe('writeRelationalMemory', () => {
     expect(mockInsert).toHaveBeenCalledWith(relationalMemory);
     expect(mockValues).toHaveBeenCalledWith({
       type: 'CONCERN',
-      content: 'Greg is seriously considering a career change driven by sustained stress, not just a bad week.',
+      content: 'John is seriously considering a career change driven by sustained stress, not just a bad week.',
       confidence: 0.8,
       supportingEntries: [],
     });
@@ -112,14 +112,14 @@ describe('writeRelationalMemory', () => {
   });
 
   it('strips markdown fences from Haiku response (K003)', async () => {
-    const fenced = '```json\n{"observe": true, "type": "PATTERN", "content": "Greg deflects career questions", "confidence": 0.7}\n```';
+    const fenced = '```json\n{"observe": true, "type": "PATTERN", "content": "John deflects career questions", "confidence": 0.7}\n```';
     mockCreate.mockResolvedValueOnce(makeLLMResponse(fenced));
 
     await writeRelationalMemory(chatId, substantiveText, assistantResponse);
 
     expect(mockInsert).toHaveBeenCalledWith(relationalMemory);
     expect(mockValues).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'PATTERN', content: 'Greg deflects career questions' }),
+      expect.objectContaining({ type: 'PATTERN', content: 'John deflects career questions' }),
     );
   });
 
@@ -203,7 +203,7 @@ describe('writeRelationalMemory', () => {
 
   it('uses default confidence 0.5 when Haiku omits it', async () => {
     mockCreate.mockResolvedValueOnce(
-      makeLLMResponse('{"observe": true, "type": "OBSERVATION", "content": "Greg lives alone"}'),
+      makeLLMResponse('{"observe": true, "type": "OBSERVATION", "content": "John lives alone"}'),
     );
 
     await writeRelationalMemory(chatId, substantiveText, assistantResponse);

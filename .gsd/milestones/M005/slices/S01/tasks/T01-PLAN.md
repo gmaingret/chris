@@ -43,7 +43,7 @@ Use these exact evidence strings (adapt formatting to fit the file's style):
 
 **R010**: `retrieve.test.ts`: "passes French query text through to embedText (R010)", "passes Russian query text through to embedText (R010)". `config.ts`: `embeddingModel` defaults to `Xenova/bge-m3` (multilingual, 100+ languages).
 
-**R011**: `prompts.ts` JOURNAL_SYSTEM_PROMPT: "NEVER state things as fact that Greg hasn't told you". INTERROGATE_SYSTEM_PROMPT: "If Memory Entries is empty... say honestly: 'I don't have any memories about that.' Do NOT guess or fabricate." Prompt-enforced architectural constraint.
+**R011**: `prompts.ts` JOURNAL_SYSTEM_PROMPT: "NEVER state things as fact that John hasn't told you". INTERROGATE_SYSTEM_PROMPT: "If Memory Entries is empty... say honestly: 'I don't have any memories about that.' Do NOT guess or fabricate." Prompt-enforced architectural constraint.
 
 **R012**: `retrieve.test.ts`: "ranks old but more relevant entries above recent less relevant ones — temporal neutrality (R012)". `retrieve.ts`: `orderBy(asc(distance))` — no temporal factor in ranking query. Pure cosine distance.
 

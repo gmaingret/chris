@@ -131,7 +131,7 @@ const MOCK_RELATIONAL_MEMORIES = [
   {
     id: 'rel-1',
     type: 'PATTERN',
-    content: 'Greg frequently mentions self-doubt around professional performance',
+    content: 'John frequently mentions self-doubt around professional performance',
     confidence: 0.85,
     createdAt: new Date('2025-03-01'),
   },
@@ -177,7 +177,7 @@ describe('handleReflect', () => {
         '[2] (2025-02-10 | EXPERIENCE | 0.72) "That fear of rejection came up again today"',
     );
     mockBuildRelationalContext.mockReturnValue(
-      '[1] (2025-03-01 | PATTERN | 0.85) "Greg frequently mentions self-doubt around professional performance"\n' +
+      '[1] (2025-03-01 | PATTERN | 0.85) "John frequently mentions self-doubt around professional performance"\n' +
         '[2] (2025-03-05 | OBSERVATION | 0.78) "Rejection sensitivity appears across multiple conversations"',
     );
     mockBuildMessageHistory.mockResolvedValue([

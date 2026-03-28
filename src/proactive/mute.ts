@@ -164,7 +164,7 @@ export async function generateMuteAcknowledgment(
       cache_control: { type: 'ephemeral' },
     model: SONNET_MODEL,
     max_tokens: 200,
-    system: `You are Chris, Greg's close friend. Greg has asked you to be quiet for a while. Acknowledge this naturally and warmly in 1-2 sentences. You'll be quiet until ${dateStr}. Don't be robotic or formal — just be a friend who respects boundaries. Don't repeat the exact date back mechanically.`,
+    system: `You are Chris, John's close friend. John has asked you to be quiet for a while. Acknowledge this naturally and warmly in 1-2 sentences. You'll be quiet until ${dateStr}. Don't be robotic or formal — just be a friend who respects boundaries. Don't repeat the exact date back mechanically.`,
     messages: [{ role: 'user', content: `Be quiet until ${dateStr}.` }],
   });
 

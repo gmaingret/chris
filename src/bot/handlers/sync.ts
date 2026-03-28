@@ -145,7 +145,7 @@ export async function handleOAuthCode(ctx: {
  *
  * Usage: `/sync gmail`
  *
- * If no Google OAuth tokens exist, sends an auth URL for Greg to authorize.
+ * If no Google OAuth tokens exist, sends an auth URL for John to authorize.
  * If tokens exist, triggers an async Gmail sync with progress reporting.
  */
 export async function handleSyncCommand(ctx: {

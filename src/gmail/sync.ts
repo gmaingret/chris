@@ -259,7 +259,7 @@ async function incrementalSync(
  *
  * Checks sync_status for 'gmail' — if lastHistoryId exists, runs incremental sync;
  * otherwise runs full sync. Updates sync_status on completion/error.
- * Reports progress back to Greg via sendMessage callback.
+ * Reports progress back to John via sendMessage callback.
  */
 export async function syncGmail(
   authClient: OAuth2Client,

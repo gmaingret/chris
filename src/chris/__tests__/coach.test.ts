@@ -132,7 +132,7 @@ const MOCK_RELATIONAL_MEMORIES = [
   {
     id: 'rel-1',
     type: 'PATTERN',
-    content: 'Greg often states intentions for directness but reports avoiding confrontation',
+    content: 'John often states intentions for directness but reports avoiding confrontation',
     confidence: 0.85,
     createdAt: new Date('2025-03-01'),
   },
@@ -185,7 +185,7 @@ describe('handleCoach', () => {
         '[2] (2025-02-10 | INTENTION | 0.72) "I intend to be more direct with my manager this quarter"',
     );
     mockBuildRelationalContext.mockReturnValue(
-      '[1] (2025-03-01 | PATTERN | 0.85) "Greg often states intentions for directness but reports avoiding confrontation"\n' +
+      '[1] (2025-03-01 | PATTERN | 0.85) "John often states intentions for directness but reports avoiding confrontation"\n' +
         '[2] (2025-03-05 | OBSERVATION | 0.78) "Conflict avoidance appears tied to a belief about being agreeable"',
     );
     mockBuildMessageHistory.mockResolvedValue([

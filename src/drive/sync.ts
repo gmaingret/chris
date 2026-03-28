@@ -254,7 +254,7 @@ async function incrementalSync(
  *
  * Checks sync_status for 'gdrive' — if lastHistoryId (startPageToken) exists,
  * runs incremental sync; otherwise runs full sync. Updates sync_status on
- * completion/error. Reports progress back to Greg via sendMessage callback.
+ * completion/error. Reports progress back to John via sendMessage callback.
  */
 export async function syncDrive(
   authClient: OAuth2Client,

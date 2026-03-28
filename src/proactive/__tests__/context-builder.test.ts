@@ -59,7 +59,7 @@ function makeMemoryEntry(overrides: Partial<{
 }> = {}) {
   return {
     type: overrides.type || 'PATTERN',
-    content: overrides.content || 'Greg tends to withdraw when stressed about work.',
+    content: overrides.content || 'John tends to withdraw when stressed about work.',
     confidence: overrides.confidence ?? 0.7,
     createdAt: overrides.createdAt || new Date('2026-03-20T10:00:00Z'),
   };
@@ -104,7 +104,7 @@ describe('context-builder', () => {
 
   it('returns formatted context with all three sections when data exists', async () => {
     memoryRows.push(
-      makeMemoryEntry({ type: 'PATTERN', content: 'Greg cycles between high energy and withdrawal.' }),
+      makeMemoryEntry({ type: 'PATTERN', content: 'John cycles between high energy and withdrawal.' }),
       makeMemoryEntry({ type: 'OBSERVATION', content: 'He mentioned feeling stuck at work three times this month.' }),
     );
     pensieveRows.push(
@@ -124,9 +124,9 @@ describe('context-builder', () => {
     expect(result).toContain('## Recent Pensieve Entries');
     expect(result).toContain('## Conversation Gap Analysis');
     expect(result).toContain('PATTERN');
-    expect(result).toContain('Greg cycles between');
+    expect(result).toContain('John cycles between');
     expect(result).toContain('Thinking about changing careers');
-    expect(result).toContain('Last message from Greg');
+    expect(result).toContain('Last message from John');
   });
 
   it('respects character budget — output length ≤ maxTokens × 4', async () => {

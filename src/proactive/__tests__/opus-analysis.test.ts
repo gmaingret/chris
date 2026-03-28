@@ -36,13 +36,13 @@ function makeOpusResponse(text: string, inputTokens = 500, outputTokens = 200) {
 const VALID_RESULT: OpusAnalysisResult = {
   pattern: {
     detected: true,
-    description: 'Greg tends to withdraw when work is stressful',
+    description: 'John tends to withdraw when work is stressful',
     evidence: ['mentioned work stress 3 times in Jan', 'went quiet after project deadline'],
     confidence: 0.75,
   },
   thread: {
     detected: true,
-    description: 'Greg mentioned wanting to visit Portland but never followed up',
+    description: 'John mentioned wanting to visit Portland but never followed up',
     evidence: ['mentioned Portland trip on Jan 15', 'no follow-up in 6 weeks'],
     confidence: 0.6,
   },
@@ -63,7 +63,7 @@ describe('runOpusAnalysis', () => {
     const result = await runOpusAnalysis('test context');
 
     expect(result.pattern.detected).toBe(true);
-    expect(result.pattern.description).toBe('Greg tends to withdraw when work is stressful');
+    expect(result.pattern.description).toBe('John tends to withdraw when work is stressful');
     expect(result.pattern.confidence).toBe(0.75);
     expect(result.thread.detected).toBe(true);
     expect(result.thread.confidence).toBe(0.6);

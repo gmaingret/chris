@@ -19,7 +19,7 @@ function makeFullAsset(): ImmichAsset {
       model: 'iPhone 15 Pro',
     },
     people: [
-      { id: 'p1', name: 'Greg' },
+      { id: 'p1', name: 'John' },
       { id: 'p2', name: 'Sophie' },
     ],
   };
@@ -32,7 +32,7 @@ describe('assetToText', () => {
     expect(text).toContain('Photo: IMG_1234.jpg');
     expect(text).toContain('Date: 2024-07-15');
     expect(text).toContain("Location: Nice, Provence-Alpes-Côte d'Azur, France (43.7102, 7.262)");
-    expect(text).toContain('People: Greg, Sophie');
+    expect(text).toContain('People: John, Sophie');
     expect(text).toContain('Camera: Apple iPhone 15 Pro');
     expect(text).toContain('Description: Sunset over the Promenade des Anglais');
   });

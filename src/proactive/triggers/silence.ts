@@ -100,7 +100,7 @@ export function createSilenceTrigger(
           triggered: true,
           triggerType: 'silence',
           priority: 1,
-          context: `Greg has been quiet for ${formatDuration(currentGapHours)}. His usual rhythm is about ${formatDuration(averageGapHours)} between messages.`,
+          context: `John has been quiet for ${formatDuration(currentGapHours)}. His usual rhythm is about ${formatDuration(averageGapHours)} between messages.`,
           evidence: [
             `Current gap: ${formatDuration(currentGapHours)}`,
             `Average gap: ${formatDuration(averageGapHours)}`,

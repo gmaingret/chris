@@ -289,7 +289,7 @@ describe('buildSystemPrompt', () => {
     const result = buildSystemPrompt('COACH');
     expect(result).toContain('No relevant memories found.');
     expect(result).toContain('No observations accumulated yet.');
-    expect(result).toContain('Greg has come to you with a challenge');
+    expect(result).toContain('John has come to you with a challenge');
   });
 
   it('COACH mode interpolates pensieveContext and relationalContext', () => {

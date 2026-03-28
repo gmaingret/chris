@@ -63,7 +63,7 @@ const MOCK_ASSET = {
   originalFileName: 'photo.jpg',
   fileCreatedAt: '2026-03-28T12:00:00.000Z',
   exifInfo: { city: 'Paris', country: 'France', dateTimeOriginal: '2026-03-28T12:00:00.000Z' },
-  people: [{ id: 'p1', name: 'Gregory' }],
+  people: [{ id: 'p1', name: 'Johnory' }],
 };
 
 const MOCK_THUMB = { base64: 'dGVzdA==', mediaType: 'image/jpeg' as const };

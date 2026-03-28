@@ -14,7 +14,7 @@ let scheduledTask: ScheduledTask | null = null;
 const noopSendMessage = async () => {};
 
 /**
- * Notify Greg of a cron sync failure via Telegram.
+ * Notify John of a cron sync failure via Telegram.
  * Wrapped in try/catch so notification failure never crashes the scheduler.
  */
 async function notifyError(source: string, error: unknown): Promise<void> {

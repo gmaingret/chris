@@ -166,7 +166,7 @@ describe('sync scheduler', () => {
 
     // ── Error isolation ──────────────────────────────────────────────────
 
-    it('Gmail sync failure → notifies Greg, Drive and Immich still run', async () => {
+    it('Gmail sync failure → notifies John, Drive and Immich still run', async () => {
       mockSyncGmail.mockRejectedValue(new Error('Gmail boom'));
       await runAllSyncs();
 
@@ -180,7 +180,7 @@ describe('sync scheduler', () => {
       expect(mockSyncImmich).toHaveBeenCalled();
     });
 
-    it('Drive sync failure → notifies Greg, does not affect other sources', async () => {
+    it('Drive sync failure → notifies John, does not affect other sources', async () => {
       mockSyncDrive.mockRejectedValue(new Error('Drive boom'));
       await runAllSyncs();
 
@@ -193,7 +193,7 @@ describe('sync scheduler', () => {
       expect(mockSyncImmich).toHaveBeenCalled();
     });
 
-    it('Immich sync failure → notifies Greg', async () => {
+    it('Immich sync failure → notifies John', async () => {
       mockSyncImmich.mockRejectedValue(new Error('Immich boom'));
       await runAllSyncs();
 
@@ -220,7 +220,7 @@ describe('sync scheduler', () => {
         { source: 'drive', reason: 'No Google OAuth tokens found' },
         'sync.cron.skip',
       );
-      // Should NOT notify Greg for auth skip
+      // Should NOT notify John for auth skip
       expect(mockSendMessage).not.toHaveBeenCalled();
       // Immich should still run
       expect(mockSyncImmich).toHaveBeenCalled();

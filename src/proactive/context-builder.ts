@@ -189,7 +189,7 @@ function buildGapAnalysis(
   const raw = [
     '## Conversation Gap Analysis',
     '',
-    `- Last message from Greg: ${formatDate(lastMessageDate)} (${daysSinceLast} days ago)`,
+    `- Last message from John: ${formatDate(lastMessageDate)} (${daysSinceLast} days ago)`,
     `- Messages in last 30 days: ${recentCount}`,
     `- Average gap between messages: ${avgGapDays} days`,
   ].join('\n');

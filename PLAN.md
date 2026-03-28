@@ -4,7 +4,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                    Docker Host (Proxmox <PROXMOX_HOST>)               │
+│                    Docker Host (self-hosted server)               │
 │                                                                     │
 │  ┌──────────┐  ┌──────────────────────────┐  ┌───────────────────┐ │
 │  │ Telegram  │  │       Chris App           │  │   PostgreSQL 16   │ │
@@ -39,10 +39,10 @@
 | **Runtime** | Node.js 22 + TypeScript (ESM) | Fast iteration, strong Telegram/LLM ecosystem |
 | **Database** | PostgreSQL 16 + pgvector | Relational + vector search in one DB; append-only pensieve; battle-tested |
 | **LLM** | Anthropic Claude API — three-tier: Haiku 4.5 (classify), Sonnet 4.6 (converse), Opus 4.6 (deep analysis) | Matches cognitive weight to task weight |
-| **Embeddings** | bge-m3 via @huggingface/transformers (local ONNX, 1024 dims, multilingual EN/FR/RU) | No API dependency, supports Greg's languages |
+| **Embeddings** | bge-m3 via @huggingface/transformers (local ONNX, 1024 dims, multilingual EN/FR/RU) | No API dependency, supports John's languages |
 | **Telegram** | Grammy bot framework | Modern, TypeScript-native, middleware-based |
 | **ORM** | Drizzle ORM + drizzle-kit | Type-safe, lightweight, auto-migration on startup |
-| **Container** | Docker Compose | Single-host deployment on Proxmox |
+| **Container** | Docker Compose | Single-host deployment on self-hosted server |
 
 ---
 
@@ -62,7 +62,7 @@
 - [x] Chris engine — Interrogate mode (Sonnet + retrieval-augmented, citation formatting)
 - [x] LLM integration (Anthropic client, three-tier model strategy)
 - [x] Conversation history persistence (last 20 messages)
-- [x] Docker Compose deployment on Proxmox <PROXMOX_HOST>
+- [x] Docker Compose deployment on self-hosted server
 - [x] /health endpoint with DB probe + pgvector extension check
 - [x] Multi-stage Dockerfile with pre-cached bge-m3 model
 
@@ -93,7 +93,7 @@
 ### Phase 4 — Proactive Chris (M004: Proactive Chris) ✅
 
 - [x] Proactive sweep orchestrator with cron scheduling + timezone-aware daily cap
-- [x] Silence trigger — detects unusual gaps in Greg's messaging rhythm
+- [x] Silence trigger — detects unusual gaps in John's messaging rhythm
 - [x] Commitment staleness trigger — detects forgotten INTENTION entries
 - [x] Opus-powered pattern recurrence detection
 - [x] Opus-powered unresolved thread detection
@@ -154,4 +154,4 @@ These are implemented but their validation text in REQUIREMENTS.md was written b
 
 ## Current State
 
-All 5 milestones complete. Chris is deployed and running on Proxmox <PROXMOX_HOST>. 285 tests passing across 16 test files. Both containers healthy.
+All 5 milestones complete. Chris is deployed and running on self-hosted server. 285 tests passing across 16 test files. Both containers healthy.
