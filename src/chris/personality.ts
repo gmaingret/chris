@@ -8,7 +8,7 @@ import {
 } from '../llm/prompts.js';
 import type { DetectedContradiction } from './contradiction.js';
 
-export type ChrisMode = 'JOURNAL' | 'INTERROGATE' | 'REFLECT' | 'COACH' | 'PSYCHOLOGY' | 'PRODUCE';
+export type ChrisMode = 'JOURNAL' | 'INTERROGATE' | 'REFLECT' | 'COACH' | 'PSYCHOLOGY' | 'PRODUCE' | 'PHOTOS';
 
 /**
  * Return the system prompt for a given mode.
@@ -40,6 +40,8 @@ export function buildSystemPrompt(
         .replace('{relationalContext}', relationalContext || 'No observations accumulated yet.');
     case 'PRODUCE':
       return PRODUCE_SYSTEM_PROMPT.replace('{pensieveContext}', contextValue);
+    case 'PHOTOS':
+      return JOURNAL_SYSTEM_PROMPT; // Photos mode uses Journal persona with vision
   }
 }
 

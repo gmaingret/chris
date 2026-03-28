@@ -52,6 +52,7 @@ export const conversationModeEnum = pgEnum('conversation_mode', [
   'PRODUCE',
   'COACH',
   'PSYCHOLOGY',
+  'PHOTOS',
 ]);
 
 export const contradictionStatusEnum = pgEnum('contradiction_status', [

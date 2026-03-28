@@ -23,6 +23,7 @@ export interface ImmichAsset {
   id: string;
   type: 'IMAGE' | 'VIDEO';
   originalFileName: string;
+  fileCreatedAt?: string;
   exifInfo?: ImmichExifInfo | null;
   people?: ImmichPerson[];
 }
@@ -97,4 +98,102 @@ export async function fetchAssets(
   }
 
   return allAssets;
+}
+
+/**
+ * Fetch recent photo assets from Immich, sorted by creation date descending.
+ * Uses takenAfter/takenBefore for date-based filtering.
+ * Returns IMAGE assets only (skips VIDEO).
+ */
+export async function fetchRecentPhotos(options?: {
+  takenAfter?: string;   // ISO date string
+  takenBefore?: string;  // ISO date string
+  limit?: number;        // default 10
+}): Promise<ImmichAsset[]> {
+  const baseUrl = config.immichApiUrl.replace(/\/+$/, '');
+  const apiKey = config.immichApiKey;
+
+  if (!baseUrl || !apiKey) {
+    throw new ImmichSyncError('Immich API URL or API key not configured');
+  }
+
+  const limit = options?.limit ?? 10;
+
+  const body: Record<string, unknown> = {
+    type: 'IMAGE',
+    withExif: true,
+    withPeople: true,
+    page: 1,
+    size: limit,
+    order: 'desc',
+  };
+
+  if (options?.takenAfter) body.takenAfter = options.takenAfter;
+  if (options?.takenBefore) body.takenBefore = options.takenBefore;
+
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}/api/search/metadata`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    throw new ImmichSyncError('Network error contacting Immich API', err);
+  }
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new ImmichSyncError(`Immich API returned HTTP ${response.status}: ${text}`);
+  }
+
+  let data: { assets?: { items?: ImmichAsset[] } };
+  try {
+    data = await response.json();
+  } catch (err) {
+    throw new ImmichSyncError('Failed to parse Immich API response', err);
+  }
+
+  const items = data.assets?.items ?? [];
+  logger.info({ count: items.length, limit }, 'immich.photos.fetch');
+  return items;
+}
+
+/**
+ * Fetch a photo thumbnail from Immich as a base64-encoded JPEG string.
+ * Uses the preview size (~1440px) which is good enough for Claude vision
+ * without being excessively large.
+ */
+export async function fetchAssetThumbnail(assetId: string): Promise<{
+  base64: string;
+  mediaType: 'image/jpeg';
+}> {
+  const baseUrl = config.immichApiUrl.replace(/\/+$/, '');
+  const apiKey = config.immichApiKey;
+
+  if (!baseUrl || !apiKey) {
+    throw new ImmichSyncError('Immich API URL or API key not configured');
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}/api/assets/${assetId}/thumbnail?size=preview`, {
+      headers: { 'x-api-key': apiKey },
+    });
+  } catch (err) {
+    throw new ImmichSyncError(`Network error fetching thumbnail for ${assetId}`, err);
+  }
+
+  if (!response.ok) {
+    throw new ImmichSyncError(`Immich thumbnail returned HTTP ${response.status} for ${assetId}`);
+  }
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+  return {
+    base64: buffer.toString('base64'),
+    mediaType: 'image/jpeg',
+  };
 }

@@ -3,6 +3,7 @@ import { MODE_DETECTION_PROMPT } from '../llm/prompts.js';
 import { saveMessage } from '../memory/conversation.js';
 import { handleJournal } from './modes/journal.js';
 import { handleInterrogate } from './modes/interrogate.js';
+import { handlePhotos } from './modes/photos.js';
 import { handleReflect } from './modes/reflect.js';
 import { handleCoach } from './modes/coach.js';
 import { handlePsychology } from './modes/psychology.js';
@@ -16,10 +17,10 @@ import { config } from '../config.js';
 import { LLMError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 
-export type ChrisMode = 'JOURNAL' | 'INTERROGATE' | 'REFLECT' | 'COACH' | 'PSYCHOLOGY' | 'PRODUCE';
+export type ChrisMode = 'JOURNAL' | 'INTERROGATE' | 'REFLECT' | 'COACH' | 'PSYCHOLOGY' | 'PRODUCE' | 'PHOTOS';
 
 export const VALID_MODES = new Set<ChrisMode>([
-  'JOURNAL', 'INTERROGATE', 'REFLECT', 'COACH', 'PSYCHOLOGY', 'PRODUCE',
+  'JOURNAL', 'INTERROGATE', 'REFLECT', 'COACH', 'PSYCHOLOGY', 'PRODUCE', 'PHOTOS',
 ]);
 
 /**
@@ -138,6 +139,16 @@ export async function processMessage(
       case 'PRODUCE':
         response = await handleProduce(chatId, text);
         break;
+      case 'PHOTOS': {
+        const photoResponse = await handlePhotos(chatId, text);
+        if (photoResponse) {
+          response = photoResponse;
+        } else {
+          // No photos found — fall back to journal mode with a natural response
+          response = await handleJournal(chatId, text);
+        }
+        break;
+      }
     }
 
     // ── Contradiction detection (JOURNAL and PRODUCE only) ─────────────
