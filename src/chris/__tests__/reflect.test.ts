@@ -35,7 +35,7 @@ vi.mock('../../llm/client.js', () => ({
     messages: { create: mockCreate },
   },
   HAIKU_MODEL: 'claude-haiku-4-5-20251001',
-  SONNET_MODEL: 'claude-sonnet-4-20250514',
+  SONNET_MODEL: 'claude-sonnet-4-6',
 }));
 
 // ── Mock hybridSearch + REFLECT_SEARCH_OPTIONS ─────────────────────────────
@@ -229,7 +229,7 @@ describe('handleReflect', () => {
 
     expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 1500,
         system: 'interpolated reflect system prompt',
         messages: [

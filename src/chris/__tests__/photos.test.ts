@@ -22,7 +22,7 @@ vi.mock('../../utils/logger.js', () => ({
 const mockCreate = vi.fn();
 vi.mock('../../llm/client.js', () => ({
   anthropic: { messages: { create: mockCreate } },
-  SONNET_MODEL: 'claude-sonnet-4-20250514',
+  SONNET_MODEL: 'claude-sonnet-4-6',
 }));
 
 // ── Mock Immich client ─────────────────────────────────────────────────────
@@ -141,7 +141,7 @@ describe('handlePhotos', () => {
 
     expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         messages: expect.arrayContaining([
           expect.objectContaining({
             role: 'user',

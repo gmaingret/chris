@@ -43,8 +43,8 @@ vi.mock('../../proactive/state.js', () => ({
 
 vi.mock('../../llm/client.js', () => ({
   anthropic: { messages: { create: mockCreate } },
-  HAIKU_MODEL: 'claude-3-5-haiku-20241022',
-  SONNET_MODEL: 'claude-sonnet-4-20250514',
+  HAIKU_MODEL: 'claude-haiku-4-5-20251001',
+  SONNET_MODEL: 'claude-sonnet-4-6',
 }));
 
 vi.mock('../../memory/conversation.js', () => ({

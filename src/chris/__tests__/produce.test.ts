@@ -34,7 +34,7 @@ vi.mock('../../llm/client.js', () => ({
   anthropic: {
     messages: { create: mockCreate },
   },
-  SONNET_MODEL: 'claude-sonnet-4-20250514',
+  SONNET_MODEL: 'claude-sonnet-4-6',
 }));
 
 // ── Mock hybridSearch + PRODUCE_SEARCH_OPTIONS ─────────────────────────────
@@ -195,7 +195,7 @@ describe('handleProduce', () => {
 
     expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 1500,
         system: 'interpolated produce system prompt',
         messages: [

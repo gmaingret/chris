@@ -59,7 +59,7 @@ vi.mock('../../bot/bot.js', () => {
 
 vi.mock('../../llm/client.js', () => ({
   anthropic: { messages: { create: mockCreate } },
-  SONNET_MODEL: 'claude-sonnet-4-20250514',
+  SONNET_MODEL: 'claude-sonnet-4-6',
 }));
 
 vi.mock('../../memory/conversation.js', () => ({
@@ -318,7 +318,7 @@ describe('proactive sweep', () => {
     // Verify Anthropic was called with system prompt containing trigger context
     expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         system: expect.stringContaining(context),
         messages: expect.arrayContaining([
           expect.objectContaining({ content: context }),
