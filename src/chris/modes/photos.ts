@@ -67,6 +67,17 @@ export function parseDateHint(text: string): {
   return {};
 }
 
+/** Result from handlePhotos — includes text summary of what was seen for conversation history. */
+export interface PhotoResult {
+  /** Chris's natural language response about the photos. */
+  response: string;
+  /**
+   * Text summary of the photos that were viewed (metadata only, no images).
+   * Saved alongside the user message so subsequent turns know what Chris saw.
+   */
+  photoContext: string;
+}
+
 /**
  * Handle a photo viewing request: fetch recent photos from Immich,
  * send thumbnails to Claude vision, and respond naturally.
@@ -74,7 +85,7 @@ export function parseDateHint(text: string): {
 export async function handlePhotos(
   chatId: bigint,
   text: string,
-): Promise<string> {
+): Promise<PhotoResult | null> {
   const start = Date.now();
 
   try {
@@ -90,7 +101,7 @@ export async function handlePhotos(
     if (assets.length === 0) {
       const latencyMs = Date.now() - start;
       logger.info({ chatId: chatId.toString(), latencyMs, photoCount: 0 }, 'chris.photos.empty');
-      return ''; // empty string signals no photos found — engine will handle
+      return null; // null signals no photos found — engine will handle
     }
 
     // Fetch thumbnails in parallel (with individual error handling)
@@ -113,7 +124,7 @@ export async function handlePhotos(
 
     if (results.length === 0) {
       logger.warn({ chatId: chatId.toString() }, 'chris.photos.all_thumbnails_failed');
-      return '';
+      return null;
     }
 
     // Build the message content with images + metadata context
@@ -170,6 +181,10 @@ export async function handlePhotos(
     const responseText = (textBlock as { type: 'text'; text: string }).text;
     const latencyMs = Date.now() - start;
 
+    // Build text-only summary of what was seen for conversation history persistence
+    const photoSummaries = results.map(({ asset }) => assetToText(asset));
+    const photoContext = `[Chris viewed ${results.length} photo(s):\n${photoSummaries.join('\n---\n')}]`;
+
     logger.info(
       {
         chatId: chatId.toString(),
@@ -181,7 +196,7 @@ export async function handlePhotos(
       'chris.photos.response',
     );
 
-    return responseText;
+    return { response: responseText, photoContext };
   } catch (error) {
     // Graceful degradation: if Immich is down, return a friendly message instead of crashing
     const errMsg = error instanceof Error ? error.message : String(error);
@@ -193,8 +208,8 @@ export async function handlePhotos(
         { chatId: chatId.toString(), error: errMsg, latencyMs },
         'chris.photos.immich_unavailable',
       );
-      // Return empty string — engine will fall back to journal mode
-      return '';
+      // Return null — engine will fall back to journal mode
+      return null;
     }
 
     if (error instanceof LLMError) throw error;

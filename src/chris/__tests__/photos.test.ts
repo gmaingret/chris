@@ -128,7 +128,10 @@ describe('handlePhotos', () => {
 
     const result = await handlePhotos(CHAT_ID, 'Regarde mes photos');
 
-    expect(result).toBe('Belle photo de Paris !');
+    expect(result).not.toBeNull();
+    expect(result!.response).toBe('Belle photo de Paris !');
+    expect(result!.photoContext).toContain('Paris');
+    expect(result!.photoContext).toContain('Chris viewed 1 photo');
     expect(mockFetchRecentPhotos).toHaveBeenCalledWith(expect.objectContaining({ limit: 5 }));
     expect(mockFetchAssetThumbnail).toHaveBeenCalledWith('asset-1');
   });
@@ -175,12 +178,12 @@ describe('handlePhotos', () => {
     expect(metaBlock.text).toContain('Paris');
   });
 
-  it('returns empty string when no photos found', async () => {
+  it('returns null when no photos found', async () => {
     mockFetchRecentPhotos.mockResolvedValue([]);
 
     const result = await handlePhotos(CHAT_ID, 'Show me photos');
 
-    expect(result).toBe('');
+    expect(result).toBeNull();
     expect(mockCreate).not.toHaveBeenCalled();
   });
 
@@ -192,20 +195,21 @@ describe('handlePhotos', () => {
 
     const result = await handlePhotos(CHAT_ID, 'Show me photos');
 
-    expect(result).toBe('Belle photo de Paris !');
+    expect(result).not.toBeNull();
+    expect(result!.response).toBe('Belle photo de Paris !');
     expect(mockLogWarn).toHaveBeenCalledWith(
       expect.objectContaining({ assetId: 'asset-2' }),
       'chris.photos.thumbnail.error',
     );
   });
 
-  it('returns empty string when all thumbnails fail', async () => {
+  it('returns null when all thumbnails fail', async () => {
     mockFetchRecentPhotos.mockResolvedValue([MOCK_ASSET]);
     mockFetchAssetThumbnail.mockRejectedValue(new Error('all failed'));
 
     const result = await handlePhotos(CHAT_ID, 'Show me photos');
 
-    expect(result).toBe('');
+    expect(result).toBeNull();
   });
 
   it('handles multiple photos', async () => {
@@ -255,24 +259,24 @@ describe('handlePhotos', () => {
     );
   });
 
-  it('returns empty string when Immich throws network error (graceful degradation)', async () => {
+  it('returns null when Immich throws network error (graceful degradation)', async () => {
     mockFetchRecentPhotos.mockRejectedValue(new TypeError('fetch failed: ECONNREFUSED'));
 
     const result = await handlePhotos(CHAT_ID, 'Show me photos');
 
-    expect(result).toBe('');
+    expect(result).toBeNull();
     expect(mockLogWarn).toHaveBeenCalledWith(
       expect.objectContaining({ error: expect.stringContaining('ECONNREFUSED') }),
       'chris.photos.immich_unavailable',
     );
   });
 
-  it('returns empty string when Immich times out', async () => {
+  it('returns null when Immich times out', async () => {
     mockFetchRecentPhotos.mockRejectedValue(new Error('timeout'));
 
     const result = await handlePhotos(CHAT_ID, 'Show me photos');
 
-    expect(result).toBe('');
+    expect(result).toBeNull();
   });
 
   it('throws LLMError when Claude vision fails (not Immich)', async () => {

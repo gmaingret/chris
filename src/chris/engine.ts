@@ -124,8 +124,12 @@ export async function processMessage(
     // Detect mode first so we can tag the user message correctly
     const mode = await detectMode(text);
 
-    // Save user message to conversation history
-    await saveMessage(chatId, 'USER', text, mode);
+    // Save user message to conversation history (PHOTOS mode may override this below)
+    let userMessageSaved = false;
+    if (mode !== 'PHOTOS') {
+      await saveMessage(chatId, 'USER', text, mode);
+      userMessageSaved = true;
+    }
 
     // Route to handler based on detected mode
     let response: string;
@@ -149,11 +153,17 @@ export async function processMessage(
         response = await handleProduce(chatId, text);
         break;
       case 'PHOTOS': {
-        const photoResponse = await handlePhotos(chatId, text);
-        if (photoResponse) {
-          response = photoResponse;
+        const photoResult = await handlePhotos(chatId, text);
+        if (photoResult) {
+          response = photoResult.response;
+          // Enrich the saved user message with photo context so subsequent turns
+          // know what Chris saw (images aren't persisted in conversation history)
+          await saveMessage(chatId, 'USER', `${text}\n\n${photoResult.photoContext}`, mode);
+          userMessageSaved = true;
         } else {
           // No photos found — fall back to journal mode with a natural response
+          await saveMessage(chatId, 'USER', text, 'JOURNAL');
+          userMessageSaved = true;
           response = await handleJournal(chatId, text);
         }
         break;
