@@ -198,10 +198,12 @@ describe('Photo context persistence across turns', () => {
   it('Turn 1: photo request saves metadata in user message', async () => {
     // Mode detection returns PHOTOS
     mockCreate.mockResolvedValueOnce(makeLLMResponse('{"mode":"PHOTOS"}'));
+    // Photo query parse (Haiku)
+    mockCreate.mockResolvedValueOnce(makeLLMResponse('{"takenAfter":"2026-03-28T00:00:00.000Z"}'));
     // Immich returns photos
     mockFetchRecentPhotos.mockResolvedValue(MOCK_ASSETS);
     mockFetchAssetThumbnail.mockResolvedValue(MOCK_THUMB);
-    // Vision response
+    // Vision response (Sonnet)
     mockCreate.mockResolvedValueOnce(
       makeLLMResponse("Ah, belle journée à Paris ! Je vois un coucher de soleil magnifique et un moment au café."),
     );
@@ -311,6 +313,8 @@ describe('Photo context persistence across turns', () => {
   it('photo fallback to journal does NOT save photo context', async () => {
     // Mode detection returns PHOTOS but no photos found
     mockCreate.mockResolvedValueOnce(makeLLMResponse('{"mode":"PHOTOS"}'));
+    // Photo query parse (Haiku)
+    mockCreate.mockResolvedValueOnce(makeLLMResponse('{}'));
     mockFetchRecentPhotos.mockResolvedValue([]);
     // Falls back to journal handler
     mockHandleJournal.mockResolvedValueOnce(
@@ -329,8 +333,11 @@ describe('Photo context persistence across turns', () => {
   it('saveMessage is called exactly twice per turn (user + assistant)', async () => {
     // PHOTOS mode with results
     mockCreate.mockResolvedValueOnce(makeLLMResponse('{"mode":"PHOTOS"}'));
+    // Photo query parse (Haiku)
+    mockCreate.mockResolvedValueOnce(makeLLMResponse('{}'));
     mockFetchRecentPhotos.mockResolvedValue(MOCK_ASSETS);
     mockFetchAssetThumbnail.mockResolvedValue(MOCK_THUMB);
+    // Vision response (Sonnet)
     mockCreate.mockResolvedValueOnce(makeLLMResponse('Nice photos!'));
 
     await processMessage(CHAT_ID, USER_ID, 'Show me photos');

@@ -1,4 +1,4 @@
-import { anthropic, SONNET_MODEL } from '../../llm/client.js';
+import { anthropic, HAIKU_MODEL, SONNET_MODEL } from '../../llm/client.js';
 import { fetchRecentPhotos, fetchAssetThumbnail, type ImmichAsset } from '../../immich/client.js';
 import { assetToText } from '../../immich/metadata.js';
 import { buildMessageHistory } from '../../memory/context-builder.js';
@@ -14,57 +14,75 @@ import type Anthropic from '@anthropic-ai/sdk';
  */
 const MAX_PHOTOS = 5;
 
-/**
- * Parse a date range from the user's message for photo queries.
- * Returns takenAfter/takenBefore ISO strings, or undefined for "recent".
- *
- * Handles: "today", "yesterday", "this week", "last week",
- * "aujourd'hui", "hier", "cette semaine", "la semaine dernière"
- */
-export function parseDateHint(text: string): {
+/** Search filters extracted from the user's natural language photo request. */
+export interface PhotoSearchFilters {
   takenAfter?: string;
   takenBefore?: string;
-} {
-  const lower = text.toLowerCase();
-  const now = new Date();
+  city?: string;
+  state?: string;
+  country?: string;
+}
 
-  // Today / aujourd'hui
-  if (/\btoday\b|\baujourd'?hui\b|\bсегодня\b/i.test(lower)) {
-    const start = new Date(now);
-    start.setHours(0, 0, 0, 0);
-    return { takenAfter: start.toISOString() };
+const PHOTO_QUERY_PARSE_PROMPT = `You extract photo search filters from a user's message. Today's date is ${new Date().toISOString().slice(0, 10)}.
+
+Return ONLY a JSON object with these optional fields:
+- "takenAfter": ISO date string (start of date range)
+- "takenBefore": ISO date string (end of date range)
+- "city": city name in English
+- "state": state/region name
+- "country": country name
+
+Rules:
+- "today" / "aujourd'hui" → takenAfter = today at 00:00
+- "yesterday" / "hier" → takenAfter/takenBefore for yesterday
+- "this week" / "cette semaine" → takenAfter = start of this week
+- "last week" / "la semaine dernière" → last week range
+- "this winter" / "cet hiver" → takenAfter: December 1, takenBefore: March 1
+- "last summer" / "l'été dernier" → June-August of the relevant year
+- Location names → put in "city" (e.g., "Vyborg" → city: "Vyborg")
+- If no date hint, omit date fields (returns recent photos)
+- If no location hint, omit location fields
+- Respond with ONLY the JSON object, no markdown fences, no explanation`;
+
+/**
+ * Use Haiku to extract photo search filters from a natural language request.
+ * Falls back to empty filters (recent photos) on any failure.
+ */
+export async function parsePhotoQuery(text: string): Promise<PhotoSearchFilters> {
+  try {
+    const response = await anthropic.messages.create({
+      model: HAIKU_MODEL,
+      max_tokens: 200,
+      system: PHOTO_QUERY_PARSE_PROMPT,
+      messages: [{ role: 'user', content: text }],
+    });
+
+    const textBlock = response.content.find(
+      (block: { type: string }) => block.type === 'text',
+    );
+    if (!textBlock || textBlock.type !== 'text') return {};
+
+    const raw = (textBlock as { type: 'text'; text: string }).text;
+    // Strip markdown fences (K003)
+    const cleaned = raw.replace(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/, '$1').trim();
+    const parsed = JSON.parse(cleaned);
+
+    const filters: PhotoSearchFilters = {};
+    if (parsed.takenAfter) filters.takenAfter = parsed.takenAfter;
+    if (parsed.takenBefore) filters.takenBefore = parsed.takenBefore;
+    if (parsed.city) filters.city = parsed.city;
+    if (parsed.state) filters.state = parsed.state;
+    if (parsed.country) filters.country = parsed.country;
+
+    logger.info({ filters }, 'chris.photos.query_parsed');
+    return filters;
+  } catch (error) {
+    logger.warn(
+      { error: error instanceof Error ? error.message : String(error) },
+      'chris.photos.query_parse_failed',
+    );
+    return {};
   }
-
-  // Yesterday / hier
-  if (/\byesterday\b|\bhier\b|\bвчера\b/i.test(lower)) {
-    const start = new Date(now);
-    start.setDate(start.getDate() - 1);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(start);
-    end.setHours(23, 59, 59, 999);
-    return { takenAfter: start.toISOString(), takenBefore: end.toISOString() };
-  }
-
-  // This week / cette semaine
-  if (/\bthis week\b|\bcette semaine\b|\bна этой неделе\b/i.test(lower)) {
-    const start = new Date(now);
-    start.setDate(start.getDate() - start.getDay());
-    start.setHours(0, 0, 0, 0);
-    return { takenAfter: start.toISOString() };
-  }
-
-  // Last week / la semaine dernière
-  if (/\blast week\b|\bla semaine derni[eè]re\b|\bна прошлой неделе\b/i.test(lower)) {
-    const end = new Date(now);
-    end.setDate(end.getDate() - end.getDay());
-    end.setHours(0, 0, 0, 0);
-    const start = new Date(end);
-    start.setDate(start.getDate() - 7);
-    return { takenAfter: start.toISOString(), takenBefore: end.toISOString() };
-  }
-
-  // Default: recent (no filter, Immich returns newest first)
-  return {};
 }
 
 /** Result from handlePhotos — includes text summary of what was seen for conversation history. */
@@ -89,12 +107,12 @@ export async function handlePhotos(
   const start = Date.now();
 
   try {
-    // Parse date hints from the user's message
-    const dateHint = parseDateHint(text);
+    // Use LLM to extract search filters from the user's message
+    const filters = await parsePhotoQuery(text);
 
     // Fetch matching photos from Immich
     const assets = await fetchRecentPhotos({
-      ...dateHint,
+      ...filters,
       limit: MAX_PHOTOS,
     });
 

@@ -22,6 +22,7 @@ vi.mock('../../utils/logger.js', () => ({
 const mockCreate = vi.fn();
 vi.mock('../../llm/client.js', () => ({
   anthropic: { messages: { create: mockCreate } },
+  HAIKU_MODEL: 'claude-haiku-4-5-20251001',
   SONNET_MODEL: 'claude-sonnet-4-6',
 }));
 
@@ -46,7 +47,7 @@ vi.mock('../personality.js', () => ({
 }));
 
 // ── Import module under test ───────────────────────────────────────────────
-const { handlePhotos, parseDateHint } = await import('../modes/photos.js');
+const { handlePhotos, parsePhotoQuery } = await import('../modes/photos.js');
 
 const CHAT_ID = BigInt(123456);
 
@@ -63,52 +64,70 @@ const MOCK_ASSET = {
   originalFileName: 'photo.jpg',
   fileCreatedAt: '2026-03-28T12:00:00.000Z',
   exifInfo: { city: 'Paris', country: 'France', dateTimeOriginal: '2026-03-28T12:00:00.000Z' },
-  people: [{ id: 'p1', name: 'Johnory' }],
+  people: [{ id: 'p1', name: 'Gregory' }],
 };
 
 const MOCK_THUMB = { base64: 'dGVzdA==', mediaType: 'image/jpeg' as const };
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-describe('parseDateHint', () => {
-  it('parses "today" in English', () => {
-    const result = parseDateHint('Show me photos from today');
-    expect(result.takenAfter).toBeDefined();
-    expect(result.takenBefore).toBeUndefined();
+describe('parsePhotoQuery', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
   });
 
-  it('parses "aujourd\'hui" in French', () => {
-    const result = parseDateHint("Regarde mes photos d'aujourd'hui");
-    expect(result.takenAfter).toBeDefined();
+  it('extracts city from "photos de Vyborg"', async () => {
+    mockCreate.mockResolvedValueOnce(makeLLMResponse('{"city":"Vyborg"}'));
+
+    const result = await parsePhotoQuery('Montre-moi mes photos de Vyborg');
+
+    expect(result.city).toBe('Vyborg');
   });
 
-  it('parses "yesterday" in English', () => {
-    const result = parseDateHint('What did I photograph yesterday?');
+  it('extracts date + city from "photos de Vyborg cet hiver"', async () => {
+    mockCreate.mockResolvedValueOnce(makeLLMResponse(
+      '{"city":"Vyborg","takenAfter":"2025-12-01T00:00:00.000Z","takenBefore":"2026-03-01T00:00:00.000Z"}'
+    ));
+
+    const result = await parsePhotoQuery('Mes photos de Vyborg cet hiver');
+
+    expect(result.city).toBe('Vyborg');
     expect(result.takenAfter).toBeDefined();
     expect(result.takenBefore).toBeDefined();
   });
 
-  it('parses "hier" in French', () => {
-    const result = parseDateHint('Montre-moi mes photos d\'hier');
-    expect(result.takenAfter).toBeDefined();
-    expect(result.takenBefore).toBeDefined();
-  });
+  it('extracts date for "aujourd\'hui"', async () => {
+    mockCreate.mockResolvedValueOnce(makeLLMResponse(
+      '{"takenAfter":"2026-03-28T00:00:00.000Z"}'
+    ));
 
-  it('parses "this week" in English', () => {
-    const result = parseDateHint('Show me my photos from this week');
-    expect(result.takenAfter).toBeDefined();
-    expect(result.takenBefore).toBeUndefined();
-  });
+    const result = await parsePhotoQuery("Regarde mes photos d'aujourd'hui");
 
-  it('parses "cette semaine" in French', () => {
-    const result = parseDateHint('Mes photos de cette semaine');
     expect(result.takenAfter).toBeDefined();
   });
 
-  it('returns empty for generic "show me my photos"', () => {
-    const result = parseDateHint('Show me my latest photos');
-    expect(result.takenAfter).toBeUndefined();
-    expect(result.takenBefore).toBeUndefined();
+  it('returns empty filters on LLM failure', async () => {
+    mockCreate.mockRejectedValueOnce(new Error('API down'));
+
+    const result = await parsePhotoQuery('Show me photos');
+
+    expect(result).toEqual({});
+  });
+
+  it('handles markdown-fenced JSON response (K003)', async () => {
+    mockCreate.mockResolvedValueOnce(makeLLMResponse('```json\n{"city":"Paris"}\n```'));
+
+    const result = await parsePhotoQuery('Photos de Paris');
+
+    expect(result.city).toBe('Paris');
+  });
+
+  it('returns empty for generic "show me my photos"', async () => {
+    mockCreate.mockResolvedValueOnce(makeLLMResponse('{}'));
+
+    const result = await parsePhotoQuery('Show me my latest photos');
+
+    expect(result).toEqual({});
   });
 });
 
@@ -119,7 +138,10 @@ describe('handlePhotos', () => {
     vi.clearAllMocks();
     mockBuildMessageHistory.mockResolvedValue([]);
     mockBuildSystemPrompt.mockReturnValue('You are Chris...');
-    mockCreate.mockResolvedValue(makeLLMResponse('Belle photo de Paris !'));
+    // First call: parsePhotoQuery (Haiku), second call: vision (Sonnet)
+    mockCreate
+      .mockResolvedValueOnce(makeLLMResponse('{}'))  // query parse
+      .mockResolvedValueOnce(makeLLMResponse('Belle photo de Paris !'));  // vision
   });
 
   it('fetches recent photos and sends them to Claude vision', async () => {
@@ -136,31 +158,39 @@ describe('handlePhotos', () => {
     expect(mockFetchAssetThumbnail).toHaveBeenCalledWith('asset-1');
   });
 
+  it('passes city filter when user asks for location-specific photos', async () => {
+    mockCreate.mockReset();
+    mockCreate
+      .mockResolvedValueOnce(makeLLMResponse('{"city":"Vyborg"}'))
+      .mockResolvedValueOnce(makeLLMResponse('Belles photos de Vyborg !'));
+
+    mockFetchRecentPhotos.mockResolvedValue([{
+      ...MOCK_ASSET,
+      exifInfo: { city: 'Vyborg', country: 'Russia', dateTimeOriginal: '2026-01-31T12:00:00.000Z' },
+    }]);
+    mockFetchAssetThumbnail.mockResolvedValue(MOCK_THUMB);
+
+    const result = await handlePhotos(CHAT_ID, 'Montre-moi mes photos de Vyborg');
+
+    expect(result).not.toBeNull();
+    expect(mockFetchRecentPhotos).toHaveBeenCalledWith(
+      expect.objectContaining({ city: 'Vyborg', limit: 5 }),
+    );
+  });
+
   it('passes image as base64 to Sonnet', async () => {
     mockFetchRecentPhotos.mockResolvedValue([MOCK_ASSET]);
     mockFetchAssetThumbnail.mockResolvedValue(MOCK_THUMB);
 
     await handlePhotos(CHAT_ID, 'Show me my photos');
 
-    expect(mockCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        model: 'claude-sonnet-4-6',
-        messages: expect.arrayContaining([
-          expect.objectContaining({
-            role: 'user',
-            content: expect.arrayContaining([
-              expect.objectContaining({
-                type: 'image',
-                source: expect.objectContaining({
-                  type: 'base64',
-                  media_type: 'image/jpeg',
-                }),
-              }),
-            ]),
-          }),
-        ]),
-      }),
-    );
+    // Second mockCreate call is the vision call
+    const visionCall = mockCreate.mock.calls[1]![0];
+    expect(visionCall.model).toBe('claude-sonnet-4-6');
+    const userMsg = visionCall.messages[visionCall.messages.length - 1];
+    const imageBlock = userMsg.content.find((b: any) => b.type === 'image');
+    expect(imageBlock).toBeDefined();
+    expect(imageBlock.source.type).toBe('base64');
   });
 
   it('includes photo metadata in the message content', async () => {
@@ -169,8 +199,8 @@ describe('handlePhotos', () => {
 
     await handlePhotos(CHAT_ID, 'Show me photos');
 
-    const call = mockCreate.mock.calls[0]![0];
-    const userMessage = call.messages[call.messages.length - 1];
+    const visionCall = mockCreate.mock.calls[1]![0];
+    const userMessage = visionCall.messages[visionCall.messages.length - 1];
     const metaBlock = userMessage.content.find(
       (b: any) => b.type === 'text' && b.text.includes('Photo metadata'),
     );
@@ -179,12 +209,13 @@ describe('handlePhotos', () => {
   });
 
   it('returns null when no photos found', async () => {
+    mockCreate.mockReset();
+    mockCreate.mockResolvedValueOnce(makeLLMResponse('{}'));
     mockFetchRecentPhotos.mockResolvedValue([]);
 
     const result = await handlePhotos(CHAT_ID, 'Show me photos');
 
     expect(result).toBeNull();
-    expect(mockCreate).not.toHaveBeenCalled();
   });
 
   it('skips thumbnails that fail to load', async () => {
@@ -224,23 +255,10 @@ describe('handlePhotos', () => {
     await handlePhotos(CHAT_ID, 'Mes photos');
 
     expect(mockFetchAssetThumbnail).toHaveBeenCalledTimes(3);
-    const call = mockCreate.mock.calls[0]![0];
-    const userContent = call.messages[call.messages.length - 1].content;
+    const visionCall = mockCreate.mock.calls[1]![0];
+    const userContent = visionCall.messages[visionCall.messages.length - 1].content;
     const imageBlocks = userContent.filter((b: any) => b.type === 'image');
     expect(imageBlocks).toHaveLength(3);
-  });
-
-  it('passes date filter for "aujourd\'hui"', async () => {
-    mockFetchRecentPhotos.mockResolvedValue([]);
-
-    await handlePhotos(CHAT_ID, "Regarde mes photos d'aujourd'hui");
-
-    expect(mockFetchRecentPhotos).toHaveBeenCalledWith(
-      expect.objectContaining({
-        takenAfter: expect.any(String),
-        limit: 5,
-      }),
-    );
   });
 
   it('logs response with photo count and token usage', async () => {
@@ -260,6 +278,8 @@ describe('handlePhotos', () => {
   });
 
   it('returns null when Immich throws network error (graceful degradation)', async () => {
+    mockCreate.mockReset();
+    mockCreate.mockResolvedValueOnce(makeLLMResponse('{}'));
     mockFetchRecentPhotos.mockRejectedValue(new TypeError('fetch failed: ECONNREFUSED'));
 
     const result = await handlePhotos(CHAT_ID, 'Show me photos');
@@ -272,6 +292,8 @@ describe('handlePhotos', () => {
   });
 
   it('returns null when Immich times out', async () => {
+    mockCreate.mockReset();
+    mockCreate.mockResolvedValueOnce(makeLLMResponse('{}'));
     mockFetchRecentPhotos.mockRejectedValue(new Error('timeout'));
 
     const result = await handlePhotos(CHAT_ID, 'Show me photos');
@@ -282,18 +304,11 @@ describe('handlePhotos', () => {
   it('throws LLMError when Claude vision fails (not Immich)', async () => {
     mockFetchRecentPhotos.mockResolvedValue([MOCK_ASSET]);
     mockFetchAssetThumbnail.mockResolvedValue(MOCK_THUMB);
-    mockCreate.mockRejectedValue(new Error('Sonnet unavailable'));
+    mockCreate.mockReset();
+    mockCreate
+      .mockResolvedValueOnce(makeLLMResponse('{}'))
+      .mockRejectedValueOnce(new Error('Sonnet unavailable'));
 
     await expect(handlePhotos(CHAT_ID, 'Show me photos')).rejects.toThrow();
-  });
-
-  it('parses "last week" / "la semaine dernière" correctly', () => {
-    const en = parseDateHint('What did I photograph last week?');
-    expect(en.takenAfter).toBeDefined();
-    expect(en.takenBefore).toBeDefined();
-
-    const fr = parseDateHint('Mes photos de la semaine dernière');
-    expect(fr.takenAfter).toBeDefined();
-    expect(fr.takenBefore).toBeDefined();
   });
 });

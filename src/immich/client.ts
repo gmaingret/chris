@@ -109,6 +109,9 @@ export async function fetchAssets(
 export async function fetchRecentPhotos(options?: {
   takenAfter?: string;   // ISO date string
   takenBefore?: string;  // ISO date string
+  city?: string;         // filter by city name
+  state?: string;        // filter by state/region
+  country?: string;      // filter by country
   limit?: number;        // default 10
 }): Promise<ImmichAsset[]> {
   const baseUrl = config.immichApiUrl.replace(/\/+$/, '');
@@ -131,6 +134,9 @@ export async function fetchRecentPhotos(options?: {
 
   if (options?.takenAfter) body.takenAfter = options.takenAfter;
   if (options?.takenBefore) body.takenBefore = options.takenBefore;
+  if (options?.city) body.city = options.city;
+  if (options?.state) body.state = options.state;
+  if (options?.country) body.country = options.country;
 
   let response: Response;
   try {
