@@ -104,6 +104,7 @@ describe('embedAndStore', () => {
     expect(mockValues).toHaveBeenCalledWith({
       entryId,
       embedding: MOCK_EMBEDDING,
+      chunkIndex: 0,
       model: 'Xenova/bge-m3',
     });
   });

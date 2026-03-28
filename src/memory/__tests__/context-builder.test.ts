@@ -28,7 +28,7 @@ vi.mock('../../utils/logger.js', () => ({
 }));
 
 // ── Import modules under test ──────────────────────────────────────────────
-const { buildPensieveContext, buildMessageHistory, buildRelationalContext } = await import(
+const { buildPensieveContext, buildMessageHistory } = await import(
   '../context-builder.js'
 );
 
@@ -217,91 +217,5 @@ describe('buildMessageHistory', () => {
     expect(result).toHaveLength(2);
     expect(result[0].content).toBe('First\n\nSecond');
     expect(result[1].content).toBe('Response');
-  });
-});
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-import type { RelationalMemory } from '../../memory/relational.js';
-
-function makeRelational(
-  overrides: Partial<RelationalMemory> = {},
-): RelationalMemory {
-  return {
-    id: overrides.id ?? 'rel-1',
-    type: overrides.type ?? 'PATTERN',
-    content: overrides.content ?? 'Greg tends to journal more on Sundays',
-    confidence: 'confidence' in overrides ? overrides.confidence ?? null : 0.85,
-    createdAt: 'createdAt' in overrides ? overrides.createdAt ?? null : new Date('2025-03-15'),
-  };
-}
-
-describe('buildRelationalContext', () => {
-  it('returns fallback message for empty array', () => {
-    const context = buildRelationalContext([]);
-
-    expect(context).toBe('No observations accumulated yet.');
-  });
-
-  it('formats a single memory with correct citation format', () => {
-    const memories = [
-      makeRelational({
-        content: 'Greg tends to journal more on Sundays',
-        createdAt: new Date('2025-03-15'),
-        type: 'PATTERN',
-        confidence: 0.85,
-      }),
-    ];
-
-    const context = buildRelationalContext(memories);
-
-    expect(context).toBe(
-      '[1] (2025-03-15 | PATTERN | 0.85) "Greg tends to journal more on Sundays"',
-    );
-  });
-
-  it('formats multiple memories with incrementing indices', () => {
-    const memories = [
-      makeRelational({ content: 'First observation', id: 'rel-1' }),
-      makeRelational({ content: 'Second observation', id: 'rel-2' }),
-      makeRelational({ content: 'Third observation', id: 'rel-3' }),
-    ];
-
-    const context = buildRelationalContext(memories);
-    const lines = context.split('\n');
-
-    expect(lines).toHaveLength(3);
-    expect(lines[0]).toMatch(/^\[1\]/);
-    expect(lines[1]).toMatch(/^\[2\]/);
-    expect(lines[2]).toMatch(/^\[3\]/);
-    expect(lines[0]).toContain('First observation');
-    expect(lines[2]).toContain('Third observation');
-  });
-
-  it('handles null createdAt with unknown-date', () => {
-    const memories = [makeRelational({ createdAt: null })];
-
-    const context = buildRelationalContext(memories);
-
-    expect(context).toContain('unknown-date');
-  });
-
-  it('includes type and confidence in output', () => {
-    const memories = [
-      makeRelational({ type: 'OBSERVATION', confidence: 0.72 }),
-    ];
-
-    const context = buildRelationalContext(memories);
-
-    expect(context).toContain('OBSERVATION');
-    expect(context).toContain('0.72');
-  });
-
-  it('handles null confidence with default 0.50', () => {
-    const memories = [makeRelational({ confidence: null })];
-
-    const context = buildRelationalContext(memories);
-
-    expect(context).toContain('0.50');
   });
 });

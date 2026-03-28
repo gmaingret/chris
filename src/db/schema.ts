@@ -8,6 +8,7 @@ import {
   timestamp,
   real,
   bigint,
+  integer,
   index,
   unique,
 } from 'drizzle-orm/pg-core';
@@ -61,16 +62,23 @@ export const contradictionStatusEnum = pgEnum('contradiction_status', [
 
 // ── Tables ─────────────────────────────────────────────────────────────────
 
-export const pensieveEntries = pgTable('pensieve_entries', {
-  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  content: text('content').notNull(),
-  epistemicTag: epistemicTagEnum('epistemic_tag'),
-  source: varchar('source', { length: 50 }).default('telegram'),
-  metadata: jsonb('metadata'),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
-  deletedAt: timestamp('deleted_at', { withTimezone: true }),
-});
+export const pensieveEntries = pgTable(
+  'pensieve_entries',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    content: text('content').notNull(),
+    epistemicTag: epistemicTagEnum('epistemic_tag'),
+    source: varchar('source', { length: 50 }).default('telegram'),
+    contentHash: varchar('content_hash', { length: 64 }),
+    metadata: jsonb('metadata'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('pensieve_entries_content_hash_idx').on(table.contentHash),
+  ],
+);
 
 export const pensieveEmbeddings = pgTable(
   'pensieve_embeddings',
@@ -78,8 +86,8 @@ export const pensieveEmbeddings = pgTable(
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
     entryId: uuid('entry_id')
       .notNull()
-      .unique()
       .references(() => pensieveEntries.id),
+    chunkIndex: integer('chunk_index').default(0).notNull(),
     embedding: vector('embedding', { dimensions: 1024 }).notNull(),
     model: varchar('model', { length: 100 }).default('bge-m3'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
@@ -115,6 +123,42 @@ export const conversations = pgTable(
   ],
 );
 
+export const oauthTokens = pgTable(
+  'oauth_tokens',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    provider: varchar('provider', { length: 50 }).notNull(),
+    accessToken: text('access_token').notNull(),
+    refreshToken: text('refresh_token'),
+    expiryDate: bigint('expiry_date', { mode: 'number' }),
+    scope: text('scope'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+  },
+  (table) => [
+    unique('oauth_tokens_provider_unique').on(table.provider),
+  ],
+);
+
+export const syncStatus = pgTable(
+  'sync_status',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    source: varchar('source', { length: 50 }).notNull(),
+    lastSyncAt: timestamp('last_sync_at', { withTimezone: true }),
+    lastHistoryId: varchar('last_history_id', { length: 100 }),
+    entryCount: integer('entry_count').default(0),
+    errorCount: integer('error_count').default(0),
+    status: varchar('status', { length: 20 }).default('idle'),
+    lastError: text('last_error'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+  },
+  (table) => [
+    unique('sync_status_source_unique').on(table.source),
+  ],
+);
+
 export const contradictions = pgTable('contradictions', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   entryAId: uuid('entry_a_id').references(() => pensieveEntries.id),
@@ -124,4 +168,10 @@ export const contradictions = pgTable('contradictions', {
   resolution: text('resolution'),
   detectedAt: timestamp('detected_at', { withTimezone: true }).defaultNow(),
   resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+});
+
+export const proactiveState = pgTable('proactive_state', {
+  key: varchar('key', { length: 255 }).primaryKey(),
+  value: jsonb('value').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });

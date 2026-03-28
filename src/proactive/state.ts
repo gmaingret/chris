@@ -1,0 +1,91 @@
+import { eq } from 'drizzle-orm';
+import { db } from '../db/connection.js';
+import { proactiveState } from '../db/schema.js';
+
+// ── Key constants ──────────────────────────────────────────────────────────
+
+const LAST_SENT_KEY = 'last_sent';
+const MUTE_UNTIL_KEY = 'mute_until';
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+async function getValue(key: string): Promise<unknown | null> {
+  const rows = await db
+    .select({ value: proactiveState.value })
+    .from(proactiveState)
+    .where(eq(proactiveState.key, key))
+    .limit(1);
+  return rows.length > 0 ? rows[0].value : null;
+}
+
+async function setValue(key: string, value: unknown): Promise<void> {
+  await db
+    .insert(proactiveState)
+    .values({ key, value, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: proactiveState.key,
+      set: { value, updatedAt: new Date() },
+    });
+}
+
+async function deleteKey(key: string): Promise<void> {
+  await db.delete(proactiveState).where(eq(proactiveState.key, key));
+}
+
+// ── Public API ─────────────────────────────────────────────────────────────
+
+/** Get the last time a proactive message was sent. */
+export async function getLastSent(): Promise<Date | null> {
+  const val = await getValue(LAST_SENT_KEY);
+  if (val == null) return null;
+  return new Date(val as string);
+}
+
+/** Record that a proactive message was sent now (or at a specific time). */
+export async function setLastSent(timestamp: Date): Promise<void> {
+  await setValue(LAST_SENT_KEY, timestamp.toISOString());
+}
+
+/**
+ * Check whether a proactive message has already been sent today
+ * in the given timezone. Uses Intl.DateTimeFormat for timezone conversion.
+ */
+export async function hasSentToday(timezone: string): Promise<boolean> {
+  const lastSent = await getLastSent();
+  if (!lastSent) return false;
+
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+
+  const lastSentDate = formatter.format(lastSent);
+  const todayDate = formatter.format(new Date());
+
+  return lastSentDate === todayDate;
+}
+
+/** Get the mute-until timestamp (null if not muted). */
+export async function getMuteUntil(): Promise<Date | null> {
+  const val = await getValue(MUTE_UNTIL_KEY);
+  if (val == null) return null;
+  return new Date(val as string);
+}
+
+/** Set or clear the mute-until timestamp. Pass null to unmute. */
+export async function setMuteUntil(until: Date | null): Promise<void> {
+  if (until === null) {
+    await deleteKey(MUTE_UNTIL_KEY);
+  } else {
+    await setValue(MUTE_UNTIL_KEY, until.toISOString());
+  }
+}
+
+/** Check whether proactive messaging is currently muted. */
+export async function isMuted(): Promise<boolean> {
+  const muteUntil = await getMuteUntil();
+  if (!muteUntil) return false;
+  return muteUntil.getTime() > Date.now();
+}

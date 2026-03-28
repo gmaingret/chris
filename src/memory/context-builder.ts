@@ -1,6 +1,5 @@
 import { getRecentHistory } from './conversation.js';
 import type { SearchResult } from '../pensieve/retrieve.js';
-import type { RelationalMemory } from './relational.js';
 
 export interface AnthropicMessage {
   role: 'user' | 'assistant';
@@ -42,28 +41,6 @@ export async function buildMessageHistory(
   }
 
   return merged;
-}
-
-/**
- * Build a formatted context string from relational memory observations
- * for the reflect system prompt.
- *
- * Each observation is formatted as a numbered block:
- * `[1] (2025-03-15 | PATTERN | 0.85) "content"`.
- * Returns a fallback message if no observations exist.
- */
-export function buildRelationalContext(memories: RelationalMemory[]): string {
-  if (memories.length === 0) return 'No observations accumulated yet.';
-
-  return memories
-    .map((m, i) => {
-      const date = m.createdAt
-        ? new Date(m.createdAt).toISOString().slice(0, 10)
-        : 'unknown-date';
-      const confidence = m.confidence != null ? m.confidence.toFixed(2) : '0.50';
-      return `[${i + 1}] (${date} | ${m.type} | ${confidence}) "${m.content}"`;
-    })
-    .join('\n');
 }
 
 /** Minimum cosine similarity score for a search result to be included in context. */

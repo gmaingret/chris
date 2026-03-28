@@ -1,10 +1,13 @@
 import express from 'express';
+import cron from 'node-cron';
 import { webhookCallback } from 'grammy';
 import { bot } from './bot/bot.js';
 import { sql } from './db/connection.js';
 import { runMigrations } from './db/migrate.js';
 import { config } from './config.js';
 import { logger } from './utils/logger.js';
+import { startScheduler, stopScheduler } from './sync/scheduler.js';
+import { runSweep } from './proactive/sweep.js';
 
 function createApp(): express.Express {
   const app = express();
@@ -28,6 +31,21 @@ async function main() {
   logger.info('Chris starting...');
 
   await runMigrations();
+
+  // Start background sync scheduler (Gmail, Immich, Drive)
+  if (config.syncEnabled) {
+    startScheduler();
+  }
+
+  // Schedule proactive sweep
+  cron.schedule(config.proactiveSweepCron, async () => {
+    try {
+      await runSweep();
+    } catch (err) {
+      logger.error({ err }, 'proactive.cron.error');
+    }
+  }, { timezone: config.proactiveTimezone });
+  logger.info({ cron: config.proactiveSweepCron, timezone: config.proactiveTimezone }, 'proactive.cron.scheduled');
 
   const port = parseInt(process.env.PORT || '3000', 10);
 
@@ -55,6 +73,7 @@ async function main() {
 
 const shutdown = async () => {
   logger.info('Shutting down...');
+  stopScheduler();
   bot.stop();
   await sql.end();
   process.exit(0);

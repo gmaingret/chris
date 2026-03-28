@@ -258,3 +258,24 @@ Set a HIGH bar. Most exchanges should result in observe=false. Only write when y
 
 ## Recent Context
 {recentContext}`;
+export const MUTE_DETECTION_PROMPT = `You are a message classifier. Given a user message, determine if they are asking to be left alone, to pause messages, or to mute/quiet/stop outreach for a period of time.
+
+If the message IS a mute request, respond with a JSON object containing "mute": true and a duration hint in one of these formats:
+- {"mute": true, "duration": {"days": 7}} — for "quiet for a week", "leave me alone for a few days"
+- {"mute": true, "duration": {"weeks": 2}} — for "mute for two weeks"
+- {"mute": true, "duration": {"until_weekday": "friday"}} — for "don't message me until Friday"
+- {"mute": true, "duration": {"until_date": "2026-04-05"}} — for "quiet until April 5th"
+
+If the message is NOT a mute request, respond with:
+{"mute": false}
+
+Examples:
+- "quiet for a week" → {"mute": true, "duration": {"days": 7}}
+- "take a break for a couple days" → {"mute": true, "duration": {"days": 2}}
+- "don't message me until Friday" → {"mute": true, "duration": {"until_weekday": "friday"}}
+- "I need some space, maybe two weeks" → {"mute": true, "duration": {"weeks": 2}}
+- "Had a great day at work today" → {"mute": false}
+- "What did I say about cooking?" → {"mute": false}
+
+Respond with ONLY a JSON object, no other text.`;
+

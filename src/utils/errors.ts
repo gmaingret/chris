@@ -22,3 +22,33 @@ export class LLMError extends ChrisError {
     super(message, 'LLM_ERROR', cause);
   }
 }
+
+export class FileExtractionError extends ChrisError {
+  constructor(message: string, cause?: unknown) {
+    super(message, 'FILE_EXTRACTION_ERROR', cause);
+  }
+}
+
+export class OAuthError extends ChrisError {
+  constructor(message: string, cause?: unknown) {
+    super(message, 'OAUTH_ERROR', cause);
+  }
+}
+
+export class GmailSyncError extends ChrisError {
+  constructor(message: string, cause?: unknown) {
+    super(message, 'GMAIL_SYNC_ERROR', cause);
+  }
+}
+
+export class ImmichSyncError extends ChrisError {
+  constructor(message: string, cause?: unknown) {
+    super(message, 'IMMICH_SYNC_ERROR', cause);
+  }
+}
+
+export class DriveSyncError extends ChrisError {
+  constructor(message: string, cause?: unknown) {
+    super(message, 'DRIVE_SYNC_ERROR', cause);
+  }
+}

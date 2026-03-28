@@ -27,6 +27,35 @@ export function resetPipeline(): void {
 // ── Public API ─────────────────────────────────────────────────────────────
 
 /**
+ * Split text into overlapping chunks for embedding.
+ *
+ * Returns at least one chunk even for short text. Each chunk is at most
+ * `maxChars` characters, with `overlapChars` characters of overlap between
+ * consecutive chunks.
+ */
+export function chunkText(
+  text: string,
+  maxChars: number = 4000,
+  overlapChars: number = 400,
+): string[] {
+  if (text.length <= maxChars) {
+    return [text];
+  }
+
+  const chunks: string[] = [];
+  let start = 0;
+
+  while (start < text.length) {
+    const end = Math.min(start + maxChars, text.length);
+    chunks.push(text.slice(start, end));
+    if (end >= text.length) break;
+    start += maxChars - overlapChars;
+  }
+
+  return chunks;
+}
+
+/**
  * Embed a text string using bge-m3 with CLS pooling and L2 normalisation.
  *
  * Returns a 1024-dimensional float array, or null on any error.
@@ -67,11 +96,58 @@ export async function embedAndStore(entryId: string, content: string): Promise<v
     await db.insert(pensieveEmbeddings).values({
       entryId,
       embedding,
+      chunkIndex: 0,
       model: config.embeddingModel,
     });
 
     const latencyMs = Date.now() - start;
     logger.info({ entryId, model: config.embeddingModel, latencyMs }, 'pensieve.embed');
+  } catch (error) {
+    logger.warn(
+      { entryId, error: error instanceof Error ? error.message : String(error) },
+      'pensieve.embed.error',
+    );
+  }
+}
+
+/**
+ * Embed content in chunks and store multiple embedding rows per entry.
+ *
+ * Fire-and-forget contract: never throws. Splits content into overlapping
+ * chunks, embeds each, and inserts with sequential `chunkIndex` values.
+ * Logs `pensieve.embed.chunked` on success, `pensieve.embed.error` on failure.
+ */
+export async function embedAndStoreChunked(
+  entryId: string,
+  content: string,
+): Promise<void> {
+  const start = Date.now();
+  try {
+    const chunks = chunkText(content);
+
+    for (let i = 0; i < chunks.length; i++) {
+      const embedding = await embedText(chunks[i]);
+      if (!embedding) {
+        logger.warn(
+          { entryId, chunkIndex: i, error: 'embedText returned null' },
+          'pensieve.embed.error',
+        );
+        continue;
+      }
+
+      await db.insert(pensieveEmbeddings).values({
+        entryId,
+        embedding,
+        chunkIndex: i,
+        model: config.embeddingModel,
+      });
+    }
+
+    const totalLatencyMs = Date.now() - start;
+    logger.info(
+      { entryId, chunkCount: chunks.length, totalLatencyMs },
+      'pensieve.embed.chunked',
+    );
   } catch (error) {
     logger.warn(
       { entryId, error: error instanceof Error ? error.message : String(error) },

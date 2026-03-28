@@ -10,6 +10,9 @@ import { handleProduce } from './modes/produce.js';
 import { writeRelationalMemory } from '../memory/relational.js';
 import { detectContradictions } from '../contradiction/detector.js';
 import { formatContradictionNotice } from './personality.js';
+import { detectMuteIntent, generateMuteAcknowledgment } from '../proactive/mute.js';
+import { setMuteUntil } from '../proactive/state.js';
+import { config } from '../config.js';
 import { LLMError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 
@@ -85,6 +88,29 @@ export async function processMessage(
   const start = Date.now();
 
   try {
+    // Pre-process: check for mute intent before mode detection (K012)
+    const muteResult = await detectMuteIntent(text);
+    if (muteResult.muted) {
+      await setMuteUntil(muteResult.muteUntil);
+      const ack = await generateMuteAcknowledgment(
+        muteResult.muteUntil,
+        config.proactiveTimezone,
+      );
+      await saveMessage(chatId, 'USER', text, 'JOURNAL');
+      await saveMessage(chatId, 'ASSISTANT', ack, 'JOURNAL');
+
+      logger.info(
+        {
+          muteUntil: muteResult.muteUntil.toISOString(),
+          durationDescription: muteResult.durationDescription,
+          chatId: chatId.toString(),
+        },
+        'chris.mute.set',
+      );
+
+      return ack;
+    }
+
     // Detect mode first so we can tag the user message correctly
     const mode = await detectMode(text);
 

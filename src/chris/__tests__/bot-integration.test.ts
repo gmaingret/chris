@@ -26,6 +26,7 @@ vi.mock('grammy', () => {
   class MockBot {
     use = vi.fn();
     on = vi.fn();
+    command = vi.fn();
     catch = vi.fn();
   }
   return { Bot: MockBot };

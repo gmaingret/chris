@@ -4,7 +4,7 @@ import { conversations } from '../db/schema.js';
 import { logger } from '../utils/logger.js';
 
 type ConversationRole = 'USER' | 'ASSISTANT';
-type ConversationMode = 'JOURNAL' | 'INTERROGATE' | 'REFLECT' | 'COACH' | 'PSYCHOLOGY' | 'PRODUCE';
+type ConversationMode = 'JOURNAL' | 'INTERROGATE';
 
 /**
  * Persist a single conversation message to the `conversations` table.

@@ -19,6 +19,30 @@ vi.mock('../../db/connection.js', () => ({
   },
 }));
 
+// ── Mock config (needed by engine.ts for proactive settings) ───────────────
+vi.mock('../../config.js', () => ({
+  config: {
+    anthropicApiKey: 'test-key',
+    telegramBotToken: 'test-token',
+    telegramAuthorizedUserId: 123456,
+    databaseUrl: 'postgresql://test:test@localhost:5432/test',
+    proactiveTimezone: 'Europe/Paris',
+  },
+}));
+
+// ── Mock proactive modules (K012) ──────────────────────────────────────────
+const mockDetectMuteIntent = vi.fn();
+const mockGenerateMuteAcknowledgment = vi.fn();
+vi.mock('../../proactive/mute.js', () => ({
+  detectMuteIntent: mockDetectMuteIntent,
+  generateMuteAcknowledgment: mockGenerateMuteAcknowledgment,
+}));
+
+const mockSetMuteUntil = vi.fn();
+vi.mock('../../proactive/state.js', () => ({
+  setMuteUntil: mockSetMuteUntil,
+}));
+
 // ── Mock logger ────────────────────────────────────────────────────────────
 const mockLogInfo = vi.fn();
 const mockLogWarn = vi.fn();
@@ -555,6 +579,7 @@ describe('processMessage (engine)', () => {
     mockTagEntry.mockResolvedValue(null);
     mockEmbedAndStore.mockResolvedValue(undefined);
     mockDetectContradictions.mockResolvedValue([]);
+    mockDetectMuteIntent.mockResolvedValue({ muted: false });
   });
 
   it('detects mode, routes to journal, and returns response', async () => {
