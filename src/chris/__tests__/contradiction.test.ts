@@ -94,7 +94,7 @@ vi.mock('../../pensieve/retrieve.js', () => ({
 
 // ── Import module under test after mocks ───────────────────────────────────
 const { detectContradictions, getUnresolvedContradictions, resolveContradiction, CONFIDENCE_THRESHOLD } =
-  await import('../detector.js');
+  await import('../contradiction.js');
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 

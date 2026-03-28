@@ -23,13 +23,25 @@ CREATE TABLE "conversations" (
 	"created_at" timestamp with time zone DEFAULT now()
 );
 --> statement-breakpoint
+CREATE TABLE "oauth_tokens" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"provider" varchar(50) NOT NULL,
+	"access_token" text NOT NULL,
+	"refresh_token" text,
+	"expiry_date" bigint,
+	"scope" text,
+	"created_at" timestamp with time zone DEFAULT now(),
+	"updated_at" timestamp with time zone DEFAULT now(),
+	CONSTRAINT "oauth_tokens_provider_unique" UNIQUE("provider")
+);
+--> statement-breakpoint
 CREATE TABLE "pensieve_embeddings" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"entry_id" uuid NOT NULL,
+	"chunk_index" integer DEFAULT 0 NOT NULL,
 	"embedding" vector(1024) NOT NULL,
 	"model" varchar(100) DEFAULT 'bge-m3',
-	"created_at" timestamp with time zone DEFAULT now(),
-	CONSTRAINT "pensieve_embeddings_entry_id_unique" UNIQUE("entry_id")
+	"created_at" timestamp with time zone DEFAULT now()
 );
 --> statement-breakpoint
 CREATE TABLE "pensieve_entries" (
@@ -37,10 +49,17 @@ CREATE TABLE "pensieve_entries" (
 	"content" text NOT NULL,
 	"epistemic_tag" "epistemic_tag",
 	"source" varchar(50) DEFAULT 'telegram',
+	"content_hash" varchar(64),
 	"metadata" jsonb,
 	"created_at" timestamp with time zone DEFAULT now(),
 	"updated_at" timestamp with time zone DEFAULT now(),
 	"deleted_at" timestamp with time zone
+);
+--> statement-breakpoint
+CREATE TABLE "proactive_state" (
+	"key" varchar(255) PRIMARY KEY NOT NULL,
+	"value" jsonb NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now()
 );
 --> statement-breakpoint
 CREATE TABLE "relational_memory" (
@@ -53,8 +72,24 @@ CREATE TABLE "relational_memory" (
 	"updated_at" timestamp with time zone DEFAULT now()
 );
 --> statement-breakpoint
+CREATE TABLE "sync_status" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"source" varchar(50) NOT NULL,
+	"last_sync_at" timestamp with time zone,
+	"last_history_id" varchar(100),
+	"entry_count" integer DEFAULT 0,
+	"error_count" integer DEFAULT 0,
+	"status" varchar(20) DEFAULT 'idle',
+	"last_error" text,
+	"created_at" timestamp with time zone DEFAULT now(),
+	"updated_at" timestamp with time zone DEFAULT now(),
+	CONSTRAINT "sync_status_source_unique" UNIQUE("source")
+);
+--> statement-breakpoint
 ALTER TABLE "contradictions" ADD CONSTRAINT "contradictions_entry_a_id_pensieve_entries_id_fk" FOREIGN KEY ("entry_a_id") REFERENCES "public"."pensieve_entries"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "contradictions" ADD CONSTRAINT "contradictions_entry_b_id_pensieve_entries_id_fk" FOREIGN KEY ("entry_b_id") REFERENCES "public"."pensieve_entries"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "pensieve_embeddings" ADD CONSTRAINT "pensieve_embeddings_entry_id_pensieve_entries_id_fk" FOREIGN KEY ("entry_id") REFERENCES "public"."pensieve_entries"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "conversations_chat_id_created_at_idx" ON "conversations" USING btree ("chat_id","created_at");--> statement-breakpoint
-CREATE INDEX "pensieve_embeddings_entry_id_idx" ON "pensieve_embeddings" USING btree ("entry_id");
+CREATE INDEX "pensieve_embeddings_entry_id_idx" ON "pensieve_embeddings" USING btree ("entry_id");--> statement-breakpoint
+CREATE INDEX "pensieve_embeddings_embedding_idx" ON "pensieve_embeddings" USING hnsw ("embedding" vector_cosine_ops);--> statement-breakpoint
+CREATE INDEX "pensieve_entries_content_hash_idx" ON "pensieve_entries" USING btree ("content_hash");

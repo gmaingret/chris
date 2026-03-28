@@ -8,7 +8,7 @@ import { handleCoach } from './modes/coach.js';
 import { handlePsychology } from './modes/psychology.js';
 import { handleProduce } from './modes/produce.js';
 import { writeRelationalMemory } from '../memory/relational.js';
-import { detectContradictions } from '../contradiction/detector.js';
+import { detectContradictions } from './contradiction.js';
 import { formatContradictionNotice } from './personality.js';
 import { detectMuteIntent, generateMuteAcknowledgment } from '../proactive/mute.js';
 import { setMuteUntil } from '../proactive/state.js';

@@ -73,7 +73,7 @@ describe('Immich client', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(3);
 
     // Verify page numbers incremented
-    const bodies = fetchSpy.mock.calls.map((call) =>
+    const bodies = fetchSpy.mock.calls.map((call: any[]) =>
       JSON.parse(call[1]?.body as string),
     );
     expect(bodies[0].page).toBe(1);

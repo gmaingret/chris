@@ -1,4 +1,4 @@
-import cron from 'node-cron';
+import cron, { type ScheduledTask } from 'node-cron';
 import { syncGmail } from '../gmail/sync.js';
 import { syncDrive } from '../drive/sync.js';
 import { syncImmich } from '../immich/sync.js';
@@ -8,7 +8,7 @@ import { config } from '../config.js';
 import { logger } from '../utils/logger.js';
 import { OAuthError } from '../utils/errors.js';
 
-let scheduledTask: cron.ScheduledTask | null = null;
+let scheduledTask: ScheduledTask | null = null;
 
 /** No-op sendMessage for cron syncs — progress messages go nowhere */
 const noopSendMessage = async () => {};

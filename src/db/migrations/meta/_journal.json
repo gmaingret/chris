@@ -5,29 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1774619324485,
-      "tag": "0000_kind_mesmero",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1774620480709,
-      "tag": "0001_crazy_thunderbolt",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1774678361575,
-      "tag": "0002_ambiguous_tarot",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1774689410231,
-      "tag": "0003_tough_virginia_dare",
+      "when": 1774712728310,
+      "tag": "0000_curved_colonel_america",
       "breakpoints": true
     }
   ]

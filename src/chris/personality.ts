@@ -6,7 +6,7 @@ import {
   PSYCHOLOGY_SYSTEM_PROMPT,
   PRODUCE_SYSTEM_PROMPT,
 } from '../llm/prompts.js';
-import type { DetectedContradiction } from '../contradiction/detector.js';
+import type { DetectedContradiction } from './contradiction.js';
 
 export type ChrisMode = 'JOURNAL' | 'INTERROGATE' | 'REFLECT' | 'COACH' | 'PSYCHOLOGY' | 'PRODUCE';
 

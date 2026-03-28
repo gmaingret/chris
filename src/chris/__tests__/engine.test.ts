@@ -115,7 +115,7 @@ vi.mock('../../pensieve/retrieve.js', () => ({
 
 // ── Mock contradiction detector ────────────────────────────────────────────
 const mockDetectContradictions = vi.fn();
-vi.mock('../../contradiction/detector.js', () => ({
+vi.mock('../contradiction.js', () => ({
   detectContradictions: mockDetectContradictions,
 }));
 
