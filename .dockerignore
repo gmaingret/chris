@@ -1,6 +1,7 @@
 node_modules
 dist
 .gsd
+.env
 .git
 .env
 .env.*
