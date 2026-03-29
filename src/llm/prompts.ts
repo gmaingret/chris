@@ -69,11 +69,13 @@ export const MODE_DETECTION_PROMPT = `You are a message classifier. Given a user
 6. PRODUCE — thinking through a decision, brainstorming, planning, or collaborating on something concrete
    Examples: "Help me think through whether I should take this job offer" / "Let's brainstorm ideas for my side project"
 
-7. PHOTOS — asking to see, look at, or discuss their photos or images from their photo library
-   Examples: "Regarde mes photos d'aujourd'hui" / "What did I photograph this week?" / "Show me my latest photos" / "Montre-moi mes photos d'hier" / "Look at the photos I added today"
+7. PHOTOS — asking to FETCH NEW photos from their photo library. This means explicitly requesting to see/look at/show photos they haven't seen yet in this conversation.
+   Examples: "Regarde mes photos d'aujourd'hui" / "What did I photograph this week?" / "Show me my latest photos" / "Montre-moi mes photos de Vyborg"
+   NOT PHOTOS (use JOURNAL instead): follow-up questions about photos already discussed, e.g. "Which one do you prefer?" / "What dates were they taken?" / "Tell me more about that photo" / "Describe it better"
 
 Decision tree:
-- Is the user asking to see or discuss photos from their library? → PHOTOS
+- Is the user asking to FETCH and VIEW new photos from their library? → PHOTOS
+- Is the user asking follow-up questions about photos already shown in conversation? → JOURNAL
 - Is the user sharing/depositing something? → JOURNAL
 - Is the user asking about a specific past memory? → INTERROGATE
 - Is the user asking about patterns or themes over time? → REFLECT
