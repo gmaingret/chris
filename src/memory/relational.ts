@@ -89,7 +89,7 @@ export async function writeRelationalMemory(
       parsed = JSON.parse(cleaned);
     } catch {
       logger.warn(
-        { chatId: chatId.toString(), phase: 'parse', error: 'Unparseable Haiku response' },
+        { chatId: chatId.toString(), phase: 'parse', error: 'Unparseable Haiku response', raw: raw.slice(0, 200) },
         'memory.relational.error',
       );
       return;

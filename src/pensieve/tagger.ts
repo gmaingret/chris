@@ -54,7 +54,11 @@ export async function tagEntry(
     // Parse JSON from response
     let parsed: { tag?: string };
     try {
-      parsed = JSON.parse(textBlock.text.trim());
+      // Strip markdown fences (K003) before parsing
+      let jsonText = textBlock.text.trim();
+      const fenceMatch = jsonText.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
+      if (fenceMatch) jsonText = fenceMatch[1]!.trim();
+      parsed = JSON.parse(jsonText);
     } catch {
       logger.warn({ entryId, error: 'Unparseable LLM response' }, 'pensieve.tag.error');
       return null;
