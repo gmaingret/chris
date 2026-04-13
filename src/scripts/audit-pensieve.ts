@@ -221,7 +221,21 @@ export function matchEntryToGroundTruth(content: string): MatchResult {
   }
 
   // ── Financial — FI target ─────────────────────────────────────────────────
-  if (lower.includes('fi target') || lower.includes('financial independence') || (lower.includes('1.5 million') || lower.includes('$1,500,000') || lower.includes('1,500,000'))) {
+  if (lower.includes('fi target') || lower.includes('financial independence')) {
+    const hasCorrectAmount = lower.includes('1.5 million') ||
+      lower.includes('$1,500,000') || lower.includes('1,500,000');
+    if (hasCorrectAmount) {
+      return { matched: true, key: 'fi_target', isCorrect: true };
+    }
+    return {
+      matched: true,
+      key: 'fi_target',
+      isCorrect: false,
+      issue: 'FI target amount does not match ground truth ($1,500,000)',
+    };
+  }
+  // Standalone amount mentions without FI context
+  if (lower.includes('1.5 million') || lower.includes('$1,500,000') || lower.includes('1,500,000')) {
     return { matched: true, key: 'fi_target', isCorrect: true };
   }
 
