@@ -56,12 +56,7 @@ Plans:
   3. In JOURNAL mode, Chris can respond naturally without ending every message with a question
   4. Chris pushes back on weak arguments instead of agreeing, and never appeals to Greg's track record as evidence for current claims
   5. The constitutional preamble and three forbidden behaviors are present in all 6 mode system prompts
-**Plans:** 4 plans
-Plans:
-- [ ] 07-01-PLAN.md — Install franc, create Wave 0 test scaffolds for all requirements
-- [ ] 07-02-PLAN.md — Constitutional preamble, buildSystemPrompt extension, JOURNAL question pressure, handler wiring
-- [ ] 07-03-PLAN.md — Refusal detection module and language detection module
-- [ ] 07-04-PLAN.md — Engine pipeline integration and full test suite validation
+**Plans**: TBD
 
 ### Phase 8: Retrieval & Grounding
 **Goal**: JOURNAL mode grounds responses in structured Pensieve facts, and Chris explicitly declines to answer questions about facts not in the Pensieve rather than confabulating
@@ -107,7 +102,7 @@ Plans:
 | 4. Proactive Chris | v1.0 | - | Complete | - |
 | 5. Requirement Validation | v1.0 | - | Complete | - |
 | 6. Memory Audit | v2.0 M006 | 2/5 | In progress | - |
-| 7. Foundational Behavioral Fixes | v2.0 M006 | 0/4 | Not started | - |
+| 7. Foundational Behavioral Fixes | v2.0 M006 | 0/TBD | Not started | - |
 | 8. Retrieval & Grounding | v2.0 M006 | 0/TBD | Not started | - |
 | 9. Praise Quarantine | v2.0 M006 | 0/TBD | Not started | - |
 | 10. Live Validation Suite | v2.0 M006 | 0/TBD | Not started | - |
