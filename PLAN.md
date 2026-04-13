@@ -309,11 +309,17 @@ Execution runs inside GSD v1 (`get-shit-done-cc`), not v2. GSD v1 operates as Cl
 
 ## Current State
 
-M001–M005 complete. Chris is deployed and running on self-hosted server. 285 tests passing across 16 test files. Both containers healthy.
+M001–M005 complete. Chris is deployed and running on self-hosted server. Both containers healthy.
 
 M006 started 2026-04-13. Fixes conversational trust failures observed in real Telegram use on 2026-04-11 (refusal handling, language matching, question-pressure, fact confabulation) that would compound across all subsequent milestones if left unaddressed.
 
 Phase 6 complete (2026-04-13): Memory audit — all production FACT/RELATIONSHIP entries verified against ground truth. No incorrect entries found. Schema bug fixed (duplicate enum values). RETR-03 satisfied.
+
+Phase 7 complete: Foundational behavioral fixes — constitutional preamble, refusal handling, language detection, question-pressure reduction.
+
+Phase 8 complete: Retrieval & grounding — JOURNAL hybrid retrieval, structured fact injection, hallucination resistance.
+
+Phase 9 complete (2026-04-13): Praise quarantine — Haiku post-processor strips reflexive flattery from JOURNAL/REFLECT/PRODUCE responses. COACH/PSYCHOLOGY bypass. Never-throw contract. 3s timeout guard. SYCO-04, SYCO-05 satisfied.
 
 ## Evolution
 
@@ -333,4 +339,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-13 after milestone v2.0 M006 started*
+*Last updated: 2026-04-13 after Phase 9 (Praise Quarantine) completed*
