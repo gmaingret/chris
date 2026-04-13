@@ -141,7 +141,7 @@ async function main(): Promise<void> {
   // Safety guard (Pitfall 5) — refuse to run against a non-local DB
   const dbUrl = process.env['DATABASE_URL'] ?? '';
   if (
-    !dbUrl.startsWith('postgresql://') ||
+    !(dbUrl.startsWith('postgresql://') || dbUrl.startsWith('postgres://')) ||
     (!dbUrl.includes('localhost') && !dbUrl.includes('127.0.0.1'))
   ) {
     console.error(
