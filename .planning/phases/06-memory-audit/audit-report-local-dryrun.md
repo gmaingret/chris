@@ -1,7 +1,7 @@
 # Pensieve Audit Report
 
-**Date:** 2026-04-13T06:50:51.495Z
-**Mode:** wet-run (mutations applied)
+**Date:** 2026-04-13T06:50:44.227Z
+**Mode:** dry-run (no mutations)
 
 ## Summary
 
@@ -9,7 +9,7 @@
 - **Correct:** 11
 - **Incorrect:** 2
 - **Unrelated:** 0
-- **Corrections applied:** 2
+- **Corrections identified:** 2
 
 ## Entry Details
 
@@ -26,8 +26,8 @@
 | 2b0fcf4a | I also have a Georgian Individual Entrepreneur registration. | correct | kept | business_georgia |
 | 951fc834 | I have Panama permanent residency. | correct | kept | residency_panama |
 | f92bcb8b | My FI target is $1.5 million. | correct | kept | fi_target |
-| 4c9e20a6 | My apartment in Cagnes-sur-Mer is rented out through Citya. | incorrect | soft_deleted | rental_property |
-| 1c1ca921 | I'm planning to move from Georgia to Saint Petersburg next month. | incorrect | soft_deleted | current_location |
+| 4c9e20a6 | My apartment in Cagnes-sur-Mer is rented out through Citya. | incorrect | would_correct | rental_property |
+| 1c1ca921 | I'm planning to move from Georgia to Saint Petersburg next month. | incorrect | would_correct | current_location |
 
 ---
-*Report generated in **wet-run** mode. Incorrect entries have been soft-deleted and corrected replacements inserted.*
+*Report generated in **dry-run** mode. No changes were made to the database.*
