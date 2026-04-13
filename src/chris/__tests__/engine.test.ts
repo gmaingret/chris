@@ -109,8 +109,11 @@ vi.mock('../../memory/context-builder.js', () => ({
 
 // ── Mock searchPensieve (needed by interrogate handler) ────────────────────
 const mockSearchPensieve = vi.fn();
+const mockHybridSearch = vi.fn().mockResolvedValue([]);
 vi.mock('../../pensieve/retrieve.js', () => ({
   searchPensieve: mockSearchPensieve,
+  hybridSearch: mockHybridSearch,
+  JOURNAL_SEARCH_OPTIONS: { tags: ['FACT', 'RELATIONSHIP', 'PREFERENCE', 'VALUE'], recencyBias: 0.3, limit: 10 },
 }));
 
 // ── Mock contradiction detector ────────────────────────────────────────────
@@ -251,8 +254,8 @@ describe('System Prompts', () => {
     expect(JOURNAL_SYSTEM_PROMPT).toMatch(/never.*state.*fact/i);
   });
 
-  it('JOURNAL_SYSTEM_PROMPT mentions enriching follow-up questions', () => {
-    expect(JOURNAL_SYSTEM_PROMPT).toMatch(/follow-up/i);
+  it('JOURNAL_SYSTEM_PROMPT mentions optional questions', () => {
+    expect(JOURNAL_SYSTEM_PROMPT).toMatch(/question/i);
   });
 
   it('MODE_DETECTION_PROMPT instructs JOURNAL default for ambiguous', () => {
@@ -262,7 +265,11 @@ describe('System Prompts', () => {
 
 describe('buildSystemPrompt', () => {
   it('returns JOURNAL_SYSTEM_PROMPT for JOURNAL mode', () => {
-    expect(buildSystemPrompt('JOURNAL')).toBe(JOURNAL_SYSTEM_PROMPT);
+    const result = buildSystemPrompt('JOURNAL');
+    // buildSystemPrompt prepends constitutional preamble and appends Known Facts
+    expect(result).toContain('You are Chris');
+    expect(result).toContain('Core Principles');
+    expect(result).toContain('Known Facts About Greg');
   });
 
   it('returns a string for INTERROGATE mode (placeholder)', () => {
