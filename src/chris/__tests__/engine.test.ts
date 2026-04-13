@@ -119,6 +119,12 @@ vi.mock('../contradiction.js', () => ({
   detectContradictions: mockDetectContradictions,
 }));
 
+// ── Mock praise quarantine (SYCO-04/05) ───────────────────────────────────
+const mockQuarantinePraise = vi.fn();
+vi.mock('../praise-quarantine.js', () => ({
+  quarantinePraise: mockQuarantinePraise,
+}));
+
 // ── Mock handleInterrogate (to verify engine routing) ──────────────────────
 const mockHandleInterrogate = vi.fn();
 vi.mock('../modes/interrogate.js', () => ({
@@ -580,6 +586,7 @@ describe('processMessage (engine)', () => {
     mockEmbedAndStore.mockResolvedValue(undefined);
     mockDetectContradictions.mockResolvedValue([]);
     mockDetectMuteIntent.mockResolvedValue({ muted: false });
+    mockQuarantinePraise.mockImplementation((response: string) => Promise.resolve(response));
   });
 
   it('detects mode, routes to journal, and returns response', async () => {
@@ -1040,5 +1047,99 @@ describe('processMessage (engine)', () => {
   it('rejects message over 100,000 characters', async () => {
     const longText = 'a'.repeat(100_001);
     await expect(processMessage(CHAT_ID, USER_ID, longText)).rejects.toThrow('Message too long');
+  });
+});
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+describe('praise quarantine integration (SYCO-04/05)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSaveMessage.mockResolvedValue({ id: 'conv-1' });
+    mockStorePensieveEntry.mockResolvedValue({ id: ENTRY_ID, content: TEST_TEXT });
+    mockBuildMessageHistory.mockResolvedValue([]);
+    mockBuildPensieveContext.mockResolvedValue('');
+    mockTagEntry.mockResolvedValue(null);
+    mockEmbedAndStore.mockResolvedValue(undefined);
+    mockDetectContradictions.mockResolvedValue([]);
+    mockDetectMuteIntent.mockResolvedValue({ muted: false });
+    mockQuarantinePraise.mockImplementation((response: string) => Promise.resolve(response));
+  });
+
+  it('calls quarantinePraise for JOURNAL mode', async () => {
+    mockCreate.mockResolvedValueOnce(makeLLMResponse('{"mode": "JOURNAL"}'));
+    mockCreate.mockResolvedValueOnce(makeLLMResponse('Great question! Here is my answer.'));
+
+    mockQuarantinePraise.mockResolvedValue('Here is my answer.');
+
+    await processMessage(CHAT_ID, USER_ID, TEST_TEXT);
+
+    expect(mockQuarantinePraise).toHaveBeenCalledWith('Great question! Here is my answer.', 'JOURNAL');
+  });
+
+  it('calls quarantinePraise for REFLECT mode', async () => {
+    mockCreate.mockResolvedValueOnce(makeLLMResponse('{"mode": "REFLECT"}'));
+    mockHandleReflect.mockResolvedValue('Great point! I see a pattern here.');
+    mockQuarantinePraise.mockResolvedValue('I see a pattern here.');
+
+    await processMessage(CHAT_ID, USER_ID, 'What patterns do you see?');
+
+    expect(mockQuarantinePraise).toHaveBeenCalledWith('Great point! I see a pattern here.', 'REFLECT');
+  });
+
+  it('calls quarantinePraise for PRODUCE mode', async () => {
+    mockCreate.mockResolvedValueOnce(makeLLMResponse('{"mode": "PRODUCE"}'));
+    mockHandleProduce.mockResolvedValue('Excellent idea! Here are some thoughts.');
+    mockQuarantinePraise.mockResolvedValue('Here are some thoughts.');
+
+    await processMessage(CHAT_ID, USER_ID, 'Help me brainstorm.');
+
+    expect(mockQuarantinePraise).toHaveBeenCalledWith('Excellent idea! Here are some thoughts.', 'PRODUCE');
+  });
+
+  it('does NOT call quarantinePraise for COACH mode', async () => {
+    mockCreate.mockResolvedValueOnce(makeLLMResponse('{"mode": "COACH"}'));
+    mockHandleCoach.mockResolvedValue('Here is direct feedback.');
+
+    await processMessage(CHAT_ID, USER_ID, 'Give me direct feedback.');
+
+    expect(mockQuarantinePraise).not.toHaveBeenCalled();
+  });
+
+  it('does NOT call quarantinePraise for PSYCHOLOGY mode', async () => {
+    mockCreate.mockResolvedValueOnce(makeLLMResponse('{"mode": "PSYCHOLOGY"}'));
+    mockHandlePsychology.mockResolvedValue('Examining the deeper pattern.');
+
+    await processMessage(CHAT_ID, USER_ID, 'Analyze my behavior.');
+
+    expect(mockQuarantinePraise).not.toHaveBeenCalled();
+  });
+
+  it('uses rewritten response in saved message', async () => {
+    mockCreate.mockResolvedValueOnce(makeLLMResponse('{"mode": "JOURNAL"}'));
+    mockCreate.mockResolvedValueOnce(makeLLMResponse('What a thoughtful entry! Here is my reflection.'));
+    mockQuarantinePraise.mockResolvedValue('Rewritten response without flattery');
+
+    await processMessage(CHAT_ID, USER_ID, TEST_TEXT);
+
+    const assistantCall = mockSaveMessage.mock.calls.find(
+      (call: unknown[]) => call[1] === 'ASSISTANT',
+    );
+    expect(assistantCall).toBeDefined();
+    expect(assistantCall![2]).toBe('Rewritten response without flattery');
+  });
+
+  it('passes through original on quarantine error', async () => {
+    mockCreate.mockResolvedValueOnce(makeLLMResponse('{"mode": "JOURNAL"}'));
+    mockCreate.mockResolvedValueOnce(makeLLMResponse("That's a lovely memory."));
+    mockQuarantinePraise.mockRejectedValue(new Error('Haiku failed'));
+
+    const result = await processMessage(CHAT_ID, USER_ID, TEST_TEXT);
+
+    expect(result).toBe("That's a lovely memory.");
+    expect(mockLogWarn).toHaveBeenCalledWith(
+      expect.objectContaining({ error: 'Haiku failed' }),
+      'chris.engine.praise_quarantine.error',
+    );
   });
 });
