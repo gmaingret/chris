@@ -229,6 +229,8 @@ describe('handleCoach', () => {
       'COACH',
       expect.any(String),
       expect.any(String),
+      undefined,
+      undefined,
     );
   });
 

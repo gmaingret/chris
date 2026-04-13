@@ -179,15 +179,16 @@ describe('handleProduce', () => {
     expect(mockBuildPensieveContext).toHaveBeenCalledWith(MOCK_SEARCH_RESULTS);
   });
 
-  it('builds system prompt with PRODUCE mode and pensieve context (two args only)', async () => {
+  it('builds system prompt with PRODUCE mode and pensieve context (no relational context)', async () => {
     await handleProduce(CHAT_ID, TEST_QUERY);
 
     expect(mockBuildSystemPrompt).toHaveBeenCalledWith(
       'PRODUCE',
       expect.any(String),
+      undefined,
+      undefined,
+      undefined,
     );
-    // Verify exactly 2 arguments (no relational context)
-    expect(mockBuildSystemPrompt.mock.calls[0]).toHaveLength(2);
   });
 
   it('calls Sonnet with max_tokens 1500, system prompt, history + current message', async () => {

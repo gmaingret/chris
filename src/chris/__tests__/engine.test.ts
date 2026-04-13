@@ -245,8 +245,9 @@ describe('System Prompts', () => {
     expect(JOURNAL_SYSTEM_PROMPT).toMatch(/never.*state.*fact/i);
   });
 
-  it('JOURNAL_SYSTEM_PROMPT mentions enriching follow-up questions', () => {
-    expect(JOURNAL_SYSTEM_PROMPT).toMatch(/follow-up/i);
+  it('JOURNAL_SYSTEM_PROMPT makes questions occasional, not required (LANG-04)', () => {
+    expect(JOURNAL_SYSTEM_PROMPT).toMatch(/occasional|not every message|not expected/i);
+    expect(JOURNAL_SYSTEM_PROMPT).not.toMatch(/enriching follow-up questions/i);
   });
 
   it('MODE_DETECTION_PROMPT instructs JOURNAL default for ambiguous', () => {
@@ -255,8 +256,11 @@ describe('System Prompts', () => {
 });
 
 describe('buildSystemPrompt', () => {
-  it('returns JOURNAL_SYSTEM_PROMPT for JOURNAL mode', () => {
-    expect(buildSystemPrompt('JOURNAL')).toBe(JOURNAL_SYSTEM_PROMPT);
+  it('returns prompt containing JOURNAL_SYSTEM_PROMPT content for JOURNAL mode (SYCO-01: preamble prepended)', () => {
+    const result = buildSystemPrompt('JOURNAL');
+    // Preamble is now prepended, so result is not identical to JOURNAL_SYSTEM_PROMPT
+    expect(result).toContain('Core Principles');
+    expect(result).toContain('You are Chris');
   });
 
   it('returns a string for INTERROGATE mode (placeholder)', () => {

@@ -2,7 +2,7 @@ import { anthropic, HAIKU_MODEL, SONNET_MODEL } from '../../llm/client.js';
 import { fetchRecentPhotos, fetchAssetThumbnail, type ImmichAsset } from '../../immich/client.js';
 import { assetToText } from '../../immich/metadata.js';
 import { buildMessageHistory } from '../../memory/context-builder.js';
-import { buildSystemPrompt } from '../personality.js';
+import { buildSystemPrompt, type DeclinedTopic } from '../personality.js';
 import { LLMError } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
 import type Anthropic from '@anthropic-ai/sdk';
@@ -103,6 +103,8 @@ export interface PhotoResult {
 export async function handlePhotos(
   chatId: bigint,
   text: string,
+  language?: string,
+  declinedTopics?: DeclinedTopic[],
 ): Promise<PhotoResult | null> {
   const start = Date.now();
 
@@ -177,7 +179,7 @@ export async function handlePhotos(
     const history = await buildMessageHistory(chatId);
 
     // Call Sonnet with vision
-    const systemPrompt = buildSystemPrompt('JOURNAL');
+    const systemPrompt = buildSystemPrompt('JOURNAL', undefined, undefined, language, declinedTopics);
     const response = await anthropic.messages.create({
       cache_control: { type: 'ephemeral' },
       model: SONNET_MODEL,

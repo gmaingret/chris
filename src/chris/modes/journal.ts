@@ -3,7 +3,7 @@ import { storePensieveEntry } from '../../pensieve/store.js';
 import { tagEntry } from '../../pensieve/tagger.js';
 import { embedAndStore } from '../../pensieve/embeddings.js';
 import { buildMessageHistory } from '../../memory/context-builder.js';
-import { buildSystemPrompt } from '../personality.js';
+import { buildSystemPrompt, type DeclinedTopic } from '../personality.js';
 import { LLMError } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
 
@@ -16,6 +16,8 @@ import { logger } from '../../utils/logger.js';
 export async function handleJournal(
   chatId: bigint,
   text: string,
+  language?: string,
+  declinedTopics?: DeclinedTopic[],
 ): Promise<string> {
   const start = Date.now();
 
@@ -37,7 +39,7 @@ export async function handleJournal(
       cache_control: { type: 'ephemeral' },
       model: SONNET_MODEL,
       max_tokens: 1024,
-      system: buildSystemPrompt('JOURNAL'),
+      system: buildSystemPrompt('JOURNAL', undefined, undefined, language, declinedTopics),
       messages: [...history, { role: 'user', content: text }],
     });
 
