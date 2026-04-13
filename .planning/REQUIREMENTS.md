@@ -89,13 +89,38 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (populated by roadmapper) | | |
+| RETR-03 | Phase 6 | Pending |
+| TRUST-01 | Phase 7 | Pending |
+| TRUST-02 | Phase 7 | Pending |
+| TRUST-03 | Phase 7 | Pending |
+| TRUST-04 | Phase 7 | Pending |
+| SYCO-01 | Phase 7 | Pending |
+| SYCO-02 | Phase 7 | Pending |
+| SYCO-03 | Phase 7 | Pending |
+| LANG-01 | Phase 7 | Pending |
+| LANG-02 | Phase 7 | Pending |
+| LANG-03 | Phase 7 | Pending |
+| LANG-04 | Phase 7 | Pending |
+| RETR-01 | Phase 8 | Pending |
+| RETR-02 | Phase 8 | Pending |
+| RETR-04 | Phase 8 | Pending |
+| SYCO-04 | Phase 9 | Pending |
+| SYCO-05 | Phase 9 | Pending |
+| TEST-01 | Phase 10 | Pending |
+| TEST-02 | Phase 10 | Pending |
+| TEST-03 | Phase 10 | Pending |
+| TEST-04 | Phase 10 | Pending |
+| TEST-05 | Phase 10 | Pending |
+| TEST-06 | Phase 10 | Pending |
+| TEST-07 | Phase 10 | Pending |
+| TEST-08 | Phase 10 | Pending |
+| TEST-09 | Phase 10 | Pending |
 
 **Coverage:**
-- v2.0 requirements: 23 total
-- Mapped to phases: 0
-- Unmapped: 23 ⚠️
+- v2.0 requirements: 26 total
+- Mapped to phases: 26
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-13*
-*Last updated: 2026-04-13 after initial definition*
+*Last updated: 2026-04-13 after roadmap creation*
