@@ -69,8 +69,8 @@ Plans:
   4. When asked about facts that ARE in the Pensieve (e.g., Greg's location, property), Chris reports them accurately without scrambling details
 **Plans:** 2 plans
 Plans:
-- [ ] 08-01-PLAN.md — JOURNAL search preset, prompt template updates, Known Facts block injection
-- [ ] 08-02-PLAN.md — Wire JOURNAL handler to use retrieval, full regression verification
+- [x] 08-01-PLAN.md — JOURNAL search preset, prompt template updates, Known Facts block injection
+- [x] 08-02-PLAN.md — Wire JOURNAL handler to use retrieval, full regression verification
 
 ### Phase 9: Praise Quarantine
 **Goal**: Chris never opens with reflexive praise in JOURNAL, REFLECT, or PRODUCE modes, while COACH and PSYCHOLOGY retain their existing direct style unchanged
