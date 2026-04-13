@@ -47,7 +47,7 @@ created: 2026-04-13
 | 10-01-06 | 01 | 1 | TEST-06 | — | N/A | live integration | `npm test -- live-integration.test.ts` | ❌ W0 | ⬜ pending |
 | 10-01-07 | 01 | 1 | TEST-07 | — | N/A | live integration | `npm test -- live-integration.test.ts` | ❌ W0 | ⬜ pending |
 | 10-01-08 | 01 | 1 | TEST-08 | — | N/A | live integration | `npm test -- live-integration.test.ts` | ❌ W0 | ⬜ pending |
-| 10-02-01 | 02 | 1 | TEST-09 | — | N/A | live integration | `npm test -- contradiction-false-positive.test.ts` | ❌ W0 | ⬜ pending |
+| 10-02-01 | 02 | 2 | TEST-09 | — | N/A | live integration | `npm test -- contradiction-false-positive.test.ts` | ❌ W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 

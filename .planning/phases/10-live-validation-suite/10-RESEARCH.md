@@ -408,7 +408,7 @@ const AUDIT_PAIRS: AuditPair[] = [
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should embeddings be generated per pair in the contradiction audit, or is a fixed set of pre-embedded entries acceptable?**
    - What we know: `detectContradictions()` requires embeddings via `hybridSearch()` to find candidates.
