@@ -8,6 +8,7 @@
  * Run: DATABASE_URL=... ANTHROPIC_API_KEY=... npx vitest run src/chris/__tests__/live-integration.test.ts
  */
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
+import { eq, inArray } from 'drizzle-orm';
 import { db, sql } from '../../db/connection.js';
 import { pensieveEntries, pensieveEmbeddings, conversations, contradictions } from '../../db/schema.js';
 import { processMessage } from '../engine.js';
@@ -33,11 +34,18 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
   });
 
   afterEach(async () => {
-    // FK-safe cleanup order
-    await db.delete(contradictions);
-    await db.delete(pensieveEmbeddings);
-    await db.delete(pensieveEntries);
-    await db.delete(conversations);
+    // FK-safe cleanup order, scoped to test-inserted rows only
+    const testEntryIds = await db
+      .select({ id: pensieveEntries.id })
+      .from(pensieveEntries)
+      .where(eq(pensieveEntries.source, 'telegram'));
+    const ids = testEntryIds.map(e => e.id);
+    if (ids.length > 0) {
+      await db.delete(contradictions).where(inArray(contradictions.entryAId, ids));
+      await db.delete(pensieveEmbeddings).where(inArray(pensieveEmbeddings.entryId, ids));
+      await db.delete(pensieveEntries).where(eq(pensieveEntries.source, 'telegram'));
+    }
+    await db.delete(conversations).where(eq(conversations.chatId, TEST_CHAT_ID));
     clearDeclinedTopics(TEST_CHAT_ID.toString());
     clearLanguageState(TEST_CHAT_ID.toString());
   });

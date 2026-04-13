@@ -8,6 +8,7 @@
  * Run: DATABASE_URL=... ANTHROPIC_API_KEY=... npx vitest run src/chris/__tests__/contradiction-false-positive.test.ts
  */
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
+import { eq, inArray } from 'drizzle-orm';
 import { db, sql } from '../../db/connection.js';
 import { pensieveEntries, pensieveEmbeddings, contradictions } from '../../db/schema.js';
 import { detectContradictions } from '../contradiction.js';
@@ -163,10 +164,17 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Contradiction false-positive au
   });
 
   afterEach(async () => {
-    // FK-safe cleanup order
-    await db.delete(contradictions);
-    await db.delete(pensieveEmbeddings);
-    await db.delete(pensieveEntries);
+    // FK-safe cleanup order, scoped to test-inserted rows only
+    const testEntryIds = await db
+      .select({ id: pensieveEntries.id })
+      .from(pensieveEntries)
+      .where(eq(pensieveEntries.source, 'telegram'));
+    const ids = testEntryIds.map(e => e.id);
+    if (ids.length > 0) {
+      await db.delete(contradictions).where(inArray(contradictions.entryAId, ids));
+      await db.delete(pensieveEmbeddings).where(inArray(pensieveEmbeddings.entryId, ids));
+      await db.delete(pensieveEntries).where(eq(pensieveEntries.source, 'telegram'));
+    }
   });
 
   const categories = [...new Set(AUDIT_PAIRS.map(p => p.category))];
