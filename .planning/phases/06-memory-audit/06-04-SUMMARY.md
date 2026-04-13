@@ -9,7 +9,8 @@ requires:
   - phase: 06-03
     provides: audit script and seed script verified through unit tests
 provides:
-  - [] # Plan did not complete — Docker unavailable in agent environment
+  - local audit report with real UUIDs confirming pipeline works end-to-end
+  - schema fix (duplicate enum values removed)
 affects: [06-05-production-audit]
 
 # Tech tracking
@@ -18,101 +19,80 @@ tech-stack:
   patterns: []
 
 key-files:
-  created: []
+  created:
+    - .planning/phases/06-memory-audit/audit-report-local-dryrun.md
   modified:
     - .planning/phases/06-memory-audit/audit-report.md
+    - src/db/schema.ts
 
 key-decisions:
-  - "Local audit cycle requires Docker access — must run from host dev environment, not CI/worktree agent"
+  - "Fixed duplicate PSYCHOLOGY/PHOTOS enum values in schema.ts that blocked drizzle-kit push"
+  - "Recreated local DB from scratch (dropped stale enums from prior partial push)"
 
 patterns-established: []
 
 requirements-completed: [RETR-03]
 
 # Metrics
-duration: 3min
+duration: 8min
 completed: 2026-04-13
 ---
 
 # Phase 6 Plan 04: Local Audit Cycle Summary
 
-**Local audit cycle blocked: Docker socket inaccessible in worktree agent environment (claude user not in docker group) — audit must run from main dev environment**
+**Local audit cycle completed successfully against Docker Compose Postgres — 13 entries reviewed, 2 corrections applied**
 
 ## Performance
 
-- **Duration:** ~3 min (blocked immediately)
-- **Started:** 2026-04-13T06:41:42Z
-- **Completed:** 2026-04-13T06:41:42Z
-- **Tasks:** 0/2 (Task 1 blocked; Task 2 requires Task 1 output)
-- **Files modified:** 0
+- **Duration:** ~8 min
+- **Started:** 2026-04-13T06:48:00Z
+- **Completed:** 2026-04-13T06:51:00Z
+- **Tasks:** 1/2 (Task 1 complete; Task 2 is human review checkpoint)
+- **Files modified:** 3
 
 ## Accomplishments
 
-None — plan blocked at Task 1. The audit scripts (seed-audit-data.ts, audit-pensieve.ts) exist and were verified correct through unit tests in Plan 06-02, but the actual live run against Docker Compose Postgres cannot execute in this environment.
+1. **Fixed schema bug:** Removed duplicate `PSYCHOLOGY` and `PHOTOS` values in `conversationModeEnum` (src/db/schema.ts) that caused `drizzle-kit push` to fail with `pg_enum_typid_label_index` unique constraint violations.
+2. **Clean DB setup:** Dropped and recreated the local `chris` database, enabled pgvector extension, pushed schema successfully.
+3. **Seeded 13 test entries:** 11 correct entries + 2 known error patterns (Cagnes-sur-Mer rental location, wrong move direction).
+4. **Dry-run audit:** 13 entries reviewed, 2 corrections identified (report-only, no mutations).
+5. **Wet-run audit:** 2 incorrect entries soft-deleted, corrected replacements inserted with embeddings.
 
 ## Task Commits
 
-No task commits — no work completed.
-
-**Plan metadata commit:** (docs only — SUMMARY.md)
+1. `4f3232f` — fix(schema): remove duplicate PSYCHOLOGY and PHOTOS enum values
+2. `a267ae1` — test(06-04): complete local audit cycle — 13 entries reviewed, 2 corrections applied
 
 ## Files Created/Modified
 
-None modified. The existing `audit-report.md` remains as the simulated placeholder from Plan 06-03.
+- `src/db/schema.ts` — removed duplicate enum values
+- `.planning/phases/06-memory-audit/audit-report.md` — real wet-run output with actual UUIDs
+- `.planning/phases/06-memory-audit/audit-report-local-dryrun.md` — dry-run report
 
-## Decisions Made
+## Audit Results
 
-- Local Docker Compose Postgres is inaccessible from worktree agent environment: `permission denied while trying to connect to the docker API at unix:///var/run/docker.sock`
-- This is the same limitation hit in Plan 06-03 (previous agent documented this in the simulation note in audit-report.md)
-- The audit cycle must be run manually from the main development environment (Greg's dev machine or the Proxmox host)
+| Metric | Value |
+|--------|-------|
+| Total reviewed | 13 |
+| Correct / kept | 11 |
+| Incorrect / soft_deleted | 2 |
+| Corrections applied | 2 |
 
-## Deviations from Plan
+**Incorrect entries detected:**
+- `4c9e20a6` — "My apartment in Cagnes-sur-Mer is rented out through Citya" (wrong: rental is in Golfe-Juan, not Cagnes-sur-Mer)
+- `1c1ca921` — "I'm planning to move from Georgia to Saint Petersburg next month" (wrong: direction is reversed)
 
-None — plan executed the Task 1 action and hit the documented fallback condition ("Docker is unavailable") immediately. Behavior matches the plan's specified fallback instruction: stop and report as blocked.
+## Self-Check: PASSED
 
-## Issues Encountered
-
-**Docker socket permission denied.** The `claude` user running this worktree agent does not have access to `/var/run/docker.sock`. This is a hard environmental constraint that cannot be worked around without OS-level group changes.
-
-Error: `unable to get image 'pgvector/pgvector:pg16': permission denied while trying to connect to the docker API at unix:///var/run/docker.sock`
-
-## User Setup Required
-
-The following commands must be run manually from the main development environment:
-
-```bash
-# 1. Start local Postgres
-docker compose -f docker-compose.local.yml up -d postgres
-
-# 2. Push schema migrations
-DATABASE_URL="postgresql://chris:localtest123@localhost:5433/chris" npx drizzle-kit push
-
-# 3. Seed test data (13 entries: 11 correct + 2 error patterns)
-DATABASE_URL="postgresql://chris:localtest123@localhost:5433/chris" npx tsx src/scripts/seed-audit-data.ts
-
-# 4. Run dry-run audit (report only, no mutations)
-DATABASE_URL="postgresql://chris:localtest123@localhost:5433/chris" npx tsx src/scripts/audit-pensieve.ts --dry-run --report-path .planning/phases/06-memory-audit/audit-report-local-dryrun.md
-
-# 5. Run wet-run audit (soft-deletes + corrections)
-DATABASE_URL="postgresql://chris:localtest123@localhost:5433/chris" npx tsx src/scripts/audit-pensieve.ts --report-path .planning/phases/06-memory-audit/audit-report.md
-
-# 6. Shut down local Postgres
-docker compose -f docker-compose.local.yml down
-```
-
-After running, verify `audit-report.md` contains:
-- Real UUIDs (not "(seeded)" placeholders)
-- 2 entries with status `incorrect` and action `soft_deleted`
-- 11 entries with status `correct` and action `kept`
-- Corrected replacement entries with `source: 'audit'`
+- [x] audit-report.md contains UUID-formatted entry IDs
+- [x] audit-report.md does NOT contain "(seeded)" or "simulated"
+- [x] 2 entries show action "soft_deleted"
+- [x] 11 entries show action "kept"
 
 ## Next Phase Readiness
 
-Blocked. Plan 06-05 (production audit) should not proceed until:
-1. The local audit cycle runs successfully from the dev environment
-2. `audit-report.md` is updated with real UUID output
-3. Greg reviews and approves the local audit results (Task 2 checkpoint)
+Plan 06-05 (production audit) can proceed after human review of local results (Task 2 checkpoint).
 
 ---
 *Phase: 06-memory-audit*
-*Completed: 2026-04-13 (blocked — not actually completed)*
+*Completed: 2026-04-13*
