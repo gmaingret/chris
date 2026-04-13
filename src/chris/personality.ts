@@ -6,6 +6,7 @@ import {
   PSYCHOLOGY_SYSTEM_PROMPT,
   PRODUCE_SYSTEM_PROMPT,
 } from '../llm/prompts.js';
+import { GROUND_TRUTH, type FactCategory } from '../pensieve/ground-truth.js';
 import type { DetectedContradiction } from './contradiction.js';
 
 export type ChrisMode = 'JOURNAL' | 'INTERROGATE' | 'REFLECT' | 'COACH' | 'PSYCHOLOGY' | 'PRODUCE' | 'PHOTOS';
@@ -37,6 +38,23 @@ Your job is to be useful to Greg, not pleasant. Agreement is something you arriv
 `;
 
 /**
+ * Render GROUND_TRUTH entries as a structured "Known Facts About Greg" block.
+ * Injected into JOURNAL and INTERROGATE system prompts per D-04/D-05/D-06.
+ * Static, authoritative — always present, separate from retrieved pensieveContext.
+ */
+function buildKnownFactsBlock(): string {
+  const categoryOrder: FactCategory[] = ['identity', 'location_history', 'property', 'business', 'financial'];
+  const lines: string[] = ['## Known Facts About Greg'];
+  for (const cat of categoryOrder) {
+    const entries = GROUND_TRUTH.filter((e) => e.category === cat);
+    for (const entry of entries) {
+      lines.push(`- ${entry.key}: ${entry.value}`);
+    }
+  }
+  return lines.join('\n');
+}
+
+/**
  * Return the system prompt for a given mode.
  * Prepends constitutional preamble to all modes.
  * Appends language directive if language is set.
@@ -54,7 +72,7 @@ export function buildSystemPrompt(
   let modeBody: string;
   switch (mode) {
     case 'JOURNAL':
-      modeBody = JOURNAL_SYSTEM_PROMPT;
+      modeBody = JOURNAL_SYSTEM_PROMPT.replace('{pensieveContext}', contextValue);
       break;
     case 'INTERROGATE':
       modeBody = INTERROGATE_SYSTEM_PROMPT.replace('{pensieveContext}', contextValue);
@@ -83,6 +101,11 @@ export function buildSystemPrompt(
   }
 
   let prompt = CONSTITUTIONAL_PREAMBLE + modeBody;
+
+  // Inject static Known Facts block for modes that need factual grounding (D-04, D-05)
+  if (mode === 'JOURNAL' || mode === 'INTERROGATE') {
+    prompt += '\n\n' + buildKnownFactsBlock();
+  }
 
   if (language) {
     prompt += `\n\n## Language Directive (MANDATORY)\nRespond in ${language} only. This overrides any language signals in conversation history. Do not respond in any other language.`;
