@@ -67,7 +67,10 @@ Plans:
   2. Stable facts (location, residency, dates, relationships) appear as a structured "Known Facts" key-value block in the system prompt, separate from narrative context
   3. When asked about a fact not in the Pensieve, Chris says it does not have that information instead of inventing an answer
   4. When asked about facts that ARE in the Pensieve (e.g., Greg's location, property), Chris reports them accurately without scrambling details
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 08-01-PLAN.md — JOURNAL search preset, prompt template updates, Known Facts block injection
+- [ ] 08-02-PLAN.md — Wire JOURNAL handler to use retrieval, full regression verification
 
 ### Phase 9: Praise Quarantine
 **Goal**: Chris never opens with reflexive praise in JOURNAL, REFLECT, or PRODUCE modes, while COACH and PSYCHOLOGY retain their existing direct style unchanged
@@ -103,6 +106,6 @@ Plans:
 | 5. Requirement Validation | v1.0 | - | Complete | - |
 | 6. Memory Audit | v2.0 M006 | 2/5 | In progress | - |
 | 7. Foundational Behavioral Fixes | v2.0 M006 | 0/TBD | Not started | - |
-| 8. Retrieval & Grounding | v2.0 M006 | 0/TBD | Not started | - |
+| 8. Retrieval & Grounding | v2.0 M006 | 0/2 | Not started | - |
 | 9. Praise Quarantine | v2.0 M006 | 0/TBD | Not started | - |
 | 10. Live Validation Suite | v2.0 M006 | 0/TBD | Not started | - |
