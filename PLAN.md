@@ -1,5 +1,17 @@
 # Project Chris — Implementation Plan
 
+This is the single source of truth for Project Chris. It contains the project context, architectural constraints, key decisions, and the full milestone roadmap. `.planning/PROJECT.md` is a symlink to this file so GSD v1 skills can find it at the expected path while reading the same content.
+
+## What This Is
+
+Chris is a personal AI entity for a single user (Greg), running as a self-hosted Telegram bot. He is a **Pensieve**: an append-only, verbatim store of Greg's memories, thoughts, emotions, ideas, and decisions, paired with semantic retrieval that makes the accumulated memory actively useful. Chris stores silently, responds naturally, and speaks as a first-person entity whose personality emerges from the data rather than from hardcoded prompts. He never flatters, never hallucinates, and always sources claims from the Pensieve.
+
+## Core Value
+
+Greg can deposit any memory, thought, or feeling into Chris and later ask questions that Chris answers by searching everything Greg has ever told him — with full fidelity, no data loss, and genuine contextual understanding across English, French, and Russian.
+
+Chris is a tool for authoring a more examined life, not a vessel for preserving a soul. This framing — from the design PRD — makes the methodology tractable instead of metaphysical and shapes every subsequent architectural choice.
+
 ## Architecture Overview
 
 ```
@@ -49,7 +61,61 @@
 
 ---
 
+## Constraints
+
+- **Runtime**: Node.js 22 + TypeScript (ESM) — chosen for fast iteration and strong Telegram/LLM ecosystem.
+- **Database**: PostgreSQL 16 + pgvector — relational and vector search in one DB; append-only Pensieve; battle-tested.
+- **LLM**: Anthropic Claude API three-tier — Haiku 4.5 (classify/tag/mode-detect), Sonnet 4.6 (converse), Opus 4.6 (deep analysis). Matches cognitive weight to task weight.
+- **Embeddings**: bge-m3 via `@huggingface/transformers` — local ONNX, 1024 dimensions, multilingual (EN/FR/RU natively). No embedding API dependency.
+- **Telegram framework**: Grammy — modern, TypeScript-native, middleware-based.
+- **ORM**: Drizzle ORM + drizzle-kit — type-safe, lightweight, auto-migration on startup.
+- **Deployment**: Docker Compose on self-hosted Proxmox (192.168.1.50). Single-host. Persistent volumes for pgdata.
+- **Single authorized user**: Only Greg's Telegram user ID is accepted. Everything else is silently dropped at the Grammy auth middleware.
+- **Never fabricate**: Chris must never state as fact anything Greg has not told him. Uncertainty is explicit when data is thin.
+- **Never block**: Tagging, embedding, contradiction detection, and relational memory writes are fire-and-forget — never block the primary response.
+- **Production discipline**: build and test locally against Docker Postgres, push to Proxmox only after all tests green, never push without explicit user confirmation.
+
+---
+
+## Key Decisions
+
+| ID | Decision | Rationale |
+|---|---|---|
+| **D001** | Three-tier LLM strategy (Haiku / Sonnet / Opus) | Match cognitive weight to task weight. Haiku tags and classifies, Sonnet converses, Opus does deep psychology / pattern work. |
+| **D002** | bge-m3 local embeddings, not API-based | No external dependency, 1024 dims is enough, native multilingual for EN/FR/RU. |
+| **D003** | PostgreSQL + pgvector, not a separate vector DB | One DB is simpler than two. pgvector is production-grade. |
+| **D004** | Append-only Pensieve, no lossy operations | Data integrity is non-negotiable. Soft-delete only via explicit Greg command. |
+| **D005** | Fire-and-forget for tagging, embedding, relational memory | Never block the user-visible response. Side effects log errors and swallow. |
+| **D006** | 3-second timeout on contradiction detection, confidence ≥ 0.75 | False positives are worse than misses — a bad contradiction notice breaks trust more than a missed one. TRUST-12 adds a synthetic false-positive audit. |
+| **D007** | Hybrid retrieval across modes (Reflect, Coach, Psychology, Produce) | Grounding in both semantic similarity and temporal / epistemic tag filters produces better recall than pure cosine. |
+| **D008** | Chris speaks in first person as a distinct entity | He is a Pensieve with a voice, not a chatbot. Personality emerges from the data, not from character prompts. |
+| **D009** | Single authorized Telegram user | Multi-tenancy is out of scope. Auth middleware is the first in the Grammy chain. |
+| **D010** | Proactive sweep uses two-phase trigger execution | Cheap SQL gates expensive Opus calls. Silence and commitment triggers run first; pattern and thread triggers only fire if the cheap gates pass. |
+| **D011** | Source provenance on every entry | Every Pensieve entry tracks source (telegram, gmail, immich, drive, document_import). Citations carry the source through to retrieval responses. |
+| **D015** | Proactive state in key-value `proactive_state` table | Simple schema, flexible JSONB value, works for last_sent, mute_until, sweep metadata. |
+| **D016** | Build and test locally, then deploy | Never debug on the live Proxmox server. `docker-compose up` for Postgres locally, all tests green locally, THEN push. |
+| **D017** | Never lose work — every milestone commits before deploy | All code on main (or milestone branch). Merges must bring actual source files, not just planning artifacts. |
+| **D018** | No skipped tests | All unit and integration tests run locally against Docker Postgres with dummy data. The sync integration test uses a local test database, not skipped. Only exception: live Telegram API connection tests (bot token validation). |
+| **D019** | Production deployment requires explicit user approval | Never push to or restart the Proxmox production server without an explicit "yes" from Greg. Build the plan, present it, wait for confirmation. |
+| **D020** | M006 refusal detection is pattern-based, not Haiku-classified | 15–20 regex patterns per language (EN/FR/RU) are cheap, deterministic, and good enough. Latency cost of Haiku classification on every message isn't worth the marginal accuracy gain for a well-bounded problem. |
+| **D021** | M006 language detection uses `franc` with a minimum-length threshold | Messages below 4 words or 15 characters inherit the language of the previous user message in the conversation. Default to English only if no prior user message exists. |
+| **D022** | M006 constitutional preamble is a floor, not a ceiling | `buildSystemPrompt(mode)` prefixes a shared anti-sycophancy preamble to each existing mode prompt. COACH's existing directness guidance stays exactly as it is — the preamble is additive, not a replacement. |
+| **D023** | M006 live integration tests assert absence of bad behavior, not presence of exact text | Each test case runs 3 times against real Sonnet and requires 3-of-3 passes to handle non-determinism. Retrieval grounding tests use a Haiku follow-up call to verify consistency with seeded Pensieve facts. Sycophancy tests use keyword markers to distinguish engagement language from pure validation. |
+| **D024** | Anti-sycophancy has four layers, not one | (1) Constitutional preamble (TRUST-05), (2) structural defenses woven into rituals and decision archive (RRIT-05 devil's advocate, RRIT-08 steelman-then-challenge, forecast accountability in M007), (3) behavioral monitoring surfacing vital signs to Greg (RRIT-07 agreement-to-challenge ratio + comfort-zone detection), (4) three absolute forbidden behaviors as hard constitutional constraints (TRUST-10). Single-layer defenses erode over long conversations; four layers make the system robust. |
+| **D025** | Praise quarantine runs as engine post-processing, not as a prompt rule | Prompt rules against flattery drift over long sessions and across mode handlers. Post-processing audit (TRUST-09) is deterministic and catches reflexive praise regardless of which mode generated it. COACH and PSYCHOLOGY modes already forbid flattery at the prompt level and bypass the post-processor. |
+| **D026** | Daily wellbeing snapshot is separate from the daily voice note | The voice note is deposit-only narrative (RIT-04). The wellbeing snapshot (RIT-06) is three numeric taps (energy/mood/anxiety, 1–5 each). Combining them would either bloat the voice note ritual with structured questions or pollute the numeric series with interpretation. Keeping them separate preserves the frictionlessness of each. |
+| **D027** | The Hard Rule: Chris never tells Greg he is right because of who he is | The trap of personal AI is that the better the system knows the user, the more it can construct flattery that feels like insight. Appeals to Greg's past track record as evidence for current claims are forbidden entirely (TRUST-08). Every claim is evaluated on its own merits. |
+| **D028** | Attachment dimensions profile is deferred with an automatic activation trigger | Below 2,000 words of relational speech over 60+ days, the profile returns "insufficient data" (ATTACH-01). Inferring attachment from sparse data produces stereotypes worse than no profile. Weekly sweep monitors threshold; when crossed, profile activates without manual intervention. |
+| **D029** | Execution order prioritizes MVP (M006→M007→M008→M009) ahead of the profile layer | Per the PRD's "start with decision archive + daily voice note" principle, M009 (ritual infrastructure + daily note + weekly review) executes immediately after M008 episodic consolidation, before any profile milestone. Daily voice note and weekly review only need M008 summaries and M007 decisions; neither requires profile inference. Shipping M009 early delivers real user value and starts the daily data accumulation that M010–M012 profile inference actually requires. |
+| **D030** | Weekly review ships in M009, not M013 | Weekly review (RRIT-01) only depends on M008 episodic summaries and M007 resolved decisions — no profile layer required. Shipping it as part of M009 completes the reflection cadence as part of the MVP (daily + weekly) instead of gating the weekly loop behind months of profile buildup. Monthly and quarterly rituals remain in M013 because monthly reconciliation requires Schwartz values (M011) and quarterly Butler review benefits from all profiles (M010/M011/M012). |
+| **D031** | Memory retrieval injects structured facts, not prose dump | Real Telegram testing showed Chris confabulating facts (Cagnes-sur-Mer vs Golfe-Juan, wrong move direction) because memory was dumped as prose text into the context window. TRUST-11 refactors retrieval to emit a "Known Facts About Greg" block in key-value form, separate from the narrative context block. Structured facts are much harder for the LLM to misremix. |
+| **D032** | Hallucination resistance and performative apology detection are live integration tests, not unit tests | Both failure modes are prompt-level behaviors that only manifest against real Sonnet. TRUST-07 extends from 15 test cases to 24 (adding hallucination resistance, structured fact retrieval accuracy, performative apology detection). Mocked LLM tests cannot catch these failures because they depend on how the real model interprets the system prompt under adversarial conditions. |
+| **D033** | Contradiction detection gets an explicit false-positive audit | The existing M002 confidence threshold (≥0.75) minimizes false positives but doesn't test them. TRUST-12 adds a synthetic fixture of 20 adversarial non-contradictory pairs and requires 0 false positives. False positive contradiction notices are trust-breaking and must be actively tested, not assumed. |
+
+---
+
 ## Implementation Phases
+
 
 ### Phase 1 — Foundation (M001: Living Memory) ✅
 
@@ -116,158 +182,41 @@
 
 ## Phase 6 onward — Soul System Build
 
-The following phases implement the conceptual architecture for Chris as a longitudinal identity system: structured profiles, decision accountability, scheduled reflection rituals, and narrative identity. These build on the existing Pensieve, mode engine, and proactive infrastructure rather than replacing them.
+Milestones M006–M014 implement the "soul system" described in `PRD_Project_Chris.md`. Each milestone has its own file in the repo root (`M006_*.md` through `M014_*.md`) containing the full goal, target features, acceptance criteria, and pause-before-next-milestone constraint. Those files are the authoritative specs and are designed to be fed into `/gsd:new-milestone "<name>"` one at a time.
 
-**Sequencing rule:** Milestones are strictly sequential except where explicitly noted in the dependency table. Each milestone must include comprehensive test coverage using synthetic fixture data at the appropriate timescale before the next milestone is queued. A daily ritual is tested against 14 synthetic days; a weekly ritual against a synthetic week of episodic summaries; a monthly ritual against a synthetic month of profile state and behavior; a quarterly ritual against a synthetic quarter of summaries, decisions, and profile transitions. All tests run deterministically in minutes, not calendar time. Claude Code must generate the fixture data as part of each milestone's deliverables.
+**Execution order (strictly sequential except M012 which can run in parallel with M011):**
 
-**Mocked vs live LLM testing:** Some test cases validate code logic (routing, state transitions, SQL, retrieval correctness) and can use mocked LLM responses. Other test cases validate prompt-level behavior (does the model actually refuse to return to a declined topic? does the constitutional preamble actually produce non-sycophantic responses?) and must run against the real Sonnet/Haiku/Opus models. These are marked as "live integration" tests in each milestone and run separately from the fast unit suite to control cost. M006 has the highest density of live integration tests because it is primarily a prompt-level milestone, but every milestone from M007 onward includes live integration tests wherever prompt behavior is being validated.
+| # | ID | Name | Depends on |
+|---|----|------|------------|
+| 1 | M006 | Trustworthy Chris ⚠️ URGENT | M005 |
+| 2 | M007 | Decision Archive | M006 |
+| 3 | M008 | Episodic Consolidation | M007 |
+| 4 | **M009** | **Ritual Infrastructure + Daily Note + Weekly Review** *(MVP shipping point)* | M008 |
+| 5 | M010 | Operational Profiles | M009 |
+| 6 | M011 | Psychological Profiles | M010 |
+| 7 | M012 | Mental Model Inventory | M010 (parallel with M011) |
+| 8 | M013 | Monthly + Quarterly Rituals + Anti-Sycophancy Monitoring | M011 and M012 |
+| 9 | M014 | Narrative Identity | M013 |
 
-### Milestone dependency and sequencing table
+**M009 is the MVP shipping point.** After M006→M007→M008→M009, Greg has refusal-respecting Chris with constitutional anti-sycophancy, decision capture with forecasts, episodic summaries, daily voice note, daily wellbeing snapshot, and weekly review. Profile layer (M010–M012) consumes the real data M009 produces — running it earlier produces empty profiles with no inference to make.
 
-| ID | Name | Depends on | Validation mechanism |
-|----|------|------------|----------------------|
-| M006 | Trustworthy Chris | M005 | Synthetic fixture data + live integration tests against real Sonnet |
-| M007 | Decision Archive | M006 | Synthetic fixture data + live integration tests for detection/capture prompts |
-| M008 | Episodic Consolidation | M007 | Synthetic fixture data: 14 days of Pensieve entries → 14 summaries |
-| M009 | Operational Profiles | M008 | Synthetic fixture data: 30+ days of episodic summaries → profile population |
-| M010 | Psychological Profiles | M009 | Synthetic fixture data: 30+ days of summaries + 5,000+ words of dialogue |
-| M011 | Mental Model Inventory | M009 (can run in parallel with M010) | Synthetic fixture data: PRODUCE transcripts with named frameworks |
-| M012 | Ritual Infrastructure + Daily Note | M010 and M011 | Synthetic fixture data: simulated 14-day cadence with skip tracking |
-| M013 | Weekly/Monthly/Quarterly Rituals | M012 | Synthetic fixture data: one synthetic week, one month, one quarter |
-| M014 | Narrative Identity | M013 | Synthetic fixture data: one synthetic quarter with chapter boundary signals |
+**Sequencing rule:** Each milestone must include synthetic fixture tests at the appropriate timescale (14 days for daily rituals, one week for weekly, one month for monthly, one quarter for quarterly). Tests run deterministically in minutes, not calendar time. Prompt-level behavior is validated with live integration tests against real Sonnet — M006 has the highest density because it is primarily a prompt milestone.
 
-M011 is the only milestone that can run in parallel with another (M010). All other milestones are strictly sequential.
+**Pause between milestones is mandatory.** Do not sprint from M006 to M007 to M008. Each milestone file specifies its own pause duration. M009 requires at least one month of real use before M010 starts.
 
----
+## Out of Scope and Deferred
 
-### Phase 6 — Trustworthy Chris (M006: Conversation Foundation Fixes) ⚠️ URGENT
+**Out of scope** (explicitly excluded — documented to prevent scope creep):
 
-**Goal:** Chris stops ignoring refusals, stops performative apologies, stops language-mismatching, and is backed by a constitutional anti-sycophancy preamble applied across all modes. Also adds hybrid retrieval to JOURNAL mode so factual grounding is consistent with other modes.
+- **Direct Telegram photo handling** — covered by Immich ingestion path; no native Telegram photo flow.
+- **Multi-tenancy / multi-user support** — Chris serves one user only by design.
+- **Autonomous actions beyond proactive outreach** — Chris is an advisor and repository, not an agent. He never executes anything on Greg's behalf without explicit instruction.
 
-**Diagnostic context:** Real-conversation testing (partly contradiction-detection stress testing where Greg deliberately fed conflicting statements, partly normal use) surfaced three failure modes traceable to specific code locations:
+**Deferred** (excluded for now, with explicit re-evaluation criteria):
 
-1. **Refusal handling.** The system prompts in `src/llm/prompts.ts` instruct Chris to "ask enriching follow-up questions" but contain no rule for handling refusals. When Greg said "I don't want to talk about that," Chris acknowledged and then re-asked a rephrased version of the same question in the next turn. This is the highest-priority fix — it's the most trust-breaking behavior observed.
-
-2. **Language matching loses to statistical pull of history.** The prompt rule "respond in the same language as the user" is overridden when the prior 20 messages of conversation history are in a different language than the current message. Moving language detection from a prompt rule into engine pre-processing with a hard language parameter fixes this.
-
-3. **Performative apologies without behavior change.** When called out on ignoring a refusal, Chris apologized and then repeated the same behavior. This is a downstream symptom of the refusal-handling gap — once R029 and R034 land, the apology pattern should disappear because there's nothing to apologize for.
-
-**Additional hardening (not a diagnosed failure, but defense in depth):** JOURNAL mode in `src/chris/modes/journal.ts` does not currently retrieve from Pensieve at all — it passes only the last 20 conversation messages to Sonnet. Other modes (Reflect, Coach, Psychology) already use hybrid retrieval with `getRelationalMemories` and epistemic tag filtering. Bringing JOURNAL into line ensures factual grounding is consistent across all modes and reduces the risk of confabulation in long conversations where recent history is sparse on facts.
-
-- [ ] Refusal handling rule added to all 7 system prompts in `src/llm/prompts.ts`
-- [ ] Topic-decline state tracked per conversation: when user signals refusal, the topic is marked off-limits for the rest of the conversation, and Chris does not return to it
-- [ ] JOURNAL mode in `src/chris/modes/journal.ts` upgraded with hybrid retrieval — pulls stable factual entries from Pensieve (FACT, RELATIONSHIP, PREFERENCE, VALUE tags) before each Sonnet call and injects them as grounded context, alongside the existing conversation history
-- [ ] Language detection moved from prompt rule into engine pre-processing in `src/chris/engine.ts`: detect language of the *current* user message and pass as a hard system parameter to override conversation-history bias
-- [ ] Question-pressure reduced in `JOURNAL_SYSTEM_PROMPT`: questions become optional rather than expected; Chris is allowed to simply respond without asking anything
-- [ ] Constitutional anti-sycophancy preamble added as a shared prefix in `src/chris/personality.ts` `buildSystemPrompt()` and applied to all 7 modes — single source of truth for "agreement is something arrived at after examination, not the default state"
-- [ ] Comprehensive conversational test suite covering: refusals (3 cases), factual accuracy under hybrid retrieval (3 cases), language switching mid-conversation (3 cases), topic-decline persistence within a session (3 cases), sycophancy resistance (3 cases) — 15 total test cases, all passing against real Sonnet (live integration)
-
-### Phase 7 — Decision Archive (M007: Forecast Accountability)
-
-**Goal:** Capture every structural decision Greg makes with its reasoning and a falsifiable forecast, then surface the forecast at its resolution date and prompt a post-mortem. This is the keystone feature for converting Chris from a reflective journal into an epistemic accountability tool.
-
-**Why this is the highest-leverage feature:** Personality profiles are slow-moving and hard to validate. A decision archive is different: every captured decision with a forecast generates a future moment where reality answers. Over time this builds an empirical record of where Greg's reasoning is sharp and where it is systematically off. It is the only layer that can challenge rather than describe — a scoreboard rather than a mirror.
-
-- [ ] New schema: `decisions` table with id, captured_at, decision, alternatives (JSONB array), reasoning, prediction, falsification_criterion, resolve_by, status (open/due/resolved/reviewed), resolution, resolution_notes, reviewed_at
-- [ ] Decision detection added to engine: trigger phrases ("I'm thinking about", "I need to decide", "I'm weighing", "I'm not sure whether", and equivalents in French and Russian) activate the capture protocol
-- [ ] 5-question capture protocol implemented as a guided sub-conversation: (1) the decision in one sentence, (2) the alternatives including rejected ones, (3) the reasoning, (4) a falsifiable prediction with timeframe, (5) what would tell Greg he was wrong
-- [ ] Decision lifecycle state machine: open (just captured) → due (resolve_by passed, awaiting resolution prompt) → resolved (Greg has stated what happened) → reviewed (post-mortem complete)
-- [ ] Forecast deadline scheduler integrated into the existing proactive sweep: when a decision's resolve_by passes, surface a resolution prompt within 24 hours
-- [ ] Resolution flow: "On {date} you predicted {prediction}. What actually happened?" — captures Greg's response and stores it as both a Pensieve entry and the decisions.resolution_notes field
-- [ ] `/decisions` Telegram command: lists open decisions, recently resolved, and forecast accuracy stats over rolling windows (30/90/365 days)
-- [ ] Synthetic fixture data validation: test suite generates captured decisions with simulated `resolve_by` deadlines in the past, runs the proactive sweep, verifies resolution prompts surface correctly and lifecycle transitions happen in order
-
-### Phase 8 — Episodic Consolidation (M008: Memory Tier 2)
-
-**Goal:** Add a second memory tier above the Pensieve raw store: end-of-day episodic summaries that compress the day's entries into a structured narrative with importance scoring. Mirrors how human memory consolidates raw experience into general events overnight.
-
-**Why this matters:** The Pensieve grows linearly forever and retrieval over years of raw entries becomes noisy. Episodic summaries serve as a higher-resolution index — "what happened this week" should not require reading every individual entry. This is the foundation for the structured profile layer and narrative identity layer in subsequent milestones.
-
-- [ ] New schema: `episodic_summaries` table with id, summary_date, summary text, importance score (1–10), topics (text array), emotional_arc, key_quotes (text array), source_entry_ids (uuid array), created_at
-- [ ] Daily consolidation job runs at the end of Greg's day in his timezone: pulls all Pensieve entries from that day, generates a structured summary via Sonnet, scores importance based on emotional intensity, novelty, decision presence, and contradiction presence
-- [ ] Importance scoring rubric documented and enforced via prompt: 1–3 mundane, 4–6 notable, 7–9 significant, 10 life-event-level
-- [ ] Retrieval logic in `src/pensieve/retrieve.ts` updated to route by recency: queries about the last 7 days read raw Pensieve entries; queries about older periods read episodic summaries first and only descend to raw entries when explicitly needed
-- [ ] Synthetic fixture data validation: test suite generates 14 synthetic days of Pensieve entries spanning the importance range (mundane to life-event), runs the consolidation cron against each simulated day boundary, verifies correctness of summaries, calibration of importance scores, retrieval routing by recency, timezone boundary handling, and idempotency on retry
-
-### Phase 9 — Operational Profiles (M009: Where Greg Is Right Now)
-
-**Goal:** Add the first half of the structured profile layer — the "state of Greg's life right now" profiles that don't require psychological inference. Jurisdictional state, capital trajectory, health case file, and family formation arc. These are concrete, fact-based, and update on a weekly cadence from episodic summaries.
-
-**Why split from M010:** These four profiles share a common pattern (factual extraction from recent data, weekly cadence, no psychological interpretation required) and deliver immediate value the moment they land. They also serve as the foundation for the harder psychological profiles in M010, which need this operational substrate to be meaningful. Splitting them prevents the profile work from becoming "build seven different things that share nothing but a directory name."
-
-- [ ] New schemas: `profile_jurisdictional` (location, residency statuses JSONB, tax structures JSONB, next planned move, planned move date), `profile_capital` (FI phase, target amount, current estimated net worth nullable, next sequencing decision), `profile_health` (open hypotheses JSONB, pending tests JSONB, recent decisions JSONB, case file narrative), `profile_family` (milestones JSONB, constraints JSONB, evolving criteria)
-- [ ] Each table includes `last_updated` timestamp and overall `confidence` (real, 0.0–1.0)
-- [ ] Weekly update job: runs once per week, pulls the previous week's episodic summaries plus FACT/RELATIONSHIP-tagged Pensieve entries, updates the four profiles via Sonnet with prompts that explicitly require structured JSON output
-- [ ] Confidence scoring based on data volume and consistency; minimum threshold of 10 distinct Pensieve entries before any profile is generated
-- [ ] Profile retrieval interface in `src/memory/profiles.ts` exposing `getOperationalProfiles()` for use by Reflect, Coach, and Psychology modes
-- [ ] `/profile` Telegram command (initial version): read-only summary showing the four operational profiles with confidence ranges; psychological profiles section shows "not yet available" until M010
-- [ ] Synthetic fixture data validation: test suite generates 30+ days of synthetic episodic summaries covering all four profile dimensions, runs the weekly update job, verifies all four profiles populate correctly with calibrated confidence scores, and confirms the minimum-data threshold correctly suppresses output when data is insufficient
-
-### Phase 10 — Psychological Profiles (M010: HEXACO and Schwartz Values)
-
-**Goal:** Add the slower, interpretive half of the profile layer — HEXACO personality traits and Schwartz universal values. These require accumulated data, monthly cadence, explicit minimum thresholds, and careful confidence calibration. Higher risk of bad outputs than M009, so they get their own milestone where the focus is on calibration over coverage.
-
-**Why this is later than M009:** Psychological inference from speech is empirically valid but modest in accuracy (r ≈ .31–.41 in published research). Building these profiles correctly requires (a) enough data to be meaningful, (b) explicit confidence intervals, and (c) the operational substrate from M009 to ground the inferences in real-life context. Rushing this milestone produces shallow personality stereotypes, which is worse than not having the feature at all.
-
-- [ ] New schemas: `profile_hexaco` (Honesty-Humility, Emotionality, Extraversion, Agreeableness, Conscientiousness, Openness — each with score and per-dimension confidence), `profile_schwartz` (10 universal values: Self-Direction, Stimulation, Hedonism, Achievement, Power, Security, Conformity, Tradition, Benevolence, Universalism — each with score and per-dimension confidence)
-- [ ] Monthly update job: runs once per month, pulls the previous month's episodic summaries and Pensieve entries, updates HEXACO and Schwartz profiles via Sonnet with structured JSON output prompts
-- [ ] Minimum data threshold strictly enforced: 5,000 aggregated words from Greg (not from Chris) before any HEXACO or Schwartz profile is generated. Below threshold, profiles return "insufficient data — need X more words" rather than low-confidence guesses.
-- [ ] Per-dimension confidence ranges always shown alongside scores; confidence reflects both data volume and inter-period consistency
-- [ ] Integration into Reflect/Coach/Psychology mode prompts: psychological profiles formatted into system prompts as grounded context with explicit confidence framing
-- [ ] `/profile` Telegram command extended to show the psychological profiles section once data threshold is met
-- [ ] Synthetic fixture data validation: test suite generates 30+ days of synthetic episodic summaries plus 6,000+ words of simulated dialogue reflecting a specific personality signature (e.g., high Openness, low Conformity). Runs the monthly update job. Verifies that (a) a 1,000-word fixture produces no profile, (b) a 6,000-word fixture produces a populated profile with confidence > 0, (c) the detected signature roughly matches the fixture's designed signature within expected accuracy bounds
-
-### Phase 11 — Mental Model Inventory (M011: Frameworks Greg Uses)
-
-**Goal:** Track the analytical frameworks, mental models, and decision heuristics Greg uses in conversation. Different from operational profiles (facts about Greg's life) and psychological profiles (traits and values) — this profile is about *how Greg thinks*, captured continuously as he reasons out loud.
-
-**Why a separate milestone:** Mental model detection is a different problem from profile inference. It looks for analytical patterns in conversation (named frameworks, decision criteria, recurring heuristics) rather than life facts or value statements. It updates continuously rather than weekly or monthly. The detection logic and storage model are different enough that bundling it with M009 or M010 would force the wrong architecture. **Can run in parallel with M010** because the schemas, detection paths, and update cadences are completely independent.
-
-- [ ] New schema: `profile_mental_models` table with id, name, description, first_observed_at, last_applied_at, application_count, source_entry_ids (uuid array), confidence
-- [ ] Continuous detection: a background analyzer (triggered after every PRODUCE-mode exchange and on a daily sweep over recent JOURNAL entries) uses Haiku to detect named frameworks or recurring analytical patterns and either creates new mental model entries or updates application counts on existing ones
-- [ ] Deduplication: similar mental models are merged based on semantic similarity; a high bar prevents trivial detections from polluting the inventory
-- [ ] `/models` Telegram command: lists mental models in active use, sorted by recency or application count, with the source entries that grounded each detection
-- [ ] Integration into Reflect mode: pattern synthesis can reference which mental models Greg has been using during a given period
-- [ ] Synthetic fixture data validation: test suite generates PRODUCE-mode transcripts containing explicit named frameworks (e.g., "let me think about this with the demand-first SaaS validation framework") and implicit recurring analytical patterns, runs the detection pipeline, verifies correct creation, deduplication via embedding similarity, and application count tracking
-
-### Phase 12 — Ritual Infrastructure + Daily Note (M012: Foundation for Cadence-Driven Reflection)
-
-**Goal:** Build the scheduling and tracking infrastructure for rituals, plus the simplest ritual (the daily voice note). Proves the infrastructure works end-to-end with the lowest-complexity ritual before the heavier protocols are built on top in M013.
-
-**Why split from M013:** The daily note is genuinely different from the weekly/monthly/quarterly protocols — it's one-way deposit with no Chris response, no conversation flow, no guided protocol. It belongs with the infrastructure because together they form a minimum viable end-to-end ritual system. The heavier rituals all share patterns with each other (one observation, structured protocol, guided sub-conversation) and benefit from being built together in M013.
-
-- [ ] New schema: `rituals` table with id, type (enum: daily, weekly, monthly, quarterly), last_run_at, next_run_at, enabled, config JSONB, skip_count, created_at
-- [ ] Scheduler integration with the existing proactive sweep in `src/proactive/sweep.ts`: rituals are scheduled events with fixed cadences; existing reactive triggers (silence, commitment, pattern, thread) remain unchanged; both coexist
-- [ ] Skip tracking: each ritual tracks completion and consecutive skips
-- [ ] Ritual adjustment dialogue: if a ritual is skipped 3 or more times in a row, Chris surfaces it for adjustment instead of firing the standard prompt — "this ritual isn't working, what should change?" — and uses Haiku to parse natural language updates to the `rituals.config` field
-- [ ] Daily voice note ritual: rotating pool of 6 prompts ("What mattered today?", "What's still on your mind?", "What did today change?", "What surprised you today?", "What did you decide today, even if it was small?", "What did you avoid today?"), fired at end of Greg's day, no Chris response — deposit only, with rotation logic preventing two consecutive duplicate prompts
-- [ ] Synthetic fixture data validation: test suite simulates 14 consecutive days by advancing a mock clock, verifies daily prompts fire on schedule with correct rotation (no two consecutive duplicates), responses store correctly as Pensieve entries, skip tracking increments on missed days, and the adjustment dialogue triggers after 3 consecutive skips
-
-### Phase 13 — Weekly, Monthly, Quarterly Rituals (M013: Guided Reflection Protocols)
-
-**Goal:** Build the three heavier ritual protocols on top of the proven infrastructure from M012. Weekly review, monthly reconciliation, quarterly chapter review — each a guided multi-step protocol with its own LLM prompts and conversation flow.
-
-**Why these belong together:** All three rituals share common patterns — Chris initiates, presents observations or summaries from accumulated data, asks structured questions, captures Greg's responses, stores outputs back into the system. Building them as a single milestone produces less duplication than building them separately, and the test infrastructure is shared.
-
-- [ ] Weekly review ritual (Sunday evening default, configurable): Chris generates one observation from the week's data (episodic summaries and decisions resolved), asks one Socratic question tied to the observation, leaves one open slot for Greg. Maximum one question per turn — enforced at runtime.
-- [ ] Monthly reconciliation ritual (first weekend of the month): structured 4-step protocol — (1) summary readout of the month, (2) reconciliation of stated values from `profile_schwartz` against revealed behavior from episodic summaries, (3) Greg responds to the reconciliation, (4) Greg states one thing to change, one to protect, one open question for next month
-- [ ] Quarterly chapter review ritual (last weekend of each quarter): Butler 4-step life-review protocol — (1) what happened (narrative summary), (2) what learned (patterns), (3) how interpreted now (meaning-making), (4) next chapter title and theme. Output of step 4 is stored as a tagged Pensieve entry until M014 lands, at which point it migrates to a `life_chapters` row.
-- [ ] Synthetic fixture data validation: test suite generates (a) one synthetic week of episodic summaries and resolved decisions, runs the weekly review, verifies exactly one observation and one Socratic question are produced; (b) one synthetic month with values-behavior mismatches, runs the monthly reconciliation, verifies at least one specific value-vs-behavior comparison is surfaced; (c) one synthetic quarter of three months with profile transitions and decisions, runs the quarterly chapter review, verifies all 4 Butler steps complete and output persists correctly
-
-### Phase 14 — Narrative Identity (M014: Memory Tier 4)
-
-**Goal:** Add the fourth and final memory tier: life chapters with narrative themes. The integrative layer that turns episodic summaries and profile data into a coherent (but not over-coherent) life story, updated quarterly through the chapter review ritual.
-
-**Theoretical grounding:** Dan McAdams' narrative identity framework, which has incremental validity over personality traits for predicting well-being. Key constructs: redemption sequences (bad-to-good), contamination sequences (good-to-bad), agency themes (mastery, control), communion themes (love, belonging). Chapter boundaries are heuristic — major life transitions detected from profile and event data — with manual override always available.
-
-- [ ] New schema: `life_chapters` table with id, start_date, end_date (nullable for current chapter), title, narrative_summary, themes JSONB (redemption_count, contamination_count, agency_score, communion_score, top_themes array), created_at, updated_at
-- [ ] McAdams theme extraction: Opus-powered analysis of episodic summaries and significant Pensieve entries within a chapter window, scoring redemption/contamination sequences and agency/communion themes
-- [ ] Chapter boundary detection: heuristic based on jurisdictional changes, capital phase transitions, family arc milestones, and major decisions resolved. Always proposes boundaries to Greg for confirmation rather than auto-committing.
-- [ ] Quarterly chapter review ritual from M013 enhanced to use M014 capabilities: "what happened" step uses chapter narrative summary; "what did you learn" step uses theme extraction; "next chapter" step creates an actual `life_chapters` row
-- [ ] Chapter naming as collaborative output: Chris proposes 2–3 candidate names based on themes; Greg picks or overrides
-- [ ] Reflect mode enhanced with chapter-aware retrieval: pattern synthesis can scope to "this chapter", "previous chapter", or "across chapters"
-- [ ] Migration of pre-M014 quarterly review outputs (stored as tagged Pensieve entries during M013) into proper `life_chapters` rows
-- [ ] Synthetic fixture data validation: test suite generates one synthetic quarter of episodic summaries and profile state with a clear life transition embedded (e.g., simulated relocation mid-quarter), runs theme extraction and boundary detection, verifies chapter boundary is proposed at the transition point, themes populate correctly, and the collaborative naming flow produces multiple candidate names
+- **Voice message transcription via Whisper** — risk of transcription errors polluting the Pensieve is too high. Android keyboard STT (dictation) is the pragmatic alternative: free, accurate, user reviews/edits before sending. Revisit only if a review/confirm-before-storage flow is built first.
+- **ATTACH-01 — Attachment dimensions profile** — a deferred psychological profile tracking adult attachment style (anxious, avoidant, secure dimensions) from relational speech data. Activates automatically when the Pensieve contains at least 2,000 words of Greg's speech describing interactions with people he is emotionally involved with (partner candidates, family members, close friends), over at least 60 days. Below threshold, returns "insufficient relational data — defer". Inferring attachment from sparse data produces stereotypes worse than no profile; weekly sweep monitors the threshold and activates without manual intervention when crossed.
+- **VIA Character Strengths profile** — explicitly skipped per the PRD audit. Generic and low-signal for Greg specifically. Strengths are visible in his behavior already, and the framework's resolution is too coarse for someone who self-models with precision.
 
 ---
 
@@ -294,16 +243,57 @@ M011 is the only milestone that can run in parallel with another (M010). All oth
 | **Hallucination** | System prompts forbid ungrounded facts; retrieval citations required; explicit uncertainty flags; M006 brings JOURNAL mode into line with other modes' hybrid retrieval |
 | **False positive contradictions** | Confidence threshold ≥ 0.75; high bar in detection prompt |
 | **Sycophancy** | M006 constitutional preamble; M007 forecast accountability provides empirical correction; agreement-to-challenge ratio tracked |
-| **Profile over-confidence** | M009/M010 minimum data thresholds; confidence ranges always shown; no inference from sparse data; psychological profiles separated from operational profiles to allow stricter calibration |
-| **Ritual fatigue** | M012 skip tracking; consistently-skipped rituals adjusted, not enforced |
+| **Profile over-confidence** | M010/M011 minimum data thresholds; confidence ranges always shown; no inference from sparse data; psychological profiles separated from operational profiles to allow stricter calibration |
+| **Ritual fatigue** | M009 skip tracking; consistently-skipped rituals adjusted, not enforced |
 | **Over-coherent narrative** | M014 chapter boundaries always proposed for confirmation; contradictions preserved across chapters; no auto-resolution |
-| **Scope creep within milestones** | Milestones split aggressively at design time; M009/M010/M011 separated by data type and update cadence rather than bundled into one "profiles" milestone; M012/M013 split by complexity rather than bundled into one "rituals" milestone |
+| **Scope creep within milestones** | Milestones split aggressively at design time; M010/M011/M012 separated by data type and update cadence rather than bundled into one "profiles" milestone; M009/M013 split by complexity rather than bundled into one "rituals" milestone |
 | **Prompt-level regressions invisible to unit tests** | M006 adds a 15-case live-integration test suite against real Sonnet to catch behavioral failures that mocked tests miss |
+
+---
+
+## Claude Code Execution Guidelines
+
+These instructions shape HOW each milestone gets handed to Claude Code. They are derived from the design PRD and are mandatory for every milestone from M006 onward.
+
+### One phase per session, not one prompt
+
+Each milestone (or major phase within a milestone) is its own Claude Code session with a clear deliverable. Do not chain phases in a single conversation — context degrades and each phase must be testable before moving on.
+
+### Start with context, not tasks
+
+The first message of each phase must give Claude Code: what Chris currently is, what has been built in previous phases, what this phase is supposed to deliver, and what success looks like. The actual implementation instructions come after. This is the difference between Claude Code building the right thing and Claude Code building a thing that happens to compile.
+
+### Define "done" before you start
+
+Each phase needs a concrete acceptance criterion. Not "Chris responds better" — something testable like "when I send a message refusing a topic, Chris does not return to that topic in the same conversation, verified across 5 test exchanges against real Sonnet."
+
+### The "summarize and wait" gate
+
+Before writing any code, Claude Code must summarize what it understands the goal to be and what its implementation approach will be. Wait for approval before starting. This catches misunderstandings before they become 500 lines of wrong code. This gate is non-negotiable for any milestone that touches prompts, system behavior, or memory architecture.
+
+### Between-phases pause
+
+Between phases, take a break of at least a few days where the built functionality actually gets used. Do not sprint from M006 to M007 to M008. The whole point of phasing is that real usage tells you things that planning does not. Specifically:
+
+- **M006** should run for at least a week before M007 starts (validate trust fixes in real conversation)
+- **M007** should run for at least two weeks before M008 starts (validate decision capture triggers in real use)
+- **M009 (MVP)** should run for at least a month before M010 starts (accumulate real daily data so the profile layer has substrate to infer from)
+
+This is not caution — it is architectural necessity. Consolidation logic for memory tiers cannot be designed from data that does not yet exist.
+
+### Phase scoping constraints
+
+Hand every phase these constraints: Do not build features from later phases. Do not refactor things outside this phase's scope. If you discover something that needs fixing in a previous phase, flag it but do not fix it without asking. Ask before making architectural decisions that will affect later phases.
+
+### Use GSD v1
+
+Execution runs inside GSD v1 (`get-shit-done-cc`), not v2. GSD v1 operates as Claude Code skills that read `.planning/PROJECT.md` (symlinked to this PLAN.md) and `.planning/REQUIREMENTS.md`. State lives in markdown files, not a SQLite database, so autocompact mid-workflow does not corrupt state — post-compact Claude can re-read the markdown files and continue.
 
 ---
 
 ## Current State
 
-M001–M005 complete. Chris is deployed and running on self-hosted server. 285 tests passing across 16 test files. Both containers healthy.
+M001–M005 complete.
+ Chris is deployed and running on self-hosted server. 285 tests passing across 16 test files. Both containers healthy.
 
 M006 is the next milestone and is marked URGENT — it fixes conversational trust failures observed in real Telegram use (refusal handling, language matching, question-pressure) that would compound across all subsequent milestones if left unaddressed. M006 is validated the same way as every other milestone: synthetic fixture data plus live integration tests against the real Sonnet model. No calendar wait between milestones. Claude Code generates the fixture data as part of each milestone's deliverables.

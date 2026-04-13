@@ -273,4 +273,93 @@ All technical decisions are now closed. The PRD is complete.
 
 ---
 
-*End of PRD v2.0*
+## 12. Soul System Extension (M006–M014)
+
+Chris v1 (M001–M005) is **shipped and running in production**: the Pensieve, three-tier LLM, six-mode engine, hybrid retrieval, contradiction detection, relational memory, external source ingestion, and proactive sweep are all live. Real Telegram use of v1 surfaced both the value of the architecture and four specific failure modes that make it unsafe to extend as-is. Rather than layering new features on top of an unreliable foundation, the v2 build (M006–M014) is a staged soul-system extension: fix the foundation first, then add structured profiles, decision accountability, scheduled reflection rituals, and narrative identity in that order.
+
+### Direction
+
+The v2 build does **not** change anything in Sections 1–11 of this PRD. Chris's vision, the two-layer data doctrine, the no-hallucination rule, temporal neutrality, all memory being equal, the six usage modes, the failure modes to fight at all costs — none of it changes. What changes is the addition of a structured layer *above* the Pensieve that captures what v1 cannot capture from flat storage alone: John's stated-vs-revealed values, his decision forecasts vs reality, his moving situational state, his recurring analytical frameworks, and the narrative shape of his life over time.
+
+The framing: **Chris is a tool for authoring a more examined life, not a vessel for preserving a soul.** This shifts the soul-system design from metaphysical to tractable — every new layer either has empirical research backing (HEXACO, Schwartz, narrative identity) or maps to a concrete part of John's life that already exists (jurisdictional state, capital trajectory, decision archive, health case file, family formation arc).
+
+### What gets added
+
+Eight structured profile dimensions, two always-on layers, and the ritual cadence that keeps them fed:
+
+**Eight core profiles:**
+1. Narrative identity (McAdams) — life-chapter level, slow
+2. HEXACO traits — trait-level dispositions, slow
+3. Schwartz values — directional, slow
+4. Jurisdictional state — high-cadence, tied to John's relocation calendar
+5. Capital trajectory — phase, target, current state, next sequencing decision
+6. **Decision archive + forecast tracker** — the keystone
+7. Health case file — clinical narrative with open hypotheses
+8. Family formation arc — milestones, constraints, evolving criteria
+
+**Two always-on layers:**
+9. Daily wellbeing snapshot (SDT/PROMIS-lite — energy/mood/anxiety 1–5)
+10. Mental model inventory (frameworks in active use)
+
+**Two deferred:**
+- Attachment dimensions (activate when relational speech data exists)
+- VIA character strengths (explicitly skipped — generic and low-signal for John)
+
+### The keystone: decision archive
+
+The decision archive is the single most valuable addition. Personality profiles describe; the decision archive *challenges*. Every captured decision with a falsifiable prediction generates a future moment where reality answers. Over time this builds an empirical record of where John's reasoning is sharp and where it is systematically off — a scoreboard, not a mirror. Per the design principle: *if you only get one layer right, make it the decision archive.*
+
+### Ritual cadence
+
+Structured reflection at four timescales, each building on the next:
+
+- **Daily (2 min)** — single voice note, deposit-only, 6 rotating prompts. No Chris response. The substrate for everything else.
+- **Weekly (10 min)** — one observation + one Socratic question + one open slot. Max one question per turn, enforced at runtime.
+- **Monthly (30 min)** — values-vs-behavior reconciliation. Bookkeeping, not performance review.
+- **Quarterly (1 hour)** — Butler 4-step life-review protocol. Chapter-level meaning-making.
+- **On-demand** — decision capture triggered by decision-in-progress language.
+
+### Four-layer anti-sycophancy architecture
+
+Fighting sycophancy with a single system prompt does not work. The soul system adds four concurrent defenses:
+
+1. **Constitutional layer** — shared anti-sycophancy preamble across all modes. "Agreement is something you arrive at after examination, not your starting point."
+2. **Structural defenses** — forecast accountability, contradiction surfacing without resolution, steelman-then-challenge, periodic devil's advocate sessions.
+3. **Behavioral monitoring** — rolling agreement-to-challenge ratio, comfort-zone detection, "what would change your mind" Popper probe, praise quarantine post-processor.
+4. **The Hard Rule** — Chris is never allowed to tell John he is right because of who he is. No appeals to past track record as evidence for current claims.
+
+### Three absolute forbidden behaviors
+
+On top of the failure modes in Section 10, the soul system adds three hard constraints that override everything else:
+
+1. **Never resolve contradictions on its own.** Present both and ask which is true now. Never synthesize an evolutionary story.
+2. **Never extrapolate to novel situations.** Chris can report what John has said about X. He cannot predict what John would think about Y.
+3. **Never optimize responses for emotional satisfaction.** The job is to be useful, not pleasant.
+
+### Execution order
+
+Strictly sequential except where noted, governed by the MVP principle (ship the decision archive and daily voice note *before* the profile layer):
+
+**M006** Trustworthy Chris — fix the four Telegram-observed failures (refusal ignoring, language mismatching, performative apologies, interrogation pattern) + constitutional preamble + structured fact retrieval + contradiction false-positive audit. **URGENT** — nothing else ships until this is solid.
+
+**M007** Decision Archive — the keystone feature. 5-question capture protocol, lifecycle state machine, forecast resolution scheduler.
+
+**M008** Episodic Consolidation — daily end-of-day summaries, importance scoring, recency-based retrieval routing.
+
+**M009** Ritual Infrastructure + Daily Note + Weekly Review — **MVP shipping point.** Once M006→M009 are shipped, John has the full frictionless reflection loop.
+
+**M010** Operational Profiles — jurisdictional, capital, health, family. Built first in the profile layer because operational facts have strong ground truth.
+
+**M011** Psychological Profiles — HEXACO + Schwartz with strict data-volume thresholds and explicit confidence reporting. Attachment dimensions deferred with auto-activation trigger.
+
+**M012** Mental Model Inventory — tracks analytical frameworks John uses. Can run in parallel with M011.
+
+**M013** Monthly + Quarterly Rituals + Anti-Sycophancy Monitoring — profile-dependent rituals plus the Layer 2 behavioral monitoring.
+
+**M014** Narrative Identity — McAdams-style life chapters with theme extraction and collaborative naming. Last because it needs a full quarter of data from the lower tiers.
+
+Each milestone has its own file in the repo root (`M006_*.md` through `M014_*.md`) containing the authoritative goal, target features, acceptance criteria, and pause-before-next-milestone duration. Milestone files are fed into `/gsd:new-milestone "<n>"` one at a time under GSD v1.
+
+---
+
+*End of PRD v2.0 — soul system extension added 2026-04-12*
