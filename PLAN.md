@@ -291,9 +291,44 @@ Execution runs inside GSD v1 (`get-shit-done-cc`), not v2. GSD v1 operates as Cl
 
 ---
 
+## Current Milestone: v2.0 M006 Trustworthy Chris
+
+**Goal:** Fix four trust-breaking conversational failures (refusal ignoring, fact confabulation, performative apologies, question pressure) and harden Chris with constitutional anti-sycophancy + structured fact retrieval before any soul-system work is layered on top.
+
+**Target features:**
+- Refusal handling in all 6 system prompts + per-session declined-topics state
+- JOURNAL mode upgraded to hybrid retrieval (FACT/RELATIONSHIP/PREFERENCE/VALUE tags)
+- Language detection via `franc` as engine pre-processing (not prompt rules)
+- Question-pressure reduced in JOURNAL prompt — questions become optional
+- Constitutional anti-sycophancy preamble (shared prefix, all 6 modes) + The Hard Rule + 3 forbidden behaviors
+- Praise quarantine — Haiku post-processor strips reflexive flattery from JOURNAL/REFLECT/PRODUCE
+- Structured fact injection — "Known Facts" key-value block in system prompts
+- 24-case live integration test suite (3-of-3 against real Sonnet)
+- Contradiction detection false-positive audit (20 adversarial non-contradictory pairs)
+- Memory audit against ground truth before any code changes
+
 ## Current State
 
-M001–M005 complete.
- Chris is deployed and running on self-hosted server. 285 tests passing across 16 test files. Both containers healthy.
+M001–M005 complete. Chris is deployed and running on self-hosted server. 285 tests passing across 16 test files. Both containers healthy.
 
-M006 is the next milestone and is marked URGENT — it fixes conversational trust failures observed in real Telegram use (refusal handling, language matching, question-pressure) that would compound across all subsequent milestones if left unaddressed. M006 is validated the same way as every other milestone: synthetic fixture data plus live integration tests against the real Sonnet model. No calendar wait between milestones. Claude Code generates the fixture data as part of each milestone's deliverables.
+M006 started 2026-04-13. Fixes conversational trust failures observed in real Telegram use on 2026-04-11 (refusal handling, language matching, question-pressure, fact confabulation) that would compound across all subsequent milestones if left unaddressed.
+
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd-transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
+
+**After each milestone** (via `/gsd-complete-milestone`):
+1. Full review of all sections
+2. Core Value check — still the right priority?
+3. Audit Out of Scope — reasons still valid?
+4. Update Context with current state
+
+---
+*Last updated: 2026-04-13 after milestone v2.0 M006 started*
