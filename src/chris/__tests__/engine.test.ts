@@ -1061,7 +1061,7 @@ describe('processMessage (engine)', () => {
 
 describe('praise quarantine integration (SYCO-04/05)', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     mockSaveMessage.mockResolvedValue({ id: 'conv-1' });
     mockStorePensieveEntry.mockResolvedValue({ id: ENTRY_ID, content: TEST_TEXT });
     mockBuildMessageHistory.mockResolvedValue([]);
