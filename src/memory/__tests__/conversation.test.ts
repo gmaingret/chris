@@ -142,9 +142,10 @@ describe('buildMessageHistory', () => {
   });
 
   it('maps USER→user and ASSISTANT→assistant', async () => {
+    // Mock returns DESC order (newest first); getRecentHistory reverses to chronological
     const rows = [
-      makeRow('USER', 'hello'),
       makeRow('ASSISTANT', 'hi there'),
+      makeRow('USER', 'hello'),
     ];
     mockLimit.mockResolvedValueOnce(rows);
 
@@ -157,10 +158,11 @@ describe('buildMessageHistory', () => {
   });
 
   it('merges consecutive same-role messages with double newline', async () => {
+    // Mock returns DESC order (newest first); getRecentHistory reverses to chronological
     const rows = [
-      makeRow('USER', 'first message'),
-      makeRow('USER', 'second message'),
       makeRow('ASSISTANT', 'response'),
+      makeRow('USER', 'second message'),
+      makeRow('USER', 'first message'),
     ];
     mockLimit.mockResolvedValueOnce(rows);
 
@@ -173,12 +175,13 @@ describe('buildMessageHistory', () => {
   });
 
   it('handles multiple consecutive merges', async () => {
+    // Mock returns DESC order (newest first); getRecentHistory reverses to chronological
     const rows = [
-      makeRow('USER', 'a'),
-      makeRow('USER', 'b'),
-      makeRow('USER', 'c'),
-      makeRow('ASSISTANT', 'x'),
       makeRow('ASSISTANT', 'y'),
+      makeRow('ASSISTANT', 'x'),
+      makeRow('USER', 'c'),
+      makeRow('USER', 'b'),
+      makeRow('USER', 'a'),
     ];
     mockLimit.mockResolvedValueOnce(rows);
 

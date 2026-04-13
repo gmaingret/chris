@@ -191,9 +191,10 @@ describe('buildMessageHistory', () => {
   });
 
   it('maps USER/ASSISTANT roles correctly', async () => {
+    // Mock returns DESC order (newest first); getRecentHistory reverses to chronological
     mockLimit.mockResolvedValueOnce([
-      { role: 'USER', content: 'Hello' },
       { role: 'ASSISTANT', content: 'Hi there' },
+      { role: 'USER', content: 'Hello' },
     ]);
 
     const result = await buildMessageHistory(12345n);
@@ -205,10 +206,11 @@ describe('buildMessageHistory', () => {
   });
 
   it('merges consecutive same-role messages', async () => {
+    // Mock returns DESC order (newest first); getRecentHistory reverses to chronological
     mockLimit.mockResolvedValueOnce([
-      { role: 'USER', content: 'First' },
-      { role: 'USER', content: 'Second' },
       { role: 'ASSISTANT', content: 'Response' },
+      { role: 'USER', content: 'Second' },
+      { role: 'USER', content: 'First' },
     ]);
 
     const result = await buildMessageHistory(12345n);
