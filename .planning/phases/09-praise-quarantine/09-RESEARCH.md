@@ -363,17 +363,19 @@ if (mode === 'JOURNAL' || mode === 'REFLECT' || mode === 'PRODUCE') {
 
 **Verified claims:** All structural patterns (timeout, try/catch, stripFences, module interface, engine insertion point, mock pattern) are verified against actual source files.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Haiku prompt receives only response text vs. response + user message**
    - What we know: CONTEXT.md marks this as Claude's discretion
    - What's unclear: Whether Haiku needs the user question to correctly classify "That's interesting" as contextual vs. vacuous
    - Recommendation: Start with response-only (simpler, less token cost). If false positives appear in testing, add user message as context.
+   - RESOLVED: Response-only (Claude's discretion, implemented in Plan 01 Task 1)
 
 2. **max_tokens ceiling for rewrite**
    - What we know: Haiku response must contain the full rewritten response
    - What's unclear: Typical response length from Sonnet in JOURNAL/REFLECT/PRODUCE modes
    - Recommendation: Set `max_tokens: 1500` to be safe for most conversational responses. Add a comment noting this can be tuned.
+   - RESOLVED: max_tokens: 1500 (implemented in Plan 01 Task 1)
 
 ## Environment Availability
 
