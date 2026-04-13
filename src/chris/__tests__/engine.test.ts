@@ -111,6 +111,12 @@ vi.mock('../../memory/context-builder.js', () => ({
 const mockSearchPensieve = vi.fn();
 vi.mock('../../pensieve/retrieve.js', () => ({
   searchPensieve: mockSearchPensieve,
+  hybridSearch: vi.fn().mockResolvedValue([]),
+  JOURNAL_SEARCH_OPTIONS: {
+    tags: ['FACT', 'RELATIONSHIP', 'PREFERENCE', 'VALUE'],
+    recencyBias: 0.3,
+    limit: 10,
+  },
 }));
 
 // ── Mock contradiction detector ────────────────────────────────────────────
