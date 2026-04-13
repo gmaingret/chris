@@ -1,167 +1,146 @@
 ---
 phase: 06-memory-audit
-reviewed: 2026-04-13T00:00:00Z
+reviewed: 2026-04-13T12:00:00Z
 depth: standard
-files_reviewed: 6
+files_reviewed: 8
 files_reviewed_list:
-  - src/pensieve/ground-truth.ts
+  - src/db/schema.ts
   - src/pensieve/__tests__/ground-truth.test.ts
-  - src/scripts/audit-pensieve.ts
+  - src/pensieve/ground-truth.ts
   - src/scripts/__tests__/audit-pensieve.test.ts
-  - src/scripts/seed-audit-data.ts
   - src/scripts/__tests__/seed-audit-data.test.ts
+  - src/scripts/audit-pensieve-production.ts
+  - src/scripts/audit-pensieve.ts
+  - src/scripts/seed-audit-data.ts
 findings:
   critical: 0
-  warning: 3
+  warning: 4
   info: 3
-  total: 6
+  total: 7
 status: issues_found
 ---
 
 # Phase 6: Code Review Report
 
-**Reviewed:** 2026-04-13T00:00:00Z
+**Reviewed:** 2026-04-13T12:00:00Z
 **Depth:** standard
-**Files Reviewed:** 6
+**Files Reviewed:** 8
 **Status:** issues_found
 
 ## Summary
 
-Reviewed the ground-truth data module, the pensieve audit script, the seed data script, and their corresponding test files. The overall design is sound — the matching logic is well-structured and the soft-delete safety constraint is respected throughout. Three logic bugs were found in `audit-pensieve.ts` (two of which cause incorrect match results at runtime) plus three code quality issues across the two scripts.
+Reviewed 8 files comprising the Phase 6 memory audit system: ground-truth data module, matching logic, audit orchestration (local and production), seed tooling, and all corresponding test files. The schema file was also reviewed for context.
 
----
+The codebase is well-structured with clear separation of concerns. Previous review findings (WR-01 through WR-03, IN-02, IN-03) have all been addressed -- the permanent_relocation/next_move ordering is correct, the non-null assertion was replaced with a runtime guard, the next_move seed entry was added, and the other info items were fixed.
+
+This review covers the full file set including the production audit adapter (not previously reviewed). Four new warnings were found, primarily in the production adapter (unsafe JSON.parse, missing connection cleanup) and a logic gap in the FI target matcher.
 
 ## Warnings
 
-### WR-01: "Moving to Batumi" entries always match `next_move`, never `permanent_relocation`
+### WR-01: Unsafe JSON.parse on metadata in production audit
 
-**File:** `src/scripts/audit-pensieve.ts:121-155`
-
-**Issue:** The `next_move` block (lines 121-134) matches any content containing `batumi` combined with `move`, `moving`, `heading`, `going to`, or `relocate`. The `permanent_relocation` block (lines 146-155) is evaluated only if the `next_move` block did not match first. Because `permanent_relocation` content ("moving to Batumi permanently", "relocating to Batumi September 2026") will also contain `batumi` + `moving`/`relocate`, those entries are consumed by the `next_move` block and tagged with `key: 'next_move'` instead of `key: 'permanent_relocation'`. The permanent_relocation block is unreachable for any content that uses those common motion verbs.
-
-**Fix:** Add a negative guard to the `next_move` block to exclude permanent-relocation indicators. Move the permanent_relocation check before the next_move check, or add an exclusion condition:
-
+**File:** `src/scripts/audit-pensieve-production.ts:90`
+**Issue:** The metadata field from the production DB query is passed through a ternary: `typeof entry.metadata === 'string' ? JSON.parse(entry.metadata || '{}') : (entry.metadata || {})`. If `entry.metadata` is a string containing invalid JSON, `JSON.parse` will throw an unhandled exception mid-audit. Since this runs in the wet-run mutation loop (line 83-126), a crash here leaves the database in a partially-mutated state with some entries superseded and others not yet processed.
+**Fix:**
 ```typescript
-// ── Permanent relocation to Batumi (check BEFORE next_move) ──────────────
+let existingMetadata: Record<string, unknown> = {};
+try {
+  existingMetadata = typeof entry.metadata === 'string'
+    ? JSON.parse(entry.metadata || '{}')
+    : (entry.metadata || {});
+} catch {
+  existingMetadata = {};
+}
+
+await sql`
+  UPDATE memories
+  SET content = ${'[SUPERSEDED by audit] ' + entry.content},
+      metadata = ${JSON.stringify({
+        ...existingMetadata,
+        auditSuperseded: true,
+        auditDate: new Date().toISOString(),
+      })}
+  WHERE id = ${entry.id}::uuid
+`;
+```
+
+### WR-02: Database connection not closed on error path in production audit
+
+**File:** `src/scripts/audit-pensieve-production.ts:146-149`
+**Issue:** The `postgres(databaseUrl)` connection is created at line 28. If `main()` throws after that point but before `sql.end()` at line 142, the `.catch` handler on line 146 calls `process.exit(1)` without closing the connection. While process exit will eventually clean up, open connections against a production database can cause connection pool exhaustion if the script is retried quickly (e.g., in CI).
+**Fix:** Use a finally block inside `main()` or close in the catch handler:
+```typescript
+main().catch(async (err) => {
+  console.error('Production audit failed:', err);
+  try { await sql.end(); } catch { /* ignore cleanup errors */ }
+  process.exit(1);
+});
+```
+Note: This requires `sql` to be accessible from the catch handler. Alternatively, restructure `main()` to use try/finally around the connection lifecycle.
+
+### WR-03: FI target matcher has no incorrect-detection path
+
+**File:** `src/scripts/audit-pensieve.ts:224`
+**Issue:** The FI target matching block triggers on any of: `fi target`, `financial independence`, `1.5 million`, `$1,500,000`, or `1,500,000` -- and always returns `isCorrect: true`. An entry stating "My FI target is $2,000,000" matches on the "fi target" keyword and is incorrectly marked as correct. For an audit tool whose purpose is detecting factual errors, this false-positive path is a logic gap.
+**Fix:** Separate the context detection from the value validation:
+```typescript
+if (lower.includes('fi target') || lower.includes('financial independence')) {
+  const hasCorrectAmount = lower.includes('1.5 million') ||
+    lower.includes('$1,500,000') || lower.includes('1,500,000');
+  if (hasCorrectAmount) {
+    return { matched: true, key: 'fi_target', isCorrect: true };
+  }
+  return {
+    matched: true,
+    key: 'fi_target',
+    isCorrect: false,
+    issue: 'FI target amount does not match ground truth ($1,500,000)',
+  };
+}
+// Standalone amount mentions without FI context
+if (lower.includes('1.5 million') || lower.includes('$1,500,000') || lower.includes('1,500,000')) {
+  return { matched: true, key: 'fi_target', isCorrect: true };
+}
+```
+
+### WR-04: Seed script localhost guard rejects valid `postgres://` URL scheme
+
+**File:** `src/scripts/seed-audit-data.ts:143-144`
+**Issue:** The safety guard checks `dbUrl.startsWith('postgresql://')` but `postgres://` is a valid and commonly used alias (libpq, Heroku, Railway, many ORMs accept it). A local dev URL like `postgres://chris:localtest123@localhost:5433/chris` would be incorrectly rejected. While this errs on the safe side, it causes confusion during local development.
+**Fix:**
+```typescript
 if (
-  lower.includes('batumi') &&
-  (lower.includes('permanent') || lower.includes('september 2026') || lower.includes('permanently'))
+  !(dbUrl.startsWith('postgresql://') || dbUrl.startsWith('postgres://')) ||
+  (!dbUrl.includes('localhost') && !dbUrl.includes('127.0.0.1'))
 ) {
-  return { matched: true, key: 'permanent_relocation', isCorrect: true };
-}
-
-// ── Next move to Batumi (non-permanent only) ──────────────────────────────
-if (
-  lower.includes('batumi') &&
-  !lower.includes('permanent') &&
-  (lower.includes('move') ||
-    lower.includes('moving') ||
-    lower.includes('heading') ||
-    lower.includes('going to') ||
-    lower.includes('relocate'))
-) {
-  return { matched: true, key: 'next_move', isCorrect: true };
-}
 ```
-
----
-
-### WR-02: Non-null assertion on `match.key` without structural guarantee
-
-**File:** `src/scripts/audit-pensieve.ts:341`
-
-**Issue:** At line 341, `match.key!` uses a non-null assertion. The `MatchResult` type declares `key` as optional (`key?: string`). At this point in the code the conditions are `match.matched === true` and `match.isCorrect === false`, but the type system does not narrow `key` to `string` based on those flags. If `matchEntryToGroundTruth` is ever updated to return `{ matched: true, isCorrect: false }` without setting `key` (possible given the loose type), the non-null assertion will silently pass and `generateCorrectedContent` will receive `undefined` cast as `string`, producing a malformed correction.
-
-**Fix:** Add a runtime guard to fail loudly rather than silently:
-
-```typescript
-if (!match.key) {
-  console.error(`BUG: matched entry ${entry.id} has no ground-truth key — skipping`);
-  continue;
-}
-const correctedContent = generateCorrectedContent(match.key, entry.content);
-```
-
-Alternatively, restructure `MatchResult` into a discriminated union so the type narrows correctly.
-
----
-
-### WR-03: Seed data has no entry for the `next_move` ground-truth key
-
-**File:** `src/scripts/seed-audit-data.ts:32-130`
-
-**Issue:** `SEED_ENTRIES` covers 12 of the 13 ground-truth keys but does not include a correct-scenario entry with `groundTruthKey: 'next_move'`. The entry at line 49 ("I'm currently living in Saint Petersburg...") covers `current_location`. The entry at line 56 ("After a month in Batumi, I'll head to Antibes...") covers `after_batumi`. There is no entry that exercises the "moving to Batumi from Saint Petersburg" step. This means the audit script's `next_move` match branch is never exercised in a seed-then-audit end-to-end run, and audit reports produced against seed data will always show zero `correct` results for `next_move`.
-
-**Fix:** Add a seed entry:
-
-```typescript
-{
-  content: "I'm moving to Batumi, Georgia around April 28 for about a month.",
-  epistemicTag: 'FACT',
-  source: 'telegram',
-  metadata: { seedScenario: 'correct', groundTruthKey: 'next_move' },
-},
-```
-
----
 
 ## Info
 
-### IN-01: Duplicate condition in `isRentalContext` OR expression
+### IN-01: Overlapping rental context patterns between two matching blocks
 
-**File:** `src/scripts/audit-pensieve.ts:59`
+**File:** `src/scripts/audit-pensieve.ts:54-58` and `src/scripts/audit-pensieve.ts:229`
+**Issue:** The rental property block (line 54) checks for `citya` combined with `managed`/`rented`/`apartment`. The rental manager block (line 229) also checks for `citya` with `managed`/`manage`. Content like "Citya has managed the property well" would match the rental property block first and return early, never reaching the rental_manager block. The ordering is intentionally correct but the dependency is fragile and undocumented.
+**Fix:** Add a comment at line 229 documenting the intentional precedence: `// NOTE: Only reached if rental property block above did not match (requires rental-specific context keywords)`
 
-**Issue:** The string `'managed by citya'` is listed twice consecutively in the `isRentalContext` boolean (lines 57-60). The second occurrence is dead code — it can never change the result.
+### IN-02: Ground truth keys birth_place and rental_manager have no dedicated seed entries
 
-**Fix:** Remove the duplicate condition:
+**File:** `src/scripts/seed-audit-data.ts:32-136`
+**Issue:** The ground truth module defines 13 keys but seed data only has 11 dedicated `groundTruthKey` entries. `birth_place` is implicitly covered by the birth_date entry ("born on June 15, 1979 in Cagnes-sur-Mer") and `rental_manager` is implicitly covered by the rental_property entry. The audit matching logic for these two keys in isolation is not directly exercised by seed data.
+**Fix:** No code change required. Consider adding a comment in SEED_ENTRIES noting the intentional gap.
 
+### IN-03: Test documents 11 correct keys without explaining which 2 of 13 are absent
+
+**File:** `src/scripts/__tests__/seed-audit-data.test.ts:56-81`
+**Issue:** The tests "has exactly 13 entries (11 correct + 2 error)" and "covers all 11 correct ground-truth keys" together imply 2 ground-truth keys lack dedicated correct entries, but neither test documents which keys are missing (birth_place, rental_manager) or why.
+**Fix:** Add a clarifying comment:
 ```typescript
-const isRentalContext =
-  lower.includes('rented') ||
-  lower.includes('rental') ||
-  lower.includes('apartment') ||
-  (lower.includes('citya') && (lower.includes('managed') || lower.includes('rented') || lower.includes('apartment')));
+// birth_place and rental_manager are implicitly covered by the birth_date
+// and rental_property seed entries respectively -- no dedicated entries needed.
 ```
 
 ---
 
-### IN-02: Log line unconditionally appends ellipsis regardless of content length
-
-**File:** `src/scripts/seed-audit-data.ts:179`
-
-**Issue:** `entry.content.slice(0, 60) + '...'` always appends `...`, even when the content is shorter than 60 characters. For short seed entries this produces misleading output like `"I have Panama permanent residency...."`
-
-**Fix:**
-
-```typescript
-const preview = entry.content.length > 60
-  ? entry.content.slice(0, 60) + '...'
-  : entry.content;
-console.log(`  [${entry.metadata.seedScenario.toUpperCase()}] Inserted: ${preview}`);
-```
-
----
-
-### IN-03: `matchEntryToGroundTruth` birth section silently ignores entries with wrong year
-
-**File:** `src/scripts/audit-pensieve.ts:158-183`
-
-**Issue:** The `hasWrongDate` detection at line 166 requires `lower.includes('1979')` in addition to a date-shaped pattern. An entry like "Greg was born on 05/06/1980" (wrong year) will not trigger `hasWrongDate` because `1979` is absent. The entry falls through the entire `born`/`birth` block and exits as `{ matched: false }`, so a birth-date entry with a wrong year is silently treated as unrelated rather than flagged as incorrect.
-
-This is likely an acceptable intentional scope constraint (only catching the specific known error pattern), but it is worth a comment documenting the limitation rather than leaving it as implicit behavior.
-
-**Fix:** Add a comment clarifying the intended scope:
-
-```typescript
-// NOTE: hasWrongDate only fires if '1979' is present but the date format differs.
-// Birth entries with a completely wrong year (e.g., 1980) are not detected as
-// incorrect — they fall through as unmatched. Widen this check if broader
-// birth-date auditing is required.
-const hasWrongDate = lower.includes('1979') && !hasCorrectDate && /\d{1,2}[\/-]\d{1,2}[\/-]\d{4}/.test(lower);
-```
-
----
-
-_Reviewed: 2026-04-13T00:00:00Z_
+_Reviewed: 2026-04-13T12:00:00Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
