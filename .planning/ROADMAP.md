@@ -80,7 +80,10 @@ Plans:
   1. JOURNAL, REFLECT, and PRODUCE responses do not contain reflexive flattery (e.g., "Great question!", "That's a really insightful observation")
   2. COACH and PSYCHOLOGY modes are unaffected by the praise quarantine post-processor
   3. The post-processor is a deterministic Haiku pass, not a prompt-only rule
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 09-01-PLAN.md — Praise quarantine module with Haiku rewrite and unit tests
+- [ ] 09-02-PLAN.md — Engine pipeline wiring, engine tests, full suite verification
 
 ### Phase 10: Live Validation Suite
 **Goal**: Every behavioral fix in M006 is verified by live integration tests against real Sonnet, and contradiction detection is verified to produce zero false positives on adversarial non-contradictory pairs
@@ -107,5 +110,5 @@ Plans:
 | 6. Memory Audit | v2.0 M006 | 2/5 | In progress | - |
 | 7. Foundational Behavioral Fixes | v2.0 M006 | 0/TBD | Not started | - |
 | 8. Retrieval & Grounding | v2.0 M006 | 0/2 | Not started | - |
-| 9. Praise Quarantine | v2.0 M006 | 0/TBD | Not started | - |
+| 9. Praise Quarantine | v2.0 M006 | 0/2 | Not started | - |
 | 10. Live Validation Suite | v2.0 M006 | 0/TBD | Not started | - |
