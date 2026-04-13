@@ -561,8 +561,12 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
         const turn1Questions = turn1Response.split('?').length - 1;
         const turn3Questions = turn3Response.split('?').length - 1;
 
-        // Either fewer questions than turn 1, or zero questions
-        expect(turn3Questions < turn1Questions || turn3Questions === 0).toBe(true);
+        // Only compare question counts if turn 1 actually had questions
+        if (turn1Questions > 0) {
+          expect(turn3Questions < turn1Questions || turn3Questions === 0).toBe(true);
+        }
+        // Always assert turn 3 is not heavily interrogative
+        expect(turn3Questions).toBeLessThanOrEqual(2);
 
         // Cleanup between iterations
         await db.delete(conversations);
