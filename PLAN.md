@@ -313,6 +313,8 @@ M001–M005 complete. Chris is deployed and running on self-hosted server. 285 t
 
 M006 started 2026-04-13. Fixes conversational trust failures observed in real Telegram use on 2026-04-11 (refusal handling, language matching, question-pressure, fact confabulation) that would compound across all subsequent milestones if left unaddressed.
 
+Phase 6 complete (2026-04-13): Memory audit — all production FACT/RELATIONSHIP entries verified against ground truth. No incorrect entries found. Schema bug fixed (duplicate enum values). RETR-03 satisfied.
+
 ## Evolution
 
 This document evolves at phase transitions and milestone boundaries.
