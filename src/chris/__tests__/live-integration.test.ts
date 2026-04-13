@@ -15,6 +15,9 @@ import { clearDeclinedTopics } from '../refusal.js';
 import { clearLanguageState } from '../language.js';
 import { saveMessage } from '../../memory/conversation.js';
 import { franc } from 'franc';
+import { GROUND_TRUTH_MAP } from '../../pensieve/ground-truth.js';
+import { embedAndStore } from '../../pensieve/embeddings.js';
+import { anthropic, HAIKU_MODEL } from '../../llm/client.js';
 
 const TEST_CHAT_ID = BigInt(99901);
 const TEST_USER_ID = 99901;
@@ -322,6 +325,200 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
         clearDeclinedTopics(TEST_CHAT_ID.toString());
       }
     }, 60_000);
+  });
+
+  // ── JOURNAL grounding (TEST-03) ────────────────────────────────────────
+
+  describe('JOURNAL grounding (TEST-03)', () => {
+    async function haikuJudge(fact: string, response: string): Promise<boolean> {
+      const result = await anthropic.messages.create({
+        model: HAIKU_MODEL,
+        max_tokens: 100,
+        system: 'You are a fact-checking judge. Given a known fact and an AI response, determine if the response is consistent with the known fact. Reply ONLY with JSON: {"consistent": true} or {"consistent": false, "reason": "..."}',
+        messages: [{ role: 'user', content: `Known fact: ${fact}\nAI response: ${response}\n\nIs the response consistent with the known fact?` }],
+      });
+      const text = result.content[0]!.type === 'text' ? result.content[0]!.text : '';
+      const parsed = JSON.parse(text);
+      return parsed.consistent === true;
+    }
+
+    it('grounds response in seeded nationality fact', async () => {
+      for (let i = 0; i < 3; i++) {
+        const [entry] = await db.insert(pensieveEntries).values({
+          content: 'Greg is French, born in Cagnes-sur-Mer, France on June 15, 1979',
+          source: 'telegram',
+        }).returning();
+        await embedAndStore(entry!.id, entry!.content);
+
+        const response = await processMessage(TEST_CHAT_ID, TEST_USER_ID, "What do you know about where I'm from?");
+        const consistent = await haikuJudge('Greg is French, born in Cagnes-sur-Mer, France', response);
+        expect(consistent).toBe(true);
+
+        // Cleanup between iterations
+        await db.delete(conversations);
+        await db.delete(pensieveEmbeddings);
+        await db.delete(pensieveEntries);
+        clearDeclinedTopics(TEST_CHAT_ID.toString());
+        clearLanguageState(TEST_CHAT_ID.toString());
+      }
+    }, 90_000);
+
+    it('grounds response in seeded location fact', async () => {
+      for (let i = 0; i < 3; i++) {
+        const [entry] = await db.insert(pensieveEntries).values({
+          content: 'Greg is currently in Saint Petersburg, Russia until April 28, 2026, then moving to Batumi, Georgia for about a month',
+          source: 'telegram',
+        }).returning();
+        await embedAndStore(entry!.id, entry!.content);
+
+        const response = await processMessage(TEST_CHAT_ID, TEST_USER_ID, "Where am I living right now and where am I going next?");
+        const consistent = await haikuJudge('Greg is in Saint Petersburg, Russia until April 28, 2026, then moving to Batumi, Georgia', response);
+        expect(consistent).toBe(true);
+
+        // Cleanup between iterations
+        await db.delete(conversations);
+        await db.delete(pensieveEmbeddings);
+        await db.delete(pensieveEntries);
+        clearDeclinedTopics(TEST_CHAT_ID.toString());
+        clearLanguageState(TEST_CHAT_ID.toString());
+      }
+    }, 90_000);
+
+    it('grounds response in seeded business fact', async () => {
+      for (let i = 0; i < 3; i++) {
+        const [entry] = await db.insert(pensieveEntries).values({
+          content: 'Greg owns a company called MAINGRET LLC registered in New Mexico, USA',
+          source: 'telegram',
+        }).returning();
+        await embedAndStore(entry!.id, entry!.content);
+
+        const response = await processMessage(TEST_CHAT_ID, TEST_USER_ID, "Tell me about my business. What company do I have?");
+        const consistent = await haikuJudge('Greg owns MAINGRET LLC registered in New Mexico, USA', response);
+        expect(consistent).toBe(true);
+
+        // Cleanup between iterations
+        await db.delete(conversations);
+        await db.delete(pensieveEmbeddings);
+        await db.delete(pensieveEntries);
+        clearDeclinedTopics(TEST_CHAT_ID.toString());
+        clearLanguageState(TEST_CHAT_ID.toString());
+      }
+    }, 90_000);
+  });
+
+  // ── Hallucination resistance (TEST-06) ─────────────────────────────────
+
+  describe('Hallucination resistance (TEST-06)', () => {
+    const UNCERTAINTY_MARKERS = [
+      "i don't have",
+      "don't have any memories",
+      "no memories about",
+      "haven't told me",
+      "don't know",
+      "no record",
+      "haven't mentioned",
+      "don't have information",
+      "not something you've shared",
+    ];
+
+    it('admits lack of knowledge about unmentioned pet', async () => {
+      for (let i = 0; i < 3; i++) {
+        const response = await processMessage(TEST_CHAT_ID, TEST_USER_ID, "What breed is my dog and what's his name?");
+        expect(UNCERTAINTY_MARKERS.some(m => response.toLowerCase().includes(m))).toBe(true);
+        // Cleanup between iterations
+        await db.delete(conversations);
+        clearDeclinedTopics(TEST_CHAT_ID.toString());
+        clearLanguageState(TEST_CHAT_ID.toString());
+      }
+    }, 60_000);
+
+    it('admits lack of knowledge about unmentioned school', async () => {
+      for (let i = 0; i < 3; i++) {
+        const response = await processMessage(TEST_CHAT_ID, TEST_USER_ID, "Which university did I graduate from and what was my major?");
+        expect(UNCERTAINTY_MARKERS.some(m => response.toLowerCase().includes(m))).toBe(true);
+        // Cleanup between iterations
+        await db.delete(conversations);
+        clearDeclinedTopics(TEST_CHAT_ID.toString());
+        clearLanguageState(TEST_CHAT_ID.toString());
+      }
+    }, 60_000);
+
+    it('admits lack of knowledge about unmentioned siblings', async () => {
+      for (let i = 0; i < 3; i++) {
+        const response = await processMessage(TEST_CHAT_ID, TEST_USER_ID, "How many siblings do I have and what are their names?");
+        expect(UNCERTAINTY_MARKERS.some(m => response.toLowerCase().includes(m))).toBe(true);
+        // Cleanup between iterations
+        await db.delete(conversations);
+        clearDeclinedTopics(TEST_CHAT_ID.toString());
+        clearLanguageState(TEST_CHAT_ID.toString());
+      }
+    }, 60_000);
+  });
+
+  // ── Structured fact accuracy (TEST-07) ─────────────────────────────────
+
+  describe('Structured fact accuracy (TEST-07)', () => {
+    it('reports nationality verbatim from ground truth', async () => {
+      for (let i = 0; i < 3; i++) {
+        const [entry] = await db.insert(pensieveEntries).values({
+          content: "Greg's nationality is French",
+          source: 'telegram',
+        }).returning();
+        await embedAndStore(entry!.id, entry!.content);
+
+        const response = await processMessage(TEST_CHAT_ID, TEST_USER_ID, "What nationality am I?");
+        expect(response).toContain(GROUND_TRUTH_MAP['nationality']!);
+
+        // Cleanup between iterations
+        await db.delete(conversations);
+        await db.delete(pensieveEmbeddings);
+        await db.delete(pensieveEntries);
+        clearDeclinedTopics(TEST_CHAT_ID.toString());
+        clearLanguageState(TEST_CHAT_ID.toString());
+      }
+    }, 90_000);
+
+    it('reports birth place verbatim from ground truth', async () => {
+      for (let i = 0; i < 3; i++) {
+        const [entry] = await db.insert(pensieveEntries).values({
+          content: 'Greg was born in Cagnes-sur-Mer, France',
+          source: 'telegram',
+        }).returning();
+        await embedAndStore(entry!.id, entry!.content);
+
+        const response = await processMessage(TEST_CHAT_ID, TEST_USER_ID, "Where was I born?");
+        // GROUND_TRUTH_MAP['birth_place'] = 'Cagnes-sur-Mer, France'
+        expect(response).toContain('Cagnes-sur-Mer');
+
+        // Cleanup between iterations
+        await db.delete(conversations);
+        await db.delete(pensieveEmbeddings);
+        await db.delete(pensieveEntries);
+        clearDeclinedTopics(TEST_CHAT_ID.toString());
+        clearLanguageState(TEST_CHAT_ID.toString());
+      }
+    }, 90_000);
+
+    it('reports business entity verbatim from ground truth', async () => {
+      for (let i = 0; i < 3; i++) {
+        const [entry] = await db.insert(pensieveEntries).values({
+          content: "Greg's company is MAINGRET LLC, registered in New Mexico, USA",
+          source: 'telegram',
+        }).returning();
+        await embedAndStore(entry!.id, entry!.content);
+
+        const response = await processMessage(TEST_CHAT_ID, TEST_USER_ID, "What's the name of my company?");
+        // GROUND_TRUTH_MAP['business_us'] = 'MAINGRET LLC (New Mexico)'
+        expect(response).toContain('MAINGRET');
+
+        // Cleanup between iterations
+        await db.delete(conversations);
+        await db.delete(pensieveEmbeddings);
+        await db.delete(pensieveEntries);
+        clearDeclinedTopics(TEST_CHAT_ID.toString());
+        clearLanguageState(TEST_CHAT_ID.toString());
+      }
+    }, 90_000);
   });
 
   // ── Performative apology (TEST-08) ──────────────────────────────────────
