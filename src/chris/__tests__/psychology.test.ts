@@ -226,6 +226,8 @@ describe('handlePsychology', () => {
       'PSYCHOLOGY',
       expect.any(String),
       expect.any(String),
+      undefined,
+      undefined,
     );
   });
 
