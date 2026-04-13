@@ -38,10 +38,13 @@
   1. All Pensieve entries about Greg's location history, property, business entities, and key dates have been reviewed against documented ground truth
   2. Incorrect or outdated entries are corrected or annotated so they no longer surface as current facts
   3. A ground-truth reference document exists that subsequent phases can test against
-**Plans:** 2 plans
+**Plans:** 5 plans
 Plans:
-- [ ] 06-01-PLAN.md — Ground-truth module and seed script with tests
-- [ ] 06-02-PLAN.md — Audit script, local validation cycle, and production run with D019 gate
+- [x] 06-01-PLAN.md — Ground-truth module and seed script with tests
+- [x] 06-02-PLAN.md — Audit script, local validation cycle, and production run with D019 gate
+- [ ] 06-03-PLAN.md — Fix code review bugs (WR-01 match ordering, WR-02 null guard, WR-03 missing seed entry)
+- [ ] 06-04-PLAN.md — Local audit cycle execution against Docker Compose DB
+- [ ] 06-05-PLAN.md — Production dry-run review (D019 gate) and wet-run execution
 
 ### Phase 7: Foundational Behavioral Fixes
 **Goal**: Chris respects refusals, matches Greg's language, stops interrogating in JOURNAL mode, and operates under a constitutional anti-sycophancy preamble across all 6 modes
@@ -98,7 +101,7 @@ Plans:
 | 3. External Sources | v1.0 | - | Complete | - |
 | 4. Proactive Chris | v1.0 | - | Complete | - |
 | 5. Requirement Validation | v1.0 | - | Complete | - |
-| 6. Memory Audit | v2.0 M006 | 0/2 | Not started | - |
+| 6. Memory Audit | v2.0 M006 | 2/5 | In progress | - |
 | 7. Foundational Behavioral Fixes | v2.0 M006 | 0/TBD | Not started | - |
 | 8. Retrieval & Grounding | v2.0 M006 | 0/TBD | Not started | - |
 | 9. Praise Quarantine | v2.0 M006 | 0/TBD | Not started | - |
