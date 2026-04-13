@@ -42,9 +42,9 @@
 Plans:
 - [x] 06-01-PLAN.md — Ground-truth module and seed script with tests
 - [x] 06-02-PLAN.md — Audit script, local validation cycle, and production run with D019 gate
-- [ ] 06-03-PLAN.md — Fix code review bugs (WR-01 match ordering, WR-02 null guard, WR-03 missing seed entry)
-- [ ] 06-04-PLAN.md — Local audit cycle execution against Docker Compose DB
-- [ ] 06-05-PLAN.md — Production dry-run review (D019 gate) and wet-run execution
+- [x] 06-03-PLAN.md — Fix code review bugs (WR-01 match ordering, WR-02 null guard, WR-03 missing seed entry)
+- [x] 06-04-PLAN.md — Local audit cycle execution against Docker Compose DB
+- [x] 06-05-PLAN.md — Production dry-run review (D019 gate) and wet-run execution
 
 ### Phase 7: Foundational Behavioral Fixes
 **Goal**: Chris respects refusals, matches Greg's language, stops interrogating in JOURNAL mode, and operates under a constitutional anti-sycophancy preamble across all 6 modes
