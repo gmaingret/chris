@@ -1,4 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+// Mock DB connection to avoid requiring DATABASE_URL for pure-logic tests
+vi.mock('../../db/connection.js', () => ({ db: {} }));
+vi.mock('../../pensieve/embeddings.js', () => ({ embedAndStore: vi.fn() }));
+
 import { SEED_ENTRIES } from '../seed-audit-data.js';
 
 describe('seed-audit-data SEED_ENTRIES', () => {

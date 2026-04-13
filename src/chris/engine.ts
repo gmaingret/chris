@@ -14,6 +14,8 @@ import { formatContradictionNotice } from './personality.js';
 import { quarantinePraise } from './praise-quarantine.js';
 import { detectMuteIntent, generateMuteAcknowledgment } from '../proactive/mute.js';
 import { setMuteUntil } from '../proactive/state.js';
+import { detectRefusal, addDeclinedTopic, getDeclinedTopics, generateRefusalAcknowledgment } from './refusal.js';
+import { detectLanguage, getLastUserLanguage, setLastUserLanguage } from './language.js';
 import { config } from '../config.js';
 import { LLMError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
@@ -122,6 +124,26 @@ export async function processMessage(
       return ack;
     }
 
+    // Pre-process: detect refusal before mode detection (TRUST-03)
+    const chatIdStr = chatId.toString();
+    const refusalResult = detectRefusal(text);
+    if (refusalResult.isRefusal) {
+      addDeclinedTopic(chatIdStr, refusalResult.topic, refusalResult.originalSentence);
+      const previousLanguage = getLastUserLanguage(chatIdStr);
+      const language = detectLanguage(text, previousLanguage);
+      setLastUserLanguage(chatIdStr, language);
+      const ack = generateRefusalAcknowledgment(language);
+      await saveMessage(chatId, 'USER', text, 'JOURNAL');
+      await saveMessage(chatId, 'ASSISTANT', ack, 'JOURNAL');
+      return ack;
+    }
+
+    // Pre-process: detect language (LANG-01, LANG-02)
+    const previousLanguage = getLastUserLanguage(chatIdStr);
+    const language = detectLanguage(text, previousLanguage);
+    setLastUserLanguage(chatIdStr, language);
+    const declinedTopics = getDeclinedTopics(chatIdStr);
+
     // Detect mode first so we can tag the user message correctly
     const mode = await detectMode(text);
 
@@ -136,7 +158,7 @@ export async function processMessage(
     let response: string;
     switch (mode) {
       case 'JOURNAL':
-        response = await handleJournal(chatId, text);
+        response = await handleJournal(chatId, text, language, declinedTopics);
         break;
       case 'INTERROGATE':
         response = await handleInterrogate(chatId, text);

@@ -2,7 +2,11 @@
 // Tests pure logic: matchEntryToGroundTruth, generateCorrectedContent, formatAuditReport.
 // No DB or embedding calls needed for these tests.
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+// Mock DB connection to avoid requiring DATABASE_URL for pure-logic tests
+vi.mock('../../db/connection.js', () => ({ db: {} }));
+vi.mock('../../pensieve/embeddings.js', () => ({ embedAndStore: vi.fn() }));
 import {
   matchEntryToGroundTruth,
   generateCorrectedContent,
