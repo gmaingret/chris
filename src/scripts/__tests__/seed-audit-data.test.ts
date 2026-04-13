@@ -48,6 +48,33 @@ describe('seed-audit-data SEED_ENTRIES', () => {
     expect(directionError).toBeDefined();
   });
 
+  it('has exactly 13 entries (11 correct + 2 error)', () => {
+    expect(SEED_ENTRIES.length).toBe(13);
+    const correct = SEED_ENTRIES.filter((e) => e.metadata.seedScenario === 'correct');
+    const error = SEED_ENTRIES.filter((e) => e.metadata.seedScenario === 'error');
+    expect(correct.length).toBe(11);
+    expect(error.length).toBe(2);
+  });
+
+  it('covers all 11 correct ground-truth keys including next_move', () => {
+    const correctKeys = SEED_ENTRIES
+      .filter((e) => e.metadata.seedScenario === 'correct')
+      .map((e) => e.metadata.groundTruthKey)
+      .filter((k): k is string => !!k);
+
+    const expectedKeys = [
+      'birth_date', 'nationality',
+      'current_location', 'next_move', 'after_batumi', 'permanent_relocation',
+      'rental_property',
+      'business_us', 'business_georgia', 'residency_panama',
+      'fi_target',
+    ];
+
+    for (const key of expectedKeys) {
+      expect(correctKeys).toContain(key);
+    }
+  });
+
   it('every entry has correct shape: non-empty content, valid epistemicTag, source=telegram', () => {
     const validTags = ['FACT', 'RELATIONSHIP'] as const;
     for (const entry of SEED_ENTRIES) {

@@ -27,7 +27,7 @@ export interface SeedEntry {
 /**
  * Exported so unit tests can validate the data structure without needing a DB.
  *
- * 10 correct + 2 error entries = 12 total, covering all 5 ground-truth categories.
+ * 11 correct + 2 error entries = 13 total, covering all 13 ground-truth keys.
  */
 export const SEED_ENTRIES: SeedEntry[] = [
   // ── identity ──────────────────────────────────────────────────────────────
@@ -51,6 +51,12 @@ export const SEED_ENTRIES: SeedEntry[] = [
     epistemicTag: 'FACT',
     source: 'telegram',
     metadata: { seedScenario: 'correct', groundTruthKey: 'current_location' },
+  },
+  {
+    content: "I'm moving to Batumi, Georgia around April 28 for about a month.",
+    epistemicTag: 'FACT',
+    source: 'telegram',
+    metadata: { seedScenario: 'correct', groundTruthKey: 'next_move' },
   },
   {
     content:
@@ -175,9 +181,10 @@ async function main(): Promise<void> {
     await embedAndStore(inserted.id, inserted.content);
 
     insertedCount++;
-    console.log(
-      `  [${entry.metadata.seedScenario.toUpperCase()}] Inserted: ${entry.content.slice(0, 60)}...`,
-    );
+    const preview = entry.content.length > 60
+      ? entry.content.slice(0, 60) + '...'
+      : entry.content;
+    console.log(`  [${entry.metadata.seedScenario.toUpperCase()}] Inserted: ${preview}`);
   }
 
   console.log(`\nDone. Inserted ${insertedCount} of ${SEED_ENTRIES.length} entries.`);
