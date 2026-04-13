@@ -26,7 +26,7 @@
 - [ ] **Phase 7: Foundational Behavioral Fixes** - Constitutional preamble, refusal handling, language detection, question-pressure reduction
 - [ ] **Phase 8: Retrieval & Grounding** - JOURNAL hybrid retrieval, structured fact injection, hallucination resistance
 - [ ] **Phase 9: Praise Quarantine** - Haiku post-processor strips reflexive flattery from JOURNAL/REFLECT/PRODUCE
-- [ ] **Phase 10: Live Validation Suite** - 24-case integration tests against real Sonnet + contradiction false-positive audit
+- [x] **Phase 10: Live Validation Suite** - 24-case integration tests against real Sonnet + contradiction false-positive audit (completed 2026-04-13)
 
 ## Phase Details
 
@@ -87,10 +87,10 @@ Plans:
   1. All 24 live integration test cases pass 3-of-3 against real Sonnet (refusal EN/FR/RU, topic persistence, JOURNAL grounding, language switching, sycophancy resistance, hallucination resistance, structured fact accuracy, performative apology detection)
   2. Contradiction false-positive audit passes: 20 adversarial non-contradictory pairs produce 0 false positives
   3. Test suite is reproducible and can be re-run to catch regressions in future milestones
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 Plans:
-- [ ] 10-01-PLAN.md — Live integration tests: refusal, language, topic persistence, sycophancy, performative apology (15 cases)
-- [ ] 10-02-PLAN.md — Live integration tests: grounding, hallucination, fact accuracy + contradiction false-positive audit (9 cases + 20 pairs)
+- [x] 10-01-PLAN.md — Live integration tests: refusal, language, topic persistence, sycophancy, performative apology (15 cases)
+- [x] 10-02-PLAN.md — Live integration tests: grounding, hallucination, fact accuracy + contradiction false-positive audit (9 cases + 20 pairs)
 **UI hint**: no
 
 ## Progress
@@ -108,4 +108,4 @@ Plans:
 | 7. Foundational Behavioral Fixes | v2.0 M006 | 0/TBD | Not started | - |
 | 8. Retrieval & Grounding | v2.0 M006 | 0/TBD | Not started | - |
 | 9. Praise Quarantine | v2.0 M006 | 0/TBD | Not started | - |
-| 10. Live Validation Suite | v2.0 M006 | 0/2 | Not started | - |
+| 10. Live Validation Suite | v2.0 M006 | 2/2 | Complete    | 2026-04-13 |
