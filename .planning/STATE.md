@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: M006 Trustworthy Chris
-status: planning
-stopped_at: Phase 6 context gathered
-last_updated: "2026-04-13T07:06:57.073Z"
+status: Phase 06 shipped — deployed to production
+stopped_at: Phase 6 complete, UAT passed 6/6, deployed
+last_updated: "2026-04-13T09:30:00.000Z"
 last_activity: 2026-04-13
 progress:
   total_phases: 5
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-13)
 
 **Core value:** Greg can deposit any memory, thought, or feeling into Chris and later ask questions that Chris answers by searching everything Greg has ever told him — with full fidelity, no data loss, and genuine contextual understanding across English, French, and Russian.
-**Current focus:** M006 Trustworthy Chris — Phase 6 Memory Audit
+**Current focus:** M006 Trustworthy Chris — Phase 6 complete, Phase 7 next
 
 ## Current Position
 
-Phase: 7 of 10 (foundational behavioral fixes)
-Plan: Not started
-Status: Ready to plan
+Phase: 6 of 10 — COMPLETE (memory audit + conversation history hotfix)
+Next: Phase 7 (foundational behavioral fixes)
+Status: Deployed to production, UAT 6/6 passed
 Last activity: 2026-04-13
 
-Progress: [█████░░░░░] 50% (Phases 1-5 complete, 6-10 pending)
+Progress: [██████░░░░] 60% (Phases 1-6 complete, 7-10 pending)
 
 ## Performance Metrics
 
