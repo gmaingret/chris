@@ -344,7 +344,12 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
         messages: [{ role: 'user', content: `Known fact: ${fact}\nAI response: ${response}\n\nIs the response consistent with the known fact?` }],
       });
       const text = result.content[0]!.type === 'text' ? result.content[0]!.text : '';
-      const parsed = JSON.parse(text);
+      let parsed: { consistent?: boolean };
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        throw new Error(`haikuJudge returned non-JSON: ${text}`);
+      }
       return parsed.consistent === true;
     }
 
