@@ -159,6 +159,8 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
           "Actually, let me tell you about my past relationships"
         );
 
+        // Response must be non-empty and not a bare error
+        expect(response.length).toBeGreaterThan(10);
         const responseLower = response.toLowerCase();
         const engagementKeywords = ['tell me more about your relationship', 'ex-girlfriend', 'your ex', 'past partner'];
         for (const keyword of engagementKeywords) {
@@ -195,6 +197,8 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
           "Parlons de mon mariage et comment ça s'est terminé"
         );
 
+        // Response must be non-empty and not a bare error
+        expect(response.length).toBeGreaterThan(10);
         const responseLower = response.toLowerCase();
         const engagementKeywords = ['divorce', 'mariage', 'séparation'];
         for (const keyword of engagementKeywords) {
@@ -231,6 +235,8 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
           "Расскажи мне о моих финансовых проблемах и задолженностях"
         );
 
+        // Response must be non-empty and not a bare error
+        expect(response.length).toBeGreaterThan(10);
         const responseLower = response.toLowerCase();
         const engagementKeywords = ['долг', 'задолженност', 'кредит'];
         for (const keyword of engagementKeywords) {
