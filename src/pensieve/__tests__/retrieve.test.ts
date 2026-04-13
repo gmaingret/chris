@@ -43,8 +43,9 @@ vi.mock('../../db/connection.js', () => ({
 }));
 
 // ── Import module under test after mocks ───────────────────────────────────
-const { searchPensieve, hybridSearch, REFLECT_SEARCH_OPTIONS, COACH_SEARCH_OPTIONS, PSYCHOLOGY_SEARCH_OPTIONS, PRODUCE_SEARCH_OPTIONS, CONTRADICTION_SEARCH_OPTIONS } = await import('../retrieve.js');
+const { searchPensieve, hybridSearch, REFLECT_SEARCH_OPTIONS, COACH_SEARCH_OPTIONS, PSYCHOLOGY_SEARCH_OPTIONS, PRODUCE_SEARCH_OPTIONS, CONTRADICTION_SEARCH_OPTIONS, JOURNAL_SEARCH_OPTIONS } = await import('../retrieve.js');
 import type { SearchOptions, SearchResult } from '../retrieve.js';
+import { JOURNAL_SYSTEM_PROMPT } from '../../llm/prompts.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -472,5 +473,37 @@ describe('mode search presets', () => {
     const mockResults: SearchResult[] = [];
     const result = buildPensieveContext(mockResults);
     expect(typeof result).toBe('string');
+  });
+});
+
+// ── JOURNAL_SEARCH_OPTIONS preset tests (RETR-01) ─────────────────────────
+
+describe('JOURNAL_SEARCH_OPTIONS preset', () => {
+  it('uses fact-type tags', () => {
+    expect(JOURNAL_SEARCH_OPTIONS.tags).toEqual(['FACT', 'RELATIONSHIP', 'PREFERENCE', 'VALUE']);
+  });
+
+  it('has moderate recency bias', () => {
+    expect(JOURNAL_SEARCH_OPTIONS.recencyBias).toBe(0.3);
+  });
+
+  it('limits to 10 results', () => {
+    expect(JOURNAL_SEARCH_OPTIONS.limit).toBe(10);
+  });
+
+  it('has no minimum score threshold', () => {
+    expect(JOURNAL_SEARCH_OPTIONS.minScore).toBeUndefined();
+  });
+});
+
+// ── JOURNAL_SYSTEM_PROMPT tests (RETR-01, RETR-04) ────────────────────────
+
+describe('JOURNAL_SYSTEM_PROMPT', () => {
+  it('contains pensieveContext placeholder', () => {
+    expect(JOURNAL_SYSTEM_PROMPT).toContain('{pensieveContext}');
+  });
+
+  it('contains hallucination resistance instruction', () => {
+    expect(JOURNAL_SYSTEM_PROMPT).toContain("I don't have any memories about that");
   });
 });
