@@ -1,14 +1,27 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// ── Mock db ──
-const mockReturning = vi.fn();
-const mockValues = vi.fn(() => ({ returning: mockReturning }));
-const mockInsert = vi.fn(() => ({ values: mockValues }));
-const mockLimit = vi.fn();
-const mockOrderBy = vi.fn(() => ({ limit: mockLimit }));
-const mockSelectWhere = vi.fn(() => ({ orderBy: mockOrderBy }));
-const mockFrom = vi.fn(() => ({ where: mockSelectWhere }));
-const mockSelect = vi.fn(() => ({ from: mockFrom }));
+// ── All mocks referenced inside vi.mock() factories must be hoisted ──────────
+const {
+  mockCreate,
+  mockReturning,
+  mockLimit,
+  mockInsert,
+  mockSelect,
+} = vi.hoisted(() => {
+  const mockReturning = vi.fn();
+  const mockLimit = vi.fn();
+  const mockValues = vi.fn(() => ({ returning: mockReturning }));
+  const mockInsert = vi.fn(() => ({ values: mockValues }));
+  const mockOrderBy = vi.fn(() => ({ limit: mockLimit }));
+  const mockSelectWhere = vi.fn(() => ({ orderBy: mockOrderBy }));
+  const mockFrom = vi.fn(() => ({ where: mockSelectWhere }));
+  const mockSelect = vi.fn(() => ({ from: mockFrom }));
+  const mockCreate = vi.fn();
+  return { mockCreate, mockReturning, mockLimit, mockInsert, mockSelect };
+});
+
+// ── Module mocks ──────────────────────────────────────────────────────────────
+
 vi.mock('../../db/connection.js', () => ({
   db: { insert: mockInsert, select: mockSelect },
 }));
@@ -20,52 +33,126 @@ vi.mock('../../config.js', () => ({
     telegramAuthorizedUserId: 123456,
     databaseUrl: 'postgresql://test:test@localhost:5432/test',
     proactiveTimezone: 'Europe/Paris',
+    logLevel: 'silent',
   },
 }));
 
-// Mock mute (always returns not muted)
 vi.mock('../../proactive/mute.js', () => ({
   detectMuteIntent: vi.fn().mockResolvedValue({ muted: false }),
   generateMuteAcknowledgment: vi.fn(),
 }));
+
 vi.mock('../../proactive/state.js', () => ({
   setMuteUntil: vi.fn(),
 }));
 
-// Mock mode detection
 vi.mock('../../llm/client.js', () => ({
-  anthropic: { messages: { create: vi.fn() } },
+  anthropic: { messages: { create: mockCreate } },
   HAIKU_MODEL: 'test-haiku',
   SONNET_MODEL: 'test-sonnet',
+  OPUS_MODEL: 'test-opus',
 }));
 
-// Mock contradiction detection (no contradictions)
 vi.mock('../contradiction.js', () => ({
   detectContradictions: vi.fn().mockResolvedValue([]),
 }));
 
-// Mock relational memory (fire-and-forget)
 vi.mock('../../memory/relational.js', () => ({
   writeRelationalMemory: vi.fn(),
 }));
 
+vi.mock('../../pensieve/store.js', () => ({
+  storePensieveEntry: vi.fn().mockResolvedValue({ id: 1 }),
+}));
+
+vi.mock('../../pensieve/tagger.js', () => ({
+  tagEntry: vi.fn(),
+}));
+
+vi.mock('../../pensieve/embeddings.js', () => ({
+  embedAndStore: vi.fn(),
+}));
+
+// ── Imports (after mocks) ─────────────────────────────────────────────────────
+
+import { processMessage } from '../engine.js';
+import { clearDeclinedTopics } from '../refusal.js';
+import { clearLanguageState } from '../language.js';
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
 describe('engine refusal integration (TRUST-03)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clearDeclinedTopics('12345');
+    clearLanguageState('12345');
+    mockReturning.mockResolvedValue([{ id: 1 }]);
+    mockLimit.mockResolvedValue([]);
   });
 
-  it('returns acknowledgment when refusal detected', async () => {
-    // This test will work once refusal.ts and engine.ts changes exist
-    // For now it documents the expected behavior:
-    // processMessage(chatId, userId, "I don't want to talk about my father")
-    // should return a short acknowledgment string, NOT route to a mode handler
-    expect(true).toBe(true); // placeholder — will be fleshed out in Plan 03
+  it('returns acknowledgment on refusal without calling detectMode', async () => {
+    const result = await processMessage(12345n, 1, "I don't want to talk about my father");
+    expect(result).toBeTruthy();
+    expect(result.length).toBeLessThan(100); // short ack, not a full response
+    // detectMode calls Haiku — key assertion: no LLM call was made
+    expect(mockCreate).not.toHaveBeenCalled();
   });
 
-  it('passes language and declinedTopics through to handler', async () => {
-    // After engine.ts changes, verify that:
-    // 1. detectLanguage is called before detectMode
-    // 2. language and declinedTopics are passed to the handler
-    expect(true).toBe(true); // placeholder — will be fleshed out in Plan 03
+  it('passes declinedTopics to handler after prior refusal', async () => {
+    // First: refusal — builds declined topics session state
+    await processMessage(12345n, 1, "I don't want to talk about my father");
+
+    // Mock detectMode (Haiku) for next message
+    mockCreate.mockResolvedValueOnce({
+      content: [{ type: 'text', text: '{"mode": "JOURNAL"}' }],
+    });
+    // Mock Sonnet response for journal handler
+    mockCreate.mockResolvedValueOnce({
+      content: [{ type: 'text', text: 'That sounds great!' }],
+    });
+
+    // Second: normal message — declined topics should flow to handler
+    const result = await processMessage(12345n, 1, 'Tell me about cooking');
+    expect(result).toBe('That sounds great!');
+
+    // Verify Sonnet received system prompt containing declined topics section
+    const sonnetCall = mockCreate.mock.calls.find(
+      (call: any[]) => call[0]?.model === 'test-sonnet',
+    );
+    expect(sonnetCall).toBeDefined();
+    const systemPrompt = sonnetCall![0].system;
+    expect(systemPrompt).toContain('Declined Topics');
+    expect(systemPrompt).toContain("I don't want to talk about my father");
+  });
+});
+
+describe('engine language detection (LANG-01, LANG-02)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    clearDeclinedTopics('12345');
+    clearLanguageState('12345');
+    mockReturning.mockResolvedValue([{ id: 1 }]);
+    mockLimit.mockResolvedValue([]);
+  });
+
+  it('detects language and passes to handler', async () => {
+    // Mock detectMode
+    mockCreate.mockResolvedValueOnce({
+      content: [{ type: 'text', text: '{"mode": "JOURNAL"}' }],
+    });
+    // Mock Sonnet response
+    mockCreate.mockResolvedValueOnce({
+      content: [{ type: 'text', text: 'Bonjour!' }],
+    });
+
+    await processMessage(12345n, 1, "Aujourd'hui j'ai passé une journée magnifique au bureau");
+
+    // Verify Sonnet system prompt contains French language directive
+    const sonnetCall = mockCreate.mock.calls.find(
+      (call: any[]) => call[0]?.model === 'test-sonnet',
+    );
+    expect(sonnetCall).toBeDefined();
+    const systemPrompt = sonnetCall![0].system;
+    expect(systemPrompt).toContain('French');
   });
 });

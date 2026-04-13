@@ -13,6 +13,8 @@ import { detectContradictions } from './contradiction.js';
 import { formatContradictionNotice } from './personality.js';
 import { detectMuteIntent, generateMuteAcknowledgment } from '../proactive/mute.js';
 import { setMuteUntil } from '../proactive/state.js';
+import { detectRefusal, addDeclinedTopic, getDeclinedTopics, generateRefusalAcknowledgment } from './refusal.js';
+import { detectLanguage, getLastUserLanguage, setLastUserLanguage } from './language.js';
 import { config } from '../config.js';
 import { LLMError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
@@ -121,6 +123,36 @@ export async function processMessage(
       return ack;
     }
 
+    // Pre-process: refusal detection (synchronous, before mode detection) — TRUST-01/02/03
+    const chatKey = chatId.toString();
+    const refusalResult = detectRefusal(text);
+    if (refusalResult.isRefusal) {
+      // Detect language first for acknowledgment language
+      const previousLanguage = getLastUserLanguage(chatKey);
+      const refusalLanguage = detectLanguage(text, previousLanguage);
+      setLastUserLanguage(chatKey, refusalLanguage);
+
+      addDeclinedTopic(chatKey, refusalResult.topic, refusalResult.originalSentence);
+      const ack = generateRefusalAcknowledgment(refusalLanguage);
+      await saveMessage(chatId, 'USER', text, 'JOURNAL');
+      await saveMessage(chatId, 'ASSISTANT', ack, 'JOURNAL');
+
+      logger.info(
+        { chatId: chatKey, topic: refusalResult.topic, language: refusalLanguage },
+        'chris.refusal.detected',
+      );
+
+      return ack;
+    }
+
+    // Pre-process: language detection (synchronous) — LANG-01/02
+    const previousLanguage = getLastUserLanguage(chatKey);
+    const detectedLanguage = detectLanguage(text, previousLanguage);
+    setLastUserLanguage(chatKey, detectedLanguage);
+
+    // Get accumulated declined topics for this session — TRUST-02/04
+    const declinedTopics = getDeclinedTopics(chatKey);
+
     // Detect mode first so we can tag the user message correctly
     const mode = await detectMode(text);
 
@@ -135,25 +167,25 @@ export async function processMessage(
     let response: string;
     switch (mode) {
       case 'JOURNAL':
-        response = await handleJournal(chatId, text);
+        response = await handleJournal(chatId, text, detectedLanguage, declinedTopics);
         break;
       case 'INTERROGATE':
-        response = await handleInterrogate(chatId, text);
+        response = await handleInterrogate(chatId, text, detectedLanguage, declinedTopics);
         break;
       case 'REFLECT':
-        response = await handleReflect(chatId, text);
+        response = await handleReflect(chatId, text, detectedLanguage, declinedTopics);
         break;
       case 'COACH':
-        response = await handleCoach(chatId, text);
+        response = await handleCoach(chatId, text, detectedLanguage, declinedTopics);
         break;
       case 'PSYCHOLOGY':
-        response = await handlePsychology(chatId, text);
+        response = await handlePsychology(chatId, text, detectedLanguage, declinedTopics);
         break;
       case 'PRODUCE':
-        response = await handleProduce(chatId, text);
+        response = await handleProduce(chatId, text, detectedLanguage, declinedTopics);
         break;
       case 'PHOTOS': {
-        const photoResult = await handlePhotos(chatId, text);
+        const photoResult = await handlePhotos(chatId, text, detectedLanguage, declinedTopics);
         if (photoResult) {
           response = photoResult.response;
           // Enrich the saved user message with photo context so subsequent turns
@@ -166,7 +198,7 @@ export async function processMessage(
           await saveMessage(chatId, 'USER', text, 'JOURNAL');
           userMessageSaved = true;
           const noPhotosContext = `${text}\n\n[Note: Chris searched the photo library but found no matching photos for this request.]`;
-          response = await handleJournal(chatId, noPhotosContext);
+          response = await handleJournal(chatId, noPhotosContext, detectedLanguage, declinedTopics);
         }
         break;
       }
