@@ -1,16 +1,22 @@
-# Pensieve Audit Report (Production Wet-Run)
+# Pensieve Audit Report
 
-**Date:** 2026-04-13T00:00:00Z  
-**Mode:** wet-run (pending user approval)
-**Status:** PENDING — Requires dry-run review and D019 approval gate
+**Date:** 2026-04-13T07:03:26.466Z
+**Mode:** wet-run (mutations applied)
 
-This file is a placeholder. The production wet-run requires:
-1. Completion of the local audit cycle (seed + dry-run + wet-run against Docker DB)
-2. Review and approval of the production dry-run report
-3. Explicit "approved" response from the user (D019 gate)
+## Summary
 
-Run from the main development environment after dry-run approval:
+- **Total reviewed:** 2
+- **Correct:** 1
+- **Incorrect:** 0
+- **Unrelated:** 1
+- **Corrections applied:** 0
 
-```bash
-npx tsx src/scripts/audit-pensieve.ts --report-path .planning/phases/06-memory-audit/audit-report-production.md
-```
+## Entry Details
+
+| Entry ID | Content | Status | Action | Ground Truth Key |
+|----------|---------|--------|--------|------------------|
+| 43ebf4a2 | My name is Gregory and I live in Saint Petersburg. | unrelated | kept | - |
+| 909a661e | Test memory: Greg was born in Cagnes-sur-Mer on 15/06/1979 | correct | kept | birth_date |
+
+---
+*Report generated in **wet-run** mode. Incorrect entries have been soft-deleted and corrected replacements inserted.*
