@@ -54,6 +54,34 @@ describe('matchEntryToGroundTruth', () => {
     expect(result.isCorrect).toBe(false);
     expect(result.issue).toBeDefined();
   });
+
+  // WR-01 fix: permanent_relocation entries must not be consumed by next_move block
+  it('returns permanent_relocation (not next_move) for "permanently relocate to Batumi around September 2026"', () => {
+    const content = 'The plan is to permanently relocate to Batumi around September 2026.';
+    const result = matchEntryToGroundTruth(content);
+
+    expect(result.matched).toBe(true);
+    expect(result.key).toBe('permanent_relocation');
+    expect(result.isCorrect).toBe(true);
+  });
+
+  it('returns next_move for "moving to Batumi, Georgia around April 28 for about a month"', () => {
+    const content = "I'm moving to Batumi, Georgia around April 28 for about a month.";
+    const result = matchEntryToGroundTruth(content);
+
+    expect(result.matched).toBe(true);
+    expect(result.key).toBe('next_move');
+    expect(result.isCorrect).toBe(true);
+  });
+
+  it('returns permanent_relocation (not next_move) for "Moving to Batumi permanently"', () => {
+    const content = 'Moving to Batumi permanently.';
+    const result = matchEntryToGroundTruth(content);
+
+    expect(result.matched).toBe(true);
+    expect(result.key).toBe('permanent_relocation');
+    expect(result.isCorrect).toBe(true);
+  });
 });
 
 // ── Test 3: generateCorrectedContent ─────────────────────────────────────────

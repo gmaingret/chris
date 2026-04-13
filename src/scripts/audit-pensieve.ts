@@ -55,8 +55,6 @@ export function matchEntryToGroundTruth(content: string): MatchResult {
     lower.includes('rented') ||
     lower.includes('rental') ||
     lower.includes('apartment') ||
-    lower.includes('managed by citya') ||
-    lower.includes('managed by citya') ||
     (lower.includes('citya') && (lower.includes('managed') || lower.includes('rented') || lower.includes('apartment')));
 
   if (isRentalContext) {
@@ -117,9 +115,24 @@ export function matchEntryToGroundTruth(content: string): MatchResult {
     };
   }
 
-  // ── Next move to Batumi ───────────────────────────────────────────────────
+  // ── Permanent relocation to Batumi (check BEFORE next_move) ──────────────
   if (
     lower.includes('batumi') &&
+    (lower.includes('permanent') || lower.includes('september 2026') || lower.includes('permanently'))
+  ) {
+    return {
+      matched: true,
+      key: 'permanent_relocation',
+      isCorrect: true,
+    };
+  }
+
+  // ── Next move to Batumi (non-permanent only) ──────────────────────────────
+  if (
+    lower.includes('batumi') &&
+    !lower.includes('permanent') &&
+    !lower.includes('permanently') &&
+    !lower.includes('september 2026') &&
     (lower.includes('move') ||
       lower.includes('moving') ||
       lower.includes('heading') ||
@@ -142,18 +155,6 @@ export function matchEntryToGroundTruth(content: string): MatchResult {
     };
   }
 
-  // ── Permanent relocation to Batumi ────────────────────────────────────────
-  if (
-    lower.includes('batumi') &&
-    (lower.includes('permanent') || lower.includes('september 2026') || lower.includes('permanently'))
-  ) {
-    return {
-      matched: true,
-      key: 'permanent_relocation',
-      isCorrect: true,
-    };
-  }
-
   // ── Identity — birth date ─────────────────────────────────────────────────
   if (lower.includes('born') || lower.includes('birth')) {
     const hasCorrectDate =
@@ -163,6 +164,10 @@ export function matchEntryToGroundTruth(content: string): MatchResult {
       lower.includes('15 june 1979') ||
       lower.includes('15/06/1979');
 
+    // NOTE: hasWrongDate only fires if '1979' is present but the date format differs.
+    // Birth entries with a completely wrong year (e.g., 1980) are not detected as
+    // incorrect — they fall through as unmatched. Widen this check if broader
+    // birth-date auditing is required.
     const hasWrongDate = lower.includes('1979') && !hasCorrectDate && /\d{1,2}[\/-]\d{1,2}[\/-]\d{4}/.test(lower);
 
     if (hasCorrectDate) {
@@ -338,7 +343,11 @@ export async function auditPensieve(options: {
     }
 
     // matched AND incorrect
-    const correctedContent = generateCorrectedContent(match.key!, entry.content);
+    if (!match.key) {
+      console.error(`BUG: matched entry ${entry.id} has no ground-truth key — skipping`);
+      continue;
+    }
+    const correctedContent = generateCorrectedContent(match.key, entry.content);
 
     if (options.dryRun) {
       results.push({
