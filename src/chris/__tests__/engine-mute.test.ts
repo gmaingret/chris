@@ -70,12 +70,6 @@ vi.mock('../../memory/context-builder.js', () => ({
 
 vi.mock('../../pensieve/retrieve.js', () => ({
   searchPensieve: vi.fn(),
-  hybridSearch: vi.fn().mockResolvedValue([]),
-  JOURNAL_SEARCH_OPTIONS: {
-    tags: ['FACT', 'RELATIONSHIP', 'PREFERENCE', 'VALUE'],
-    recencyBias: 0.3,
-    limit: 10,
-  },
 }));
 
 vi.mock('../modes/interrogate.js', () => ({

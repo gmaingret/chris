@@ -1,7 +1,7 @@
 import { anthropic, SONNET_MODEL } from '../../llm/client.js';
 import { searchPensieve } from '../../pensieve/retrieve.js';
 import { buildPensieveContext, buildMessageHistory } from '../../memory/context-builder.js';
-import { buildSystemPrompt, type DeclinedTopic } from '../personality.js';
+import { buildSystemPrompt } from '../personality.js';
 import { LLMError } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
 
@@ -18,8 +18,6 @@ import { logger } from '../../utils/logger.js';
 export async function handleInterrogate(
   chatId: bigint,
   text: string,
-  language?: string,
-  declinedTopics?: DeclinedTopic[],
 ): Promise<string> {
   const start = Date.now();
 
@@ -39,7 +37,7 @@ export async function handleInterrogate(
 
   // Build conversation history and system prompt
   const history = await buildMessageHistory(chatId);
-  const systemPrompt = buildSystemPrompt('INTERROGATE', pensieveContext, undefined, language, declinedTopics);
+  const systemPrompt = buildSystemPrompt('INTERROGATE', pensieveContext);
 
   try {
     const response = await anthropic.messages.create({

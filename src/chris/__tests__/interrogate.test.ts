@@ -176,9 +176,6 @@ describe('handleInterrogate', () => {
     expect(mockBuildSystemPrompt).toHaveBeenCalledWith(
       'INTERROGATE',
       expect.any(String),
-      undefined,
-      undefined,
-      undefined,
     );
   });
 

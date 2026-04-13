@@ -111,12 +111,6 @@ vi.mock('../../memory/context-builder.js', () => ({
 const mockSearchPensieve = vi.fn();
 vi.mock('../../pensieve/retrieve.js', () => ({
   searchPensieve: mockSearchPensieve,
-  hybridSearch: vi.fn().mockResolvedValue([]),
-  JOURNAL_SEARCH_OPTIONS: {
-    tags: ['FACT', 'RELATIONSHIP', 'PREFERENCE', 'VALUE'],
-    recencyBias: 0.3,
-    limit: 10,
-  },
 }));
 
 // ── Mock contradiction detector ────────────────────────────────────────────
@@ -251,9 +245,8 @@ describe('System Prompts', () => {
     expect(JOURNAL_SYSTEM_PROMPT).toMatch(/never.*state.*fact/i);
   });
 
-  it('JOURNAL_SYSTEM_PROMPT makes questions occasional, not required (LANG-04)', () => {
-    expect(JOURNAL_SYSTEM_PROMPT).toMatch(/occasional|not every message|not expected/i);
-    expect(JOURNAL_SYSTEM_PROMPT).not.toMatch(/enriching follow-up questions/i);
+  it('JOURNAL_SYSTEM_PROMPT mentions enriching follow-up questions', () => {
+    expect(JOURNAL_SYSTEM_PROMPT).toMatch(/follow-up/i);
   });
 
   it('MODE_DETECTION_PROMPT instructs JOURNAL default for ambiguous', () => {
@@ -262,11 +255,8 @@ describe('System Prompts', () => {
 });
 
 describe('buildSystemPrompt', () => {
-  it('returns prompt containing JOURNAL_SYSTEM_PROMPT content for JOURNAL mode (SYCO-01: preamble prepended)', () => {
-    const result = buildSystemPrompt('JOURNAL');
-    // Preamble is now prepended, so result is not identical to JOURNAL_SYSTEM_PROMPT
-    expect(result).toContain('Core Principles');
-    expect(result).toContain('You are Chris');
+  it('returns JOURNAL_SYSTEM_PROMPT for JOURNAL mode', () => {
+    expect(buildSystemPrompt('JOURNAL')).toBe(JOURNAL_SYSTEM_PROMPT);
   });
 
   it('returns a string for INTERROGATE mode (placeholder)', () => {
@@ -696,8 +686,6 @@ describe('processMessage (engine)', () => {
     expect(mockHandleInterrogate).toHaveBeenCalledWith(
       CHAT_ID,
       'Have I ever talked about my childhood?',
-      expect.any(String),
-      expect.any(Array),
     );
     // Mode is saved as INTERROGATE
     expect(mockSaveMessage).toHaveBeenCalledWith(
@@ -748,8 +736,6 @@ describe('processMessage (engine)', () => {
     expect(mockHandleReflect).toHaveBeenCalledWith(
       CHAT_ID,
       'What patterns do you see in how I handle conflict?',
-      expect.any(String),
-      expect.any(Array),
     );
     expect(mockSaveMessage).toHaveBeenCalledWith(
       CHAT_ID,
@@ -786,8 +772,6 @@ describe('processMessage (engine)', () => {
     expect(mockHandleCoach).toHaveBeenCalledWith(
       CHAT_ID,
       'Am I making excuses about the gym?',
-      expect.any(String),
-      expect.any(Array),
     );
     expect(mockSaveMessage).toHaveBeenCalledWith(
       CHAT_ID,
@@ -824,8 +808,6 @@ describe('processMessage (engine)', () => {
     expect(mockHandlePsychology).toHaveBeenCalledWith(
       CHAT_ID,
       'Deep analysis of my relationship with authority?',
-      expect.any(String),
-      expect.any(Array),
     );
     expect(mockSaveMessage).toHaveBeenCalledWith(
       CHAT_ID,
@@ -862,8 +844,6 @@ describe('processMessage (engine)', () => {
     expect(mockHandleProduce).toHaveBeenCalledWith(
       CHAT_ID,
       'Should I take the new job offer?',
-      expect.any(String),
-      expect.any(Array),
     );
     expect(mockSaveMessage).toHaveBeenCalledWith(
       CHAT_ID,

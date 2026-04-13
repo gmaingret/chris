@@ -4,7 +4,7 @@ import {
   buildPensieveContext,
   buildMessageHistory,
 } from '../../memory/context-builder.js';
-import { buildSystemPrompt, type DeclinedTopic } from '../personality.js';
+import { buildSystemPrompt } from '../personality.js';
 import { LLMError } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
 
@@ -26,8 +26,6 @@ import { logger } from '../../utils/logger.js';
 export async function handleProduce(
   chatId: bigint,
   text: string,
-  language?: string,
-  declinedTopics?: DeclinedTopic[],
 ): Promise<string> {
   const start = Date.now();
 
@@ -47,7 +45,7 @@ export async function handleProduce(
 
   // Build conversation history and system prompt with Pensieve context only (no relational)
   const history = await buildMessageHistory(chatId);
-  const systemPrompt = buildSystemPrompt('PRODUCE', pensieveContext, undefined, language, declinedTopics);
+  const systemPrompt = buildSystemPrompt('PRODUCE', pensieveContext);
 
   try {
     const response = await anthropic.messages.create({

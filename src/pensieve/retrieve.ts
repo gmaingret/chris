@@ -226,10 +226,3 @@ export const CONTRADICTION_SEARCH_OPTIONS: SearchOptions = {
   tags: ['BELIEF', 'INTENTION', 'VALUE'],
   minScore: 0.4,
 };
-
-/** JOURNAL grounds responses in stable facts — moderate recency, fact-type tags */
-export const JOURNAL_SEARCH_OPTIONS: SearchOptions = {
-  tags: ['FACT', 'RELATIONSHIP', 'PREFERENCE', 'VALUE'],
-  recencyBias: 0.3,
-  limit: 10,
-};
