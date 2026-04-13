@@ -87,7 +87,10 @@ Plans:
   1. All 24 live integration test cases pass 3-of-3 against real Sonnet (refusal EN/FR/RU, topic persistence, JOURNAL grounding, language switching, sycophancy resistance, hallucination resistance, structured fact accuracy, performative apology detection)
   2. Contradiction false-positive audit passes: 20 adversarial non-contradictory pairs produce 0 false positives
   3. Test suite is reproducible and can be re-run to catch regressions in future milestones
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 10-01-PLAN.md — Live integration tests: refusal, language, topic persistence, sycophancy, performative apology (15 cases)
+- [ ] 10-02-PLAN.md — Live integration tests: grounding, hallucination, fact accuracy + contradiction false-positive audit (9 cases + 20 pairs)
 **UI hint**: no
 
 ## Progress
@@ -105,4 +108,4 @@ Plans:
 | 7. Foundational Behavioral Fixes | v2.0 M006 | 0/TBD | Not started | - |
 | 8. Retrieval & Grounding | v2.0 M006 | 0/TBD | Not started | - |
 | 9. Praise Quarantine | v2.0 M006 | 0/TBD | Not started | - |
-| 10. Live Validation Suite | v2.0 M006 | 0/TBD | Not started | - |
+| 10. Live Validation Suite | v2.0 M006 | 0/2 | Not started | - |
