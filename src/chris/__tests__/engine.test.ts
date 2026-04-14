@@ -528,7 +528,9 @@ describe('handleJournal', () => {
     expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         model: 'claude-sonnet-4-6',
-        system: expect.any(String),
+        system: expect.arrayContaining([
+          expect.objectContaining({ type: 'text', text: expect.any(String) }),
+        ]),
         messages: [
           { role: 'user', content: 'previous message' },
           { role: 'assistant', content: 'previous response' },
