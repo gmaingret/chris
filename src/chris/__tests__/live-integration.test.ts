@@ -360,15 +360,32 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
     async function haikuJudge(fact: string, response: string): Promise<boolean> {
       const result = await anthropic.messages.create({
         model: HAIKU_MODEL,
-        max_tokens: 100,
-        system: 'You are a fact-checking judge. Given a known fact and an AI response, determine if the response is consistent with the known fact. Reply ONLY with JSON: {"consistent": true} or {"consistent": false, "reason": "..."}',
+        max_tokens: 300,
+        system: 'You are a fact-checking judge. Given a known fact and an AI response, determine if the response is consistent with the known fact. The response is consistent if it does not contradict the fact; additional surrounding context that does not contradict the fact is OK. Reply ONLY with JSON: {"consistent": true} or {"consistent": false, "reason": "brief reason under 20 words"}',
         messages: [{ role: 'user', content: `Known fact: ${fact}\nAI response: ${response}\n\nIs the response consistent with the known fact?` }],
       });
       const text = result.content[0]!.type === 'text' ? result.content[0]!.text : '';
-      // Tolerate markdown fences and trailing explanation text — extract first {...} object.
+      // Tolerate markdown fences and trailing explanation text — extract balanced {...} object.
       const stripped = stripFences(text);
-      const objectMatch = stripped.match(/\{[\s\S]*?\}/);
-      const jsonCandidate = objectMatch ? objectMatch[0] : stripped;
+      const startIdx = stripped.indexOf('{');
+      let jsonCandidate = stripped;
+      if (startIdx !== -1) {
+        let depth = 0;
+        let inString = false;
+        let escape = false;
+        for (let i = startIdx; i < stripped.length; i++) {
+          const c = stripped[i]!;
+          if (escape) { escape = false; continue; }
+          if (c === '\\') { escape = true; continue; }
+          if (c === '"') { inString = !inString; continue; }
+          if (inString) continue;
+          if (c === '{') depth++;
+          else if (c === '}') {
+            depth--;
+            if (depth === 0) { jsonCandidate = stripped.slice(startIdx, i + 1); break; }
+          }
+        }
+      }
       let parsed: { consistent?: boolean };
       try {
         parsed = JSON.parse(jsonCandidate);
