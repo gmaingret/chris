@@ -522,7 +522,46 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
         await embedAndStore(entry!.id, entry!.content);
 
         const response = await processMessage(TEST_CHAT_ID, TEST_USER_ID, "What nationality am I?", { pensieveSource: TEST_SOURCE });
-        expect(response).toContain(GROUND_TRUTH_MAP['nationality']!);
+        // Strengthened beyond a bare substring check: a response like
+        // "I don't know if you are French" would satisfy toContain('French') despite being
+        // a denial. Require the nationality token to appear in a sentence that (a) contains
+        // positive-assertion context ("you are"/"you're"/"your nationality") and (b) has no
+        // uncertainty marker in the SAME sentence.
+        const nationality = GROUND_TRUTH_MAP['nationality']!;
+        expect(response).toContain(nationality);
+        const UNCERTAINTY_IN_SENTENCE = [
+          "don't know",
+          "do not know",
+          "not sure",
+          "unsure",
+          "can't tell",
+          "cannot tell",
+          "i don't have",
+          "no memories",
+          "haven't told me",
+          "you haven't",
+          "not certain",
+          "uncertain",
+          "unclear",
+          "no idea",
+        ];
+        const POSITIVE_CONTEXT = [
+          "you are",
+          "you're",
+          "your nationality",
+          "you hold",
+          "nationality is",
+          "nationality:",
+        ];
+        const sentences = response.split(/(?<=[.!?\n])\s+/);
+        const nationalityLower = nationality.toLowerCase();
+        const hasPositiveAssertion = sentences.some(s => {
+          const sl = s.toLowerCase();
+          if (!sl.includes(nationalityLower)) return false;
+          if (UNCERTAINTY_IN_SENTENCE.some(m => sl.includes(m))) return false;
+          return POSITIVE_CONTEXT.some(p => sl.includes(p));
+        });
+        expect(hasPositiveAssertion).toBe(true);
 
         // Cleanup between iterations
         await db.delete(conversations).where(eq(conversations.chatId, TEST_CHAT_ID));
