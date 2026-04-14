@@ -44,8 +44,8 @@ const EN_PATTERNS: PatternEntry[] = [
   [/^(?!.*\b(?:told|said)\b).*(?:i'?m|i\s+am)\s+not\s+(?:going\s+to|gonna)\s+(?:talk|discuss|get\s+into)\s+(?:that|this)/i, null],
   // "skip that / pass that"
   [/^(?!.*\b(?:told|said)\b).*(?:skip|pass)\s+(?:that|this)\b/i, null],
-  // "not now / not today / not right now"
-  [/^(?!.*\b(?:told|said)\b).*\bnot\s+(?:now|today|right\s+now)\b/i, null],
+  // "not now / not today / not right now" — only as standalone reply (tight to avoid false positives like "not what I wanted today")
+  [/^(?!.*\b(?:told|said)\b)\s*not\s+(?:now|today|right\s+now)\s*[.!?]?\s*$/i, null],
   // "I don't feel like talking about that"
   [/^(?!.*\b(?:told|said)\b).*i\s+don'?t\s+(?:feel|want)\s+(?:like|to)\s+(?:talking|discussing)\s+(?:about\s+)?(?:that|this|it)/i, null],
   // "move on" standalone
