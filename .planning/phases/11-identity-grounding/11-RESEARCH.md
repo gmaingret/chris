@@ -340,22 +340,22 @@ Exact files containing user-facing "John" occurrences (excluding tests whose fix
 | A4 | The "Facts about you (Greg)" header plus an explanatory sentence is sufficient to stop the split (vs. just a header rename) | Code Examples | [ASSUMED based on prompt-engineering best practice that explicit equality beats implicit equality under stochastic load] Validated empirically by TEST-03 3-of-3 gate on three consecutive runs. If just-the-header rename passes the gate reliably, the explanatory sentence is a defense-in-depth surplus. |
 | A5 | No CONTEXT.md or user-discussion exists — constraints are drawn from ROADMAP.md + audit document only | User Constraints | [VERIFIED: ls of phase-11 dir shows only this RESEARCH.md exists] If a discuss-phase is run before planning, the planner must re-read CONTEXT.md and may override this research's recommendations. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Scope of classifier-prompt renames (MODE_DETECTION, RELATIONAL_MEMORY, CONTRADICTION_DETECTION, MUTE_DETECTION)**
    - What we know: These prompts contain "John" but are Haiku-classifier instructions that never reach the user. Their outputs feed engine logic, not conversation.
    - What's unclear: Whether renaming them improves consistency (no behavioral change expected) or risks breaking relational-memory test fixtures that assert on "John" substrings in observation content.
-   - Recommendation: DEFER to a separate follow-up commit. Phase 11 primary goal is TEST-03 passing. Classifier renames are consistency hygiene.
+   - RESOLVED: DEFER to separate follow-up commit. Phase 11 primary goal is TEST-03 passing; classifier renames are consistency hygiene and risk breaking relational-memory fixtures.
 
 2. **Is GROUND_TRUTH value phrasing acceptable as-is?**
    - What we know: Values use third-person "Greg" / descriptive strings (e.g., `"MAINGRET LLC (New Mexico)"`). Never a pronoun.
    - What's unclear: Whether the "Facts about you (Greg)" header + explanatory sentence fully bridges third-person values to second-person context under all 3 TEST-03 iterations.
-   - Recommendation: Run TEST-03 after the header + explanation edit; if it still flakes, rewrite 2-3 GROUND_TRUTH values to use "you" (minor, scoped change). This is an incremental tightening, not a planning-time decision.
+   - RESOLVED: Empirically validate via TEST-03 3-of-3 gate in Plan 11-03. If it flakes, rewrite 2-3 GROUND_TRUTH values to use "you" as an incremental tightening. Not a planning-time decision.
 
 3. **Should `buildKnownFactsBlock` also be injected for REFLECT/COACH/PSYCHOLOGY/PRODUCE?**
    - What we know: Currently only JOURNAL and INTERROGATE get it (personality.ts:118).
    - What's unclear: Out of scope for Phase 11 but worth flagging — COACH and PSYCHOLOGY could benefit from ground-truth grounding.
-   - Recommendation: DEFER. Not a TEST-03 fix. Track as potential M007+ improvement.
+   - RESOLVED: DEFER to M007+. Not a TEST-03 fix.
 
 ## Environment Availability
 
