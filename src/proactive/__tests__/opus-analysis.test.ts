@@ -152,9 +152,10 @@ describe('runOpusAnalysis', () => {
     await runOpusAnalysis('test context');
 
     const callArgs = mockCreate.mock.calls[0]![0];
-    expect(callArgs.system).toContain('ONLY report findings that are directly grounded');
-    expect(callArgs.system).toContain('Do NOT infer, speculate, or hallucinate');
-    expect(callArgs.system).toContain('False negatives are safe');
+    const systemText = Array.isArray(callArgs.system) ? callArgs.system[0].text : callArgs.system;
+    expect(systemText).toContain('ONLY report findings that are directly grounded');
+    expect(systemText).toContain('Do NOT infer, speculate, or hallucinate');
+    expect(systemText).toContain('False negatives are safe');
   });
 
   it('passes context as user message', async () => {

@@ -76,10 +76,15 @@ export async function runOpusAnalysis(
 
   try {
     const response = await anthropic.messages.create({
-      cache_control: { type: 'ephemeral' },
       model: OPUS_MODEL,
       max_tokens: 512,
-      system: OPUS_SYSTEM_PROMPT,
+      system: [
+        {
+          type: 'text',
+          text: OPUS_SYSTEM_PROMPT,
+          cache_control: { type: 'ephemeral' },
+        },
+      ],
       messages: [{ role: 'user', content: context }],
     });
 
