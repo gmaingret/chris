@@ -269,7 +269,7 @@ describe('buildSystemPrompt', () => {
     // buildSystemPrompt prepends constitutional preamble and appends Known Facts
     expect(result).toContain('You are Chris');
     expect(result).toContain('Core Principles');
-    expect(result).toContain('Known Facts About Greg');
+    expect(result).toContain('Known Facts About John');
   });
 
   it('returns a string for INTERROGATE mode (placeholder)', () => {

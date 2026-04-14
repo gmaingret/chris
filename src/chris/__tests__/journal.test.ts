@@ -149,7 +149,7 @@ describe('end-to-end prompt assembly', () => {
     const createCall = mockCreate.mock.calls[0][0];
     const system = createCall.system;
     // Known Facts block present (from buildKnownFactsBlock)
-    expect(system).toContain('Known Facts About Greg');
+    expect(system).toContain('Known Facts About John');
     // PensieveContext replaced (not literal placeholder)
     expect(system).toContain('Greg lives in Saint Petersburg');
     expect(system).not.toContain('{pensieveContext}');

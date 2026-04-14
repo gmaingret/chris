@@ -118,7 +118,7 @@ describe('existing mode content preserved (D-02)', () => {
 describe('Known Facts injection (RETR-02)', () => {
   it('JOURNAL prompt contains Known Facts block', () => {
     const prompt = buildSystemPrompt('JOURNAL', 'test context');
-    expect(prompt).toContain('## Known Facts About Greg');
+    expect(prompt).toContain('## Known Facts About John');
     expect(prompt).toContain('nationality: French');
     expect(prompt).toContain('birth_place: Cagnes-sur-Mer, France');
     expect(prompt).toContain('fi_target: $1,500,000');
@@ -126,23 +126,23 @@ describe('Known Facts injection (RETR-02)', () => {
 
   it('INTERROGATE prompt contains Known Facts block', () => {
     const prompt = buildSystemPrompt('INTERROGATE', 'test context');
-    expect(prompt).toContain('## Known Facts About Greg');
+    expect(prompt).toContain('## Known Facts About John');
     expect(prompt).toContain('nationality: French');
   });
 
   it('REFLECT prompt does NOT contain Known Facts block', () => {
     const prompt = buildSystemPrompt('REFLECT', 'test context');
-    expect(prompt).not.toContain('Known Facts About Greg');
+    expect(prompt).not.toContain('Known Facts About John');
   });
 
   it('COACH prompt does NOT contain Known Facts block', () => {
     const prompt = buildSystemPrompt('COACH', 'test context');
-    expect(prompt).not.toContain('Known Facts About Greg');
+    expect(prompt).not.toContain('Known Facts About John');
   });
 
   it('Known Facts appears BEFORE Language Directive', () => {
     const prompt = buildSystemPrompt('JOURNAL', 'ctx', undefined, 'French');
-    const factsIndex = prompt.indexOf('Known Facts About Greg');
+    const factsIndex = prompt.indexOf('Known Facts About John');
     const langIndex = prompt.indexOf('Language Directive');
     expect(factsIndex).toBeGreaterThan(-1);
     expect(langIndex).toBeGreaterThan(-1);

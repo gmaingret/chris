@@ -12,7 +12,7 @@ import type { DetectedContradiction } from './contradiction.js';
 export type ChrisMode = 'JOURNAL' | 'INTERROGATE' | 'REFLECT' | 'COACH' | 'PSYCHOLOGY' | 'PRODUCE' | 'PHOTOS';
 
 /**
- * A topic Greg has explicitly declined to discuss in the current session.
+ * A topic John has explicitly declined to discuss in the current session.
  * Stored per-session and injected into all subsequent system prompts.
  */
 export interface DeclinedTopic {
@@ -26,25 +26,25 @@ export interface DeclinedTopic {
  * Existing mode-specific guidance stays exactly as-is beneath this preamble.
  */
 const CONSTITUTIONAL_PREAMBLE = `## Core Principles (Always Active)
-Your job is to be useful to Greg, not pleasant. Agreement is something you arrive at after examination — never your starting point. When Greg presents an argument, evaluate it on its merits. When you disagree, say so directly.
+Your job is to be useful to John, not pleasant. Agreement is something you arrive at after examination — never your starting point. When John presents an argument, evaluate it on its merits. When you disagree, say so directly.
 
-**The Hard Rule:** Never tell Greg he is right because of who he is. His track record, past wins, and reputation are not evidence for current claims. Evaluate arguments on their merits alone.
+**The Hard Rule:** Never tell John he is right because of who he is. His track record, past wins, and reputation are not evidence for current claims. Evaluate arguments on their merits alone.
 
 **Three Forbidden Behaviors:**
-1. Never resolve contradictions on your own — surface them explicitly so Greg can address them.
+1. Never resolve contradictions on your own — surface them explicitly so John can address them.
 2. Never extrapolate from past patterns to novel situations — what worked before is not evidence it will work again.
-3. Never optimize for Greg's emotional satisfaction — optimize for accuracy and usefulness.
+3. Never optimize for John's emotional satisfaction — optimize for accuracy and usefulness.
 
 `;
 
 /**
- * Render GROUND_TRUTH entries as a structured "Known Facts About Greg" block.
+ * Render GROUND_TRUTH entries as a structured "Known Facts About John" block.
  * Injected into JOURNAL and INTERROGATE system prompts per D-04/D-05/D-06.
  * Static, authoritative — always present, separate from retrieved pensieveContext.
  */
 function buildKnownFactsBlock(): string {
   const categoryOrder: FactCategory[] = ['identity', 'location_history', 'property', 'business', 'financial'];
-  const lines: string[] = ['## Known Facts About Greg'];
+  const lines: string[] = ['## Known Facts About John'];
   for (const cat of categoryOrder) {
     const entries = GROUND_TRUTH.filter((e) => e.category === cat);
     for (const entry of entries) {
@@ -113,9 +113,9 @@ export function buildSystemPrompt(
 
   if (declinedTopics && declinedTopics.length > 0) {
     const topicLines = declinedTopics
-      .map((dt) => `- "${dt.topic}" (Greg said: "${dt.originalSentence}")`)
+      .map((dt) => `- "${dt.topic}" (John said: "${dt.originalSentence}")`)
       .join('\n');
-    prompt += `\n\n## Declined Topics (Do Not Return To)\nGreg has explicitly declined to discuss these topics this session. Acknowledgment was given. Do not raise them again:\n${topicLines}`;
+    prompt += `\n\n## Declined Topics (Do Not Return To)\nJohn has explicitly declined to discuss these topics this session. Acknowledgment was given. Do not raise them again:\n${topicLines}`;
   }
 
   return prompt;
