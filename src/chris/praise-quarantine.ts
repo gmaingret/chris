@@ -5,24 +5,63 @@ import type { ChrisMode } from './engine.js';
 
 // ── Prompt ─────────────────────────────────────────────────────────────────
 
-const PRAISE_QUARANTINE_PROMPT = `You are a response editor. Your only job is to detect and remove reflexive flattery from the opening of a response.
+const PRAISE_QUARANTINE_PROMPT = `You are a response editor. Your only job is to detect and remove reflexive flattery, soft acknowledgment openers, and reactive warmth from the opening of a response.
 
-Reflexive flattery means vacuous openers like:
-- "Great question!"
-- "That's a really insightful observation"
-- "What a thoughtful point"
-- "I love that you're thinking about this"
-- "That's so important that you're exploring this"
+Reflexive flattery / soft openers include any response that BEGINS with:
+- "Great question!" / "Great point" / "Great…"
+- "That's a really insightful observation" / "That's interesting" / "That's a big one" / "That's…" / "That sounds…" / "That…"
+- "What a thoughtful point" / "What a…"
+- "I love that you're thinking about this" / "I love…"
+- "Wow…" / "Amazing…" / "Wonderful…" / "Brilliant…"
+- Any opening sentence whose primary function is to react warmly to or characterize what John said, rather than substantively engage with the content.
 
 Rules:
-- Look only at the FIRST 1-2 sentences.
-- If the response opens with reflexive flattery, rewrite that opening to remove it while preserving the rest of the response exactly.
-- Do NOT change anything after the opening.
-- If no reflexive flattery is found, return the original response unchanged.
+- Look at the FIRST sentence of the response.
+- If the first sentence begins with any of the patterns above ("That's...", "That sounds...", "Great...", "Wow...", "Amazing...", "Wonderful...", "What a...", "I love...", "Brilliant..."), set flattery_detected=true and REMOVE that opening sentence entirely. Keep everything after it verbatim.
+- If removing the opener leaves the response starting with a continuation word, lightly fix the very first word's capitalization but change nothing else.
 - Mid-response positive language ("that's worth exploring further") is NOT flattery — leave it alone.
+- If no flattery opener is found, return the original response unchanged.
 
 Respond with JSON only:
 { "flattery_detected": boolean, "rewritten": string }`;
+
+// Reflexive opener tokens — first whitespace-separated word of a response that
+// signals soft acknowledgment / vacuous warmth rather than substantive engagement.
+// Stripped deterministically as a backstop after the Haiku rewrite.
+const REFLEXIVE_OPENER_FIRST_WORDS = new Set([
+  'That', "That's", 'Great', 'Wow', 'Amazing', 'Wonderful', 'Brilliant', 'Beautiful',
+  'Oh', 'Aw', 'Aww', 'Lovely', 'Fantastic', 'Awesome', 'Incredible',
+]);
+
+// First-two-word reflexive openers ("What a", "I love", "How wonderful").
+const REFLEXIVE_OPENER_TWO_WORDS = new Set([
+  'What a', 'What an', 'I love', 'I admire', 'How wonderful', 'How great', 'How interesting',
+]);
+
+/**
+ * Deterministic backstop: if the response opens with a reflexive opener token,
+ * drop the first sentence so the substantive reply leads. Catches stochastic
+ * misses by the Haiku rewrite. Only touches the leading sentence.
+ */
+function stripReflexiveOpener(response: string): string {
+  const trimmed = response.trimStart();
+  if (trimmed.length === 0) return response;
+  const tokens = trimmed.split(/\s+/);
+  const firstWord = tokens[0] ?? '';
+  const firstTwo = tokens.length >= 2 ? `${tokens[0]} ${tokens[1]}` : '';
+  const opensWithReflexive =
+    REFLEXIVE_OPENER_FIRST_WORDS.has(firstWord) ||
+    REFLEXIVE_OPENER_TWO_WORDS.has(firstTwo);
+  if (!opensWithReflexive) return response;
+
+  // Find end of first sentence — either sentence terminator or first newline.
+  const sentenceMatch = trimmed.match(/^[^.!?\n]*[.!?\n]+\s*/);
+  if (!sentenceMatch) return response;
+  const remainder = trimmed.slice(sentenceMatch[0].length).trimStart();
+  // If stripping leaves nothing, keep original to avoid empty response.
+  if (remainder.length === 0) return response;
+  return remainder;
+}
 
 // ── Core ───────────────────────────────────────────────────────────────────
 
@@ -37,7 +76,7 @@ Respond with JSON only:
 export async function quarantinePraise(response: string, mode: ChrisMode): Promise<string> {
   // Mode bypass — COACH and PSYCHOLOGY handle flattery in their own prompts
   if (mode === 'COACH' || mode === 'PSYCHOLOGY') {
-    return response;
+    return stripReflexiveOpener(response);
   }
 
   try {
@@ -68,12 +107,13 @@ export async function quarantinePraise(response: string, mode: ChrisMode): Promi
     }
 
     logger.info({ flattery_detected: parsed.flattery_detected, mode }, 'chris.praise_quarantine');
-    return parsed.rewritten && parsed.rewritten.trim().length > 0 ? parsed.rewritten : response;
+    const afterHaiku = parsed.rewritten && parsed.rewritten.trim().length > 0 ? parsed.rewritten : response;
+    return stripReflexiveOpener(afterHaiku);
   } catch (error) {
     logger.warn(
       { error: error instanceof Error ? error.message : String(error) },
       'chris.praise_quarantine.error',
     );
-    return response;
+    return stripReflexiveOpener(response);
   }
 }

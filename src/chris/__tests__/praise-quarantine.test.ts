@@ -115,7 +115,7 @@ describe('quarantinePraise', () => {
   });
 
   it('returns original when Haiku returns empty rewritten string', async () => {
-    const original = 'Great question! Here is my thought.';
+    const original = 'Here is my thought without any reflexive opener.';
     mockCreate.mockResolvedValueOnce(
       makeHaikuResponse({ flattery_detected: true, rewritten: '' }),
     );
@@ -124,7 +124,7 @@ describe('quarantinePraise', () => {
   });
 
   it('returns original when Haiku returns whitespace-only rewritten string', async () => {
-    const original = 'Great question! Here is my thought.';
+    const original = 'Here is my thought without any reflexive opener.';
     mockCreate.mockResolvedValueOnce(
       makeHaikuResponse({ flattery_detected: true, rewritten: '   \n  ' }),
     );
@@ -133,7 +133,7 @@ describe('quarantinePraise', () => {
   });
 
   it('returns original on malformed JSON from Haiku', async () => {
-    const original = 'Great question! Here is my thought.';
+    const original = 'Here is my thought without any reflexive opener.';
     mockCreate.mockResolvedValueOnce({
       content: [{ type: 'text', text: 'not json' }],
     });
@@ -145,12 +145,24 @@ describe('quarantinePraise', () => {
   });
 
   it('returns original when Haiku throws error', async () => {
-    const original = 'Great question! Here is my thought.';
+    const original = 'Here is my thought without any reflexive opener.';
     mockCreate.mockRejectedValueOnce(new Error('API timeout'));
 
     const result = await quarantinePraise(original, 'JOURNAL');
 
     expect(result).toBe(original);
     expect(mockLogWarn).toHaveBeenCalled();
+  });
+
+  it('deterministic strip removes reflexive opener even when Haiku fails to', async () => {
+    // Backstop: even if Haiku misses "That's …", the deterministic post-process
+    // strips the leading reflexive sentence so first-word praise checks pass.
+    const original = "That's a fascinating idea. Let me push back on the financial side though — the math is shaky.";
+    mockCreate.mockRejectedValueOnce(new Error('API timeout'));
+
+    const result = await quarantinePraise(original, 'JOURNAL');
+
+    expect(result.startsWith("That's")).toBe(false);
+    expect(result).toContain('the math is shaky');
   });
 });

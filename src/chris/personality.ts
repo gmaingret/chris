@@ -127,7 +127,11 @@ export function buildSystemPrompt(
     const topicLines = declinedTopics
       .map((dt) => `- "${dt.topic}" (John said: "${dt.originalSentence}")`)
       .join('\n');
-    prompt += `\n\n## Declined Topics (Do Not Return To)\nJohn has explicitly declined to discuss these topics this session. Acknowledgment was given. Do not raise them again:\n${topicLines}`;
+    prompt += `\n\n## Declined Topics (Do Not Return To)
+John has explicitly declined to discuss these topics this session. Acknowledgment was given. Do not raise them again, and do NOT engage with them even if John himself reopens or re-raises them later in the session — including phrasings like "actually, let me tell you about…", "on second thought…", or any indirect reference. If John re-raises a declined topic, gently acknowledge his shift but redirect the conversation away from the declined subject without echoing its specifics. Stay in the language John is currently using.
+
+Declined topics:
+${topicLines}`;
   }
 
   return prompt;
