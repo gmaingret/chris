@@ -68,7 +68,13 @@ describe('detectMuteIntent', () => {
     expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         model: 'claude-haiku-4-5-20251001',
-        system: expect.stringContaining('mute'),
+        system: expect.arrayContaining([
+          expect.objectContaining({
+            type: 'text',
+            text: expect.stringContaining('mute'),
+            cache_control: { type: 'ephemeral' },
+          }),
+        ]),
       }),
     );
   });
@@ -249,7 +255,13 @@ describe('generateMuteAcknowledgment', () => {
     expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         model: 'claude-sonnet-4-6',
-        system: expect.stringContaining('quiet'),
+        system: expect.arrayContaining([
+          expect.objectContaining({
+            type: 'text',
+            text: expect.stringContaining('quiet'),
+            cache_control: { type: 'ephemeral' },
+          }),
+        ]),
       }),
     );
   });
@@ -275,6 +287,7 @@ describe('generateMuteAcknowledgment', () => {
 
     // System prompt should contain a formatted date string
     const systemPrompt = mockCreate.mock.calls[0]![0].system;
-    expect(systemPrompt).toMatch(/April/);
+    const systemText = Array.isArray(systemPrompt) ? systemPrompt[0].text : systemPrompt;
+    expect(systemText).toMatch(/April/);
   });
 });
