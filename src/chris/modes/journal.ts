@@ -42,10 +42,15 @@ export async function handleJournal(
   // Call Sonnet with full conversation context + current message
   try {
     const response = await anthropic.messages.create({
-      cache_control: { type: 'ephemeral' },
       model: SONNET_MODEL,
       max_tokens: 1024,
-      system: buildSystemPrompt('JOURNAL', pensieveContext, undefined, language, declinedTopics),
+      system: [
+        {
+          type: 'text',
+          text: buildSystemPrompt('JOURNAL', pensieveContext, undefined, language, declinedTopics),
+          cache_control: { type: 'ephemeral' },
+        },
+      ],
       messages: [...history, { role: 'user', content: text }],
     });
 

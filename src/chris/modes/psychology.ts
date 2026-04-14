@@ -55,10 +55,15 @@ export async function handlePsychology(
 
   try {
     const response = await anthropic.messages.create({
-      cache_control: { type: 'ephemeral' },
       model: OPUS_MODEL,
       max_tokens: 2500,
-      system: systemPrompt,
+      system: [
+        {
+          type: 'text',
+          text: systemPrompt,
+          cache_control: { type: 'ephemeral' },
+        },
+      ],
       messages: [...history, { role: 'user', content: text }],
     });
 
