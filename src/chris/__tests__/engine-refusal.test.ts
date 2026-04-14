@@ -120,7 +120,7 @@ describe('engine refusal integration (TRUST-03)', () => {
       (call: any[]) => call[0]?.model === 'test-sonnet',
     );
     expect(sonnetCall).toBeDefined();
-    const systemPrompt = sonnetCall![0].system;
+    const systemPrompt = sonnetCall![0].system[0].text;
     expect(systemPrompt).toContain('Declined Topics');
     expect(systemPrompt).toContain("I don't want to talk about my father");
   });
@@ -152,7 +152,7 @@ describe('engine language detection (LANG-01, LANG-02)', () => {
       (call: any[]) => call[0]?.model === 'test-sonnet',
     );
     expect(sonnetCall).toBeDefined();
-    const systemPrompt = sonnetCall![0].system;
+    const systemPrompt = sonnetCall![0].system[0].text;
     expect(systemPrompt).toContain('French');
   });
 });
