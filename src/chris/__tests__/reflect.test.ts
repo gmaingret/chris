@@ -233,7 +233,12 @@ describe('handleReflect', () => {
       expect.objectContaining({
         model: 'claude-sonnet-4-6',
         max_tokens: 1500,
-        system: 'interpolated reflect system prompt',
+        system: expect.arrayContaining([
+          expect.objectContaining({
+            type: 'text',
+            text: 'interpolated reflect system prompt',
+          }),
+        ]),
         messages: [
           { role: 'user', content: 'previous question' },
           { role: 'assistant', content: 'previous answer' },
