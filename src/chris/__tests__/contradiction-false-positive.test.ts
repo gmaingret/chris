@@ -14,6 +14,10 @@ import { pensieveEntries, pensieveEmbeddings, contradictions } from '../../db/sc
 import { detectContradictions } from '../contradiction.js';
 import { embedAndStore } from '../../pensieve/embeddings.js';
 
+// Unique per-process source tag so parallel test files don't clobber each other's rows
+// via shared `source = 'telegram'` deletes. See phase 10 REVIEW.md WR-06.
+const TEST_SOURCE = `test-contradiction-fp-${process.pid}`;
+
 interface AuditPair {
   category: 'evolving_circumstances' | 'different_aspects' | 'time_bounded' | 'conditional' | 'emotional_vs_factual';
   label: string;
@@ -168,12 +172,12 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Contradiction false-positive au
     const testEntryIds = await db
       .select({ id: pensieveEntries.id })
       .from(pensieveEntries)
-      .where(eq(pensieveEntries.source, 'telegram'));
+      .where(eq(pensieveEntries.source, TEST_SOURCE));
     const ids = testEntryIds.map(e => e.id);
     if (ids.length > 0) {
       await db.delete(contradictions).where(inArray(contradictions.entryAId, ids));
       await db.delete(pensieveEmbeddings).where(inArray(pensieveEmbeddings.entryId, ids));
-      await db.delete(pensieveEntries).where(eq(pensieveEntries.source, 'telegram'));
+      await db.delete(pensieveEntries).where(eq(pensieveEntries.source, TEST_SOURCE));
     }
   });
 
@@ -187,7 +191,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Contradiction false-positive au
           // Insert entry A
           const [entryA] = await db.insert(pensieveEntries).values({
             content: pair.entryA,
-            source: 'telegram',
+            source: TEST_SOURCE,
           }).returning();
 
           // Embed entry A so hybridSearch can find it as a candidate
