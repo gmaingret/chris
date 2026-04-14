@@ -1,16 +1,24 @@
 ---
 phase: 08-retrieval-grounding
-verified: 2026-04-13T12:35:00Z
-status: human_needed
+verified: 2026-04-14T18:10:00Z
+status: verified
 score: 8/8 must-haves verified
 overrides_applied: 0
-human_verification:
-  - test: "Ask Chris a question about a fact NOT in the Pensieve (e.g., 'What is my mother's name?')"
-    expected: "Chris responds with 'I don't have any memories about that' or similar — does NOT invent an answer"
-    why_human: "Hallucination resistance is a prompt-level behavioral guarantee. Unit tests verify the instruction is present in the system prompt, but only a live LLM call confirms Chris actually follows it rather than confabulating."
-  - test: "Tell Chris your current location in JOURNAL mode, then in the same session ask 'Where do I live?'"
-    expected: "Chris reports the location accurately, citing the stored entry — does not scramble details or combine it with unrelated facts"
-    why_human: "SC-4 requires factual retrieval accuracy against real Pensieve data. Unit tests mock hybridSearch; only a live call through real Postgres and embeddings confirms the pipeline retrieves and renders the correct entry."
+phase_10_evidence:
+  run_date: 2026-04-14
+  run_log: /tmp/full-run-5.log
+  suite_result: 24/24 passed
+  mapping:
+    RETR-04 (hallucination resistance — fact not in Pensieve): TEST-06 (3/3)
+    SC-4 / RETR-01 (factual retrieval accuracy — fact IS in Pensieve, live pipeline): TEST-03 nationality + location + business (3/3 each)
+    RETR-02 (structured fact injection): TEST-07 (3/3)
+  note: |
+    Full-suite flake originally observed was traced to the haikuJudge test helper
+    running at temperature=1.0 with a single call, producing stochastic verdicts
+    on objectively-consistent responses (e.g. a response perfectly matching
+    "Greg is French, born in Cagnes-sur-Mer" was randomly judged inconsistent).
+    Hardened to temperature=0 + best-of-3 majority vote. Chris's actual retrieval
+    grounding was correct in every observed failure.
 ---
 
 # Phase 8: Retrieval & Grounding Verification Report

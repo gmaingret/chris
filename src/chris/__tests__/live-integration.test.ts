@@ -357,10 +357,11 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
   // ── JOURNAL grounding (TEST-03) ────────────────────────────────────────
 
   describe('JOURNAL grounding (TEST-03)', () => {
-    async function haikuJudge(fact: string, response: string): Promise<boolean> {
+    async function haikuJudgeOnce(fact: string, response: string): Promise<boolean> {
       const result = await anthropic.messages.create({
         model: HAIKU_MODEL,
         max_tokens: 300,
+        temperature: 0,
         system: 'You are a fact-checking judge. Given a known fact and an AI response, determine if the response is consistent with the known fact. The response is consistent if it does not contradict the fact; additional surrounding context that does not contradict the fact is OK. Reply ONLY with JSON: {"consistent": true} or {"consistent": false, "reason": "brief reason under 20 words"}',
         messages: [{ role: 'user', content: `Known fact: ${fact}\nAI response: ${response}\n\nIs the response consistent with the known fact?` }],
       });
@@ -390,9 +391,21 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
       try {
         parsed = JSON.parse(jsonCandidate);
       } catch {
-        throw new Error(`haikuJudge returned non-JSON: ${text}`);
+        throw new Error(`haikuJudgeOnce returned non-JSON: ${text}`);
       }
       return parsed.consistent === true;
+    }
+
+    // Belt-and-suspenders: majority vote of 3 calls. Even with temperature=0 the
+    // judge can occasionally misclassify; best-of-3 eliminates residual flake.
+    async function haikuJudge(fact: string, response: string): Promise<boolean> {
+      const votes = await Promise.all([
+        haikuJudgeOnce(fact, response),
+        haikuJudgeOnce(fact, response),
+        haikuJudgeOnce(fact, response),
+      ]);
+      const yeses = votes.filter(Boolean).length;
+      return yeses >= 2;
     }
 
     it('grounds response in seeded nationality fact', async () => {
