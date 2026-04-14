@@ -62,10 +62,15 @@ export async function writeRelationalMemory(
 
     // Call Haiku for observation analysis
     const response = await anthropic.messages.create({
-      cache_control: { type: 'ephemeral' },
       model: HAIKU_MODEL,
       max_tokens: 300,
-      system: systemPrompt,
+      system: [
+        {
+          type: 'text',
+          text: systemPrompt,
+          cache_control: { type: 'ephemeral' },
+        },
+      ],
       messages: [{ role: 'user', content: 'Analyze this exchange and decide whether to record an observation.' }],
     });
 
