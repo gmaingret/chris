@@ -238,7 +238,12 @@ describe('handlePsychology', () => {
       expect.objectContaining({
         model: 'claude-opus-4-6',
         max_tokens: 2500,
-        system: 'interpolated psychology system prompt',
+        system: expect.arrayContaining([
+          expect.objectContaining({
+            type: 'text',
+            text: 'interpolated psychology system prompt',
+          }),
+        ]),
         messages: [
           { role: 'user', content: 'previous question' },
           { role: 'assistant', content: 'previous answer' },
