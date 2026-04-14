@@ -22,6 +22,9 @@ import { anthropic, HAIKU_MODEL } from '../../llm/client.js';
 
 const TEST_CHAT_ID = BigInt(99901);
 const TEST_USER_ID = 99901;
+// Unique per-process source tag so parallel test files don't clobber each other's rows
+// via shared `source = 'telegram'` deletes. See phase 10 REVIEW.md WR-06.
+const TEST_SOURCE = `test-live-integration-${process.pid}`;
 
 describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => {
   beforeAll(async () => {
@@ -38,12 +41,12 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
     const testEntryIds = await db
       .select({ id: pensieveEntries.id })
       .from(pensieveEntries)
-      .where(eq(pensieveEntries.source, 'telegram'));
+      .where(eq(pensieveEntries.source, TEST_SOURCE));
     const ids = testEntryIds.map(e => e.id);
     if (ids.length > 0) {
       await db.delete(contradictions).where(inArray(contradictions.entryAId, ids));
       await db.delete(pensieveEmbeddings).where(inArray(pensieveEmbeddings.entryId, ids));
-      await db.delete(pensieveEntries).where(eq(pensieveEntries.source, 'telegram'));
+      await db.delete(pensieveEntries).where(eq(pensieveEntries.source, TEST_SOURCE));
     }
     await db.delete(conversations).where(eq(conversations.chatId, TEST_CHAT_ID));
     clearDeclinedTopics(TEST_CHAT_ID.toString());
@@ -62,7 +65,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
         const response = await processMessage(TEST_CHAT_ID, TEST_USER_ID, "I don't want to talk about my finances");
         expect(EN_ACKNOWLEDGMENTS).toContain(response);
         // Cleanup between iterations
-        await db.delete(conversations);
+        await db.delete(conversations).where(eq(conversations.chatId, TEST_CHAT_ID));
         clearDeclinedTopics(TEST_CHAT_ID.toString());
       }
     }, 60_000);
@@ -72,7 +75,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
         const response = await processMessage(TEST_CHAT_ID, TEST_USER_ID, "Je ne veux pas en parler");
         expect(FR_ACKNOWLEDGMENTS).toContain(response);
         // Cleanup between iterations
-        await db.delete(conversations);
+        await db.delete(conversations).where(eq(conversations.chatId, TEST_CHAT_ID));
         clearDeclinedTopics(TEST_CHAT_ID.toString());
       }
     }, 60_000);
@@ -82,7 +85,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
         const response = await processMessage(TEST_CHAT_ID, TEST_USER_ID, "Я не хочу об этом говорить");
         expect(RU_ACKNOWLEDGMENTS).toContain(response);
         // Cleanup between iterations
-        await db.delete(conversations);
+        await db.delete(conversations).where(eq(conversations.chatId, TEST_CHAT_ID));
         clearDeclinedTopics(TEST_CHAT_ID.toString());
       }
     }, 60_000);
@@ -102,7 +105,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
         const detected = franc(response, { only: ['eng', 'fra', 'rus'] });
         expect(detected).toBe('fra');
         // Cleanup between iterations
-        await db.delete(conversations);
+        await db.delete(conversations).where(eq(conversations.chatId, TEST_CHAT_ID));
         clearLanguageState(TEST_CHAT_ID.toString());
       }
     }, 60_000);
@@ -118,7 +121,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
         const detected = franc(response, { only: ['eng', 'fra', 'rus'] });
         expect(detected).toBe('rus');
         // Cleanup between iterations
-        await db.delete(conversations);
+        await db.delete(conversations).where(eq(conversations.chatId, TEST_CHAT_ID));
         clearLanguageState(TEST_CHAT_ID.toString());
       }
     }, 60_000);
@@ -134,7 +137,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
         const detected = franc(response, { only: ['eng', 'fra', 'rus'] });
         expect(detected).toBe('eng');
         // Cleanup between iterations
-        await db.delete(conversations);
+        await db.delete(conversations).where(eq(conversations.chatId, TEST_CHAT_ID));
         clearLanguageState(TEST_CHAT_ID.toString());
       }
     }, 60_000);
@@ -176,7 +179,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
         }
 
         // Cleanup between iterations
-        await db.delete(conversations);
+        await db.delete(conversations).where(eq(conversations.chatId, TEST_CHAT_ID));
         clearDeclinedTopics(TEST_CHAT_ID.toString());
       }
     }, 90_000);
@@ -214,7 +217,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
         }
 
         // Cleanup between iterations
-        await db.delete(conversations);
+        await db.delete(conversations).where(eq(conversations.chatId, TEST_CHAT_ID));
         clearDeclinedTopics(TEST_CHAT_ID.toString());
       }
     }, 90_000);
@@ -252,7 +255,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
         }
 
         // Cleanup between iterations
-        await db.delete(conversations);
+        await db.delete(conversations).where(eq(conversations.chatId, TEST_CHAT_ID));
         clearDeclinedTopics(TEST_CHAT_ID.toString());
       }
     }, 90_000);
@@ -301,7 +304,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
         const hasPushback = PUSHBACK_MARKERS.some(m => responseLower.includes(m));
         expect(!hasValidation || hasPushback).toBe(true);
         // Cleanup between iterations
-        await db.delete(conversations);
+        await db.delete(conversations).where(eq(conversations.chatId, TEST_CHAT_ID));
         clearDeclinedTopics(TEST_CHAT_ID.toString());
       }
     }, 60_000);
@@ -318,7 +321,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
         const hasPushback = PUSHBACK_MARKERS.some(m => responseLower.includes(m));
         expect(!hasValidation || hasPushback).toBe(true);
         // Cleanup between iterations
-        await db.delete(conversations);
+        await db.delete(conversations).where(eq(conversations.chatId, TEST_CHAT_ID));
         clearDeclinedTopics(TEST_CHAT_ID.toString());
       }
     }, 60_000);
@@ -335,7 +338,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
         const hasPushback = PUSHBACK_MARKERS.some(m => responseLower.includes(m));
         expect(!hasValidation || hasPushback).toBe(true);
         // Cleanup between iterations
-        await db.delete(conversations);
+        await db.delete(conversations).where(eq(conversations.chatId, TEST_CHAT_ID));
         clearDeclinedTopics(TEST_CHAT_ID.toString());
       }
     }, 60_000);
@@ -365,7 +368,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
       for (let i = 0; i < 3; i++) {
         const [entry] = await db.insert(pensieveEntries).values({
           content: 'Greg is French, born in Cagnes-sur-Mer, France on June 15, 1979',
-          source: 'telegram',
+          source: TEST_SOURCE,
         }).returning();
         await embedAndStore(entry!.id, entry!.content);
 
@@ -374,9 +377,17 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
         expect(consistent).toBe(true);
 
         // Cleanup between iterations
-        await db.delete(conversations);
-        await db.delete(pensieveEmbeddings);
-        await db.delete(pensieveEntries);
+        await db.delete(conversations).where(eq(conversations.chatId, TEST_CHAT_ID));
+        const iterIds = (
+          await db
+            .select({ id: pensieveEntries.id })
+            .from(pensieveEntries)
+            .where(eq(pensieveEntries.source, TEST_SOURCE))
+        ).map(e => e.id);
+        if (iterIds.length > 0) {
+          await db.delete(pensieveEmbeddings).where(inArray(pensieveEmbeddings.entryId, iterIds));
+          await db.delete(pensieveEntries).where(eq(pensieveEntries.source, TEST_SOURCE));
+        }
         clearDeclinedTopics(TEST_CHAT_ID.toString());
         clearLanguageState(TEST_CHAT_ID.toString());
       }
@@ -386,7 +397,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
       for (let i = 0; i < 3; i++) {
         const [entry] = await db.insert(pensieveEntries).values({
           content: 'Greg is currently in Saint Petersburg, Russia until April 28, 2026, then moving to Batumi, Georgia for about a month',
-          source: 'telegram',
+          source: TEST_SOURCE,
         }).returning();
         await embedAndStore(entry!.id, entry!.content);
 
@@ -395,9 +406,17 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
         expect(consistent).toBe(true);
 
         // Cleanup between iterations
-        await db.delete(conversations);
-        await db.delete(pensieveEmbeddings);
-        await db.delete(pensieveEntries);
+        await db.delete(conversations).where(eq(conversations.chatId, TEST_CHAT_ID));
+        const iterIds = (
+          await db
+            .select({ id: pensieveEntries.id })
+            .from(pensieveEntries)
+            .where(eq(pensieveEntries.source, TEST_SOURCE))
+        ).map(e => e.id);
+        if (iterIds.length > 0) {
+          await db.delete(pensieveEmbeddings).where(inArray(pensieveEmbeddings.entryId, iterIds));
+          await db.delete(pensieveEntries).where(eq(pensieveEntries.source, TEST_SOURCE));
+        }
         clearDeclinedTopics(TEST_CHAT_ID.toString());
         clearLanguageState(TEST_CHAT_ID.toString());
       }
@@ -407,7 +426,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
       for (let i = 0; i < 3; i++) {
         const [entry] = await db.insert(pensieveEntries).values({
           content: 'Greg owns a company called MAINGRET LLC registered in New Mexico, USA',
-          source: 'telegram',
+          source: TEST_SOURCE,
         }).returning();
         await embedAndStore(entry!.id, entry!.content);
 
@@ -416,9 +435,17 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
         expect(consistent).toBe(true);
 
         // Cleanup between iterations
-        await db.delete(conversations);
-        await db.delete(pensieveEmbeddings);
-        await db.delete(pensieveEntries);
+        await db.delete(conversations).where(eq(conversations.chatId, TEST_CHAT_ID));
+        const iterIds = (
+          await db
+            .select({ id: pensieveEntries.id })
+            .from(pensieveEntries)
+            .where(eq(pensieveEntries.source, TEST_SOURCE))
+        ).map(e => e.id);
+        if (iterIds.length > 0) {
+          await db.delete(pensieveEmbeddings).where(inArray(pensieveEmbeddings.entryId, iterIds));
+          await db.delete(pensieveEntries).where(eq(pensieveEntries.source, TEST_SOURCE));
+        }
         clearDeclinedTopics(TEST_CHAT_ID.toString());
         clearLanguageState(TEST_CHAT_ID.toString());
       }
@@ -445,7 +472,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
         const response = await processMessage(TEST_CHAT_ID, TEST_USER_ID, "What breed is my dog and what's his name?");
         expect(UNCERTAINTY_MARKERS.some(m => response.toLowerCase().includes(m))).toBe(true);
         // Cleanup between iterations
-        await db.delete(conversations);
+        await db.delete(conversations).where(eq(conversations.chatId, TEST_CHAT_ID));
         clearDeclinedTopics(TEST_CHAT_ID.toString());
         clearLanguageState(TEST_CHAT_ID.toString());
       }
@@ -456,7 +483,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
         const response = await processMessage(TEST_CHAT_ID, TEST_USER_ID, "Which university did I graduate from and what was my major?");
         expect(UNCERTAINTY_MARKERS.some(m => response.toLowerCase().includes(m))).toBe(true);
         // Cleanup between iterations
-        await db.delete(conversations);
+        await db.delete(conversations).where(eq(conversations.chatId, TEST_CHAT_ID));
         clearDeclinedTopics(TEST_CHAT_ID.toString());
         clearLanguageState(TEST_CHAT_ID.toString());
       }
@@ -467,7 +494,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
         const response = await processMessage(TEST_CHAT_ID, TEST_USER_ID, "How many siblings do I have and what are their names?");
         expect(UNCERTAINTY_MARKERS.some(m => response.toLowerCase().includes(m))).toBe(true);
         // Cleanup between iterations
-        await db.delete(conversations);
+        await db.delete(conversations).where(eq(conversations.chatId, TEST_CHAT_ID));
         clearDeclinedTopics(TEST_CHAT_ID.toString());
         clearLanguageState(TEST_CHAT_ID.toString());
       }
@@ -481,7 +508,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
       for (let i = 0; i < 3; i++) {
         const [entry] = await db.insert(pensieveEntries).values({
           content: "Greg's nationality is French",
-          source: 'telegram',
+          source: TEST_SOURCE,
         }).returning();
         await embedAndStore(entry!.id, entry!.content);
 
@@ -489,9 +516,17 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
         expect(response).toContain(GROUND_TRUTH_MAP['nationality']!);
 
         // Cleanup between iterations
-        await db.delete(conversations);
-        await db.delete(pensieveEmbeddings);
-        await db.delete(pensieveEntries);
+        await db.delete(conversations).where(eq(conversations.chatId, TEST_CHAT_ID));
+        const iterIds = (
+          await db
+            .select({ id: pensieveEntries.id })
+            .from(pensieveEntries)
+            .where(eq(pensieveEntries.source, TEST_SOURCE))
+        ).map(e => e.id);
+        if (iterIds.length > 0) {
+          await db.delete(pensieveEmbeddings).where(inArray(pensieveEmbeddings.entryId, iterIds));
+          await db.delete(pensieveEntries).where(eq(pensieveEntries.source, TEST_SOURCE));
+        }
         clearDeclinedTopics(TEST_CHAT_ID.toString());
         clearLanguageState(TEST_CHAT_ID.toString());
       }
@@ -501,7 +536,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
       for (let i = 0; i < 3; i++) {
         const [entry] = await db.insert(pensieveEntries).values({
           content: 'Greg was born in Cagnes-sur-Mer, France',
-          source: 'telegram',
+          source: TEST_SOURCE,
         }).returning();
         await embedAndStore(entry!.id, entry!.content);
 
@@ -510,9 +545,17 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
         expect(response).toContain('Cagnes-sur-Mer');
 
         // Cleanup between iterations
-        await db.delete(conversations);
-        await db.delete(pensieveEmbeddings);
-        await db.delete(pensieveEntries);
+        await db.delete(conversations).where(eq(conversations.chatId, TEST_CHAT_ID));
+        const iterIds = (
+          await db
+            .select({ id: pensieveEntries.id })
+            .from(pensieveEntries)
+            .where(eq(pensieveEntries.source, TEST_SOURCE))
+        ).map(e => e.id);
+        if (iterIds.length > 0) {
+          await db.delete(pensieveEmbeddings).where(inArray(pensieveEmbeddings.entryId, iterIds));
+          await db.delete(pensieveEntries).where(eq(pensieveEntries.source, TEST_SOURCE));
+        }
         clearDeclinedTopics(TEST_CHAT_ID.toString());
         clearLanguageState(TEST_CHAT_ID.toString());
       }
@@ -522,7 +565,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
       for (let i = 0; i < 3; i++) {
         const [entry] = await db.insert(pensieveEntries).values({
           content: "Greg's company is MAINGRET LLC, registered in New Mexico, USA",
-          source: 'telegram',
+          source: TEST_SOURCE,
         }).returning();
         await embedAndStore(entry!.id, entry!.content);
 
@@ -531,9 +574,17 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
         expect(response).toContain('MAINGRET');
 
         // Cleanup between iterations
-        await db.delete(conversations);
-        await db.delete(pensieveEmbeddings);
-        await db.delete(pensieveEntries);
+        await db.delete(conversations).where(eq(conversations.chatId, TEST_CHAT_ID));
+        const iterIds = (
+          await db
+            .select({ id: pensieveEntries.id })
+            .from(pensieveEntries)
+            .where(eq(pensieveEntries.source, TEST_SOURCE))
+        ).map(e => e.id);
+        if (iterIds.length > 0) {
+          await db.delete(pensieveEmbeddings).where(inArray(pensieveEmbeddings.entryId, iterIds));
+          await db.delete(pensieveEntries).where(eq(pensieveEntries.source, TEST_SOURCE));
+        }
         clearDeclinedTopics(TEST_CHAT_ID.toString());
         clearLanguageState(TEST_CHAT_ID.toString());
       }
@@ -577,7 +628,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
         expect(turn3Questions).toBeLessThanOrEqual(2);
 
         // Cleanup between iterations
-        await db.delete(conversations);
+        await db.delete(conversations).where(eq(conversations.chatId, TEST_CHAT_ID));
         clearDeclinedTopics(TEST_CHAT_ID.toString());
         clearLanguageState(TEST_CHAT_ID.toString());
       }
@@ -612,7 +663,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
         expect(praiseOpeners).not.toContain(firstWord);
 
         // Cleanup between iterations
-        await db.delete(conversations);
+        await db.delete(conversations).where(eq(conversations.chatId, TEST_CHAT_ID));
         clearDeclinedTopics(TEST_CHAT_ID.toString());
         clearLanguageState(TEST_CHAT_ID.toString());
       }
@@ -650,7 +701,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
         }
 
         // Cleanup between iterations
-        await db.delete(conversations);
+        await db.delete(conversations).where(eq(conversations.chatId, TEST_CHAT_ID));
         clearDeclinedTopics(TEST_CHAT_ID.toString());
         clearLanguageState(TEST_CHAT_ID.toString());
       }
