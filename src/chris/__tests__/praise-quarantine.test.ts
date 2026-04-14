@@ -114,6 +114,24 @@ describe('quarantinePraise', () => {
     expect(mockCreate).toHaveBeenCalledTimes(1);
   });
 
+  it('returns original when Haiku returns empty rewritten string', async () => {
+    const original = 'Great question! Here is my thought.';
+    mockCreate.mockResolvedValueOnce(
+      makeHaikuResponse({ flattery_detected: true, rewritten: '' }),
+    );
+    const result = await quarantinePraise(original, 'JOURNAL');
+    expect(result).toBe(original);
+  });
+
+  it('returns original when Haiku returns whitespace-only rewritten string', async () => {
+    const original = 'Great question! Here is my thought.';
+    mockCreate.mockResolvedValueOnce(
+      makeHaikuResponse({ flattery_detected: true, rewritten: '   \n  ' }),
+    );
+    const result = await quarantinePraise(original, 'JOURNAL');
+    expect(result).toBe(original);
+  });
+
   it('returns original on malformed JSON from Haiku', async () => {
     const original = 'Great question! Here is my thought.';
     mockCreate.mockResolvedValueOnce({
