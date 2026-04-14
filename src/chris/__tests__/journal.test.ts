@@ -98,8 +98,9 @@ describe('JOURNAL hybrid retrieval (RETR-01)', () => {
     mockBuildPensieveContext.mockReturnValue('formatted context here');
     await handleJournal(CHAT_ID, 'test');
     const createCall = mockCreate.mock.calls[0][0];
-    expect(createCall.system).toContain('formatted context here');
-    expect(createCall.system).not.toContain('{pensieveContext}');
+    const systemText = createCall.system[0].text;
+    expect(systemText).toContain('formatted context here');
+    expect(systemText).not.toContain('{pensieveContext}');
   });
 
   it('runs retrieval on every message — no selective triggering (D-10)', async () => {
@@ -130,7 +131,7 @@ describe('JOURNAL hallucination resistance (RETR-04)', () => {
     mockBuildPensieveContext.mockReturnValue('');
     await handleJournal(CHAT_ID, 'Where do I live?');
     const createCall = mockCreate.mock.calls[0][0];
-    expect(createCall.system).toContain('No relevant memories found');
+    expect(createCall.system[0].text).toContain('No relevant memories found');
   });
 });
 
@@ -147,7 +148,7 @@ describe('end-to-end prompt assembly', () => {
     mockBuildPensieveContext.mockReturnValue('[1] (2026-04-01 | FACT | 0.85) "Greg lives in Saint Petersburg"');
     await handleJournal(CHAT_ID, 'Where do I live?');
     const createCall = mockCreate.mock.calls[0][0];
-    const system = createCall.system;
+    const system = createCall.system[0].text;
     // Known Facts block present (from buildKnownFactsBlock)
     expect(system).toContain('Known Facts About John');
     // PensieveContext replaced (not literal placeholder)
