@@ -96,7 +96,8 @@ export function buildSystemPrompt(
       modeBody = PRODUCE_SYSTEM_PROMPT.replace('{pensieveContext}', contextValue);
       break;
     case 'PHOTOS':
-      modeBody = JOURNAL_SYSTEM_PROMPT; // Photos mode uses Journal persona with vision
+      // Photos mode uses Journal persona with vision
+      modeBody = JOURNAL_SYSTEM_PROMPT.replace('{pensieveContext}', contextValue);
       break;
   }
 
