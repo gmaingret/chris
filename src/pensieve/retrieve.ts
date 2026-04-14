@@ -12,7 +12,7 @@ export type SearchResult = {
 };
 
 export type SearchOptions = {
-  tags?: string[];
+  tags?: (typeof epistemicTagEnum.enumValues)[number][];
   recencyBias?: number;  // 0.0 (pure cosine) to 1.0 (strong recency)
   limit?: number;        // default 5
   minScore?: number;     // filter results below this blended score
@@ -125,10 +125,7 @@ export async function hybridSearch(
     const conditions = [isNull(pensieveEntries.deletedAt)];
     if (options.tags && options.tags.length > 0) {
       conditions.push(
-        inArray(
-          pensieveEntries.epistemicTag,
-          options.tags as (typeof epistemicTagEnum.enumValues)[number][],
-        ),
+        inArray(pensieveEntries.epistemicTag, options.tags),
       );
     }
 
