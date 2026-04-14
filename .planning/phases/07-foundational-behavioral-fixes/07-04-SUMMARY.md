@@ -24,6 +24,7 @@ metrics:
   completed: "2026-04-13"
   tasks_completed: 2
   tasks_total: 2
+requirements-completed: [TRUST-02, TRUST-03, LANG-01]
 ---
 
 # Phase 07 Plan 04: Engine Pipeline Wiring Summary

@@ -26,6 +26,7 @@ metrics:
   tasks_total: 2
   files_created: 2
   files_modified: 0
+requirements-completed: [TRUST-01, TRUST-02, LANG-01, LANG-02]
 ---
 
 # Phase 07 Plan 03: Refusal Detection and Language Detection Modules

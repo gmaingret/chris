@@ -26,6 +26,7 @@ metrics:
   tasks_completed: 3
   files_created: 0
   files_modified: 2
+requirements-completed: [SYCO-04, SYCO-05]
 ---
 
 # Phase 09 Plan 02: Engine Wiring Summary

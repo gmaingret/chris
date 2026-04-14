@@ -36,6 +36,7 @@ metrics:
   tasks_total: 2
   files_created: 4
   files_modified: 0
+requirements-completed: [RETR-03]
 ---
 
 # Phase 6 Plan 1: Ground-Truth Module and Seed Script Summary

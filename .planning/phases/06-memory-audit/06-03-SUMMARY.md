@@ -26,6 +26,7 @@ metrics:
   tasks_completed: 2
   tasks_total: 2
   files_changed: 4
+requirements-completed: [RETR-03]
 ---
 
 # Phase 6 Plan 03: Code Review Bug Fixes Summary

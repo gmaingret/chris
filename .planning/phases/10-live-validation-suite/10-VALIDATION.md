@@ -1,7 +1,7 @@
 ---
 phase: 10
 slug: live-validation-suite
-status: draft
+status: superseded-by-phase-10
 nyquist_compliant: false
 wave_0_complete: false
 created: 2026-04-13
@@ -10,6 +10,8 @@ created: 2026-04-13
 # Phase 10 — Validation Strategy
 
 > Per-phase validation contract for feedback sampling during execution.
+
+> **M006 note:** superseded by Phase 10 live validation suite (24/24 live + 20 contradiction pairs, 2026-04-14). Wave-0 formalism not promoted; live suite provides behavioral coverage.
 
 ---
 

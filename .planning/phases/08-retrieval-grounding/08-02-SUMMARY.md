@@ -23,9 +23,7 @@ metrics:
   completed: "2026-04-13"
   tasks_completed: 2
   tasks_total: 2
-requirements:
-  - RETR-01
-  - RETR-04
+requirements-completed: [RETR-01, RETR-04]
 ---
 
 # Phase 8 Plan 02: JOURNAL Retrieval Integration Summary

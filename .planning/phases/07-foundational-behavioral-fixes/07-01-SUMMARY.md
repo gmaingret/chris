@@ -35,6 +35,7 @@ metrics:
   tasks_completed: 2
   files_created: 4
   files_modified: 2
+requirements-completed: [TRUST-01, TRUST-02, TRUST-03, TRUST-04, SYCO-01, SYCO-02, SYCO-03, LANG-01, LANG-02, LANG-03, LANG-04]
 ---
 
 # Phase 07 Plan 01: TDD Scaffolding and franc Install Summary

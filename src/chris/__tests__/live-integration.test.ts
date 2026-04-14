@@ -397,15 +397,22 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
     }
 
     // Belt-and-suspenders: majority vote of 3 calls. Even with temperature=0 the
-    // judge can occasionally misclassify; best-of-3 eliminates residual flake.
+    // judge can occasionally misclassify or return malformed JSON; best-of-3 with
+    // allSettled tolerates individual judge failures (thrown = abstain, not fail).
     async function haikuJudge(fact: string, response: string): Promise<boolean> {
-      const votes = await Promise.all([
+      const settled = await Promise.allSettled([
         haikuJudgeOnce(fact, response),
         haikuJudgeOnce(fact, response),
         haikuJudgeOnce(fact, response),
       ]);
-      const yeses = votes.filter(Boolean).length;
-      return yeses >= 2;
+      const yeses = settled.filter(s => s.status === 'fulfilled' && s.value === true).length;
+      const noes = settled.filter(s => s.status === 'fulfilled' && s.value === false).length;
+      // Require strict majority of successful judgments; with 3 calls, 2 yes-votes wins.
+      // If all 3 throw, fall through and fail the caller via expect (noes===0, yeses===0).
+      if (yeses + noes === 0) {
+        throw new Error('haikuJudge: all 3 judge calls threw');
+      }
+      return yeses > noes;
     }
 
     it('grounds response in seeded nationality fact', async () => {
