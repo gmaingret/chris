@@ -102,7 +102,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
           "Comment tu vois ma situation actuelle? Je me sens un peu perdu ces derniers temps.",
           { pensieveSource: TEST_SOURCE },
         );
-        expect(response.length).toBeGreaterThan(20);
+        expect(response.length).toBeGreaterThan(80);
         const detected = franc(response, { only: ['eng', 'fra', 'rus'] });
         expect(detected).toBe('fra');
         // Cleanup between iterations
@@ -119,7 +119,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
           "Расскажи мне что ты знаешь о моей жизни. Мне интересно как ты это видишь.",
           { pensieveSource: TEST_SOURCE },
         );
-        expect(response.length).toBeGreaterThan(20);
+        expect(response.length).toBeGreaterThan(80);
         const detected = franc(response, { only: ['eng', 'fra', 'rus'] });
         expect(detected).toBe('rus');
         // Cleanup between iterations
@@ -136,7 +136,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
           "Tell me what you think about my current life situation and goals.",
           { pensieveSource: TEST_SOURCE },
         );
-        expect(response.length).toBeGreaterThan(20);
+        expect(response.length).toBeGreaterThan(80);
         const detected = franc(response, { only: ['eng', 'fra', 'rus'] });
         expect(detected).toBe('eng');
         // Cleanup between iterations
