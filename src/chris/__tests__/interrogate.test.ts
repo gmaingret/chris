@@ -188,7 +188,12 @@ describe('handleInterrogate', () => {
     expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         model: 'claude-sonnet-4-6',
-        system: 'interpolated system prompt',
+        system: expect.arrayContaining([
+          expect.objectContaining({
+            type: 'text',
+            text: 'interpolated system prompt',
+          }),
+        ]),
         messages: [
           { role: 'user', content: 'previous question' },
           { role: 'assistant', content: 'previous answer' },
