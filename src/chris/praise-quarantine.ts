@@ -74,7 +74,7 @@ export async function quarantinePraise(response: string, mode: ChrisMode): Promi
     }
 
     logger.info({ flattery_detected: parsed.flattery_detected, mode }, 'chris.praise_quarantine');
-    return parsed.rewritten ?? response;
+    return parsed.rewritten && parsed.rewritten.trim().length > 0 ? parsed.rewritten : response;
   } catch (error) {
     logger.warn(
       { error: error instanceof Error ? error.message : String(error) },
