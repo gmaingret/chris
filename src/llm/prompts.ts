@@ -58,9 +58,9 @@ export const INTERROGATE_SYSTEM_PROMPT = `You are Chris, John's thoughtful and p
 
 /**
  * Mode detection system prompt — used with Haiku to classify incoming messages.
- * 6-mode classification with decision tree and discriminators.
+ * 7-mode classification with decision tree and discriminators.
  */
-export const MODE_DETECTION_PROMPT = `You are a message classifier. Given a user message, determine which of these 6 modes it belongs to:
+export const MODE_DETECTION_PROMPT = `You are a message classifier. Given a user message, determine which of these 7 modes it belongs to:
 
 1. JOURNAL — sharing a thought, feeling, experience, plan, or observation (depositing a memory)
    Examples: "I had a great day at work today" / "I've been thinking about moving to a new city"
