@@ -59,6 +59,17 @@ function buildKnownFactsBlock(): string {
  * Prepends constitutional preamble to all modes.
  * Appends language directive if language is set.
  * Appends declined topics section if declinedTopics is non-empty.
+ *
+ * Parameter usage per mode:
+ * - `pensieveContext` is substituted into all modes (JOURNAL, INTERROGATE, REFLECT,
+ *   COACH, PSYCHOLOGY, PRODUCE, PHOTOS).
+ * - `relationalContext` is substituted ONLY into REFLECT, COACH, and PSYCHOLOGY
+ *   prompt templates — these are the modes whose system prompts contain a
+ *   `{relationalContext}` placeholder and are built around pattern/observation
+ *   synthesis. For JOURNAL, INTERROGATE, PRODUCE, and PHOTOS the argument is
+ *   accepted but intentionally ignored: those templates have no placeholder
+ *   because the mode is not pattern/observation oriented. Callers may safely
+ *   pass a value for these modes — it will be silently dropped.
  */
 export function buildSystemPrompt(
   mode: ChrisMode,
