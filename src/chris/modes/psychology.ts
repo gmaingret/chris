@@ -35,7 +35,7 @@ export async function handlePsychology(
 
   // Build formatted Pensieve context with citations
   const pensieveContext = buildPensieveContext(searchResults);
-  const resultCount = pensieveContext === '' ? 0 : pensieveContext.split('\n').length;
+  const resultCount = searchResults.length;
 
   if (resultCount === 0) {
     logger.info(

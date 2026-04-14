@@ -28,7 +28,7 @@ export async function handleInterrogate(
 
   // Build formatted context with citations, filtering low-similarity results
   const pensieveContext = buildPensieveContext(searchResults);
-  const resultCount = pensieveContext === '' ? 0 : pensieveContext.split('\n').length;
+  const resultCount = searchResults.length;
 
   if (resultCount === 0) {
     logger.info(
