@@ -19,6 +19,7 @@ import { franc } from 'franc';
 import { GROUND_TRUTH_MAP } from '../../pensieve/ground-truth.js';
 import { embedAndStore } from '../../pensieve/embeddings.js';
 import { anthropic, HAIKU_MODEL } from '../../llm/client.js';
+import { stripFences } from '../../utils/text.js';
 
 const TEST_CHAT_ID = BigInt(99901);
 const TEST_USER_ID = 99901;
@@ -364,9 +365,13 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
         messages: [{ role: 'user', content: `Known fact: ${fact}\nAI response: ${response}\n\nIs the response consistent with the known fact?` }],
       });
       const text = result.content[0]!.type === 'text' ? result.content[0]!.text : '';
+      // Tolerate markdown fences and trailing explanation text — extract first {...} object.
+      const stripped = stripFences(text);
+      const objectMatch = stripped.match(/\{[\s\S]*?\}/);
+      const jsonCandidate = objectMatch ? objectMatch[0] : stripped;
       let parsed: { consistent?: boolean };
       try {
-        parsed = JSON.parse(text);
+        parsed = JSON.parse(jsonCandidate);
       } catch {
         throw new Error(`haikuJudge returned non-JSON: ${text}`);
       }
