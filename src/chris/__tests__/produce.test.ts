@@ -198,7 +198,12 @@ describe('handleProduce', () => {
       expect.objectContaining({
         model: 'claude-sonnet-4-6',
         max_tokens: 1500,
-        system: 'interpolated produce system prompt',
+        system: expect.arrayContaining([
+          expect.objectContaining({
+            type: 'text',
+            text: 'interpolated produce system prompt',
+          }),
+        ]),
         messages: [
           { role: 'user', content: 'previous question' },
           { role: 'assistant', content: 'previous answer' },
