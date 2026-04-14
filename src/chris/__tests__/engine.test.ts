@@ -700,6 +700,8 @@ describe('processMessage (engine)', () => {
     expect(mockHandleInterrogate).toHaveBeenCalledWith(
       CHAT_ID,
       'Have I ever talked about my childhood?',
+      expect.any(String),
+      expect.any(Array),
     );
     // Mode is saved as INTERROGATE
     expect(mockSaveMessage).toHaveBeenCalledWith(
@@ -750,6 +752,8 @@ describe('processMessage (engine)', () => {
     expect(mockHandleReflect).toHaveBeenCalledWith(
       CHAT_ID,
       'What patterns do you see in how I handle conflict?',
+      expect.any(String),
+      expect.any(Array),
     );
     expect(mockSaveMessage).toHaveBeenCalledWith(
       CHAT_ID,
@@ -786,6 +790,8 @@ describe('processMessage (engine)', () => {
     expect(mockHandleCoach).toHaveBeenCalledWith(
       CHAT_ID,
       'Am I making excuses about the gym?',
+      expect.any(String),
+      expect.any(Array),
     );
     expect(mockSaveMessage).toHaveBeenCalledWith(
       CHAT_ID,
@@ -822,6 +828,8 @@ describe('processMessage (engine)', () => {
     expect(mockHandlePsychology).toHaveBeenCalledWith(
       CHAT_ID,
       'Deep analysis of my relationship with authority?',
+      expect.any(String),
+      expect.any(Array),
     );
     expect(mockSaveMessage).toHaveBeenCalledWith(
       CHAT_ID,
@@ -858,6 +866,8 @@ describe('processMessage (engine)', () => {
     expect(mockHandleProduce).toHaveBeenCalledWith(
       CHAT_ID,
       'Should I take the new job offer?',
+      expect.any(String),
+      expect.any(Array),
     );
     expect(mockSaveMessage).toHaveBeenCalledWith(
       CHAT_ID,

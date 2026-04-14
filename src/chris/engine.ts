@@ -161,22 +161,22 @@ export async function processMessage(
         response = await handleJournal(chatId, text, language, declinedTopics);
         break;
       case 'INTERROGATE':
-        response = await handleInterrogate(chatId, text);
+        response = await handleInterrogate(chatId, text, language, declinedTopics);
         break;
       case 'REFLECT':
-        response = await handleReflect(chatId, text);
+        response = await handleReflect(chatId, text, language, declinedTopics);
         break;
       case 'COACH':
-        response = await handleCoach(chatId, text);
+        response = await handleCoach(chatId, text, language, declinedTopics);
         break;
       case 'PSYCHOLOGY':
-        response = await handlePsychology(chatId, text);
+        response = await handlePsychology(chatId, text, language, declinedTopics);
         break;
       case 'PRODUCE':
-        response = await handleProduce(chatId, text);
+        response = await handleProduce(chatId, text, language, declinedTopics);
         break;
       case 'PHOTOS': {
-        const photoResult = await handlePhotos(chatId, text);
+        const photoResult = await handlePhotos(chatId, text, language, declinedTopics);
         if (photoResult) {
           response = photoResult.response;
           // Enrich the saved user message with photo context so subsequent turns
@@ -189,7 +189,7 @@ export async function processMessage(
           await saveMessage(chatId, 'USER', text, 'JOURNAL');
           userMessageSaved = true;
           const noPhotosContext = `${text}\n\n[Note: Chris searched the photo library but found no matching photos for this request.]`;
-          response = await handleJournal(chatId, noPhotosContext);
+          response = await handleJournal(chatId, noPhotosContext, language, declinedTopics);
         }
         break;
       }
