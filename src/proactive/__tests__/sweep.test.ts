@@ -319,7 +319,13 @@ describe('proactive sweep', () => {
     expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         model: 'claude-sonnet-4-6',
-        system: expect.stringContaining(context),
+        system: expect.arrayContaining([
+          expect.objectContaining({
+            type: 'text',
+            text: expect.stringContaining(context),
+            cache_control: { type: 'ephemeral' },
+          }),
+        ]),
         messages: expect.arrayContaining([
           expect.objectContaining({ content: context }),
         ]),
@@ -328,7 +334,8 @@ describe('proactive sweep', () => {
 
     // System prompt should NOT contain the placeholder
     const callArgs = mockCreate.mock.calls[0]![0];
-    expect(callArgs.system).not.toContain('{triggerContext}');
+    const systemText = Array.isArray(callArgs.system) ? callArgs.system[0].text : callArgs.system;
+    expect(systemText).not.toContain('{triggerContext}');
   });
 
   it('does not send message when Anthropic throws', async () => {
@@ -450,7 +457,13 @@ describe('proactive sweep', () => {
 
     expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        system: expect.stringContaining(commitmentContext),
+        system: expect.arrayContaining([
+          expect.objectContaining({
+            type: 'text',
+            text: expect.stringContaining(commitmentContext),
+            cache_control: { type: 'ephemeral' },
+          }),
+        ]),
         messages: expect.arrayContaining([
           expect.objectContaining({ content: commitmentContext }),
         ]),

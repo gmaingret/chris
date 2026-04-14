@@ -130,10 +130,15 @@ export async function runSweep(): Promise<SweepResult> {
     );
 
     const response = await anthropic.messages.create({
-      cache_control: { type: 'ephemeral' },
       model: SONNET_MODEL,
       max_tokens: 256,
-      system: systemPrompt,
+      system: [
+        {
+          type: 'text',
+          text: systemPrompt,
+          cache_control: { type: 'ephemeral' },
+        },
+      ],
       messages: [
         {
           role: 'user',
