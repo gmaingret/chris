@@ -36,7 +36,7 @@ function stripFences(text: string): string {
 }
 
 /**
- * Classify a message into one of 6 Chris modes using Haiku.
+ * Classify a message into one of 7 Chris modes using Haiku.
  * Defaults to JOURNAL on any failure (parse error, API error, invalid mode).
  */
 export async function detectMode(text: string): Promise<ChrisMode> {
