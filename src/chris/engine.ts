@@ -19,21 +19,13 @@ import { detectLanguage, getLastUserLanguage, setLastUserLanguage } from './lang
 import { config } from '../config.js';
 import { LLMError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
+import { stripFences } from '../utils/text.js';
 
 export type ChrisMode = 'JOURNAL' | 'INTERROGATE' | 'REFLECT' | 'COACH' | 'PSYCHOLOGY' | 'PRODUCE' | 'PHOTOS';
 
 export const VALID_MODES = new Set<ChrisMode>([
   'JOURNAL', 'INTERROGATE', 'REFLECT', 'COACH', 'PSYCHOLOGY', 'PRODUCE', 'PHOTOS',
 ]);
-
-/**
- * Strip markdown code fences from LLM output before parsing.
- * Handles ```json ... ``` and ``` ... ``` patterns (K003).
- */
-function stripFences(text: string): string {
-  const match = text.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
-  return match ? match[1]!.trim() : text.trim();
-}
 
 /**
  * Classify a message into one of 7 Chris modes using Haiku.

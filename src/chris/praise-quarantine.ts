@@ -1,13 +1,7 @@
 import { anthropic, HAIKU_MODEL } from '../llm/client.js';
 import { logger } from '../utils/logger.js';
+import { stripFences } from '../utils/text.js';
 import type { ChrisMode } from './engine.js';
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-
-function stripFences(text: string): string {
-  const match = text.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
-  return match ? match[1]!.trim() : text.trim();
-}
 
 // ── Prompt ─────────────────────────────────────────────────────────────────
 
