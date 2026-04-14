@@ -26,7 +26,8 @@
 - [ ] **Phase 7: Foundational Behavioral Fixes** - Constitutional preamble, refusal handling, language detection, question-pressure reduction
 - [ ] **Phase 8: Retrieval & Grounding** - JOURNAL hybrid retrieval, structured fact injection, hallucination resistance
 - [ ] **Phase 9: Praise Quarantine** - Haiku post-processor strips reflexive flattery from JOURNAL/REFLECT/PRODUCE
-- [x] **Phase 10: Live Validation Suite** - 24-case integration tests against real Sonnet + contradiction false-positive audit (completed 2026-04-13)
+- [ ] **Phase 10: Live Validation Suite** - 24-case integration tests against real Sonnet + contradiction false-positive audit (re-opened 2026-04-14 — TEST-03 regression)
+- [ ] **Phase 11: Identity Grounding** - Unify persona identity so retrieved Greg-facts ground into first/second-person context (closes RETR-01/02/04, TEST-03 regression)
 
 ## Phase Details
 
@@ -93,9 +94,22 @@ Plans:
 - [x] 10-02-PLAN.md — Live integration tests: grounding, hallucination, fact accuracy + contradiction false-positive audit (9 cases + 20 pairs)
 **UI hint**: no
 
+### Phase 11: Identity Grounding
+**Goal**: Chris treats the Pensieve subject and the addressed user as a single identity ("Greg") so retrieved facts ground into first/second-person context instead of fracturing into a third-party "coincidence"
+**Depends on**: Phase 10 (regression surfaced by live suite)
+**Requirements**: RETR-01, RETR-02, RETR-04, TEST-03
+**Gap Closure**: Closes gaps from v2.0-MILESTONE-AUDIT.md "Gap Re-opened — 2026-04-14"
+**Success Criteria** (what must be TRUE):
+  1. JOURNAL_SYSTEM_PROMPT addresses the user as "Greg" (or accepts a user-identity parameter); "John" no longer appears
+  2. `buildKnownFactsBlock` frames facts as "Facts about you (Greg)" so the model does not split the subject into third-party
+  3. Current-date injection is suppressed (or gated) in JOURNAL so responses do not fabricate prior-mention claims tied to today's date
+  4. `live-integration.test.ts` TEST-03 (JOURNAL grounding) passes 3-of-3 on three consecutive clean runs
+**Plans**: TBD
+**UI hint**: no
+
 ## Progress
 
-**Execution Order:** 6 -> 7 -> 8 -> 9 -> 10
+**Execution Order:** 6 -> 7 -> 8 -> 9 -> 10 -> 11
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -108,4 +122,5 @@ Plans:
 | 7. Foundational Behavioral Fixes | v2.0 M006 | 0/TBD | Not started | - |
 | 8. Retrieval & Grounding | v2.0 M006 | 0/TBD | Not started | - |
 | 9. Praise Quarantine | v2.0 M006 | 0/TBD | Not started | - |
-| 10. Live Validation Suite | v2.0 M006 | 2/2 | Complete    | 2026-04-13 |
+| 10. Live Validation Suite | v2.0 M006 | 2/2 | Re-opened (TEST-03 regression 2026-04-14) | - |
+| 11. Identity Grounding | v2.0 M006 | 0/TBD | Not started | - |

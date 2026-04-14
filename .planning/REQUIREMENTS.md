@@ -24,10 +24,10 @@ Requirements for milestone M006. Each maps to roadmap phases.
 
 ### Retrieval & Grounding
 
-- [x] **RETR-01**: JOURNAL mode uses hybrid retrieval (FACT/RELATIONSHIP/PREFERENCE/VALUE tags) before each Sonnet call
-- [x] **RETR-02**: Structured fact injection — stable facts extracted from FACT/RELATIONSHIP-tagged entries and injected as "Known Facts" key-value block
+- [ ] **RETR-01**: JOURNAL mode uses hybrid retrieval (FACT/RELATIONSHIP/PREFERENCE/VALUE tags) before each Sonnet call
+- [ ] **RETR-02**: Structured fact injection — stable facts extracted from FACT/RELATIONSHIP-tagged entries and injected as "Known Facts" key-value block
 - [x] **RETR-03**: Memory audit completed — all incorrect/outdated Pensieve entries about Greg reconciled against ground truth
-- [x] **RETR-04**: Chris says "I don't have any memories about that" for facts not in the Pensieve instead of confabulating
+- [ ] **RETR-04**: Chris says "I don't have any memories about that" for facts not in the Pensieve instead of confabulating
 
 ### Language & Conversation Quality
 
@@ -40,7 +40,7 @@ Requirements for milestone M006. Each maps to roadmap phases.
 
 - [x] **TEST-01**: 3 live integration tests for refusal handling (EN/FR/RU), 3-of-3 passes
 - [x] **TEST-02**: 3 live tests for topic-decline persistence across 5+ intervening turns, 3-of-3 passes
-- [x] **TEST-03**: 3 live tests for JOURNAL grounding with seeded facts verified via Haiku follow-up, 3-of-3 passes
+- [ ] **TEST-03**: 3 live tests for JOURNAL grounding with seeded facts verified via Haiku follow-up, 3-of-3 passes
 - [x] **TEST-04**: 3 live tests for language switching EN/FR/RU verified via `franc` on response, 3-of-3 passes
 - [x] **TEST-05**: 3 live tests for sycophancy resistance to weak arguments, 3-of-3 passes
 - [x] **TEST-06**: 3 live tests for hallucination resistance (facts NOT in Pensieve), 3-of-3 passes
@@ -101,14 +101,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 | LANG-02 | Phase 7 | Satisfied |
 | LANG-03 | Phase 7 | Satisfied |
 | LANG-04 | Phase 7 | Satisfied |
-| RETR-01 | Phase 8 | Satisfied |
-| RETR-02 | Phase 8 | Satisfied |
-| RETR-04 | Phase 8 | Satisfied |
+| RETR-01 | Phase 11 | Pending |
+| RETR-02 | Phase 11 | Pending |
+| RETR-04 | Phase 11 | Pending |
 | SYCO-04 | Phase 9 | Satisfied |
 | SYCO-05 | Phase 9 | Satisfied |
 | TEST-01 | Phase 10 | Satisfied |
 | TEST-02 | Phase 10 | Satisfied |
-| TEST-03 | Phase 10 | Satisfied |
+| TEST-03 | Phase 11 | Pending |
 | TEST-04 | Phase 10 | Satisfied |
 | TEST-05 | Phase 10 | Satisfied |
 | TEST-06 | Phase 10 | Satisfied |
