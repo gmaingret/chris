@@ -180,7 +180,7 @@ export async function hybridSearch(
         query: query.slice(0, 50),
         resultCount: results.length,
         latencyMs,
-        tags: options.tags ?? null,
+        ...(options.tags ? { tags: options.tags } : {}),
         recencyBias,
       },
       'pensieve.hybrid-retrieve',
