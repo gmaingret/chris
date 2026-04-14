@@ -47,16 +47,18 @@ function stripReflexiveOpener(response: string): string {
   const trimmed = response.trimStart();
   if (trimmed.length === 0) return response;
   const tokens = trimmed.split(/\s+/);
-  const firstWord = tokens[0] ?? '';
-  const firstTwo = tokens.length >= 2 ? `${tokens[0]} ${tokens[1]}` : '';
+  // Strip trailing punctuation so "Wow," still matches "Wow".
+  const firstWord = (tokens[0] ?? '').replace(/[,.!?;:]+$/, '');
+  const secondWord = (tokens[1] ?? '').replace(/[,.!?;:]+$/, '');
+  const firstTwo = secondWord ? `${firstWord} ${secondWord}` : '';
   const opensWithReflexive =
     REFLEXIVE_OPENER_FIRST_WORDS.has(firstWord) ||
     REFLEXIVE_OPENER_TWO_WORDS.has(firstTwo);
   if (!opensWithReflexive) return response;
 
-  // Find end of first sentence — either sentence terminator or first newline.
-  const sentenceMatch = trimmed.match(/^[^.!?\n]*[.!?\n]+\s*/);
-  if (!sentenceMatch) return response;
+  // Find end of first sentence — terminator, newline, or end-of-string.
+  const sentenceMatch = trimmed.match(/^[^.!?\n]*(?:[.!?\n]+\s*|$)/);
+  if (!sentenceMatch || sentenceMatch[0].length === 0) return response;
   const remainder = trimmed.slice(sentenceMatch[0].length).trimStart();
   // If stripping leaves nothing, keep original to avoid empty response.
   if (remainder.length === 0) return response;
@@ -74,9 +76,11 @@ function stripReflexiveOpener(response: string): string {
  * Never-throw contract: any Haiku failure returns the original response.
  */
 export async function quarantinePraise(response: string, mode: ChrisMode): Promise<string> {
-  // Mode bypass — COACH and PSYCHOLOGY handle flattery in their own prompts
+  // Mode bypass — COACH and PSYCHOLOGY handle flattery in their own prompts (SYCO-05).
+  // Pure pass-through: neutral tokens like "Beautiful" or "Oh" can legitimately open
+  // substantive responses in these modes and must not be truncated.
   if (mode === 'COACH' || mode === 'PSYCHOLOGY') {
-    return stripReflexiveOpener(response);
+    return response;
   }
 
   try {
