@@ -153,10 +153,21 @@ export async function hybridSearch(
       return { entry: row.entry, score: blendedScore };
     });
 
+    // Deduplicate by entry_id — keep best-scoring chunk per entry
+    const bestByEntry = new Map<string, (typeof scored)[number]>();
+    for (const item of scored) {
+      const id = item.entry.id;
+      const existing = bestByEntry.get(id);
+      if (!existing || item.score > existing.score) {
+        bestByEntry.set(id, item);
+      }
+    }
+    const deduped = Array.from(bestByEntry.values());
+
     // Filter by minScore if provided
     const filtered = options.minScore != null
-      ? scored.filter((r) => r.score >= options.minScore!)
-      : scored;
+      ? deduped.filter((r) => r.score >= options.minScore!)
+      : deduped;
 
     // Re-sort by blended score descending and apply limit
     const results = filtered
