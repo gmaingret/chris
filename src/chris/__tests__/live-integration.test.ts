@@ -110,7 +110,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
         await db.delete(conversations).where(eq(conversations.chatId, TEST_CHAT_ID));
         clearLanguageState(TEST_CHAT_ID.toString());
       }
-    }, 60_000);
+    }, 90_000);
 
     it('responds in Russian when user writes Russian', async () => {
       for (let i = 0; i < 3; i++) {
@@ -127,7 +127,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
         await db.delete(conversations).where(eq(conversations.chatId, TEST_CHAT_ID));
         clearLanguageState(TEST_CHAT_ID.toString());
       }
-    }, 60_000);
+    }, 90_000);
 
     it('responds in English when user writes English', async () => {
       for (let i = 0; i < 3; i++) {
@@ -144,7 +144,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
         await db.delete(conversations).where(eq(conversations.chatId, TEST_CHAT_ID));
         clearLanguageState(TEST_CHAT_ID.toString());
       }
-    }, 60_000);
+    }, 90_000);
   });
 
   // ── Topic persistence (TEST-02) ─────────────────────────────────────────
