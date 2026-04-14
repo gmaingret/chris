@@ -89,6 +89,7 @@ export async function processMessage(
   chatId: bigint,
   userId: number,
   text: string,
+  opts?: { pensieveSource?: string },
 ): Promise<string> {
   // Input validation
   if (!text || text.trim().length === 0) {
@@ -158,7 +159,7 @@ export async function processMessage(
     let response: string;
     switch (mode) {
       case 'JOURNAL':
-        response = await handleJournal(chatId, text, language, declinedTopics);
+        response = await handleJournal(chatId, text, language, declinedTopics, opts);
         break;
       case 'INTERROGATE':
         response = await handleInterrogate(chatId, text, language, declinedTopics);
@@ -189,7 +190,7 @@ export async function processMessage(
           await saveMessage(chatId, 'USER', text, 'JOURNAL');
           userMessageSaved = true;
           const noPhotosContext = `${text}\n\n[Note: Chris searched the photo library but found no matching photos for this request.]`;
-          response = await handleJournal(chatId, noPhotosContext, language, declinedTopics);
+          response = await handleJournal(chatId, noPhotosContext, language, declinedTopics, opts);
         }
         break;
       }

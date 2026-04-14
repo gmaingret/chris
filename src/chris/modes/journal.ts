@@ -19,11 +19,12 @@ export async function handleJournal(
   text: string,
   language?: string,
   declinedTopics?: DeclinedTopic[],
+  opts?: { pensieveSource?: string },
 ): Promise<string> {
   const start = Date.now();
 
   // Store verbatim entry
-  const entry = await storePensieveEntry(text, 'telegram', {
+  const entry = await storePensieveEntry(text, opts?.pensieveSource ?? 'telegram', {
     telegramChatId: Number(chatId),
   });
 
