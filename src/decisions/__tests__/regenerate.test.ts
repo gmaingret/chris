@@ -21,6 +21,7 @@ async function seedDecision(status: string): Promise<string> {
     .insert(decisions)
     .values({
       status: status as never,
+      decisionText: 'seeded',
       resolveBy: new Date(Date.now() + 86_400_000),
       reasoning: 'seeded',
       prediction: 'seeded',
@@ -80,14 +81,16 @@ describe('regenerate: real DB — event replay roundtrip', () => {
       await transitionDecision(id, 'open', 'due', { actor: 'sweep' });
       // After the transition there's at least one event; now force a tied-timestamp on two new events
       // by direct INSERT (bypassing chokepoint — this is a test-only data forge for replay determinism).
-      const tied = new Date('2026-04-15T10:00:00.000Z');
+      // postgres.js tagged-template bindings require string/Buffer for timestamptz;
+      // ISO string coerces cleanly at the wire level.
+      const tied = '2026-04-15T10:00:00.000Z';
       await sql`
         INSERT INTO decision_events (decision_id, event_type, from_status, to_status, snapshot, actor, created_at)
-        VALUES (${id}, 'field_updated', NULL, NULL, ${JSON.stringify({ marker: 'first' })}::jsonb, 'system', ${tied})
+        VALUES (${id}, 'field_updated', NULL, NULL, ${JSON.stringify({ marker: 'first' })}::jsonb, 'system', ${tied}::timestamptz)
       `;
       await sql`
         INSERT INTO decision_events (decision_id, event_type, from_status, to_status, snapshot, actor, created_at)
-        VALUES (${id}, 'field_updated', NULL, NULL, ${JSON.stringify({ marker: 'second' })}::jsonb, 'system', ${tied})
+        VALUES (${id}, 'field_updated', NULL, NULL, ${JSON.stringify({ marker: 'second' })}::jsonb, 'system', ${tied}::timestamptz)
       `;
 
       // Regenerate must order by (created_at ASC, sequence_no ASC) — 'second' was inserted later, so
