@@ -34,7 +34,8 @@ export async function handleJournal(
 
   // Retrieve relevant Pensieve entries for grounding (RETR-01, D-01, D-10)
   const searchResults = await hybridSearch(text, JOURNAL_SEARCH_OPTIONS);
-  const pensieveContext = buildPensieveContext(searchResults);
+  // Phase 11 / RETR-04: suppress per-entry date prefix in JOURNAL so today's seed-stamp does not leak into "back on April 14th..." fabrications. INTERROGATE keeps dates (citation contract).
+  const pensieveContext = buildPensieveContext(searchResults, { includeDate: false });
 
   // Build conversation context
   const history = await buildMessageHistory(chatId);
