@@ -582,22 +582,22 @@ const muteResult = await detectMuteIntent(text);
 | A6 | Stakes classifier inline (not parallel with response pipeline) per Discretion default. Adds ≤3s latency to the triggering message reply but keeps logic simple. | Claude's Discretion item | Low — can be parallelized later if profiling shows noticeable lag. |
 | A7 | The `decision_trigger_suppressions` table uses a structured per-chat shape with `created_at` (not single-column text list) to enable Phase 17 `list`/`unsuppress` without migration. | Code Examples → Schema Extension for Suppressions | Low — this is Phase 17 forward-compat; single-column approach also works. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **D-03 parity guard vs D-01 PRD set cardinality mismatch (A2).**
    - What we know: D-01 is PRD-only (4 EN, 3 FR, 3 RU). D-03 requires `|EN|==|FR|==|RU|`.
    - What's unclear: Which wins at CI-test time?
-   - Recommendation: Planner should escalate to user (or make a judgment call + note it). Simplest resolution: add a fourth FR trigger (`je dois choisir entre`) and fourth RU (`мне нужно выбрать между`) matching the EN `I'm not sure whether` semantics. This preserves both invariants.
+   - RESOLVED: Plan 01 extends FR and RU fixtures to 4 phrases each (adding `je dois choisir entre` and `мне нужно выбрать между`). Plan 02 asserts `|EN|==|FR|==|RU|` at module-load with an explicit throw referencing D-03. Both invariants preserved.
 
 2. **3-turn cap + NOT NULL columns (A4).**
    - What we know: `decisions.reasoning`, `prediction`, `falsification_criterion` are NOT NULL at DB level.
    - What's unclear: What does D-11 "silent commit as open-draft" write for unfilled NOT NULL slots?
-   - Recommendation: Planner either (a) adopts explicit placeholder strings, or (b) re-interprets the 3-turn cap to fire only once DECISION + minimum-required slots are filled. Discuss-phase follow-up candidate.
+   - RESOLVED: Plan 04 Task 4 writes the placeholder string `(not specified in capture)` for any unfilled NOT NULL slot at 3-turn cap commit, with `decision_text` falling back to `triggering_message.slice(0, 500)`. Row lands as `open-draft` via the `null → open-draft` chokepoint path.
 
 3. **Stakes classifier latency budget.**
    - What we know: Triggering message → Phase A hit → Phase B Haiku (up to 3s) → capture-open reply with Q1. Greg experiences ~3s latency on the TRIGGERING turn (only).
    - What's unclear: Does this feel sluggish? Parallelizing with a provisional "Noted — give me a sec" filler isn't in CONTEXT.md.
-   - Recommendation: Ship inline per Discretion default; profile under real use; optimize later if needed. No action needed in planning.
+   - RESOLVED: Ship inline per Discretion default; no action needed in planning. Profile under real use; optimize later if latency proves noticeable.
 
 ## Validation Architecture
 
