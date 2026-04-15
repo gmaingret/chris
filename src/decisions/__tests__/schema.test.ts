@@ -91,13 +91,13 @@ describe('schema: real DB — Phase 13 tables, enums, and constraints', () => {
   describe('LIFE-04: NOT NULL constraints', () => {
     it('decisions.falsification_criterion is NOT NULL (INSERT without it throws)', async () => {
       await expect(
-        sql`INSERT INTO decisions (resolve_by, reasoning, prediction) VALUES (now(), 'x', 'y')`,
+        sql`INSERT INTO decisions (decision_text, resolve_by, reasoning, prediction) VALUES ('d', now(), 'x', 'y')`,
       ).rejects.toThrow(/null value in column "falsification_criterion"/i);
     });
 
     it('decisions.resolve_by is NOT NULL (INSERT without it throws)', async () => {
       await expect(
-        sql`INSERT INTO decisions (reasoning, prediction, falsification_criterion) VALUES ('x', 'y', 'z')`,
+        sql`INSERT INTO decisions (decision_text, reasoning, prediction, falsification_criterion) VALUES ('d', 'x', 'y', 'z')`,
       ).rejects.toThrow(/null value in column "resolve_by"/i);
     });
   });
