@@ -36,7 +36,7 @@ See [milestones/v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md) for full phase deta
 
 ### 🚧 v2.1 M007 Decision Archive (Phases 13-18)
 
-- [ ] **Phase 13: Schema & Lifecycle Primitives** — Append-only `decision_events`, projection `decisions`, capture-state table, transition chokepoint with optimistic concurrency
+- [x] **Phase 13: Schema & Lifecycle Primitives** — Append-only `decision_events`, projection `decisions`, capture-state table, transition chokepoint with optimistic concurrency (completed 2026-04-15)
 - [ ] **Phase 14: Capture Flow** — Two-phase trigger detection (regex + Haiku stakes), conversational 5-slot extraction, vague-prediction validator, pre-processors wired into engine
 - [ ] **Phase 15: Deadline Trigger & Sweep Integration** — Fifth SQL-first trigger at priority=2, channel separation (`reflective_outreach` vs `accountability_outreach`), dated stale-context prompts
 - [ ] **Phase 16: Resolution, Post-Mortem & ACCOUNTABILITY Mode** — New ACCOUNTABILITY mode bypassing praise quarantine, Pensieve-first write ordering, ±48h context retrieval, auto-escalation after 2 non-replies
@@ -57,11 +57,11 @@ See [milestones/v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md) for full phase deta
   5. A new `DECISION` value is added to the epistemic-tag enum so decision summaries cannot be picked up by the commitment trigger.
 **Plans**: 5 plans
 Plans:
-- [ ] 13-01-PLAN.md — Wave 0: failing test scaffolds for schema/lifecycle/regenerate/concurrency/capture-state/chokepoint-audit
-- [ ] 13-02-PLAN.md — Schema additions (pgEnums + 3 tables + DECISION epistemic tag) and migrations 0002/0003
-- [ ] 13-03-PLAN.md — [BLOCKING] Push migrations to Docker Postgres; schema.test.ts GREEN
-- [ ] 13-04-PLAN.md — Lifecycle chokepoint: errors.ts + lifecycle.ts + capture-state.ts; lifecycle/capture-state/chokepoint tests GREEN
-- [ ] 13-05-PLAN.md — regenerate.ts + concurrency pass + full npm test GREEN
+- [x] 13-01-PLAN.md — Wave 0: failing test scaffolds for schema/lifecycle/regenerate/concurrency/capture-state/chokepoint-audit
+- [x] 13-02-PLAN.md — Schema additions (pgEnums + 3 tables + DECISION epistemic tag) and migrations 0002/0003
+- [x] 13-03-PLAN.md — [BLOCKING] Push migrations to Docker Postgres; schema.test.ts GREEN
+- [x] 13-04-PLAN.md — Lifecycle chokepoint: errors.ts + lifecycle.ts + capture-state.ts; lifecycle/capture-state/chokepoint tests GREEN
+- [x] 13-05-PLAN.md — regenerate.ts + concurrency pass + full npm test GREEN
 
 ### Phase 14: Capture Flow
 **Goal**: A structural decision mentioned in any of Greg's three languages becomes a durable, falsifiable `decisions` row without the capture conversation ever feeling like an interrogation.
@@ -138,7 +138,7 @@ Plans:
 | 10. Live Validation Suite         | v2.0      | 2/2   | Complete     | 2026-04-14 |
 | 11. Identity Grounding            | v2.0      | 3/3   | Complete     | 2026-04-15 |
 | 12. Identity rename residuals     | v2.0      | 1/1   | Complete     | 2026-04-15 |
-| 13. Schema & Lifecycle Primitives | v2.1      | 0/5   | Planned      | -          |
+| 13. Schema & Lifecycle Primitives | v2.1      | 5/5 | Complete   | 2026-04-15 |
 | 14. Capture Flow                  | v2.1      | 0/?   | Not started  | -          |
 | 15. Deadline Trigger & Sweep      | v2.1      | 0/?   | Not started  | -          |
 | 16. Resolution + ACCOUNTABILITY   | v2.1      | 0/?   | Not started  | -          |
