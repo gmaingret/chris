@@ -3,7 +3,7 @@ phase: 13
 slug: schema-lifecycle-primitives
 status: draft
 nyquist_compliant: false
-wave_0_complete: false
+wave_0_complete: true
 created: 2026-04-15
 ---
 
@@ -59,12 +59,12 @@ See `13-RESEARCH.md` §"Validation Architecture" → "Phase Requirements → Tes
 
 ## Wave 0 Requirements
 
-- [ ] `src/decisions/__tests__/schema.test.ts` — LIFE-01, LIFE-04, LIFE-06 (asserts against `information_schema` / `pg_enum`)
-- [ ] `src/decisions/__tests__/lifecycle.test.ts` — LIFE-02, LIFE-03 (happy path + illegal-transition enumeration)
-- [ ] `src/decisions/__tests__/regenerate.test.ts` — LIFE-02 (replay roundtrip: happy + withdrawn side-path)
-- [ ] `src/decisions/__tests__/concurrency.test.ts` — LIFE-03 (two-client deterministic race)
-- [ ] `src/decisions/__tests__/capture-state.test.ts` — helpers around `decision_capture_state`
-- [ ] `src/decisions/__tests__/chokepoint-audit.test.ts` — grep-based audit ensuring `decisions.status` is not mutated outside `lifecycle.ts`
+- [x] `src/decisions/__tests__/schema.test.ts` — LIFE-01, LIFE-04, LIFE-06 (asserts against `information_schema` / `pg_enum`)
+- [x] `src/decisions/__tests__/lifecycle.test.ts` — LIFE-02, LIFE-03 (happy path + illegal-transition enumeration)
+- [x] `src/decisions/__tests__/regenerate.test.ts` — LIFE-02 (replay roundtrip: happy + withdrawn side-path)
+- [x] `src/decisions/__tests__/concurrency.test.ts` — LIFE-03 (shared-pool Promise.allSettled race)
+- [x] `src/decisions/__tests__/capture-state.test.ts` — helpers around `decision_capture_state`
+- [x] `src/decisions/__tests__/chokepoint-audit.test.ts` — grep-based audit ensuring `decisions.status` is not mutated outside `lifecycle.ts`
 - [x] Framework install: none — Vitest 4.1.2 already present
 - [x] Docker PG harness: already proven by `src/chris/__tests__/contradiction-integration.test.ts`
 
