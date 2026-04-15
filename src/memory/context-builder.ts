@@ -70,6 +70,11 @@ export function buildRelationalContext(memories: RelationalMemory[]): string {
 /** Minimum cosine similarity score for a search result to be included in context. */
 const SIMILARITY_THRESHOLD = 0.3;
 
+export interface PensieveContextOptions {
+  /** Include the (YYYY-MM-DD | ...) date prefix on each entry. Default true. */
+  includeDate?: boolean;
+}
+
 /**
  * Build a formatted context string from Pensieve search results for the
  * interrogate system prompt.
@@ -77,19 +82,27 @@ const SIMILARITY_THRESHOLD = 0.3;
  * Filters out results with score < 0.3, then formats each remaining result
  * as a numbered citation block: `[1] (2025-03-15 | EXPERIENCE | 0.87) "content"`.
  * Returns empty string if no results pass the threshold.
+ *
+ * When opts.includeDate === false, the date prefix is omitted and the block
+ * format becomes `[1] (TAG | score) "content"` — used by JOURNAL to suppress
+ * storage-timestamp leakage that causes fabricated prior-mention claims.
  */
-export function buildPensieveContext(results: SearchResult[]): string {
+export function buildPensieveContext(results: SearchResult[], opts: PensieveContextOptions = {}): string {
+  const includeDate = opts.includeDate ?? true;
   const filtered = results.filter((r) => r.score >= SIMILARITY_THRESHOLD);
 
   if (filtered.length === 0) return '';
 
   return filtered
     .map((r, i) => {
+      const tag = r.entry.epistemicTag ?? 'UNTAGGED';
+      const score = r.score.toFixed(2);
+      if (!includeDate) {
+        return `[${i + 1}] (${tag} | ${score}) "${r.entry.content}"`;
+      }
       const date = r.entry.createdAt
         ? new Date(r.entry.createdAt).toISOString().slice(0, 10)
         : 'unknown-date';
-      const tag = r.entry.epistemicTag ?? 'UNTAGGED';
-      const score = r.score.toFixed(2);
       return `[${i + 1}] (${date} | ${tag} | ${score}) "${r.entry.content}"`;
     })
     .join('\n');

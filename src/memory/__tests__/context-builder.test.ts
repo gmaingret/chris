@@ -223,6 +223,62 @@ describe('buildMessageHistory', () => {
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+describe('buildPensieveContext { includeDate } option (Phase 11 / RETR-01)', () => {
+  it('default (no opts) emits date-prefixed entries — backward compatible', () => {
+    const results = [
+      makeResult({
+        content: 'Greg is French',
+        createdAt: new Date('2025-03-15'),
+        epistemicTag: 'FACT',
+        score: 0.87,
+      }),
+    ];
+    const result = buildPensieveContext(results);
+    expect(result).toMatch(/\(\d{4}-\d{2}-\d{2} \| /);
+  });
+
+  it('opts.includeDate=true emits date-prefixed entries', () => {
+    const results = [
+      makeResult({
+        content: 'Greg is French',
+        createdAt: new Date('2025-03-15'),
+        epistemicTag: 'FACT',
+        score: 0.87,
+      }),
+    ];
+    const result = buildPensieveContext(results, { includeDate: true });
+    expect(result).toMatch(/\(\d{4}-\d{2}-\d{2} \| /);
+  });
+
+  it('opts.includeDate=false omits the YYYY-MM-DD date prefix', () => {
+    const results = [
+      makeResult({
+        content: 'Greg is French',
+        createdAt: new Date('2025-03-15'),
+        epistemicTag: 'FACT',
+        score: 0.87,
+      }),
+    ];
+    const result = buildPensieveContext(results, { includeDate: false });
+    expect(result).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+    expect(result).toMatch(/^\[1\] \([A-Z]+ \| \d\.\d{2}\) /);
+  });
+
+  it('opts.includeDate=false still respects SIMILARITY_THRESHOLD filter', () => {
+    const results = [makeResult({ score: 0.2 })];
+    const result = buildPensieveContext(results, { includeDate: false });
+    expect(result).toBe('');
+  });
+
+  it('opts.includeDate=false with null createdAt does not emit unknown-date', () => {
+    const results = [makeResult({ createdAt: null, score: 0.5 })];
+    const result = buildPensieveContext(results, { includeDate: false });
+    expect(result).not.toContain('unknown-date');
+  });
+});
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 
 describe('buildRelationalContext', async () => {
   const { buildRelationalContext } = await import('../context-builder.js');
