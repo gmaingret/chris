@@ -15,6 +15,20 @@
       "when": 1774620480709,
       "tag": "0001_add_photos_psychology_mode",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1776267312687,
+      "tag": "0002_decision_archive",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1776267312688,
+      "tag": "0003_add_decision_epistemic_tag",
+      "breakpoints": true
     }
   ]
 }

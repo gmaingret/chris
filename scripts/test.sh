@@ -7,6 +7,8 @@ COMPOSE_FILE="docker-compose.local.yml"
 DB_URL="postgresql://chris:localtest123@localhost:5433/chris"
 MIGRATION_SQL="src/db/migrations/0000_curved_colonel_america.sql"
 ENUM_FIX_SQL="src/db/migrations/0001_add_photos_psychology_mode.sql"
+MIGRATION_2_SQL="src/db/migrations/0002_decision_archive.sql"
+MIGRATION_3_SQL="src/db/migrations/0003_add_decision_epistemic_tag.sql"
 
 cleanup() {
   echo "🧹 Stopping test postgres..."
@@ -29,6 +31,8 @@ echo "📦 Running migrations..."
 docker compose -f "$COMPOSE_FILE" exec postgres psql -U chris -d chris -c "CREATE EXTENSION IF NOT EXISTS vector;" -q 2>/dev/null
 cat "$MIGRATION_SQL" | docker compose -f "$COMPOSE_FILE" exec -T postgres psql -U chris -d chris -q 2>/dev/null
 cat "$ENUM_FIX_SQL" | docker compose -f "$COMPOSE_FILE" exec -T postgres psql -U chris -d chris -q 2>/dev/null
+cat "$MIGRATION_2_SQL" | docker compose -f "$COMPOSE_FILE" exec -T postgres psql -U chris -d chris -q 2>/dev/null
+cat "$MIGRATION_3_SQL" | docker compose -f "$COMPOSE_FILE" exec -T postgres psql -U chris -d chris -q 2>/dev/null
 
 echo "🧪 Running tests..."
 DATABASE_URL="$DB_URL" \
