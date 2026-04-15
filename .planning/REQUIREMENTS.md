@@ -77,12 +77,43 @@
 
 ## Traceability
 
-(filled by roadmapper after phase structure is approved)
-
 | Requirement | Phase | Status  | Notes |
 |-------------|-------|---------|-------|
-| CAP-01 … TEST-14 | TBD | Pending | — |
+| CAP-01      | 14    | Pending | Two-phase detection (regex + Haiku stakes) — atomic with Phase B (guards C3) |
+| CAP-02      | 14    | Pending | Conversational Haiku extraction (guards C1) |
+| CAP-03      | 14    | Pending | 3-turn cap + EN/FR/RU abort phrase |
+| CAP-04      | 14    | Pending | `open-draft` partial-commit |
+| CAP-05      | 14    | Pending | Natural-language `resolve_by` + 7/30/90/365d fallback ladder |
+| CAP-06      | 14    | Pending | `/decisions suppress` sub-command (persistent) |
+| LIFE-01     | 13    | Pending | Drizzle schema + pgEnums (including open-draft/withdrawn/stale/abandoned) |
+| LIFE-02     | 13    | Pending | Append-only `decision_events`; `decisions` is projection (guards C4) |
+| LIFE-03     | 13    | Pending | `transitionDecision()` chokepoint + optimistic concurrency |
+| LIFE-04     | 13    | Pending | `falsification_criterion NOT NULL` + hedge-word validator (guards C2) |
+| LIFE-05     | 14    | Pending | Contradiction detection extended to decisions.reasoning |
+| LIFE-06     | 13    | Pending | `DECISION` epistemic tag (prevents commitment trigger double-fire) |
+| RES-01      | 16    | Pending | ACCOUNTABILITY mode bypasses praise quarantine + forbids The Hard Rule (guards C7) |
+| RES-02      | 16    | Pending | 24h surfacing + prediction citation in Greg's language |
+| RES-03      | 16    | Pending | Pre-processor routes AWAITING_RESOLUTION to resolution handler |
+| RES-04      | 16    | Pending | Single Haiku-classified post-mortem; both replies become Pensieve entries with source_ref_id |
+| RES-05      | 16    | Pending | ±48h Pensieve context + Popper criterion redisplay |
+| RES-06      | 16    | Pending | 48h auto-escalation; 2 non-replies → `stale` |
+| STAT-01     | 17    | Pending | `/decisions` + sub-commands, pull-only |
+| STAT-02     | 17    | Pending | 2-axis Haiku classification cached on decision_events with model version (guards M4) |
+| STAT-03     | 17    | Pending | N≥10 floor + Wilson 95% CI (guards C6) |
+| STAT-04     | 17    | Pending | SQL FILTER windows; `unverifiable` separate denominator |
+| STAT-05     | 17    | Pending | Domain-tag breakdown + `/decisions reclassify` preserving originals |
+| SWEEP-01    | 15    | Pending | `decision-deadline` trigger priority=2 |
+| SWEEP-02    | 15    | Pending | Channel separation `reflective_outreach` vs `accountability_outreach` (guards C5) |
+| SWEEP-03    | 14    | Pending | Engine pre-processor #0 runs before mute/refusal/language/mode |
+| SWEEP-04    | 15    | Pending | Dated prompt text >48h past `resolve_by` |
+| TEST-10     | 18    | Pending | End-to-end `vi.setSystemTime` 14-day fixture |
+| TEST-11     | 18    | Pending | Concurrency race — optimistic concurrency winner |
+| TEST-12     | 18    | Pending | Same-day decision-deadline + silence collision |
+| TEST-13     | 18    | Pending | Live ACCOUNTABILITY suite — hit/miss/unverifiable × 3-of-3 real Sonnet (D023/D032) |
+| TEST-14     | 18    | Pending | Vague-prediction Haiku validator ≥9/10 flags + one pushback |
+
+**Coverage:** 31/31 ✓ — no orphans.
 
 ---
 
-*Defined: 2026-04-15*
+*Defined: 2026-04-15 · Traceability filled: 2026-04-15*
