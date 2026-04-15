@@ -51,6 +51,7 @@ async function seedDecision(status: string): Promise<string> {
     .insert(decisions)
     .values({
       status: status as never,
+      decisionText: 'seeded',
       resolveBy: new Date(Date.now() + 86_400_000),
       reasoning: 'seeded',
       prediction: 'seeded',
