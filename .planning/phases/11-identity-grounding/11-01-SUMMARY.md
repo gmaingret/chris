@@ -25,6 +25,7 @@ metrics:
   tasks_completed: 2
   tasks_total: 2
   files_changed: 3
+requirements-completed: [RETR-01, RETR-02]
 ---
 
 # Phase 11 Plan 01: Identity Grounding Infrastructure Summary
