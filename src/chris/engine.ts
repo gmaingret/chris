@@ -138,8 +138,9 @@ export async function processMessage(
 
     // Pre-process: detect language (LANG-01, LANG-02)
     const previousLanguage = getLastUserLanguage(chatIdStr);
-    const language = detectLanguage(text, previousLanguage);
-    if (language) setLastUserLanguage(chatIdStr, language);
+    const detectedLanguage = detectLanguage(text, previousLanguage);
+    if (detectedLanguage) setLastUserLanguage(chatIdStr, detectedLanguage);
+    const language = detectedLanguage ?? undefined;
     const declinedTopics = getDeclinedTopics(chatIdStr);
 
     // Detect mode first so we can tag the user message correctly
