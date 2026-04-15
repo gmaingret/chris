@@ -27,7 +27,7 @@
 - [ ] **Phase 8: Retrieval & Grounding** - JOURNAL hybrid retrieval, structured fact injection, hallucination resistance
 - [ ] **Phase 9: Praise Quarantine** - Haiku post-processor strips reflexive flattery from JOURNAL/REFLECT/PRODUCE
 - [ ] **Phase 10: Live Validation Suite** - 24-case integration tests against real Sonnet + contradiction false-positive audit (re-opened 2026-04-14 — TEST-03 regression)
-- [ ] **Phase 11: Identity Grounding** - Unify persona identity so retrieved Greg-facts ground into first/second-person context (closes RETR-01/02/04, TEST-03 regression)
+- [x] **Phase 11: Identity Grounding** - Unify persona identity so retrieved Greg-facts ground into first/second-person context (closes RETR-01/02/04, TEST-03 regression)
 
 ## Phase Details
 
@@ -104,7 +104,11 @@ Plans:
   2. `buildKnownFactsBlock` frames facts as "Facts about you (Greg)" so the model does not split the subject into third-party
   3. Current-date injection is suppressed (or gated) in JOURNAL so responses do not fabricate prior-mention claims tied to today's date
   4. `live-integration.test.ts` TEST-03 (JOURNAL grounding) passes 3-of-3 on three consecutive clean runs
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 11-01-PLAN.md — PensieveContextOptions + pre-staged identity test assertions
+- [ ] 11-02-PLAN.md — Rename John→Greg across prompts/preamble/facts block + wire JOURNAL includeDate:false
+- [ ] 11-03-PLAN.md — TEST-03 3-of-3 gate on three consecutive clean runs
 **UI hint**: no
 
 ## Progress
@@ -123,4 +127,4 @@ Plans:
 | 8. Retrieval & Grounding | v2.0 M006 | 0/TBD | Not started | - |
 | 9. Praise Quarantine | v2.0 M006 | 0/TBD | Not started | - |
 | 10. Live Validation Suite | v2.0 M006 | 2/2 | Re-opened (TEST-03 regression 2026-04-14) | - |
-| 11. Identity Grounding | v2.0 M006 | 0/TBD | Not started | - |
+| 11. Identity Grounding | v2.0 M006 | 0/3 | Planned | - |
