@@ -75,7 +75,7 @@ Plans:
   5. Greg can suppress a trigger phrase or captured decision via `/decisions suppress <phrase>` and the suppression persists across restarts; contradiction detection scans new `decisions.reasoning` entries fire-and-forget with the existing 0.75/3s thresholds.
 **Plans**: 5 plans
 Plans:
-- [ ] 14-01-PLAN.md — Wave 0: schema 0004, prompt constants, trigger fixtures, six RED test scaffolds
+- [x] 14-01-PLAN.md — Wave 0: schema 0004, prompt constants, trigger fixtures, six RED test scaffolds
 - [ ] 14-02-PLAN.md — Wave 1: CAP-01 — Phase A regex (EN/FR/RU with parity) + Phase B Haiku stakes classifier (fail-closed)
 - [ ] 14-03-PLAN.md — Wave 1: CAP-06 primitive — DB-backed suppressions with per-chat substring match
 - [ ] 14-04-PLAN.md — Wave 1: CAP-02/03/04/05 + LIFE-05 — capture.ts, resolve-by.ts, vague-validator.ts, capture-state write helpers
@@ -169,7 +169,7 @@ Plans:
 | 11. Identity Grounding            | v2.0      | 3/3   | Complete     | 2026-04-15 |
 | 12. Identity rename residuals     | v2.0      | 1/1   | Complete     | 2026-04-15 |
 | 13. Schema & Lifecycle Primitives | v2.1      | 5/5 | Complete   | 2026-04-15 |
-| 14. Capture Flow                  | v2.1      | 0/?   | Not started  | -          |
+| 14. Capture Flow                  | v2.1      | 1/5 | In Progress|  |
 | 15. Deadline Trigger & Sweep      | v2.1      | 0/?   | Not started  | -          |
 | 16. Resolution + ACCOUNTABILITY   | v2.1      | 0/?   | Not started  | -          |
 | 17. `/decisions` & Accuracy Stats | v2.1      | 0/?   | Not started  | -          |

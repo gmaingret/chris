@@ -9,12 +9,12 @@
 
 ### Capture
 
-- [ ] **CAP-01**: Two-phase decision trigger detection — Phase A regex matches decision phrases in EN/FR/RU ("I'm thinking about", "je réfléchis à", "я думаю о", plus full PRD set); Phase B Haiku stakes classifier (`trivial`/`moderate`/`structural`) gates capture — only `structural` activates the flow.
+- [x] **CAP-01**: Two-phase decision trigger detection — Phase A regex matches decision phrases in EN/FR/RU ("I'm thinking about", "je réfléchis à", "я думаю о", plus full PRD set); Phase B Haiku stakes classifier (`trivial`/`moderate`/`structural`) gates capture — only `structural` activates the flow.
 - [ ] **CAP-02**: 5-question guided capture is implemented as conversational extraction via Haiku structured output, not a rigid Q1→Q5 script — one-message multi-answer is consolidated without re-prompting.
 - [ ] **CAP-03**: Capture has a 3-turn follow-up cap and accepts an abort/escape phrase ("never mind", EN/FR/RU) that cleanly dismisses the in-progress capture.
 - [ ] **CAP-04**: `open-draft` partial-commit status exists — capture can land decisions with missing optional fields rather than null-stuffing or discarding.
 - [ ] **CAP-05**: `resolve_by` accepts natural-language timeframes ("next week", "in 3 months", "by June") with a documented fallback ladder (7 / 30 / 90 / 365 days) when Haiku cannot parse.
-- [ ] **CAP-06**: Per-user trigger-suppression list — Greg can mark phrases or specific captured-decision ids as "don't trigger on this pattern again" via a `/decisions suppress <phrase>` sub-command.
+- [x] **CAP-06**: Per-user trigger-suppression list — Greg can mark phrases or specific captured-decision ids as "don't trigger on this pattern again" via a `/decisions suppress <phrase>` sub-command.
 
 ### Lifecycle
 
@@ -79,12 +79,12 @@
 
 | Requirement | Phase | Status  | Notes |
 |-------------|-------|---------|-------|
-| CAP-01      | 14    | Pending | Two-phase detection (regex + Haiku stakes) — atomic with Phase B (guards C3) |
+| CAP-01      | 14    | Complete | Two-phase detection (regex + Haiku stakes) — atomic with Phase B (guards C3) |
 | CAP-02      | 14    | Pending | Conversational Haiku extraction (guards C1) |
 | CAP-03      | 14    | Pending | 3-turn cap + EN/FR/RU abort phrase |
 | CAP-04      | 14    | Pending | `open-draft` partial-commit |
 | CAP-05      | 14    | Pending | Natural-language `resolve_by` + 7/30/90/365d fallback ladder |
-| CAP-06      | 14    | Pending | `/decisions suppress` sub-command (persistent) |
+| CAP-06      | 14    | Complete | `/decisions suppress` sub-command (persistent) |
 | LIFE-01     | 13    | Pending | Drizzle schema + pgEnums (including open-draft/withdrawn/stale/abandoned) |
 | LIFE-02     | 13    | Pending | Append-only `decision_events`; `decisions` is projection (guards C4) |
 | LIFE-03     | 13    | Pending | `transitionDecision()` chokepoint + optimistic concurrency |
