@@ -291,35 +291,40 @@ Execution runs inside GSD v1 (`get-shit-done-cc`), not v2. GSD v1 operates as Cl
 
 ---
 
-## Current Milestone: v2.0 M006 Trustworthy Chris
-
-**Goal:** Fix four trust-breaking conversational failures (refusal ignoring, fact confabulation, performative apologies, question pressure) and harden Chris with constitutional anti-sycophancy + structured fact retrieval before any soul-system work is layered on top.
-
-**Target features:**
-- Refusal handling in all 6 system prompts + per-session declined-topics state
-- JOURNAL mode upgraded to hybrid retrieval (FACT/RELATIONSHIP/PREFERENCE/VALUE tags)
-- Language detection via `franc` as engine pre-processing (not prompt rules)
-- Question-pressure reduced in JOURNAL prompt — questions become optional
-- Constitutional anti-sycophancy preamble (shared prefix, all 6 modes) + The Hard Rule + 3 forbidden behaviors
-- Praise quarantine — Haiku post-processor strips reflexive flattery from JOURNAL/REFLECT/PRODUCE
-- Structured fact injection — "Known Facts" key-value block in system prompts
-- 24-case live integration test suite (3-of-3 against real Sonnet)
-- Contradiction detection false-positive audit (20 adversarial non-contradictory pairs)
-- Memory audit against ground truth before any code changes
-
 ## Current State
 
-M001–M005 complete. Chris is deployed and running on self-hosted server. Both containers healthy.
+**Shipped:** v1.0 (2026-04-13), v2.0 M006 Trustworthy Chris (2026-04-15).
 
-M006 started 2026-04-13. Fixes conversational trust failures observed in real Telegram use on 2026-04-11 (refusal handling, language matching, question-pressure, fact confabulation) that would compound across all subsequent milestones if left unaddressed.
+All 26 v2.0 requirements satisfied with code + live-suite evidence. Chris is deployed on self-hosted Proxmox (192.168.1.50) with both containers healthy. Four trust-breaking failures observed on 2026-04-11 (refusal ignoring, fact confabulation, performative apologies, question pressure) are closed. Constitutional anti-sycophancy preamble, `franc`-based language detection, JOURNAL hybrid retrieval with structured Known Facts block, Haiku praise quarantine, 24-case live integration suite, and 20-pair contradiction FP audit are all in place. Identity grounding ("Greg" in all user-facing prompts) unified after Phase 10 surfaced a TEST-03 regression.
 
-Phase 6 complete (2026-04-13): Memory audit — all production FACT/RELATIONSHIP entries verified against ground truth. No incorrect entries found. Schema bug fixed (duplicate enum values). RETR-03 satisfied.
+Zero tech debt carried into v3.0.
 
-Phase 7 complete: Foundational behavioral fixes — constitutional preamble, refusal handling, language detection, question-pressure reduction.
+Archived detail: `.planning/milestones/v2.0-ROADMAP.md`, `.planning/milestones/v2.0-REQUIREMENTS.md`, `.planning/milestones/v2.0-MILESTONE-AUDIT.md`.
 
-Phase 8 complete: Retrieval & grounding — JOURNAL hybrid retrieval, structured fact injection, hallucination resistance.
+## Next Milestone
 
-Phase 9 complete (2026-04-13): Praise quarantine — Haiku post-processor strips reflexive flattery from JOURNAL/REFLECT/PRODUCE responses. COACH/PSYCHOLOGY bypass. Never-throw contract. 3s timeout guard. SYCO-04, SYCO-05 satisfied.
+Per the soul-system execution order (see "Implementation Phases" below), next up is **M007 Decision Archive**. Start with `/gsd-new-milestone`. Per the between-phases pause discipline, M006 should run for at least a week in real use before M007 starts — validate trust fixes against real conversation before layering new scope.
+
+<details>
+<summary>v2.0 M006 Trustworthy Chris (shipped — historical)</summary>
+
+**Goal:** Fix four trust-breaking conversational failures and harden Chris with constitutional anti-sycophancy + structured fact retrieval before any soul-system work is layered on top.
+
+**Delivered:**
+- Refusal handling in all 6 system prompts + per-session declined-topics state (Phase 7)
+- JOURNAL mode upgraded to hybrid retrieval with FACT/RELATIONSHIP/PREFERENCE/VALUE tags (Phase 8, 11)
+- Language detection via `franc` as engine pre-processing with short-message threshold (Phase 7)
+- Question-pressure reduced in JOURNAL prompt (Phase 7)
+- Constitutional anti-sycophancy preamble + The Hard Rule + 3 forbidden behaviors (Phase 7)
+- Praise quarantine — Haiku post-processor for JOURNAL/REFLECT/PRODUCE (Phase 9)
+- Structured fact injection — "Facts about you (Greg)" key-value block (Phase 8, 11)
+- 24-case live integration test suite, 3-of-3 against real Sonnet (Phase 10)
+- Contradiction detection false-positive audit, 0 FP on 20 adversarial pairs (Phase 10)
+- Memory audit against ground truth (Phase 6)
+- Identity grounding: John→Greg unification (Phase 11)
+- Tech-debt closure: residual rename + SUMMARY frontmatter backfill (Phase 12)
+
+</details>
 
 ## Evolution
 
@@ -339,4 +344,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-13 after Phase 9 (Praise Quarantine) completed*
+*Last updated: 2026-04-15 after v2.0 M006 Trustworthy Chris milestone shipped*
