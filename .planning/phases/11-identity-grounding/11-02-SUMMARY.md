@@ -29,6 +29,7 @@ metrics:
   tasks_completed: 3
   tasks_total: 3
   files_changed: 5
+requirements-completed: [RETR-01, RETR-02, RETR-04]
 ---
 
 # Phase 11 Plan 02: Identity Grounding — Greg Unification Summary
