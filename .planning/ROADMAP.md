@@ -55,7 +55,13 @@ See [milestones/v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md) for full phase deta
   3. `transitionDecision(id, toStatus, payload)` is the only code path that mutates `decisions.status`; it uses `UPDATE … WHERE id=$id AND status=$expected` and throws `InvalidTransitionError` on any move outside the legal map.
   4. `decisions.falsification_criterion` is `NOT NULL` at the DB layer and `resolve_by` is `NOT NULL`; unit tests cover every illegal transition and the optimistic-concurrency race.
   5. A new `DECISION` value is added to the epistemic-tag enum so decision summaries cannot be picked up by the commitment trigger.
-**Plans**: TBD
+**Plans**: 5 plans
+Plans:
+- [ ] 13-01-PLAN.md — Wave 0: failing test scaffolds for schema/lifecycle/regenerate/concurrency/capture-state/chokepoint-audit
+- [ ] 13-02-PLAN.md — Schema additions (pgEnums + 3 tables + DECISION epistemic tag) and migrations 0002/0003
+- [ ] 13-03-PLAN.md — [BLOCKING] Push migrations to Docker Postgres; schema.test.ts GREEN
+- [ ] 13-04-PLAN.md — Lifecycle chokepoint: errors.ts + lifecycle.ts + capture-state.ts; lifecycle/capture-state/chokepoint tests GREEN
+- [ ] 13-05-PLAN.md — regenerate.ts + concurrency pass + full npm test GREEN
 
 ### Phase 14: Capture Flow
 **Goal**: A structural decision mentioned in any of Greg's three languages becomes a durable, falsifiable `decisions` row without the capture conversation ever feeling like an interrogation.
@@ -132,7 +138,7 @@ See [milestones/v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md) for full phase deta
 | 10. Live Validation Suite         | v2.0      | 2/2   | Complete     | 2026-04-14 |
 | 11. Identity Grounding            | v2.0      | 3/3   | Complete     | 2026-04-15 |
 | 12. Identity rename residuals     | v2.0      | 1/1   | Complete     | 2026-04-15 |
-| 13. Schema & Lifecycle Primitives | v2.1      | 0/?   | Not started  | -          |
+| 13. Schema & Lifecycle Primitives | v2.1      | 0/5   | Planned      | -          |
 | 14. Capture Flow                  | v2.1      | 0/?   | Not started  | -          |
 | 15. Deadline Trigger & Sweep      | v2.1      | 0/?   | Not started  | -          |
 | 16. Resolution + ACCOUNTABILITY   | v2.1      | 0/?   | Not started  | -          |
