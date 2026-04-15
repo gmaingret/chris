@@ -31,6 +31,21 @@ export interface TransitionPayload {
 }
 
 /**
+ * Coerce non-JSON-serializable values on a decisions row into forms that can
+ * round-trip through jsonb. In particular, `chat_id` is a bigint in JS (column
+ * declared `bigint({ mode: 'bigint' })` in schema.ts), and `JSON.stringify`
+ * throws `TypeError: Do not know how to serialize a BigInt`. Postgres jsonb
+ * cannot natively store bigints either, so we stringify it on the write side
+ * and `regenerate.ts` rehydrates it with `BigInt(...)` on the read side.
+ */
+function snapshotForEvent(row: typeof decisions.$inferSelect): object {
+  return {
+    ...row,
+    chatId: row.chatId === null ? null : row.chatId.toString(),
+  };
+}
+
+/**
  * THE chokepoint. The ONLY code path that SETs decisions.status.
  *
  * Signature: caller passes expected `fromStatus` explicitly. This gives us:
@@ -106,7 +121,7 @@ export async function transitionDecision(
       eventType: 'status_changed',
       fromStatus,
       toStatus,
-      snapshot: updated[0]! as unknown as object,
+      snapshot: snapshotForEvent(updated[0]!),
       actor,
     });
 

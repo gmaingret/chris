@@ -62,6 +62,42 @@ describe('regenerate: real DB — event replay roundtrip', () => {
     });
   });
 
+  describe('CR-01 regression: bigint chat_id round-trips through event snapshot', () => {
+    it('seeded decision with chatId: 123n transitions successfully and regenerate deep-equals projection', async () => {
+      // Seed directly (not via seedDecision helper) so we can set chatId.
+      const [row] = await db
+        .insert(decisions)
+        .values({
+          status: 'open' as never,
+          decisionText: 'bigint-roundtrip',
+          resolveBy: new Date(Date.now() + 86_400_000),
+          reasoning: 'seeded',
+          prediction: 'seeded',
+          falsificationCriterion: 'seeded',
+          chatId: 123n,
+        })
+        .returning();
+      const id = row.id as string;
+
+      // Without the CR-01 fix, this step throws `TypeError: Do not know how to
+      // serialize a BigInt` from JSON.stringify during the jsonb snapshot insert,
+      // which rolls back the whole transition.
+      await transitionDecision(id, 'open', 'due', { actor: 'sweep' });
+
+      const [projection] = await db.select().from(decisions).where(eq(decisions.id, id));
+      expect(projection).toBeDefined();
+      expect(projection!.chatId).toBe(123n);
+      expect(projection!.status).toBe('due');
+
+      const regenerated = await regenerateDecisionFromEvents(id);
+      expect(regenerated).not.toBeNull();
+      // Round-trip parity: regenerate.ts rehydrates the stringified chatId back
+      // to BigInt, matching Drizzle's bigint-mode read on the live projection.
+      expect(regenerated).toEqual(projection);
+      expect(regenerated!.chatId).toBe(123n);
+    });
+  });
+
   describe('LIFE-02: side-path roundtrip (open → withdrawn)', () => {
     it('regenerated row deep-equals live projection with status=withdrawn', async () => {
       const id = await seedDecision('open');
