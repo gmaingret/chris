@@ -91,7 +91,7 @@ describe('JOURNAL hybrid retrieval (RETR-01)', () => {
     const fakeResults = [{ entry: { id: '1', content: 'test' }, score: 0.9 }];
     mockHybridSearch.mockResolvedValue(fakeResults);
     await handleJournal(CHAT_ID, 'test message');
-    expect(mockBuildPensieveContext).toHaveBeenCalledWith(fakeResults);
+    expect(mockBuildPensieveContext).toHaveBeenCalledWith(fakeResults, { includeDate: false });
   });
 
   it('passes pensieveContext (not undefined) to buildSystemPrompt via Sonnet call', async () => {
@@ -113,7 +113,7 @@ describe('JOURNAL hybrid retrieval (RETR-01)', () => {
     mockHybridSearch.mockResolvedValue([]);
     mockBuildPensieveContext.mockReturnValue('');
     await handleJournal(CHAT_ID, 'test');
-    expect(mockBuildPensieveContext).toHaveBeenCalledWith([]);
+    expect(mockBuildPensieveContext).toHaveBeenCalledWith([], { includeDate: false });
   });
 });
 
@@ -150,7 +150,7 @@ describe('end-to-end prompt assembly', () => {
     const createCall = mockCreate.mock.calls[0][0];
     const system = createCall.system[0].text;
     // Known Facts block present (from buildKnownFactsBlock)
-    expect(system).toContain('Known Facts About John');
+    expect(system).toContain('Facts about you (Greg)');
     // PensieveContext replaced (not literal placeholder)
     expect(system).toContain('Greg lives in Saint Petersburg');
     expect(system).not.toContain('{pensieveContext}');

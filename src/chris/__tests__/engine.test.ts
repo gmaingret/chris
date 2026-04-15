@@ -269,7 +269,7 @@ describe('buildSystemPrompt', () => {
     // buildSystemPrompt prepends constitutional preamble and appends Known Facts
     expect(result).toContain('You are Chris');
     expect(result).toContain('Core Principles');
-    expect(result).toContain('Known Facts About John');
+    expect(result).toContain('Facts about you (Greg)');
   });
 
   it('returns a string for INTERROGATE mode (placeholder)', () => {
@@ -302,7 +302,7 @@ describe('buildSystemPrompt', () => {
     const result = buildSystemPrompt('COACH');
     expect(result).toContain('No relevant memories found.');
     expect(result).toContain('No observations accumulated yet.');
-    expect(result).toContain('John has come to you with a challenge');
+    expect(result).toContain('Greg has come to you with a challenge');
   });
 
   it('COACH mode interpolates pensieveContext and relationalContext', () => {
