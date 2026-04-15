@@ -1,7 +1,8 @@
 ---
 phase: 08-retrieval-grounding
-reviewed: 2026-04-13T00:00:00Z
+reviewed: 2026-04-14T00:00:00Z
 depth: standard
+iteration: 2
 files_reviewed: 9
 files_reviewed_list:
   - src/chris/__tests__/engine-mute.test.ts
@@ -15,58 +16,42 @@ files_reviewed_list:
   - src/pensieve/retrieve.ts
 findings:
   critical: 0
-  warning: 3
+  warning: 0
   info: 4
-  total: 7
+  total: 4
 status: issues_found
 ---
 
-# Phase 08: Code Review Report
+# Phase 08: Code Review Report (Iteration 2)
 
-**Reviewed:** 2026-04-13T00:00:00Z
+**Reviewed:** 2026-04-14T00:00:00Z
 **Depth:** standard
+**Iteration:** 2 (auto-fix loop re-review)
 **Files Reviewed:** 9
-**Status:** issues_found
+**Status:** issues_found (info-only)
 
 ## Summary
 
-This phase wires retrieval-grounded responses into the JOURNAL mode handler and adds `hybridSearch` with temporal weighting, epistemic tag filtering, and mode-specific search presets. The implementation is solid and well-tested. No security vulnerabilities or data-loss risks were found.
+Re-review after fix commits `ed1684b` (WR-01), `71248b1` (WR-03), `523e497` (WR-02). All three prior warnings are resolved cleanly. No new critical or warning issues were introduced by the fixes. No new issues surfaced in the surrounding test files or mode handlers.
 
-Three warnings relate to correctness risks: a `PHOTOS` mode silently skips the `{pensieveContext}` replacement step (inheriting the raw placeholder from the template), `hybridSearch` does not deduplicate multi-chunk entries the way `searchPensieve` does (meaning the same entry can appear multiple times in JOURNAL grounding results), and `hybridSearch` accepts `tags` typed as `string[]` but casts them to enum values at the call site without runtime validation. Four info items cover dead parameters, inconsistency in prompt persona names, a redundant `null` default in a log field, and a comment that names a retired requirement code.
+Four info-level items from iteration 1 remain unaddressed. They are non-blocking and were not part of the auto-fix scope. They are re-listed below unchanged for tracking.
 
----
+## Fix Verification
 
-## Warnings
-
-### WR-01: PHOTOS mode does not replace `{pensieveContext}` placeholder
-
-**File:** `src/chris/personality.ts:99`
-**Issue:** The `PHOTOS` case falls through to `JOURNAL_SYSTEM_PROMPT` without calling `.replace('{pensieveContext}', contextValue)`. Because the raw `JOURNAL_SYSTEM_PROMPT` constant contains the literal `{pensieveContext}` placeholder, the system prompt sent to the LLM for photo messages will contain the unreplaced string. Any pensieve context passed in will be silently dropped, and the hallucination-resistance fallback phrase will not be present either.
-
+### WR-01 — PHOTOS `{pensieveContext}` placeholder — FIXED
+`src/chris/personality.ts:100` now reads:
 ```typescript
 case 'PHOTOS':
-  modeBody = JOURNAL_SYSTEM_PROMPT; // BUG: placeholder not replaced
-  break;
-```
-
-**Fix:**
-```typescript
-case 'PHOTOS':
+  // Photos mode uses Journal persona with vision
   modeBody = JOURNAL_SYSTEM_PROMPT.replace('{pensieveContext}', contextValue);
   break;
 ```
+Placeholder substitution is performed for PHOTOS mode on the same path as JOURNAL. Verified.
 
----
-
-### WR-02: `hybridSearch` does not deduplicate multi-chunk entries
-
-**File:** `src/pensieve/retrieve.ts:150-167`
-**Issue:** `searchPensieve` (lines 58-69) deduplicates rows by `entry.id`, keeping only the best-scoring chunk per entry before applying the result limit. `hybridSearch` does not perform this deduplication step — it maps every raw DB row directly to a scored result. Because entries are chunked into multiple embedding rows, a single entry can appear multiple times in the returned array, inflating the apparent coverage of JOURNAL grounding context and crowding out genuinely distinct entries.
-
-**Fix:** Apply the same per-entry deduplication before the blended score sort:
+### WR-02 — `hybridSearch` multi-chunk deduplication — FIXED
+`src/pensieve/retrieve.ts:156-165` adds a per-entry best-score reduction before `minScore` filtering and final sort:
 ```typescript
-// After computing `scored`, before filtering by minScore:
-const bestByEntry = new Map<string, typeof scored[number]>();
+const bestByEntry = new Map<string, (typeof scored)[number]>();
 for (const item of scored) {
   const id = item.entry.id;
   const existing = bestByEntry.get(id);
@@ -75,65 +60,40 @@ for (const item of scored) {
   }
 }
 const deduped = Array.from(bestByEntry.values());
-
-const filtered = options.minScore != null
-  ? deduped.filter((r) => r.score >= options.minScore!)
-  : deduped;
 ```
+Parity with `searchPensieve` dedup behavior is restored. Ordering is correct: dedup -> minScore filter -> re-sort -> limit. Verified.
 
----
-
-### WR-03: `tags` cast to enum values without runtime validation
-
-**File:** `src/pensieve/retrieve.ts:129-133`
-**Issue:** `SearchOptions.tags` is typed as `string[]`. Inside `hybridSearch`, those strings are cast directly to `(typeof epistemicTagEnum.enumValues)[number][]` without checking whether the values actually exist in the enum. If an invalid tag is passed in (e.g., from a misconfigured preset or a future code change), the cast will succeed at compile time but the resulting SQL `IN (...)` clause will silently return no rows matching the tag filter, making retrieval appear to work while actually filtering everything out.
-
+### WR-03 — `SearchOptions.tags` enum tightening — FIXED
+`src/pensieve/retrieve.ts:15` narrows the type at the source:
 ```typescript
-inArray(
-  pensieveEntries.epistemicTag,
-  options.tags as (typeof epistemicTagEnum.enumValues)[number][],  // unchecked cast
-),
+tags?: (typeof epistemicTagEnum.enumValues)[number][];
 ```
+The unchecked cast at the `inArray` call site is gone (line 128 passes `options.tags` directly). Invalid tag values now fail at compile time rather than silently zero-filtering queries. All preset literals (`'FACT'`, `'EMOTION'`, etc.) remain valid against the enum. Verified.
 
-**Fix:** Either tighten `SearchOptions.tags` to the enum union type so the compiler enforces correctness at call sites, or add a runtime guard:
-```typescript
-export type SearchOptions = {
-  tags?: (typeof epistemicTagEnum.enumValues)[number][];
-  // ...
-};
-```
-This eliminates the cast entirely. The presets already use string literals that match the enum — the type change would surface any mismatch at compile time.
-
----
-
-## Info
+## Info (Carried Forward, Unchanged)
 
 ### IN-01: `relationalContext` parameter is accepted but never used in JOURNAL/INTERROGATE/PHOTOS
 
 **File:** `src/chris/personality.ts:63-68`
-**Issue:** `buildSystemPrompt` accepts a `relationalContext` parameter. For JOURNAL, INTERROGATE, and PHOTOS modes, this parameter is silently ignored — neither prompt template contains a `{relationalContext}` placeholder. Callers passing relational context for these modes will get no error and no effect. This is either dead parameter surface or an unfinished integration.
-
-**Fix:** If relational context is intentionally unused for JOURNAL/INTERROGATE/PHOTOS, document it explicitly in the JSDoc. If it is intended for future use, add a `// TODO` noting the intent so it is not confused for a bug.
+**Issue:** `buildSystemPrompt` accepts a `relationalContext` parameter. For JOURNAL, INTERROGATE, and PHOTOS modes this parameter is silently ignored — neither prompt template contains a `{relationalContext}` placeholder. Callers passing relational context for these modes will get no error and no effect.
+**Fix:** Document the intentional no-op in JSDoc, or add a `// TODO` if future use is planned.
 
 ---
 
 ### IN-02: Inconsistent persona name in prompt templates — "John" vs. "Greg"
 
-**File:** `src/llm/prompts.ts` (multiple lines), `src/chris/personality.ts:47`
-**Issue:** All six mode system prompts address the user as "John" (e.g., "You are Chris, John's thoughtful and perceptive friend"). The `buildKnownFactsBlock` function and all `Known Facts` section headers use "Greg". The `CONSTITUTIONAL_PREAMBLE` also uses "Greg". This inconsistency means the LLM receives contradictory identity signals in a single prompt — the mode body says the user is "John" while the injected preamble and facts block say "Greg". At minimum this is confusing; at worst it could cause the model to address the user by the wrong name.
-
-**Fix:** Align all prompt templates to a single name. Based on the Known Facts data (`nationality: French`, `birth_place: Cagnes-sur-Mer`) and the preamble, "Greg" appears to be the production user. Update all occurrences of "John" in the prompt templates to "Greg", or vice-versa if "John" is intentional.
+**File:** `src/llm/prompts.ts` (all mode templates), `src/chris/personality.ts:47`
+**Issue:** All mode system prompts address the user as "John". The `buildKnownFactsBlock` header is "## Known Facts About John" but the `GROUND_TRUTH` facts (`nationality: French`, `birth_place: Cagnes-sur-Mer`) and preamble narrative clearly refer to "Greg" (git user is `Greg`). The LLM receives contradictory identity signals in a single prompt.
+**Fix:** Align all prompt templates to a single name. Update "John" to "Greg" (or vice versa) consistently in `src/llm/prompts.ts` and the `buildKnownFactsBlock` header.
 
 ---
 
 ### IN-03: `tags: options.tags ?? null` in log payload — `null` is inconsistent with type
 
-**File:** `src/pensieve/retrieve.ts:175`
-**Issue:** The success log emits `tags: options.tags ?? null`. `options.tags` is typed `string[] | undefined`. Logging `null` when no tags are provided is inconsistent — the field toggles between `string[]` and `null`. Log consumers filtering or parsing on `tags` presence will need to handle both `undefined` and `null` as "no filter". Using `undefined` omits the field from the structured log object entirely, which is cleaner for log aggregation.
-
-**Fix:**
+**File:** `src/pensieve/retrieve.ts:183`
+**Issue:** Success log emits `tags: options.tags ?? null`. `options.tags` is typed `enum[] | undefined`. Logging `null` when absent is inconsistent — the field toggles between `enum[]` and `null`. Log consumers must handle both "no filter" representations.
+**Fix:** Conditionally include the field:
 ```typescript
-// Remove the field when undefined to keep the log object clean:
 ...(options.tags ? { tags: options.tags } : {}),
 ```
 
@@ -142,9 +102,8 @@ This eliminates the cast entirely. The presets already use string literals that 
 ### IN-04: `cache_control` passed as a top-level Anthropic API parameter
 
 **File:** `src/chris/modes/journal.ts:44`
-**Issue:** `cache_control: { type: 'ephemeral' }` is passed as a top-level field in the `messages.create` call body. The Anthropic prompt-caching API applies `cache_control` at the content-block level (inside `system` as an array element), not as a root-level parameter. This pattern is consistent across many files in the codebase (it is not unique to this phase), but as written the field is likely silently ignored by the SDK for JOURNAL calls. This is a functional no-op rather than a correctness risk — it does not break anything — but it means prompt caching is not actually being enabled for journal responses despite the intent.
-
-**Fix:** If prompt caching is desired, pass `system` as an array with a `cache_control` block:
+**Issue:** `cache_control: { type: 'ephemeral' }` is passed as a top-level field in `messages.create`. The Anthropic prompt-caching API applies `cache_control` at the content-block level (inside `system` as an array element), not root-level. The SDK silently ignores the root-level field, so caching is not actually enabled for JOURNAL calls despite intent. (This pattern recurs across other mode handlers — not unique to this phase.)
+**Fix:**
 ```typescript
 system: [
   {
@@ -154,10 +113,11 @@ system: [
   },
 ],
 ```
-Note: this finding applies to all mode handlers, not only journal. The change is low-risk but affects caching billing. Coordinate the fix across all handlers.
+Coordinate across all handlers if adopted.
 
 ---
 
-_Reviewed: 2026-04-13T00:00:00Z_
+_Reviewed: 2026-04-14T00:00:00Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
+_Iteration: 2_
