@@ -73,7 +73,13 @@ Plans:
   3. Engine pre-processor #0 checks `decision_capture_state` before mute/refusal/language/mode detection, so a capture or resolution sub-flow never reaches `detectMode()`.
   4. `resolve_by` parses natural-language timeframes with a documented 7/30/90/365-day fallback ladder; vague predictions are flagged by a Haiku validator that pushes back exactly once before accepting or routing to `open-draft`.
   5. Greg can suppress a trigger phrase or captured decision via `/decisions suppress <phrase>` and the suppression persists across restarts; contradiction detection scans new `decisions.reasoning` entries fire-and-forget with the existing 0.75/3s thresholds.
-**Plans**: TBD
+**Plans**: 5 plans
+Plans:
+- [ ] 14-01-PLAN.md — Wave 0: schema 0004, prompt constants, trigger fixtures, six RED test scaffolds
+- [ ] 14-02-PLAN.md — Wave 1: CAP-01 — Phase A regex (EN/FR/RU with parity) + Phase B Haiku stakes classifier (fail-closed)
+- [ ] 14-03-PLAN.md — Wave 1: CAP-06 primitive — DB-backed suppressions with per-chat substring match
+- [ ] 14-04-PLAN.md — Wave 1: CAP-02/03/04/05 + LIFE-05 — capture.ts, resolve-by.ts, vague-validator.ts, capture-state write helpers
+- [ ] 14-05-PLAN.md — Wave 2: SWEEP-03 + CAP-06 surface — engine PP#0/PP#1 wiring + /decisions suppress bot command
 
 ### Phase 15: Deadline Trigger & Sweep Integration
 **Goal**: When a decision's `resolve_by` passes, Chris surfaces the resolution prompt within 24 hours without starving or being starved by the four existing reflective-outreach triggers.
@@ -84,7 +90,13 @@ Plans:
   2. The sweep has two independent channels — `reflective_outreach` and `accountability_outreach` — with separate daily caps; same-day collisions fire serially, neither blocking the other (guards C5).
   3. When a prompt fires more than 48 hours past `resolve_by`, the text is explicitly dated ("On 2026-04-01 you predicted…") rather than implicitly recent-framed.
   4. Global mute suppresses both channels; the accountability channel never bypasses mute.
-**Plans**: TBD
+**Plans**: 5 plans
+Plans:
+- [ ] 14-01-PLAN.md — Wave 0: schema 0004, prompt constants, trigger fixtures, six RED test scaffolds
+- [ ] 14-02-PLAN.md — Wave 1: CAP-01 — Phase A regex (EN/FR/RU with parity) + Phase B Haiku stakes classifier (fail-closed)
+- [ ] 14-03-PLAN.md — Wave 1: CAP-06 primitive — DB-backed suppressions with per-chat substring match
+- [ ] 14-04-PLAN.md — Wave 1: CAP-02/03/04/05 + LIFE-05 — capture.ts, resolve-by.ts, vague-validator.ts, capture-state write helpers
+- [ ] 14-05-PLAN.md — Wave 2: SWEEP-03 + CAP-06 surface — engine PP#0/PP#1 wiring + /decisions suppress bot command
 
 ### Phase 16: Resolution, Post-Mortem & ACCOUNTABILITY Mode
 **Goal**: A resolution reply produces a neutral, Pensieve-grounded post-mortem that neither flatters a hit nor condemns a miss — or M007 inverts M006.
@@ -96,7 +108,13 @@ Plans:
   3. After resolution, exactly one Haiku-classified post-mortem follow-up fires (hit/miss/ambiguous/unverifiable); response stored in `resolution_notes`, decision transitions `resolved → reviewed`, and both replies become Pensieve entries with `source_ref_id` pointing at the decision row.
   4. Post-mortem context includes ±48h of surrounding Pensieve entries (cheap M001 reuse) and passively re-displays the Popper criterion.
   5. Auto-escalation sends a single second prompt after 48h of silence; two non-replies transitions the decision to `stale` and no further prompts fire.
-**Plans**: TBD
+**Plans**: 5 plans
+Plans:
+- [ ] 14-01-PLAN.md — Wave 0: schema 0004, prompt constants, trigger fixtures, six RED test scaffolds
+- [ ] 14-02-PLAN.md — Wave 1: CAP-01 — Phase A regex (EN/FR/RU with parity) + Phase B Haiku stakes classifier (fail-closed)
+- [ ] 14-03-PLAN.md — Wave 1: CAP-06 primitive — DB-backed suppressions with per-chat substring match
+- [ ] 14-04-PLAN.md — Wave 1: CAP-02/03/04/05 + LIFE-05 — capture.ts, resolve-by.ts, vague-validator.ts, capture-state write helpers
+- [ ] 14-05-PLAN.md — Wave 2: SWEEP-03 + CAP-06 surface — engine PP#0/PP#1 wiring + /decisions suppress bot command
 
 ### Phase 17: `/decisions` Command & Accuracy Stats
 **Goal**: Greg can pull an honest snapshot of his forecasting performance that is structurally incapable of becoming dashboard sycophancy — small N never produces a percentage, and uncertainty is visually present.
@@ -108,7 +126,13 @@ Plans:
   3. Below N=10 resolved-with-verifiable-forecasts in the chosen window, the output shows counts only ("N=<count>, threshold not met") with no percentage; at or above N=10, accuracy displays with a Wilson 95% CI alongside the point estimate (guards C6).
   4. Rolling 30/90/365-day windows are a single SQL round-trip via `FILTER (WHERE resolved_at >= now() - interval 'N days')`; `unverifiable` count is surfaced as an explicit separate denominator.
   5. Accuracy is broken down by domain tag inferred at capture time; `/decisions reclassify` re-runs classification and preserves originals alongside new values.
-**Plans**: TBD
+**Plans**: 5 plans
+Plans:
+- [ ] 14-01-PLAN.md — Wave 0: schema 0004, prompt constants, trigger fixtures, six RED test scaffolds
+- [ ] 14-02-PLAN.md — Wave 1: CAP-01 — Phase A regex (EN/FR/RU with parity) + Phase B Haiku stakes classifier (fail-closed)
+- [ ] 14-03-PLAN.md — Wave 1: CAP-06 primitive — DB-backed suppressions with per-chat substring match
+- [ ] 14-04-PLAN.md — Wave 1: CAP-02/03/04/05 + LIFE-05 — capture.ts, resolve-by.ts, vague-validator.ts, capture-state write helpers
+- [ ] 14-05-PLAN.md — Wave 2: SWEEP-03 + CAP-06 surface — engine PP#0/PP#1 wiring + /decisions suppress bot command
 
 ### Phase 18: Synthetic Fixture + Live ACCOUNTABILITY Integration Suite
 **Goal**: Every claim in Phases 13–17 is verifiable without calendar waiting, and the ACCOUNTABILITY mode's absence-of-flattery and absence-of-condemnation are proven against real Sonnet before production deploy.
@@ -120,7 +144,13 @@ Plans:
   3. A same-day collision test proves decision-deadline and silence triggers firing on the same mock-clock day serialize cleanly without either starving the other.
   4. Live ACCOUNTABILITY integration suite runs hit/miss/unverifiable scenarios × 3-of-3 against real Sonnet and asserts both absence-of-flattery and absence-of-condemnation (follows D023/D032 precedent — non-optional).
   5. Vague-prediction resistance test confirms the Haiku validator flags ≥9 of 10 adversarial vague predictions on first pass and issues exactly one pushback before accepting.
-**Plans**: TBD
+**Plans**: 5 plans
+Plans:
+- [ ] 14-01-PLAN.md — Wave 0: schema 0004, prompt constants, trigger fixtures, six RED test scaffolds
+- [ ] 14-02-PLAN.md — Wave 1: CAP-01 — Phase A regex (EN/FR/RU with parity) + Phase B Haiku stakes classifier (fail-closed)
+- [ ] 14-03-PLAN.md — Wave 1: CAP-06 primitive — DB-backed suppressions with per-chat substring match
+- [ ] 14-04-PLAN.md — Wave 1: CAP-02/03/04/05 + LIFE-05 — capture.ts, resolve-by.ts, vague-validator.ts, capture-state write helpers
+- [ ] 14-05-PLAN.md — Wave 2: SWEEP-03 + CAP-06 surface — engine PP#0/PP#1 wiring + /decisions suppress bot command
 
 ## Progress
 
