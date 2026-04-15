@@ -1,52 +1,48 @@
 {
   "version": "1.0",
-  "timestamp": "2026-04-14T11:43:21.559Z",
-  "phase": "10",
-  "phase_name": "live-validation-suite",
-  "phase_dir": ".planning/phases/10-live-validation-suite",
-  "plan": null,
-  "task": null,
-  "total_tasks": null,
+  "timestamp": "2026-04-15T18:18:53.310Z",
+  "phase": "13",
+  "phase_name": "schema-lifecycle-primitives",
+  "phase_dir": ".planning/phases/13-schema-lifecycle-primitives",
+  "plan": "13-04",
+  "task": 2,
+  "total_tasks": 3,
   "status": "paused",
   "completed_tasks": [
-    {"name": "Fix TEST-02 RU declined-topic (prompt tightening)", "status": "done", "commit": "65b6517"},
-    {"name": "Fix TEST-03 location grounding (verbatim rule in INTERROGATE)", "status": "done", "commit": "65b6517"},
-    {"name": "Fix TEST-08 flattery (expanded quarantine prompt + deterministic stripReflexiveOpener backstop)", "status": "done", "commit": "65b6517"},
-    {"name": "Raise TEST-04 language-switching timeouts 60→90s", "status": "done", "commit": "e6982cf"},
-    {"name": "Address code-review WR-01/WR-02/IN-03 in praise-quarantine", "status": "done", "commit": "1b10987"}
+    {"id": "13-01", "name": "Wave 0 RED test scaffolds", "status": "done", "commit": "1728622"},
+    {"id": "13-02", "name": "Drizzle schema + migrations 0002/0003", "status": "done", "commit": "6f1dd82"},
+    {"id": "13-03", "name": "[BLOCKING] apply migrations to Docker PG; schema.test.ts GREEN", "status": "done", "commit": "e19e63b"},
+    {"id": "13-04.1", "name": "decisions/errors.ts (3 error classes)", "status": "done", "commit": "d431320 (in worktree)"},
+    {"id": "13-04.2", "name": "decisions/lifecycle.ts chokepoint", "status": "in_progress", "progress": "code written, lifecycle.test.ts 65/65 GREEN against Docker PG, NOT committed"}
   ],
   "remaining_tasks": [
-    {"name": "Phase 07 VERIFICATION.md — resolve status:human_needed", "status": "not_started"},
-    {"name": "Phase 08 VERIFICATION.md — resolve status:human_needed", "status": "not_started"},
-    {"name": "Close open REVIEW cycles on phases 06/08/09/10 (re-run /gsd-code-review after recent fixes)", "status": "not_started"},
-    {"name": "Promote phase 10 VALIDATION.md from draft → final after full live suite pass", "status": "not_started"},
-    {"name": "Reconcile STATE.md header drift (says Phase 07 60%, frontmatter says 100%)", "status": "not_started"},
-    {"name": "Run /gsd-audit-milestone across M006 before archive", "status": "not_started"},
-    {"name": "Address minor code-review info items IN-01 (locale/case) and IN-02 (haikuJudge parser unification)", "status": "not_started"},
-    {"name": "Run /gsd-complete-milestone to archive M006", "status": "not_started"}
+    {"id": "13-04.3", "name": "decisions/capture-state.ts helper", "status": "not_started"},
+    {"id": "13-04-summary", "name": "13-04-SUMMARY.md", "status": "not_started"},
+    {"id": "13-05", "name": "regenerateDecisionFromEvents + full npm test", "status": "not_started"},
+    {"id": "phase-13-verify", "name": "phase verification + code review + aggregate", "status": "not_started"}
   ],
   "blockers": [
-    {"description": "Phase 07 & 08 VERIFICATION.md both set to status:human_needed — require human sign-off", "type": "human_action", "workaround": null},
-    {"description": "Full-suite live-integration run remains flaky under serialized load (23/24 in last observed pass, 1 unrelated language timeout already mitigated via 90s bump)", "type": "technical", "workaround": "Run individual describe blocks; tests pass 3/3 when run alone"}
+    {"description": "Pre-existing untracked src/decisions/__tests__/*.test.ts files were stashed before merging Wave 1 commits (per user choice)", "type": "technical", "workaround": "Files preserved in `git stash` with message 'phase-13 pre-existing untracked decisions files'"}
   ],
-  "human_actions_pending": [
-    {"action": "Review and resolve Phase 07 VERIFICATION (human_needed)", "context": "foundational-behavioral-fixes verification paused awaiting human decision", "blocking": true},
-    {"action": "Review and resolve Phase 08 VERIFICATION (human_needed)", "context": "retrieval-grounding verification paused awaiting human decision", "blocking": true}
-  ],
+  "human_actions_pending": [],
   "decisions": [
-    {"decision": "Restore pure bypass for COACH/PSYCHOLOGY in praise-quarantine (no stripReflexiveOpener)", "rationale": "WR-01: neutral opener tokens (Beautiful, Lovely, Oh, Fantastic) can legitimately open substantive replies in those modes; stripping violates SYCO-05.", "phase": "09"},
-    {"decision": "Deterministic stripReflexiveOpener backstop for JOURNAL/REFLECT/PRODUCE only", "rationale": "Haiku quarantine was stochastically missing That's/Wow openers, failing TEST-08 first-word check; a simple post-process guarantees the contract.", "phase": "09"},
-    {"decision": "INTERROGATE prompt now forbids paraphrasing dates/durations/locations", "rationale": "TEST-03 was failing because Chris was adding timing details not in pensieve entries; the Haiku judge correctly flagged inconsistency.", "phase": "08"},
-    {"decision": "Declined-topics directive now covers user re-raising their own declined topic", "rationale": "TEST-02 RU required Chris to refuse even when John himself reopened the subject.", "phase": "07"}
+    {"decision": "Stashed user's pre-existing untracked test files and adopted agent's Wave 0 RED scaffolds", "rationale": "User chose 'Stash untracked, use agent's version' when reconcile question was asked", "phase": "13"},
+    {"decision": "Wave 4 executor applied Rule-1 fix to lifecycle.test.ts (added decisionText: 'seeded' to seedDecision)", "rationale": "Same NOT-NULL omission class fixed in Plan 03 — decision_text is NOT NULL", "phase": "13"}
   ],
   "uncommitted_files": [
-    ".planning/phases/06-memory-audit/06-REVIEW.md",
-    ".planning/phases/07-foundational-behavioral-fixes/07-REVIEW.md",
-    ".planning/phases/08-retrieval-grounding/08-REVIEW.md",
-    ".planning/phases/09-praise-quarantine/09-REVIEW.md",
-    ".planning/phases/10-live-validation-suite/10-REVIEW-SESSION-FIX.md (new, untracked)",
-    "multiple REVIEW.iter2/iter3 and REVIEW-FIX.iter2/iter3 files across phases (untracked)"
+    "src/decisions/lifecycle.ts (in worktree agent-a7d5dc7f, untracked)",
+    "src/decisions/__tests__/lifecycle.test.ts (in worktree agent-a7d5dc7f, modified)"
   ],
-  "next_action": "Resolve Phase 07 & 08 VERIFICATION human_needed blockers by reading both VERIFICATION.md files and deciding pass/fail, then run /gsd-audit-milestone, then /gsd-complete-milestone.",
-  "context_notes": "Session goal was to fix 3 stochastic live-test failures cited in the prior pause: TEST-02 RU declined topics, TEST-03 location grounding, TEST-08 flattery. All three now pass 3/3 individually against the live API. A follow-up code review surfaced WR-01 (coach/psych bypass contract) and WR-02 (sentence-terminator regex edge case) which were fixed. 12/12 praise-quarantine unit tests pass. Milestone is code-complete — what remains is sign-off plumbing."
+  "active_worktree": {
+    "path": "/home/claude/chris/.claude/worktrees/agent-a7d5dc7f",
+    "branch": "worktree-agent-a7d5dc7f",
+    "head": "d431320",
+    "base": "e19e63bcff11e0f8b5febbb754dd21d0d42bcc52",
+    "agent_id": "a7d5dc7ffb852411b"
+  },
+  "infrastructure": {
+    "docker_postgres": "running on localhost:5433 with migrations 0000/0001/0002/0003 applied"
+  },
+  "next_action": "Resume Wave 4 plan 13-04: in worktree agent-a7d5dc7f, commit lifecycle.ts + lifecycle.test.ts fix, then implement capture-state.ts (Task 3), run capture-state.test.ts + chokepoint-audit.test.ts, write 13-04-SUMMARY.md, merge worktree back to main. Then proceed to Wave 5 (13-05).",
+  "context_notes": "5-wave sequential phase, 3 of 5 waves merged to main. Wave 4 paused mid-flight in live worktree — preserve it, don't recreate. Next two phases (Wave 4 finish, Wave 5) and verification still owed."
 }
