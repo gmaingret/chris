@@ -1,11 +1,11 @@
 ---
 gsd_state_version: 1.0
-milestone: null
-milestone_name: null
-status: milestone_complete
-stopped_at: v2.0 M006 Trustworthy Chris shipped 2026-04-15
+milestone: v2.1
+milestone_name: M007 Decision Archive
+status: defining_requirements
+stopped_at: null
 last_updated: "2026-04-15T00:00:00.000Z"
-last_activity: 2026-04-15 -- v2.0 milestone archived; ready for /gsd-new-milestone
+last_activity: 2026-04-15 -- v2.1 M007 Decision Archive milestone started
 progress:
   total_phases: 0
   completed_phases: 0
@@ -18,18 +18,18 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-15 after v2.0 milestone completion)
+See: .planning/PROJECT.md (updated 2026-04-15 for v2.1 M007 Decision Archive milestone)
 
 **Core value:** Greg can deposit any memory, thought, or feeling into Chris and later ask questions that Chris answers by searching everything Greg has ever told him — with full fidelity, no data loss, and genuine contextual understanding across English, French, and Russian.
-**Current focus:** Planning next milestone (candidate: M007 Decision Archive)
+**Current focus:** v2.1 M007 Decision Archive — defining requirements
 
 ## Current Position
 
-Phase: none — between milestones
-Plan: none
-Next: `/gsd-new-milestone` to start next milestone (questioning → research → requirements → roadmap)
-Status: v2.0 M006 Trustworthy Chris shipped 2026-04-15; tagged v2.0
-Last activity: 2026-04-15 — v2.0 archived to .planning/milestones/
+Phase: Not started (defining requirements)
+Plan: —
+Next: define REQUIREMENTS.md, then spawn roadmapper
+Status: Defining requirements
+Last activity: 2026-04-15 — Milestone v2.1 M007 Decision Archive started
 
 ## Shipped Milestones
 
@@ -48,10 +48,10 @@ None.
 
 ### Blockers/Concerns
 
-None. Between-phases pause: M006 should run for at least a week in real Telegram use before M007 starts (validate trust fixes before layering new scope).
+None. Between-phases pause for M006 (≥1 week real Telegram use before M007) acknowledged; user confirmed proceeding with M007 planning now.
 
 ## Session Continuity
 
 Last session: 2026-04-15
-Stopped at: v2.0 milestone completion
-Resume file: none — run `/gsd-new-milestone` to start next cycle
+Stopped at: v2.1 M007 planning kickoff
+Resume file: .planning/STATE.md (this file)
