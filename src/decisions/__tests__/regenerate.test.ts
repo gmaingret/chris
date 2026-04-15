@@ -56,9 +56,11 @@ describe('regenerate: real DB — event replay roundtrip', () => {
       await transitionDecision(id, 'resolved', 'reviewed', { actor: 'user' });
 
       const [projection] = await db.select().from(decisions).where(eq(decisions.id, id));
+      expect(projection).toBeDefined();
       const regenerated = await regenerateDecisionFromEvents(id);
+      expect(regenerated).not.toBeNull();
       expect(regenerated).toEqual(projection);
-      expect(regenerated.status).toBe('reviewed');
+      expect(regenerated!.status).toBe('reviewed');
     });
   });
 
@@ -104,9 +106,11 @@ describe('regenerate: real DB — event replay roundtrip', () => {
       await transitionDecision(id, 'open', 'withdrawn', { actor: 'user' });
 
       const [projection] = await db.select().from(decisions).where(eq(decisions.id, id));
+      expect(projection).toBeDefined();
       const regenerated = await regenerateDecisionFromEvents(id);
+      expect(regenerated).not.toBeNull();
       expect(regenerated).toEqual(projection);
-      expect(regenerated.status).toBe('withdrawn');
+      expect(regenerated!.status).toBe('withdrawn');
       expect(projection!.status).toBe('withdrawn');
     });
   });
@@ -141,10 +145,37 @@ describe('regenerate: real DB — event replay roundtrip', () => {
       expect(rows[1]!.snapshot.marker).toBe('second');
       expect(Number(rows[1]!.sequence_no)).toBeGreaterThan(Number(rows[0]!.sequence_no));
 
-      // And regenerate completes without throwing (doesn't assert marker here because regenerate
-      // uses last status_changed event as status anchor; this test guarantees ordering only).
+      // WR-03: regenerate now filters to event_type = 'status_changed', so the
+      // two tied-timestamp field_updated events above do NOT pollute the replay.
+      // The last status_changed event (open → due) remains the anchor, and the
+      // returned row deep-equals the live projection.
+      const [projection] = await db.select().from(decisions).where(eq(decisions.id, id));
       const regenerated = await regenerateDecisionFromEvents(id);
-      expect(regenerated).toBeDefined();
+      expect(regenerated).not.toBeNull();
+      expect(regenerated).toEqual(projection);
+      expect(regenerated!.status).toBe('due');
+    });
+  });
+
+  describe('WR-03: regenerate ignores field_updated events and keys off last status_changed', () => {
+    it('status_changed then later field_updated partial snapshot still yields full live projection', async () => {
+      const id = await seedDecision('open');
+      await transitionDecision(id, 'open', 'due', { actor: 'sweep' });
+
+      // Forge a field_updated event AFTER the status_changed — partial snapshot
+      // that would, if regenerate naïvely took the tail, return a malformed
+      // "DecisionRow" missing required fields (CR-01 era bug that WR-03 fixes).
+      await sql`
+        INSERT INTO decision_events (decision_id, event_type, from_status, to_status, snapshot, actor)
+        VALUES (${id}, 'field_updated', NULL, NULL, ${JSON.stringify({ marker: 'partial' })}::jsonb, 'system')
+      `;
+
+      const [projection] = await db.select().from(decisions).where(eq(decisions.id, id));
+      const regenerated = await regenerateDecisionFromEvents(id);
+      expect(regenerated).not.toBeNull();
+      // Must match the live projection, not the partial field_updated snapshot.
+      expect(regenerated).toEqual(projection);
+      expect(regenerated!.status).toBe('due');
     });
   });
 });

@@ -1,6 +1,6 @@
 import { db } from '../db/connection.js';
 import { decisionEvents, decisions } from '../db/schema.js';
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 
 type DecisionRow = typeof decisions.$inferSelect;
 
@@ -42,16 +42,22 @@ function rehydrateDates(snapshot: Record<string, unknown>): DecisionRow {
 }
 
 /**
- * Replays `decision_events` for `id` in (created_at ASC, sequence_no ASC) order
- * and returns the snapshot of the last event, rehydrated to match the live
+ * Replays `status_changed` events for `id` in (created_at ASC, sequence_no ASC)
+ * order and returns the snapshot of the last one, rehydrated to match the live
  * projection's types (Date for timestamptz; bigint for chat_id).
+ *
+ * WR-03: We FILTER to `event_type = 'status_changed'` because only status
+ * events carry a full-row snapshot (D-01). Phase 14+ will append `field_updated`
+ * events whose snapshot is a partial payload; taking the last event
+ * unconditionally would return a malformed "DecisionRow" missing required
+ * fields. The full-row snapshot invariant holds only for `status_changed`.
  *
  * Proves the append-only invariant (D-01, D-13): if this function deep-equals
  * the live `decisions` row after any sequence of transitions, then every
  * mutation of the projection row was preceded by a faithful event append.
  *
- * Returns null if no events exist for `id` (decision doesn't exist or has no
- * events recorded).
+ * Returns null if no `status_changed` events exist for `id` (decision doesn't
+ * exist or has no status events recorded).
  */
 export async function regenerateDecisionFromEvents(
   id: string,
@@ -59,7 +65,12 @@ export async function regenerateDecisionFromEvents(
   const events = await db
     .select()
     .from(decisionEvents)
-    .where(eq(decisionEvents.decisionId, id))
+    .where(
+      and(
+        eq(decisionEvents.decisionId, id),
+        eq(decisionEvents.eventType, 'status_changed'),
+      ),
+    )
     .orderBy(asc(decisionEvents.createdAt), asc(decisionEvents.sequenceNo));
   if (events.length === 0) return null;
   const last = events[events.length - 1]!;
