@@ -261,8 +261,11 @@ export const decisionEvents = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     // Tiebreaker for replay determinism when two events share created_at microsecond:
     // DB-side `bigserial NOT NULL` auto-populates on insert; Drizzle reads back via .returning()/.select().
-    // NO .generatedAlwaysAsIdentity() — handwritten fallback committed in the migration.
-    sequenceNo: bigint('sequence_no', { mode: 'bigint' }).notNull(),
+    // .default(nextval(...)) tells TS the column is insert-optional (DB supplies it);
+    // NO .generatedAlwaysAsIdentity() — handwritten bigserial was committed in migration 0002.
+    sequenceNo: bigint('sequence_no', { mode: 'bigint' })
+      .notNull()
+      .default(sql`nextval('decision_events_sequence_no_seq'::regclass)`),
   },
   (table) => [
     index('decision_events_decision_id_created_at_sequence_no_idx')
