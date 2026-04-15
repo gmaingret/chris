@@ -118,7 +118,7 @@ describe('existing mode content preserved (D-02)', () => {
 describe('Known Facts injection (RETR-02)', () => {
   it('JOURNAL prompt contains Known Facts block', () => {
     const prompt = buildSystemPrompt('JOURNAL', 'test context');
-    expect(prompt).toContain('## Known Facts About John');
+    expect(prompt).toContain('## Facts about you (Greg)');
     expect(prompt).toContain('nationality: French');
     expect(prompt).toContain('birth_place: Cagnes-sur-Mer, France');
     expect(prompt).toContain('fi_target: $1,500,000');
@@ -126,23 +126,23 @@ describe('Known Facts injection (RETR-02)', () => {
 
   it('INTERROGATE prompt contains Known Facts block', () => {
     const prompt = buildSystemPrompt('INTERROGATE', 'test context');
-    expect(prompt).toContain('## Known Facts About John');
+    expect(prompt).toContain('## Facts about you (Greg)');
     expect(prompt).toContain('nationality: French');
   });
 
   it('REFLECT prompt does NOT contain Known Facts block', () => {
     const prompt = buildSystemPrompt('REFLECT', 'test context');
-    expect(prompt).not.toContain('Known Facts About John');
+    expect(prompt).not.toContain('Facts about you (Greg)');
   });
 
   it('COACH prompt does NOT contain Known Facts block', () => {
     const prompt = buildSystemPrompt('COACH', 'test context');
-    expect(prompt).not.toContain('Known Facts About John');
+    expect(prompt).not.toContain('Facts about you (Greg)');
   });
 
   it('Known Facts appears BEFORE Language Directive', () => {
     const prompt = buildSystemPrompt('JOURNAL', 'ctx', undefined, 'French');
-    const factsIndex = prompt.indexOf('Known Facts About John');
+    const factsIndex = prompt.indexOf('Facts about you (Greg)');
     const langIndex = prompt.indexOf('Language Directive');
     expect(factsIndex).toBeGreaterThan(-1);
     expect(langIndex).toBeGreaterThan(-1);
@@ -176,5 +176,33 @@ describe('hallucination resistance (RETR-04)', () => {
     // INTERROGATE should have exactly one occurrence (from its own prompt template)
     expect(matches).not.toBeNull();
     expect(matches!.length).toBe(1);
+  });
+});
+
+describe('Identity grounding (Phase 11 / RETR-01, RETR-02)', () => {
+  const ALL_MODES = ['JOURNAL', 'INTERROGATE', 'REFLECT', 'COACH', 'PSYCHOLOGY', 'PRODUCE', 'PHOTOS'] as const;
+
+  for (const mode of ALL_MODES) {
+    it(`${mode} prompt does not contain the string "John"`, () => {
+      const prompt = buildSystemPrompt(mode, 'test-context');
+      expect(prompt).not.toMatch(/\bJohn\b/);
+    });
+  }
+
+  it('JOURNAL Known Facts header is "Facts about you (Greg)"', () => {
+    const prompt = buildSystemPrompt('JOURNAL', 'test');
+    expect(prompt).toContain('## Facts about you (Greg)');
+  });
+
+  it('JOURNAL Known Facts block contains the anti-split explanatory sentence', () => {
+    const prompt = buildSystemPrompt('JOURNAL', 'test');
+    // The explanation MUST tell the model that "Greg" in the facts === the user
+    expect(prompt).toMatch(/Greg.*refer.*you|you.*not a third party/i);
+  });
+
+  it('CONSTITUTIONAL_PREAMBLE addresses the user as Greg', () => {
+    const prompt = buildSystemPrompt('JOURNAL');
+    // The preamble's "Your job is to be useful to ___" must be Greg
+    expect(prompt).toMatch(/useful to Greg/);
   });
 });
