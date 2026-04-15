@@ -52,12 +52,18 @@ describe('capture-state: real DB — decision_capture_state helpers', () => {
       stage: 'DECISION' as never,
       draft: {},
     });
+    // Drizzle wraps the driver error; the underlying PostgresError (23505
+    // unique_violation) is on err.cause. Assert via cause message.
     await expect(
       db.insert(decisionCaptureState).values({
         chatId: 99n,
         stage: 'ALTERNATIVES' as never,
         draft: {},
       }),
-    ).rejects.toThrow(/duplicate key|unique constraint/i);
+    ).rejects.toMatchObject({
+      cause: expect.objectContaining({
+        message: expect.stringMatching(/duplicate key|unique constraint/i),
+      }),
+    });
   });
 });
