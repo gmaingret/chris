@@ -26,11 +26,13 @@ const sessionLanguage = new Map<string, string>();
  * LANG-01: Uses franc with restricted language set (eng/fra/rus only).
  * Returns 'English' | 'French' | 'Russian'.
  */
-export function detectLanguage(text: string, previousLanguage: string | null): string {
-  // LANG-02: short message threshold
+export function detectLanguage(text: string, previousLanguage: string | null): string | null {
+  // LANG-02: short message threshold — inherit previous if any, otherwise leave
+  // the language unset so Sonnet matches the user's message naturally. Defaulting
+  // to English here mis-anchors multilingual sessions (e.g. "Salut" with no prior).
   const words = text.trim().split(/\s+/);
   if (words.length < 4 || text.trim().length < 15) {
-    return previousLanguage ?? 'English';
+    return previousLanguage;
   }
 
   // LANG-01: franc with restricted language set
@@ -38,8 +40,8 @@ export function detectLanguage(text: string, previousLanguage: string | null): s
   const languageName = LANGUAGE_NAMES[detected];
 
   if (!languageName) {
-    // 'und' or unrecognized — fall back to previous or English
-    return previousLanguage ?? 'English';
+    // 'und' on longer text: inherit previous if any, otherwise unset
+    return previousLanguage;
   }
 
   return languageName;

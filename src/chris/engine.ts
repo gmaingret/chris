@@ -129,8 +129,8 @@ export async function processMessage(
       addDeclinedTopic(chatIdStr, refusalResult.topic, refusalResult.originalSentence);
       const previousLanguage = getLastUserLanguage(chatIdStr);
       const language = detectLanguage(text, previousLanguage);
-      setLastUserLanguage(chatIdStr, language);
-      const ack = generateRefusalAcknowledgment(language);
+      if (language) setLastUserLanguage(chatIdStr, language);
+      const ack = generateRefusalAcknowledgment(language ?? 'English');
       await saveMessage(chatId, 'USER', text, 'JOURNAL');
       await saveMessage(chatId, 'ASSISTANT', ack, 'JOURNAL');
       return ack;
@@ -139,7 +139,7 @@ export async function processMessage(
     // Pre-process: detect language (LANG-01, LANG-02)
     const previousLanguage = getLastUserLanguage(chatIdStr);
     const language = detectLanguage(text, previousLanguage);
-    setLastUserLanguage(chatIdStr, language);
+    if (language) setLastUserLanguage(chatIdStr, language);
     const declinedTopics = getDeclinedTopics(chatIdStr);
 
     // Detect mode first so we can tag the user message correctly
