@@ -281,3 +281,21 @@ export const decisionCaptureState = pgTable('decision_capture_state', {
   startedAt: timestamp('started_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
+
+// Phase 14 CAP-06: per-chat trigger-phrase suppression list.
+// Phrases stored trimmed + lowercased by caller (addSuppression helper).
+// Unique (chat_id, phrase) enforces idempotent adds; index on chat_id speeds the
+// pre-regex suppression lookup in PP#1.
+export const decisionTriggerSuppressions = pgTable(
+  'decision_trigger_suppressions',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    chatId: bigint('chat_id', { mode: 'bigint' }).notNull(),
+    phrase: text('phrase').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('decision_trigger_suppressions_chat_id_idx').on(table.chatId),
+    unique('decision_trigger_suppressions_chat_id_phrase_unique').on(table.chatId, table.phrase),
+  ],
+);

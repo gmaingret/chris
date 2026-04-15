@@ -9,6 +9,7 @@ MIGRATION_SQL="src/db/migrations/0000_curved_colonel_america.sql"
 ENUM_FIX_SQL="src/db/migrations/0001_add_photos_psychology_mode.sql"
 MIGRATION_2_SQL="src/db/migrations/0002_decision_archive.sql"
 MIGRATION_3_SQL="src/db/migrations/0003_add_decision_epistemic_tag.sql"
+MIGRATION_4_SQL="src/db/migrations/0004_decision_trigger_suppressions.sql"
 
 cleanup() {
   echo "🧹 Stopping test postgres..."
@@ -47,6 +48,8 @@ docker compose -f "$COMPOSE_FILE" exec -T postgres \
   psql -U chris -d chris -v ON_ERROR_STOP=1 -q < "$MIGRATION_2_SQL"
 docker compose -f "$COMPOSE_FILE" exec -T postgres \
   psql -U chris -d chris -v ON_ERROR_STOP=1 -q < "$MIGRATION_3_SQL"
+docker compose -f "$COMPOSE_FILE" exec -T postgres \
+  psql -U chris -d chris -v ON_ERROR_STOP=1 -q < "$MIGRATION_4_SQL"
 
 echo "🧪 Running tests..."
 DATABASE_URL="$DB_URL" \
