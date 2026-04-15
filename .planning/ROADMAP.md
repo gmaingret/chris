@@ -128,3 +128,13 @@ Plans:
 | 9. Praise Quarantine | v2.0 M006 | 0/TBD | Not started | - |
 | 10. Live Validation Suite | v2.0 M006 | 2/2 | Re-opened (TEST-03 regression 2026-04-14) | - |
 | 11. Identity Grounding | v2.0 M006 | 0/3 | Planned | - |
+
+### Phase 12: Identity rename residuals + frontmatter hygiene
+
+**Goal:** Close v2.0 milestone tech-debt: rename residual "John" → "Greg" in src/proactive/mute.ts and src/proactive/triggers/opus-analysis.ts (missed by Phase 11's scoped sweep), and backfill `requirements-completed:` frontmatter on the three Phase 11 SUMMARY files so the 3-source audit cross-check is complete.
+**Requirements**: none (tech-debt closure phase — closes items from v2.0-MILESTONE-AUDIT.md)
+**Depends on:** Phase 11
+**Plans:** 1/1 plans complete
+
+Plans:
+- [x] 12-01-PLAN.md — Rename "John" residuals in mute.ts + opus-analysis.ts, backfill Phase 11 SUMMARY frontmatter, full Docker suite verification
