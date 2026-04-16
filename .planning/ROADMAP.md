@@ -41,7 +41,7 @@ See [milestones/v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md) for full phase deta
 - [x] **Phase 15: Deadline Trigger & Sweep Integration** — Fifth SQL-first trigger at priority=2, channel separation (`reflective_outreach` vs `accountability_outreach`), dated stale-context prompts (completed 2026-04-16)
 - [x] **Phase 16: Resolution, Post-Mortem & ACCOUNTABILITY Mode** — New ACCOUNTABILITY mode bypassing praise quarantine, Pensieve-first write ordering, ±48h context retrieval, auto-escalation after 2 non-replies (completed 2026-04-16)
 - [x] **Phase 17: `/decisions` Command & Accuracy Stats** — Haiku 2-axis classification cached with model version, N≥10 floor, Wilson 95% CI, domain-tag breakdown (completed 2026-04-16)
-- [ ] **Phase 18: Synthetic Fixture + Live ACCOUNTABILITY Integration Suite** — End-to-end `vi.setSystemTime` fixture covering concurrency races + same-day collision + stale-context; live 3-of-3 Sonnet suite for hit/miss/unverifiable
+- [x] **Phase 18: Synthetic Fixture + Live ACCOUNTABILITY Integration Suite** — End-to-end `vi.setSystemTime` fixture covering concurrency races + same-day collision + stale-context; live 3-of-3 Sonnet suite for hit/miss/unverifiable (completed 2026-04-16)
 
 ## Phase Details
 
@@ -144,8 +144,8 @@ Plans:
 Plans:
 - [x] 18-01-PLAN.md — Wave 1: synthetic-fixture.test.ts (TEST-10 14-day lifecycle, TEST-11 concurrency race, TEST-12 same-day collision)
 - [x] 18-02-PLAN.md — Wave 1: live-accountability.test.ts (TEST-13 hit/miss/unverifiable x 3-of-3) + vague-validator-live.test.ts (TEST-14 adversarial vagueness)
-- [ ] 18-03-PLAN.md — Gap closure Wave 1: Restore callLLM, 5 missing prompts, getTemporalPensieve (lost in worktree merge)
-- [ ] 18-04-PLAN.md — Gap closure Wave 2: Fix TEST-12 mock mismatch (single-pipeline sweep), TEST-14 timeout (3s->15s)
+- [x] 18-03-PLAN.md — Gap closure Wave 1: Restore callLLM, 5 missing prompts, getTemporalPensieve (lost in worktree merge)
+- [x] 18-04-PLAN.md — Gap closure Wave 2: Fix TEST-12 mock mismatch (single-pipeline sweep), TEST-14 timeout (3s->15s)
 
 ## Progress
 
@@ -168,7 +168,7 @@ Plans:
 | 15. Deadline Trigger & Sweep      | v2.1      | 3/3 | Complete    | 2026-04-16 |
 | 16. Resolution + ACCOUNTABILITY   | v2.1      | 5/5 | Complete   | 2026-04-16 |
 | 17. `/decisions` & Accuracy Stats | v2.1      | 3/3 | Complete    | 2026-04-16 |
-| 18. Synthetic + Live Suite        | v2.1      | 2/4   | Gap closure  | -          |
+| 18. Synthetic + Live Suite        | v2.1      | 4/2 | Complete    | 2026-04-16 |
 
 ## v2.1 Coverage
 
