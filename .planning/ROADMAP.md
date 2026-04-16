@@ -38,7 +38,7 @@ See [milestones/v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md) for full phase deta
 
 - [x] **Phase 13: Schema & Lifecycle Primitives** — Append-only `decision_events`, projection `decisions`, capture-state table, transition chokepoint with optimistic concurrency (completed 2026-04-15)
 - [x] **Phase 14: Capture Flow** — Two-phase trigger detection (regex + Haiku stakes), conversational 5-slot extraction, vague-prediction validator, pre-processors wired into engine (completed 2026-04-16)
-- [ ] **Phase 15: Deadline Trigger & Sweep Integration** — Fifth SQL-first trigger at priority=2, channel separation (`reflective_outreach` vs `accountability_outreach`), dated stale-context prompts
+- [x] **Phase 15: Deadline Trigger & Sweep Integration** — Fifth SQL-first trigger at priority=2, channel separation (`reflective_outreach` vs `accountability_outreach`), dated stale-context prompts (completed 2026-04-16)
 - [ ] **Phase 16: Resolution, Post-Mortem & ACCOUNTABILITY Mode** — New ACCOUNTABILITY mode bypassing praise quarantine, Pensieve-first write ordering, ±48h context retrieval, auto-escalation after 2 non-replies
 - [ ] **Phase 17: `/decisions` Command & Accuracy Stats** — Haiku 2-axis classification cached with model version, N≥10 floor, Wilson 95% CI, domain-tag breakdown
 - [ ] **Phase 18: Synthetic Fixture + Live ACCOUNTABILITY Integration Suite** — End-to-end `vi.setSystemTime` fixture covering concurrency races + same-day collision + stale-context; live 3-of-3 Sonnet suite for hit/miss/unverifiable
@@ -92,9 +92,9 @@ Plans:
   4. Global mute suppresses both channels; the accountability channel never bypasses mute.
 **Plans**: 3 plans
 Plans:
-- [ ] 15-01-PLAN.md — Wave 1: deadline trigger factory + priority renumbering + tests (SWEEP-01, SWEEP-04)
-- [ ] 15-02-PLAN.md — Wave 1: channel-aware state helpers + ACCOUNTABILITY_SYSTEM_PROMPT (SWEEP-02)
-- [ ] 15-03-PLAN.md — Wave 2: dual-channel sweep refactor + upsertAwaitingResolution + sweep tests (SWEEP-01, SWEEP-02, SWEEP-04)
+- [x] 15-01-PLAN.md — Wave 1: deadline trigger factory + priority renumbering + tests (SWEEP-01, SWEEP-04)
+- [x] 15-02-PLAN.md — Wave 1: channel-aware state helpers + ACCOUNTABILITY_SYSTEM_PROMPT (SWEEP-02)
+- [x] 15-03-PLAN.md — Wave 2: dual-channel sweep refactor + upsertAwaitingResolution + sweep tests (SWEEP-01, SWEEP-02, SWEEP-04)
 
 ### Phase 16: Resolution, Post-Mortem & ACCOUNTABILITY Mode
 **Goal**: A resolution reply produces a neutral, Pensieve-grounded post-mortem that neither flatters a hit nor condemns a miss — or M007 inverts M006.
@@ -168,7 +168,7 @@ Plans:
 | 12. Identity rename residuals     | v2.0      | 1/1   | Complete     | 2026-04-15 |
 | 13. Schema & Lifecycle Primitives | v2.1      | 5/5 | Complete   | 2026-04-15 |
 | 14. Capture Flow                  | v2.1      | 5/5 | Complete    | 2026-04-16 |
-| 15. Deadline Trigger & Sweep      | v2.1      | 0/3   | Planned      | -          |
+| 15. Deadline Trigger & Sweep      | v2.1      | 3/3 | Complete    | 2026-04-16 |
 | 16. Resolution + ACCOUNTABILITY   | v2.1      | 0/?   | Not started  | -          |
 | 17. `/decisions` & Accuracy Stats | v2.1      | 0/?   | Not started  | -          |
 | 18. Synthetic + Live Suite        | v2.1      | 0/?   | Not started  | -          |

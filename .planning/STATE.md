@@ -4,13 +4,13 @@ milestone: v2.1
 milestone_name: M007 Decision Archive
 status: executing
 stopped_at: Phase 15 context gathered
-last_updated: "2026-04-16T06:47:57.449Z"
+last_updated: "2026-04-16T08:32:01.934Z"
 last_activity: 2026-04-16
 progress:
   total_phases: 6
-  completed_phases: 2
-  total_plans: 10
-  completed_plans: 10
+  completed_phases: 3
+  total_plans: 13
+  completed_plans: 13
   percent: 100
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-15 for v2.1 M007 Decision Archive milestone)
 
 **Core value:** Greg can deposit any memory, thought, or feeling into Chris and later ask questions that Chris answers by searching everything Greg has ever told him — with full fidelity, no data loss, and genuine contextual understanding across English, French, and Russian.
-**Current focus:** Phase 14 — Capture Flow
+**Current focus:** Phase 15 — deadline-trigger-sweep-integration
 
 ## Current Position
 
-Phase: 15
+Phase: 16
 Plan: Not started
 Next: `/gsd-plan-phase 13` — decompose Schema & Lifecycle Primitives into plans
-Status: Ready to execute
+Status: Executing Phase 15
 Last activity: 2026-04-16
 
 ## v2.1 Milestone Roadmap (Phases 13-18)
