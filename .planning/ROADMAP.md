@@ -40,7 +40,7 @@ See [milestones/v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md) for full phase deta
 - [x] **Phase 14: Capture Flow** — Two-phase trigger detection (regex + Haiku stakes), conversational 5-slot extraction, vague-prediction validator, pre-processors wired into engine (completed 2026-04-16)
 - [x] **Phase 15: Deadline Trigger & Sweep Integration** — Fifth SQL-first trigger at priority=2, channel separation (`reflective_outreach` vs `accountability_outreach`), dated stale-context prompts (completed 2026-04-16)
 - [x] **Phase 16: Resolution, Post-Mortem & ACCOUNTABILITY Mode** — New ACCOUNTABILITY mode bypassing praise quarantine, Pensieve-first write ordering, ±48h context retrieval, auto-escalation after 2 non-replies (completed 2026-04-16)
-- [ ] **Phase 17: `/decisions` Command & Accuracy Stats** — Haiku 2-axis classification cached with model version, N≥10 floor, Wilson 95% CI, domain-tag breakdown
+- [x] **Phase 17: `/decisions` Command & Accuracy Stats** — Haiku 2-axis classification cached with model version, N≥10 floor, Wilson 95% CI, domain-tag breakdown (completed 2026-04-16)
 - [ ] **Phase 18: Synthetic Fixture + Live ACCOUNTABILITY Integration Suite** — End-to-end `vi.setSystemTime` fixture covering concurrency races + same-day collision + stale-context; live 3-of-3 Sonnet suite for hit/miss/unverifiable
 
 ## Phase Details
@@ -126,9 +126,9 @@ Plans:
   5. Accuracy is broken down by domain tag inferred at capture time; `/decisions reclassify` re-runs classification and preserves originals alongside new values.
 **Plans**: 3 plans
 Plans:
-- [ ] 17-01-PLAN.md — classifyAccuracy reasoning-axis Haiku classifier + resolution hook (STAT-02)
-- [ ] 17-02-PLAN.md — Stats SQL queries, Wilson CI, output formatters, removeSuppression (STAT-03, STAT-04)
-- [ ] 17-03-PLAN.md — /decisions command sub-commands wiring + reclassify (STAT-01, STAT-05)
+- [x] 17-01-PLAN.md — classifyAccuracy reasoning-axis Haiku classifier + resolution hook (STAT-02)
+- [x] 17-02-PLAN.md — Stats SQL queries, Wilson CI, output formatters, removeSuppression (STAT-03, STAT-04)
+- [x] 17-03-PLAN.md — /decisions command sub-commands wiring + reclassify (STAT-01, STAT-05)
 
 ### Phase 18: Synthetic Fixture + Live ACCOUNTABILITY Integration Suite
 **Goal**: Every claim in Phases 13-17 is verifiable without calendar waiting, and the ACCOUNTABILITY mode's absence-of-flattery and absence-of-condemnation are proven against real Sonnet before production deploy.
@@ -162,7 +162,7 @@ Plans:
 | 14. Capture Flow                  | v2.1      | 5/5 | Complete    | 2026-04-16 |
 | 15. Deadline Trigger & Sweep      | v2.1      | 3/3 | Complete    | 2026-04-16 |
 | 16. Resolution + ACCOUNTABILITY   | v2.1      | 5/5 | Complete   | 2026-04-16 |
-| 17. `/decisions` & Accuracy Stats | v2.1      | 0/3   | Planned      | -          |
+| 17. `/decisions` & Accuracy Stats | v2.1      | 3/3 | Complete    | 2026-04-16 |
 | 18. Synthetic + Live Suite        | v2.1      | 0/?   | Not started  | -          |
 
 ## v2.1 Coverage
