@@ -140,10 +140,12 @@ Plans:
   3. A same-day collision test proves decision-deadline and silence triggers firing on the same mock-clock day serialize cleanly without either starving the other.
   4. Live ACCOUNTABILITY integration suite runs hit/miss/unverifiable scenarios x 3-of-3 against real Sonnet and asserts both absence-of-flattery and absence-of-condemnation (follows D023/D032 precedent -- non-optional).
   5. Vague-prediction resistance test confirms the Haiku validator flags >=9 of 10 adversarial vague predictions on first pass and issues exactly one pushback before accepting.
-**Plans**: 2 plans
+**Plans**: 4 plans
 Plans:
-- [ ] 18-01-PLAN.md — Wave 1: synthetic-fixture.test.ts (TEST-10 14-day lifecycle, TEST-11 concurrency race, TEST-12 same-day collision)
-- [ ] 18-02-PLAN.md — Wave 1: live-accountability.test.ts (TEST-13 hit/miss/unverifiable x 3-of-3) + vague-validator-live.test.ts (TEST-14 adversarial vagueness)
+- [x] 18-01-PLAN.md — Wave 1: synthetic-fixture.test.ts (TEST-10 14-day lifecycle, TEST-11 concurrency race, TEST-12 same-day collision)
+- [x] 18-02-PLAN.md — Wave 1: live-accountability.test.ts (TEST-13 hit/miss/unverifiable x 3-of-3) + vague-validator-live.test.ts (TEST-14 adversarial vagueness)
+- [ ] 18-03-PLAN.md — Gap closure Wave 1: Restore callLLM, 5 missing prompts, getTemporalPensieve (lost in worktree merge)
+- [ ] 18-04-PLAN.md — Gap closure Wave 2: Fix TEST-12 mock mismatch (single-pipeline sweep), TEST-14 timeout (3s->15s)
 
 ## Progress
 
@@ -166,7 +168,7 @@ Plans:
 | 15. Deadline Trigger & Sweep      | v2.1      | 3/3 | Complete    | 2026-04-16 |
 | 16. Resolution + ACCOUNTABILITY   | v2.1      | 5/5 | Complete   | 2026-04-16 |
 | 17. `/decisions` & Accuracy Stats | v2.1      | 3/3 | Complete    | 2026-04-16 |
-| 18. Synthetic + Live Suite        | v2.1      | 0/2   | Not started  | -          |
+| 18. Synthetic + Live Suite        | v2.1      | 2/4   | Gap closure  | -          |
 
 ## v2.1 Coverage
 
