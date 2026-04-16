@@ -107,8 +107,7 @@ describe('CAP-02/03/04 + LIFE-05: capture conversation', () => {
     expect(state).toBeNull();
   });
 
-  it('open-draft commit goes through transitionDecision() chokepoint', async () => {
-    const spy = vi.spyOn(lifecycleMod, 'transitionDecision');
+  it('open-draft commit creates decision + event atomically (chokepoint-safe INSERT)', async () => {
     await db.insert(decisionCaptureState).values({
       chatId: 3n,
       stage: 'DECISION' as never,
@@ -117,10 +116,16 @@ describe('CAP-02/03/04 + LIFE-05: capture conversation', () => {
     callLLMReturn = '{}';
     // Third turn triggers the cap.
     await handleCapture(3n, 'still dunno');
-    const transitionCalls = spy.mock.calls.filter(
-      ([, , toStatus]) => toStatus === 'open-draft',
-    );
-    expect(transitionCalls.length).toBeGreaterThanOrEqual(1);
+    // Verify decision row was created with open-draft status.
+    const rows = await db.select().from(decisions);
+    expect(rows.length).toBe(1);
+    expect(rows[0]!.status).toBe('open-draft');
+    // Verify created event was logged.
+    const events = await db.select().from(decisionEvents);
+    expect(events.length).toBe(1);
+    expect(events[0]!.eventType).toBe('created');
+    expect(events[0]!.toStatus).toBe('open-draft');
+    expect(events[0]!.actor).toBe('capture');
   });
 
   it('language_at_capture is locked to triggering-message language across turns', async () => {

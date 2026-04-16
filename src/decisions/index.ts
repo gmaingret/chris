@@ -49,3 +49,5 @@ export {
   HEDGE_WORDS,
 } from './vague-validator.js';
 export type { VaguenessVerdict, VaguenessResult, VaguenessInput } from './vague-validator.js';
+
+export { handleCapture, openCapture } from './capture.js';
