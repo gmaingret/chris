@@ -63,6 +63,7 @@ function markSurfaced(chatId: string, surfaced: DetectedContradiction[]): void {
 export function __resetSurfacedContradictionsForTests(): void {
   surfacedContradictions.clear();
 }
+import type { ChrisMode } from './personality.js';
 import { quarantinePraise } from './praise-quarantine.js';
 import { detectMuteIntent, generateMuteAcknowledgment } from '../proactive/mute.js';
 import { setMuteUntil } from '../proactive/state.js';
@@ -83,7 +84,7 @@ function abortAcknowledgment(lang: 'en' | 'fr' | 'ru'): string {
   }
 }
 
-export type ChrisMode = 'JOURNAL' | 'INTERROGATE' | 'REFLECT' | 'COACH' | 'PSYCHOLOGY' | 'PRODUCE' | 'PHOTOS' | 'ACCOUNTABILITY';
+export type { ChrisMode } from './personality.js';
 
 export const VALID_MODES = new Set<ChrisMode>([
   'JOURNAL', 'INTERROGATE', 'REFLECT', 'COACH', 'PSYCHOLOGY', 'PRODUCE', 'PHOTOS',
