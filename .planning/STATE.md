@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: M007 Decision Archive
 status: executing
-stopped_at: Completed 14-03-PLAN.md
-last_updated: "2026-04-16T06:12:00.460Z"
+stopped_at: Phase 15 context gathered
+last_updated: "2026-04-16T06:47:57.449Z"
 last_activity: 2026-04-16
 progress:
   total_phases: 6
@@ -72,6 +72,6 @@ None. Between-phases pause for M006 (≥1 week real Telegram use before M007) ac
 
 ## Session Continuity
 
-Last session: 2026-04-16T04:47:18.182Z
-Stopped at: Completed 14-03-PLAN.md
-Resume file: None
+Last session: 2026-04-16T06:47:57.447Z
+Stopped at: Phase 15 context gathered
+Resume file: .planning/phases/15-deadline-trigger-sweep-integration/15-CONTEXT.md
