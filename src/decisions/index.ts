@@ -42,3 +42,10 @@ export {
   CLARIFIER_LADDER_DAYS,
 } from './resolve-by.js';
 export type { ClarifierChoice } from './resolve-by.js';
+
+export {
+  validateVagueness,
+  buildVaguePushback,
+  HEDGE_WORDS,
+} from './vague-validator.js';
+export type { VaguenessVerdict, VaguenessResult, VaguenessInput } from './vague-validator.js';
