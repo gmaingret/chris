@@ -5,6 +5,8 @@ import { proactiveState } from '../db/schema.js';
 // ── Key constants ──────────────────────────────────────────────────────────
 
 const LAST_SENT_KEY = 'last_sent';
+const LAST_SENT_REFLECTIVE_KEY = 'last_sent_reflective';
+const LAST_SENT_ACCOUNTABILITY_KEY = 'last_sent_accountability';
 const MUTE_UNTIL_KEY = 'mute_until';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -88,4 +90,49 @@ export async function isMuted(): Promise<boolean> {
   const muteUntil = await getMuteUntil();
   if (!muteUntil) return false;
   return muteUntil.getTime() > Date.now();
+}
+
+// ── Channel-aware state helpers ────────────────────────────────────────────
+
+/**
+ * Check whether a reflective outreach was sent today.
+ * Falls back to legacy 'last_sent' key per D-07 migration.
+ */
+export async function hasSentTodayReflective(timezone: string): Promise<boolean> {
+  const reflectiveVal = await getValue(LAST_SENT_REFLECTIVE_KEY);
+  const val = reflectiveVal ?? (await getValue(LAST_SENT_KEY));
+  if (val == null) return false;
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return formatter.format(new Date(val as string)) === formatter.format(new Date());
+}
+
+/** Record that a reflective outreach was sent. */
+export async function setLastSentReflective(timestamp: Date): Promise<void> {
+  await setValue(LAST_SENT_REFLECTIVE_KEY, timestamp.toISOString());
+}
+
+/**
+ * Check whether an accountability outreach was sent today.
+ * No legacy fallback — accountability channel is new, no migration needed.
+ */
+export async function hasSentTodayAccountability(timezone: string): Promise<boolean> {
+  const val = await getValue(LAST_SENT_ACCOUNTABILITY_KEY);
+  if (val == null) return false;
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return formatter.format(new Date(val as string)) === formatter.format(new Date());
+}
+
+/** Record that an accountability outreach was sent. */
+export async function setLastSentAccountability(timestamp: Date): Promise<void> {
+  await setValue(LAST_SENT_ACCOUNTABILITY_KEY, timestamp.toISOString());
 }
