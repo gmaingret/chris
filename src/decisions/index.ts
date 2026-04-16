@@ -19,7 +19,14 @@ export type { DecisionStatusLiteral } from './errors.js';
 
 export { regenerateDecisionFromEvents } from './regenerate.js';
 
-export { getActiveDecisionCapture } from './capture-state.js';
+export {
+  getActiveDecisionCapture,
+  createCaptureDraft,
+  updateCaptureDraft,
+  clearCapture,
+  isAbortPhrase,
+} from './capture-state.js';
+export type { CaptureDraft, DecisionCaptureStage } from './capture-state.js';
 
 export { detectTriggerPhrase, detectTriggerPhraseDetailed, classifyStakes } from './triggers.js';
 export type { TriggerMatch, StakesTier } from './triggers.js';
