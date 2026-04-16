@@ -87,7 +87,14 @@ export function createDeadlineTrigger(): TriggerDetector {
             return notTriggered('No due decisions after retry');
           }
           candidate = retryRows[0]!;
-          await transitionDecision(candidate.id, 'open', 'due', { actor: 'sweep' });
+          try {
+            await transitionDecision(candidate.id, 'open', 'due', { actor: 'sweep' });
+          } catch (retryErr) {
+            if (retryErr instanceof OptimisticConcurrencyError || retryErr instanceof InvalidTransitionError) {
+              return notTriggered('No due decisions after retry');
+            }
+            throw retryErr;
+          }
         } else if (err instanceof InvalidTransitionError) {
           return notTriggered('Decision already transitioned');
         } else {
