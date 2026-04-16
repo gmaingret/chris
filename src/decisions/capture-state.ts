@@ -102,6 +102,23 @@ export async function upsertAwaitingResolution(chatId: bigint, decisionId: strin
   });
 }
 
+// ── Phase 16 WRITE helper ──────────────────────────────────────────────────
+
+/**
+ * Transition capture state from AWAITING_RESOLUTION to AWAITING_POSTMORTEM.
+ * Called by handleResolution() after the resolution is stored.
+ * Does NOT re-set decisionId — it's already on the row from upsertAwaitingResolution.
+ */
+export async function updateToAwaitingPostmortem(chatId: bigint): Promise<void> {
+  await db
+    .update(decisionCaptureState)
+    .set({
+      stage: 'AWAITING_POSTMORTEM',
+      updatedAt: new Date(),
+    })
+    .where(eq(decisionCaptureState.chatId, chatId));
+}
+
 // ── Abort-phrase detector (D-04) ───────────────────────────────────────────
 
 /**
