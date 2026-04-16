@@ -9,7 +9,7 @@
  */
 import { db } from '../db/connection.js';
 import { decisionTriggerSuppressions } from '../db/schema.js';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and } from 'drizzle-orm';
 
 /**
  * Persist a suppression phrase for a chat.
@@ -50,6 +50,27 @@ export async function isSuppressed(text: string, chatId: bigint): Promise<boolea
     if (haystack.includes(row.phrase)) return true;
   }
   return false;
+}
+
+/**
+ * Remove a suppression phrase for a chat by exact (normalized) match.
+ * No-op if the phrase does not exist. Normalizes: trim + toLowerCase.
+ *
+ * Returns true if a row was actually deleted, false if no match existed.
+ */
+export async function removeSuppression(chatId: bigint, phrase: string): Promise<boolean> {
+  const normalized = phrase.trim().toLowerCase();
+  if (normalized.length === 0) return false;
+  const result = await db
+    .delete(decisionTriggerSuppressions)
+    .where(
+      and(
+        eq(decisionTriggerSuppressions.chatId, chatId),
+        eq(decisionTriggerSuppressions.phrase, normalized),
+      )
+    )
+    .returning({ phrase: decisionTriggerSuppressions.phrase });
+  return result.length > 0;
 }
 
 /**

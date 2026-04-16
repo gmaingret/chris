@@ -21,8 +21,14 @@ import {
   decisionCaptureState,
   decisionTriggerSuppressions,
 } from '../../db/schema.js';
-// @ts-expect-error — Wave 1 creates this module
-import { addSuppression, isSuppressed } from '../suppressions.js';
+import { addSuppression, isSuppressed, listSuppressions, removeSuppression } from '../suppressions.js';
+
+async function cleanupTables() {
+  await db.delete(decisionEvents);
+  await db.delete(decisions);
+  await db.delete(decisionCaptureState);
+  await db.delete(decisionTriggerSuppressions);
+}
 
 describe('CAP-06: decision_trigger_suppressions persistence + match', () => {
   beforeAll(async () => {
@@ -30,15 +36,8 @@ describe('CAP-06: decision_trigger_suppressions persistence + match', () => {
     expect(result[0]!.ok).toBe(1);
   });
 
-  afterAll(async () => {
-    await sql.end();
-  });
-
   afterEach(async () => {
-    await db.delete(decisionEvents);
-    await db.delete(decisions);
-    await db.delete(decisionCaptureState);
-    await db.delete(decisionTriggerSuppressions);
+    await cleanupTables();
     vi.restoreAllMocks();
   });
 
@@ -89,5 +88,50 @@ describe('CAP-06: decision_trigger_suppressions persistence + match', () => {
     // And the helper still sees it after a "cold" call.
     const matched = await isSuppressed("I'm THINKING about anything", 105n);
     expect(matched).toBe(true);
+  });
+});
+
+describe('CAP-06: removeSuppression', () => {
+  afterAll(async () => {
+    await sql.end();
+  });
+
+  afterEach(async () => {
+    await cleanupTables();
+    vi.restoreAllMocks();
+  });
+
+  it('removeSuppression deletes an existing phrase — listSuppressions no longer returns it', async () => {
+    await addSuppression(200n, "i'm thinking about");
+    const removed = await removeSuppression(200n, "i'm thinking about");
+    expect(removed).toBe(true);
+    const remaining = await listSuppressions(200n);
+    expect(remaining).not.toContain("i'm thinking about");
+  });
+
+  it('removeSuppression on a non-existent phrase is a no-op (returns false)', async () => {
+    // No suppression added — remove should not throw and returns false
+    const removed = await removeSuppression(201n, "no such phrase");
+    expect(removed).toBe(false);
+  });
+
+  it('removeSuppression normalizes input (trim + lowercase) before matching', async () => {
+    await addSuppression(202n, "i'm thinking about");
+    // Pass un-normalized version — should still match and delete
+    const removed = await removeSuppression(202n, "  I'M THINKING ABOUT  ");
+    expect(removed).toBe(true);
+    const remaining = await listSuppressions(202n);
+    expect(remaining).toHaveLength(0);
+  });
+
+  it('removeSuppression only removes for the specific chatId, not other chats', async () => {
+    await addSuppression(203n, "i'm thinking about");
+    await addSuppression(204n, "i'm thinking about");
+    // Remove for chat 203 only
+    await removeSuppression(203n, "i'm thinking about");
+    const remaining203 = await listSuppressions(203n);
+    const remaining204 = await listSuppressions(204n);
+    expect(remaining203).toHaveLength(0);
+    expect(remaining204).toContain("i'm thinking about");
   });
 });
