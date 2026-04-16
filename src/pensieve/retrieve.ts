@@ -1,4 +1,4 @@
-import { cosineDistance, asc, isNull, eq, and, inArray } from 'drizzle-orm';
+import { cosineDistance, asc, isNull, eq, and, inArray, gte, lte } from 'drizzle-orm';
 import { db } from '../db/connection.js';
 import { pensieveEmbeddings, pensieveEntries, epistemicTagEnum } from '../db/schema.js';
 import { embedText } from './embeddings.js';
@@ -87,6 +87,48 @@ export async function searchPensieve(
         error: error instanceof Error ? error.message : String(error),
       },
       'pensieve.retrieve.error',
+    );
+    return [];
+  }
+}
+
+/**
+ * Retrieve Pensieve entries within a time window around a center date.
+ * Used by resolution.ts to get +/-48h context around a decision's resolve_by date.
+ *
+ * Returns entries ordered by createdAt ascending (chronological).
+ * Never throws -- returns empty array on any error.
+ */
+export async function getTemporalPensieve(
+  centerDate: Date,
+  windowMs: number,
+): Promise<(typeof pensieveEntries.$inferSelect)[]> {
+  try {
+    const from = new Date(centerDate.getTime() - windowMs);
+    const to = new Date(centerDate.getTime() + windowMs);
+
+    const rows = await db
+      .select()
+      .from(pensieveEntries)
+      .where(
+        and(
+          isNull(pensieveEntries.deletedAt),
+          gte(pensieveEntries.createdAt, from),
+          lte(pensieveEntries.createdAt, to),
+        ),
+      )
+      .orderBy(asc(pensieveEntries.createdAt))
+      .limit(50);
+
+    return rows;
+  } catch (error) {
+    logger.warn(
+      {
+        centerDate: centerDate.toISOString(),
+        windowMs,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      'pensieve.temporal.error',
     );
     return [];
   }
