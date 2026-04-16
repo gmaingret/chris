@@ -39,7 +39,7 @@ See [milestones/v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md) for full phase deta
 - [x] **Phase 13: Schema & Lifecycle Primitives** — Append-only `decision_events`, projection `decisions`, capture-state table, transition chokepoint with optimistic concurrency (completed 2026-04-15)
 - [x] **Phase 14: Capture Flow** — Two-phase trigger detection (regex + Haiku stakes), conversational 5-slot extraction, vague-prediction validator, pre-processors wired into engine (completed 2026-04-16)
 - [x] **Phase 15: Deadline Trigger & Sweep Integration** — Fifth SQL-first trigger at priority=2, channel separation (`reflective_outreach` vs `accountability_outreach`), dated stale-context prompts (completed 2026-04-16)
-- [ ] **Phase 16: Resolution, Post-Mortem & ACCOUNTABILITY Mode** — New ACCOUNTABILITY mode bypassing praise quarantine, Pensieve-first write ordering, ±48h context retrieval, auto-escalation after 2 non-replies
+- [x] **Phase 16: Resolution, Post-Mortem & ACCOUNTABILITY Mode** — New ACCOUNTABILITY mode bypassing praise quarantine, Pensieve-first write ordering, ±48h context retrieval, auto-escalation after 2 non-replies (completed 2026-04-16)
 - [ ] **Phase 17: `/decisions` Command & Accuracy Stats** — Haiku 2-axis classification cached with model version, N≥10 floor, Wilson 95% CI, domain-tag breakdown
 - [ ] **Phase 18: Synthetic Fixture + Live ACCOUNTABILITY Integration Suite** — End-to-end `vi.setSystemTime` fixture covering concurrency races + same-day collision + stale-context; live 3-of-3 Sonnet suite for hit/miss/unverifiable
 
@@ -108,11 +108,11 @@ Plans:
   5. Auto-escalation sends a single second prompt after 48h of silence; two non-replies transitions the decision to `stale` and no further prompts fire.
 **Plans**: 5 plans
 Plans:
-- [ ] 16-01-PLAN.md — Wave 0: RED test scaffolds for resolution, engine-routing, sweep-escalation
-- [ ] 16-02-PLAN.md — Wave 1: RES-01 — ACCOUNTABILITY mode registration (ChrisMode, buildSystemPrompt, praise quarantine bypass)
-- [ ] 16-03-PLAN.md — Wave 1: RES-02/03/04/05 — resolution.ts (handleResolution, handlePostmortem, classifyOutcome) + getTemporalPensieve + updateToAwaitingPostmortem
-- [ ] 16-04-PLAN.md — Wave 2: RES-02/03 — engine PP#0 wiring (AWAITING_RESOLUTION/AWAITING_POSTMORTEM routing) + engine-resolution tests GREEN
-- [ ] 16-05-PLAN.md — Wave 2: RES-06 — sweep escalation (proactive_state keys, 48h follow-up, stale transition) + sweep-escalation tests GREEN
+- [x] 16-01-PLAN.md — Wave 0: RED test scaffolds for resolution, engine-routing, sweep-escalation
+- [x] 16-02-PLAN.md — Wave 1: RES-01 — ACCOUNTABILITY mode registration (ChrisMode, buildSystemPrompt, praise quarantine bypass)
+- [x] 16-03-PLAN.md — Wave 1: RES-02/03/04/05 — resolution.ts (handleResolution, handlePostmortem, classifyOutcome) + getTemporalPensieve + updateToAwaitingPostmortem
+- [x] 16-04-PLAN.md — Wave 2: RES-02/03 — engine PP#0 wiring (AWAITING_RESOLUTION/AWAITING_POSTMORTEM routing) + engine-resolution tests GREEN
+- [x] 16-05-PLAN.md — Wave 2: RES-06 — sweep escalation (proactive_state keys, 48h follow-up, stale transition) + sweep-escalation tests GREEN
 
 ### Phase 17: `/decisions` Command & Accuracy Stats
 **Goal**: Greg can pull an honest snapshot of his forecasting performance that is structurally incapable of becoming dashboard sycophancy — small N never produces a percentage, and uncertainty is visually present.
@@ -157,7 +157,7 @@ Plans:
 | 13. Schema & Lifecycle Primitives | v2.1      | 5/5 | Complete   | 2026-04-15 |
 | 14. Capture Flow                  | v2.1      | 5/5 | Complete    | 2026-04-16 |
 | 15. Deadline Trigger & Sweep      | v2.1      | 3/3 | Complete    | 2026-04-16 |
-| 16. Resolution + ACCOUNTABILITY   | v2.1      | 0/5   | Planned      | -          |
+| 16. Resolution + ACCOUNTABILITY   | v2.1      | 5/5 | Complete   | 2026-04-16 |
 | 17. `/decisions` & Accuracy Stats | v2.1      | 0/?   | Not started  | -          |
 | 18. Synthetic + Live Suite        | v2.1      | 0/?   | Not started  | -          |
 
