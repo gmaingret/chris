@@ -7,7 +7,7 @@
 
 export interface TriggerResult {
   triggered: boolean;
-  triggerType: 'silence' | 'commitment' | 'pattern' | 'thread' | 'decision-deadline';
+  triggerType: 'silence' | 'commitment' | 'pattern' | 'thread';
   priority: number;
   context: string;
   evidence?: string[];

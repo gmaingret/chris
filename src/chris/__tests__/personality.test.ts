@@ -164,30 +164,6 @@ describe('JOURNAL pensieveContext replacement (RETR-01)', () => {
   });
 });
 
-describe('ACCOUNTABILITY mode', () => {
-  it('buildSystemPrompt returns prompt containing Hard Rule prohibition', () => {
-    const prompt = buildSystemPrompt('ACCOUNTABILITY', 'decision context here', 'temporal context here');
-    expect(prompt).toContain('The Hard Rule is explicitly forbidden');
-  });
-
-  it('buildSystemPrompt includes CONSTITUTIONAL_PREAMBLE', () => {
-    const prompt = buildSystemPrompt('ACCOUNTABILITY');
-    expect(prompt).toContain('Core Principles (Always Active)');
-  });
-
-  it('buildSystemPrompt replaces decisionContext placeholder', () => {
-    const prompt = buildSystemPrompt('ACCOUNTABILITY', 'My prediction: X will happen');
-    expect(prompt).toContain('My prediction: X will happen');
-    expect(prompt).not.toContain('{decisionContext}');
-  });
-
-  it('buildSystemPrompt replaces pensieveContext placeholder', () => {
-    const prompt = buildSystemPrompt('ACCOUNTABILITY', 'ctx', '2026-04-01 journal entry');
-    expect(prompt).toContain('2026-04-01 journal entry');
-    expect(prompt).not.toContain('{pensieveContext}');
-  });
-});
-
 describe('hallucination resistance (RETR-04)', () => {
   it('JOURNAL prompt contains hallucination resistance instruction', () => {
     const prompt = buildSystemPrompt('JOURNAL');

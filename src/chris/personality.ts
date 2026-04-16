@@ -5,12 +5,11 @@ import {
   COACH_SYSTEM_PROMPT,
   PSYCHOLOGY_SYSTEM_PROMPT,
   PRODUCE_SYSTEM_PROMPT,
-  ACCOUNTABILITY_RESOLUTION_SYSTEM_PROMPT,
 } from '../llm/prompts.js';
 import { GROUND_TRUTH, type FactCategory } from '../pensieve/ground-truth.js';
 import type { DetectedContradiction } from './contradiction.js';
 
-export type ChrisMode = 'JOURNAL' | 'INTERROGATE' | 'REFLECT' | 'COACH' | 'PSYCHOLOGY' | 'PRODUCE' | 'PHOTOS' | 'ACCOUNTABILITY';
+export type ChrisMode = 'JOURNAL' | 'INTERROGATE' | 'REFLECT' | 'COACH' | 'PSYCHOLOGY' | 'PRODUCE' | 'PHOTOS';
 
 /**
  * A topic Greg has explicitly declined to discuss in the current session.
@@ -114,11 +113,6 @@ export function buildSystemPrompt(
       // Photos mode uses Journal persona with vision
       modeBody = JOURNAL_SYSTEM_PROMPT.replace('{pensieveContext}', contextValue);
       break;
-    case 'ACCOUNTABILITY':
-      modeBody = ACCOUNTABILITY_RESOLUTION_SYSTEM_PROMPT
-        .replace('{decisionContext}', pensieveContext || 'No decision context provided.')
-        .replace('{pensieveContext}', relationalContext || 'No surrounding context found.');
-      break;
   }
 
   let prompt = CONSTITUTIONAL_PREAMBLE + modeBody;
@@ -150,7 +144,7 @@ ${topicLines}`;
  * Format a non-judgmental notice about detected contradictions to append to Chris's response.
  * Returns empty string if no contradictions. Cites the past entry's date.
  */
-export function formatContradictionNotice(contradictions: DetectedContradiction[], _language?: string): string {
+export function formatContradictionNotice(contradictions: DetectedContradiction[]): string {
   if (contradictions.length === 0) return '';
 
   const notices = contradictions.map((c) => {

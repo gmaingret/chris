@@ -84,12 +84,6 @@ describe('quarantinePraise', () => {
     expect(result).toBe(original);
   });
 
-  it('bypasses quarantine for ACCOUNTABILITY mode', async () => {
-    const response = 'Your prediction was confirmed by the criterion you set.';
-    const result = await quarantinePraise(response, 'ACCOUNTABILITY');
-    expect(result).toBe(response);
-  });
-
   it('calls Haiku for JOURNAL mode', async () => {
     mockCreate.mockResolvedValueOnce(
       makeHaikuResponse({ flattery_detected: false, rewritten: 'Some text.' }),

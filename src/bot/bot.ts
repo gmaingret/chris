@@ -3,16 +3,8 @@ import { config } from '../config.js';
 import { logger } from '../utils/logger.js';
 import { auth } from './middleware/auth.js';
 import { processMessage } from '../chris/engine.js';
-import { getLastUserLanguage } from '../chris/language.js';
 import { handleDocument } from './handlers/document.js';
 import { handleSyncCommand, isAwaitingOAuthCode, handleOAuthCode } from './handlers/sync.js';
-import { handleDecisionsCommand } from './handlers/decisions.js';
-
-const ERROR_FALLBACK: Record<string, string> = {
-  English: 'I got tangled up in my thoughts. Try again?',
-  French: "Je me suis un peu emmêlé dans mes pensées. Tu peux réessayer ?",
-  Russian: 'Я запутался в своих мыслях. Попробуй ещё раз?',
-};
 
 export const bot = new Bot(config.telegramBotToken);
 
@@ -21,10 +13,6 @@ bot.use(auth);
 // /sync command — must be registered before generic text handler
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 bot.command('sync', handleSyncCommand as any);
-
-// /decisions command — must be registered before generic text handler
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-bot.command('decisions', handleDecisionsCommand as any);
 
 /** Exported for testability — called by bot.on('message:text') */
 export async function handleTextMessage(ctx: {
@@ -54,8 +42,7 @@ export async function handleTextMessage(ctx: {
       },
       'chris.bot.error',
     );
-    const lang = getLastUserLanguage(chatId.toString());
-    await ctx.reply(ERROR_FALLBACK[lang ?? 'English'] ?? ERROR_FALLBACK.English!);
+    await ctx.reply("I got tangled up in my thoughts. Try again?");
   }
 }
 

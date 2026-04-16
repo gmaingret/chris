@@ -98,24 +98,6 @@ vi.mock('../../utils/logger.js', () => ({
   },
 }));
 
-// ── Decision capture mocks (Phase 14) ────────────────────────────────────
-vi.mock('../../decisions/capture-state.js', () => ({
-  getActiveDecisionCapture: vi.fn().mockResolvedValue(null),
-  clearCapture: vi.fn(),
-  isAbortPhrase: vi.fn().mockReturnValue(false),
-}));
-vi.mock('../../decisions/capture.js', () => ({
-  handleCapture: vi.fn(),
-  openCapture: vi.fn(),
-}));
-vi.mock('../../decisions/triggers.js', () => ({
-  detectTriggerPhrase: vi.fn().mockReturnValue(null),
-  classifyStakes: vi.fn().mockResolvedValue('trivial'),
-}));
-vi.mock('../../decisions/suppressions.js', () => ({
-  isSuppressed: vi.fn().mockResolvedValue(false),
-}));
-
 // ── Import module under test AFTER mocks ───────────────────────────────────
 
 const { processMessage, detectMode } = await import('../engine.js');

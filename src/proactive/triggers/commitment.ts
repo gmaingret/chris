@@ -30,7 +30,7 @@ export function createCommitmentTrigger(staleDays: number): TriggerDetector {
       const notTriggered = (context: string): TriggerResult => ({
         triggered: false,
         triggerType: 'commitment',
-        priority: 3,
+        priority: 2,
         context,
       });
 
@@ -75,7 +75,7 @@ export function createCommitmentTrigger(staleDays: number): TriggerDetector {
       return {
         triggered: true,
         triggerType: 'commitment',
-        priority: 3,
+        priority: 2,
         context: `John made a commitment ${ageDays} days ago: "${truncate(oldest.content, MAX_CONTEXT_LENGTH)}". There's been no follow-up.`,
         evidence,
       };

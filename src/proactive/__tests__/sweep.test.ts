@@ -4,13 +4,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const {
   mockIsMuted,
-  mockHasSentTodayReflective,
-  mockSetLastSentReflective,
-  mockHasSentTodayAccountability,
-  mockSetLastSentAccountability,
+  mockHasSentToday,
+  mockSetLastSent,
   mockSilenceDetect,
   mockCommitmentDetect,
-  mockDeadlineDetect,
   mockSendMessage,
   mockCreate,
   mockSaveMessage,
@@ -18,25 +15,12 @@ const {
   mockRunOpusAnalysis,
   mockPatternDetect,
   mockThreadDetect,
-  mockUpsertAwaitingResolution,
-  mockClearCapture,
-  mockGetLastUserLanguage,
-  mockGetEscalationSentAt,
-  mockSetEscalationSentAt,
-  mockGetEscalationCount,
-  mockSetEscalationCount,
-  mockClearEscalationKeys,
-  mockTransitionDecision,
-  mockDbSelect,
 } = vi.hoisted(() => ({
   mockIsMuted: vi.fn(),
-  mockHasSentTodayReflective: vi.fn(),
-  mockSetLastSentReflective: vi.fn(),
-  mockHasSentTodayAccountability: vi.fn(),
-  mockSetLastSentAccountability: vi.fn(),
+  mockHasSentToday: vi.fn(),
+  mockSetLastSent: vi.fn(),
   mockSilenceDetect: vi.fn(),
   mockCommitmentDetect: vi.fn(),
-  mockDeadlineDetect: vi.fn(),
   mockSendMessage: vi.fn(),
   mockCreate: vi.fn(),
   mockSaveMessage: vi.fn(),
@@ -44,31 +28,14 @@ const {
   mockRunOpusAnalysis: vi.fn(),
   mockPatternDetect: vi.fn(),
   mockThreadDetect: vi.fn(),
-  mockUpsertAwaitingResolution: vi.fn(),
-  mockClearCapture: vi.fn(),
-  mockGetLastUserLanguage: vi.fn(() => 'English'),
-  mockGetEscalationSentAt: vi.fn(),
-  mockSetEscalationSentAt: vi.fn(),
-  mockGetEscalationCount: vi.fn(),
-  mockSetEscalationCount: vi.fn(),
-  mockClearEscalationKeys: vi.fn(),
-  mockTransitionDecision: vi.fn(),
-  mockDbSelect: vi.fn(),
 }));
 
 // ── Module mocks ───────────────────────────────────────────────────────────
 
 vi.mock('../state.js', () => ({
   isMuted: mockIsMuted,
-  hasSentTodayReflective: mockHasSentTodayReflective,
-  setLastSentReflective: mockSetLastSentReflective,
-  hasSentTodayAccountability: mockHasSentTodayAccountability,
-  setLastSentAccountability: mockSetLastSentAccountability,
-  getEscalationSentAt: mockGetEscalationSentAt,
-  setEscalationSentAt: mockSetEscalationSentAt,
-  getEscalationCount: mockGetEscalationCount,
-  setEscalationCount: mockSetEscalationCount,
-  clearEscalationKeys: mockClearEscalationKeys,
+  hasSentToday: mockHasSentToday,
+  setLastSent: mockSetLastSent,
 }));
 
 vi.mock('../triggers/silence.js', () => ({
@@ -77,10 +44,6 @@ vi.mock('../triggers/silence.js', () => ({
 
 vi.mock('../triggers/commitment.js', () => ({
   createCommitmentTrigger: vi.fn(() => ({ detect: mockCommitmentDetect })),
-}));
-
-vi.mock('../triggers/deadline.js', () => ({
-  createDeadlineTrigger: vi.fn(() => ({ detect: mockDeadlineDetect })),
 }));
 
 vi.mock('../../bot/bot.js', () => {
@@ -138,38 +101,6 @@ vi.mock('../../utils/logger.js', () => ({
   },
 }));
 
-vi.mock('../../decisions/capture-state.js', () => ({
-  upsertAwaitingResolution: mockUpsertAwaitingResolution,
-  clearCapture: mockClearCapture,
-}));
-
-vi.mock('../../decisions/lifecycle.js', () => ({
-  transitionDecision: mockTransitionDecision,
-}));
-
-vi.mock('../../db/schema.js', () => ({
-  decisionCaptureState: { chatId: 'chatId', decisionId: 'decisionId', stage: 'stage' },
-  decisions: { id: 'id' },
-}));
-
-vi.mock('../../db/connection.js', () => ({
-  db: {
-    select: mockDbSelect.mockReturnValue({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockResolvedValue([]),
-      }),
-    }),
-  },
-}));
-
-vi.mock('drizzle-orm', () => ({
-  eq: vi.fn((...args: unknown[]) => args),
-}));
-
-vi.mock('../../chris/language.js', () => ({
-  getLastUserLanguage: mockGetLastUserLanguage,
-}));
-
 // ── Import module under test AFTER mocks ───────────────────────────────────
 
 import { runSweep } from '../sweep.js';
@@ -220,7 +151,7 @@ function mockCommitmentFired(context = 'John made a commitment 14 days ago: "I w
   mockCommitmentDetect.mockResolvedValueOnce({
     triggered: true,
     triggerType: 'commitment',
-    priority: 3,
+    priority: 2,
     context,
     evidence: ['Entry aaa-111: 14 days old'],
   });
@@ -230,31 +161,8 @@ function mockCommitmentNotFired() {
   mockCommitmentDetect.mockResolvedValueOnce({
     triggered: false,
     triggerType: 'commitment',
-    priority: 3,
+    priority: 2,
     context: 'No stale commitments found',
-  });
-}
-
-function mockDeadlineFired(decisionId = 'test-decision-uuid-1234') {
-  mockDeadlineDetect.mockResolvedValueOnce({
-    triggered: true,
-    triggerType: 'decision-deadline',
-    priority: 2,
-    context: "Your deadline just passed for a prediction you made: 'Project ships by Q1'. Your falsification criterion was: 'Ship date before March 31'.",
-    evidence: [
-      `Decision ID: ${decisionId}`,
-      'Resolve by: 2026-04-01T00:00:00.000Z',
-      'Staleness: 24h',
-    ],
-  });
-}
-
-function mockDeadlineNotFired() {
-  mockDeadlineDetect.mockResolvedValueOnce({
-    triggered: false,
-    triggerType: 'decision-deadline',
-    priority: 2,
-    context: 'No due decisions',
   });
 }
 
@@ -262,24 +170,14 @@ function mockDeadlineNotFired() {
 
 describe('proactive sweep', () => {
   beforeEach(() => {
-    vi.resetAllMocks();
-    // Default: not muted, neither channel has sent today
+    vi.clearAllMocks();
+    // Default: all checks pass through
     mockIsMuted.mockResolvedValue(false);
-    mockHasSentTodayReflective.mockResolvedValue(false);
-    mockSetLastSentReflective.mockResolvedValue(undefined);
-    mockHasSentTodayAccountability.mockResolvedValue(false);
-    mockSetLastSentAccountability.mockResolvedValue(undefined);
+    mockHasSentToday.mockResolvedValue(false);
+    mockSetLastSent.mockResolvedValue(undefined);
     mockSendMessage.mockResolvedValue(undefined);
     mockSaveMessage.mockResolvedValue(undefined);
-    mockUpsertAwaitingResolution.mockResolvedValue(undefined);
-    // Default: deadline trigger doesn't fire
-    mockDeadlineDetect.mockResolvedValue({
-      triggered: false,
-      triggerType: 'decision-deadline',
-      priority: 2,
-      context: 'No due decisions',
-    });
-    // Default: neither reflective trigger fires
+    // Default: neither trigger fires
     mockSilenceDetect.mockResolvedValue({
       triggered: false,
       triggerType: 'silence',
@@ -289,7 +187,7 @@ describe('proactive sweep', () => {
     mockCommitmentDetect.mockResolvedValue({
       triggered: false,
       triggerType: 'commitment',
-      priority: 3,
+      priority: 2,
       context: 'No stale commitments found',
     });
     // Phase 2 defaults: Opus phase returns nothing fired
@@ -301,20 +199,20 @@ describe('proactive sweep', () => {
     mockPatternDetect.mockResolvedValue({
       triggered: false,
       triggerType: 'pattern',
-      priority: 4,
+      priority: 3,
       context: 'No recurring pattern detected',
     });
     mockThreadDetect.mockResolvedValue({
       triggered: false,
       triggerType: 'thread',
-      priority: 5,
+      priority: 4,
       context: 'No unresolved thread detected',
     });
   });
 
-  // ── Global mute gate ────────────────────────────────────────────────────
+  // ── Pre-trigger gate tests (unchanged behavior) ─────────────────────────
 
-  it('skips both channels when muted', async () => {
+  it('skips sweep when muted', async () => {
     mockIsMuted.mockResolvedValueOnce(true);
 
     const result = await runSweep();
@@ -324,10 +222,138 @@ describe('proactive sweep', () => {
     expect(mockSendMessage).not.toHaveBeenCalled();
     expect(mockSilenceDetect).not.toHaveBeenCalled();
     expect(mockCommitmentDetect).not.toHaveBeenCalled();
-    expect(mockDeadlineDetect).not.toHaveBeenCalled();
     expect(logger.info).toHaveBeenCalledWith(
       expect.objectContaining({ skippedReason: 'muted' }),
       'proactive.sweep.skipped',
+    );
+  });
+
+  it('skips sweep when already sent today', async () => {
+    mockHasSentToday.mockResolvedValueOnce(true);
+
+    const result = await runSweep();
+
+    expect(result.triggered).toBe(false);
+    expect(result.skippedReason).toBe('already_sent_today');
+    expect(mockSendMessage).not.toHaveBeenCalled();
+    expect(mockSilenceDetect).not.toHaveBeenCalled();
+    expect(mockCommitmentDetect).not.toHaveBeenCalled();
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ skippedReason: 'already_sent_today' }),
+      'proactive.sweep.skipped',
+    );
+  });
+
+  it('skips sweep when no trigger fires', async () => {
+    mockSilenceNotFired();
+    mockCommitmentNotFired();
+
+    const result = await runSweep();
+
+    expect(result.triggered).toBe(false);
+    expect(result.skippedReason).toBe('no_trigger');
+    expect(mockSendMessage).not.toHaveBeenCalled();
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it('skips sweep with insufficient_data when silence trigger reports insufficient history', async () => {
+    mockSilenceInsufficientData();
+    mockCommitmentNotFired();
+
+    const result = await runSweep();
+
+    expect(result.triggered).toBe(false);
+    expect(result.skippedReason).toBe('insufficient_data');
+    expect(mockSendMessage).not.toHaveBeenCalled();
+  });
+
+  // ── Single trigger: silence fires ────────────────────────────────────────
+
+  it('sends proactive message when silence trigger fires', async () => {
+    mockSilenceFired();
+    mockCommitmentNotFired();
+    mockLLMResponse('Hey, been thinking about you. Everything good?');
+    mockSendMessage.mockResolvedValueOnce({ message_id: 1 });
+
+    const result = await runSweep();
+
+    expect(result.triggered).toBe(true);
+    expect(result.triggerType).toBe('silence');
+    expect(result.message).toBe('Hey, been thinking about you. Everything good?');
+
+    // Verify bot.api.sendMessage called with authorized user ID
+    expect(mockSendMessage).toHaveBeenCalledWith(
+      12345,
+      'Hey, been thinking about you. Everything good?',
+    );
+
+    // Verify message saved to conversation as ASSISTANT/JOURNAL
+    expect(mockSaveMessage).toHaveBeenCalledWith(
+      12345n,
+      'ASSISTANT',
+      'Hey, been thinking about you. Everything good?',
+      'JOURNAL',
+    );
+
+    // Verify setLastSent called AFTER send (not before)
+    expect(mockSetLastSent).toHaveBeenCalledTimes(1);
+    expect(mockSetLastSent).toHaveBeenCalledWith(expect.any(Date));
+
+    // Verify sent log
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ triggerType: 'silence' }),
+      'proactive.sweep.sent',
+    );
+  });
+
+  it('passes trigger context into system prompt for LLM', async () => {
+    const context = 'John has been quiet for 5.0 days. His usual rhythm is about 1.2 days between messages.';
+    mockSilenceFired(context);
+    mockCommitmentNotFired();
+    mockLLMResponse('Miss hearing from you, mate.');
+    mockSendMessage.mockResolvedValueOnce({ message_id: 2 });
+
+    await runSweep();
+
+    // Verify Anthropic was called with system prompt containing trigger context
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'claude-sonnet-4-6',
+        system: expect.arrayContaining([
+          expect.objectContaining({
+            type: 'text',
+            text: expect.stringContaining(context),
+            cache_control: { type: 'ephemeral' },
+          }),
+        ]),
+        messages: expect.arrayContaining([
+          expect.objectContaining({ content: context }),
+        ]),
+      }),
+    );
+
+    // System prompt should NOT contain the placeholder
+    const callArgs = mockCreate.mock.calls[0]![0];
+    const systemText = Array.isArray(callArgs.system) ? callArgs.system[0].text : callArgs.system;
+    expect(systemText).not.toContain('{triggerContext}');
+  });
+
+  it('does not send message when Anthropic throws', async () => {
+    mockSilenceFired();
+    mockCommitmentNotFired();
+    mockCreate.mockRejectedValueOnce(new Error('API rate limit'));
+
+    await expect(runSweep()).rejects.toThrow('API rate limit');
+
+    // sendMessage should NOT be called
+    expect(mockSendMessage).not.toHaveBeenCalled();
+    expect(mockSaveMessage).not.toHaveBeenCalled();
+    expect(mockSetLastSent).not.toHaveBeenCalled();
+
+    // Error should be logged
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error) }),
+      'proactive.sweep.error',
     );
   });
 
@@ -342,375 +368,112 @@ describe('proactive sweep', () => {
     );
   });
 
-  // ── No triggers fire ────────────────────────────────────────────────────
+  it('calls setLastSent only after successful send — not before', async () => {
+    const callOrder: string[] = [];
+    mockSilenceFired();
+    mockCommitmentNotFired();
+    mockLLMResponse('Checking in!');
+    mockSendMessage.mockImplementation(async () => {
+      callOrder.push('sendMessage');
+      return { message_id: 3 };
+    });
+    mockSaveMessage.mockImplementation(async () => {
+      callOrder.push('saveMessage');
+      return {};
+    });
+    mockSetLastSent.mockImplementation(async () => {
+      callOrder.push('setLastSent');
+    });
 
-  it('skips sweep when no trigger fires', async () => {
+    await runSweep();
+
+    expect(callOrder).toEqual(['sendMessage', 'saveMessage', 'setLastSent']);
+  });
+
+  // ── Multi-trigger priority tests ─────────────────────────────────────────
+
+  it('silence wins over commitment when both fire (priority 1 < 2)', async () => {
+    mockSilenceFired();
+    mockCommitmentFired();
+    mockLLMResponse('Been a while — how are things?');
+    mockSendMessage.mockResolvedValueOnce({ message_id: 10 });
+
+    const result = await runSweep();
+
+    expect(result.triggered).toBe(true);
+    expect(result.triggerType).toBe('silence');
+    expect(result.message).toBe('Been a while — how are things?');
+
+    // Verify the trigger log shows both fired
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        triggerType: 'silence',
+        firedCount: 2,
+        allFired: ['silence', 'commitment'],
+      }),
+      'proactive.sweep.trigger',
+    );
+  });
+
+  it('commitment fires when silence does not trigger', async () => {
+    mockSilenceNotFired();
+    mockCommitmentFired();
+    mockLLMResponse('Remember that running goal you mentioned?');
+    mockSendMessage.mockResolvedValueOnce({ message_id: 11 });
+
+    const result = await runSweep();
+
+    expect(result.triggered).toBe(true);
+    expect(result.triggerType).toBe('commitment');
+    expect(result.message).toBe('Remember that running goal you mentioned?');
+
+    // Verify sent log uses commitment triggerType
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ triggerType: 'commitment' }),
+      'proactive.sweep.sent',
+    );
+  });
+
+  it('neither trigger fires → no_trigger', async () => {
     mockSilenceNotFired();
     mockCommitmentNotFired();
-    mockDeadlineNotFired();
 
     const result = await runSweep();
 
     expect(result.triggered).toBe(false);
     expect(result.skippedReason).toBe('no_trigger');
-    expect(mockSendMessage).not.toHaveBeenCalled();
     expect(mockCreate).not.toHaveBeenCalled();
-  });
-
-  it('skips sweep with insufficient_data when silence trigger reports insufficient history', async () => {
-    mockSilenceInsufficientData();
-    mockCommitmentNotFired();
-    mockDeadlineNotFired();
-
-    const result = await runSweep();
-
-    expect(result.triggered).toBe(false);
-    expect(result.skippedReason).toBe('insufficient_data');
     expect(mockSendMessage).not.toHaveBeenCalled();
   });
 
-  // ── Accountability channel ──────────────────────────────────────────────
+  it('commitment context is passed to LLM when commitment is the winner', async () => {
+    const commitmentContext = 'John made a commitment 14 days ago: "I want to start running every morning". There\'s been no follow-up.';
+    mockSilenceNotFired();
+    mockCommitmentFired(commitmentContext);
+    mockLLMResponse('How is the running going?');
+    mockSendMessage.mockResolvedValueOnce({ message_id: 12 });
 
-  describe('accountability channel', () => {
-    it('sends accountability message when deadline trigger fires', async () => {
-      mockDeadlineFired();
-      mockSilenceNotFired();
-      mockCommitmentNotFired();
-      mockLLMResponse('Your prediction deadline passed. What actually happened?');
-      mockSendMessage.mockResolvedValueOnce({ message_id: 100 });
+    await runSweep();
 
-      const result = await runSweep();
-
-      expect(result.triggered).toBe(true);
-      expect(result.accountabilityResult?.triggered).toBe(true);
-      expect(result.accountabilityResult?.triggerType).toBe('decision-deadline');
-      expect(mockSendMessage).toHaveBeenCalledWith(
-        12345,
-        'Your prediction deadline passed. What actually happened?',
-      );
-      expect(mockSetLastSentAccountability).toHaveBeenCalledTimes(1);
-      expect(mockSetLastSentAccountability).toHaveBeenCalledWith(expect.any(Date));
-    });
-
-    it('uses ACCOUNTABILITY_SYSTEM_PROMPT, not PROACTIVE_SYSTEM_PROMPT', async () => {
-      mockDeadlineFired();
-      mockSilenceNotFired();
-      mockCommitmentNotFired();
-      mockLLMResponse('Checking in on your prediction.');
-      mockSendMessage.mockResolvedValueOnce({ message_id: 101 });
-
-      await runSweep();
-
-      expect(mockCreate).toHaveBeenCalledTimes(1);
-      const callArgs = mockCreate.mock.calls[0]![0];
-      const systemText = Array.isArray(callArgs.system) ? callArgs.system[0].text : callArgs.system;
-      // ACCOUNTABILITY_SYSTEM_PROMPT contains this distinctive phrase
-      expect(systemText).toContain('deadline has now passed');
-      // PROACTIVE_SYSTEM_PROMPT would contain this phrase instead
-      expect(systemText).not.toContain('close and perceptive friend');
-    });
-
-    it('calls upsertAwaitingResolution with decision ID before sendMessage', async () => {
-      const decisionId = 'test-decision-uuid-1234';
-      mockDeadlineFired(decisionId);
-      mockSilenceNotFired();
-      mockCommitmentNotFired();
-      mockLLMResponse('Checking in on your deadline.');
-
-      const callOrder: string[] = [];
-      mockUpsertAwaitingResolution.mockImplementation(async () => {
-        callOrder.push('upsertAwaitingResolution');
-      });
-      mockSendMessage.mockImplementation(async () => {
-        callOrder.push('sendMessage');
-        return { message_id: 102 };
-      });
-
-      await runSweep();
-
-      expect(callOrder.indexOf('upsertAwaitingResolution')).toBeLessThan(
-        callOrder.indexOf('sendMessage'),
-      );
-      expect(mockUpsertAwaitingResolution).toHaveBeenCalledWith(12345n, decisionId);
-    });
-
-    it('fires accountability even when reflective already sent today', async () => {
-      mockHasSentTodayReflective.mockResolvedValue(true);
-      mockHasSentTodayAccountability.mockResolvedValue(false);
-      mockDeadlineFired();
-      mockLLMResponse('Accountability check-in.');
-      mockSendMessage.mockResolvedValueOnce({ message_id: 103 });
-
-      const result = await runSweep();
-
-      expect(result.triggered).toBe(true);
-      expect(result.accountabilityResult?.triggered).toBe(true);
-      // Reflective channel should be skipped (already sent today)
-      expect(result.reflectiveResult).toBeUndefined();
-      // Only one LLM call (accountability)
-      expect(mockCreate).toHaveBeenCalledTimes(1);
-    });
-
-    it('skips accountability channel when already sent today', async () => {
-      mockHasSentTodayAccountability.mockResolvedValue(true);
-      mockDeadlineFired();
-      mockSilenceNotFired();
-      mockCommitmentNotFired();
-
-      const result = await runSweep();
-
-      // Accountability skipped but no error
-      expect(result.accountabilityResult).toBeUndefined();
-      // deadline detect should NOT have been called (cap gate before detect)
-      expect(mockDeadlineDetect).not.toHaveBeenCalled();
-    });
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: expect.arrayContaining([
+          expect.objectContaining({
+            type: 'text',
+            text: expect.stringContaining(commitmentContext),
+            cache_control: { type: 'ephemeral' },
+          }),
+        ]),
+        messages: expect.arrayContaining([
+          expect.objectContaining({ content: commitmentContext }),
+        ]),
+      }),
+    );
   });
 
-  // ── Reflective channel ──────────────────────────────────────────────────
+  // ── Two-phase short-circuit tests ────────────────────────────────────────
 
-  describe('reflective channel', () => {
-    it('sends reflective message when silence trigger fires', async () => {
-      mockDeadlineNotFired();
-      mockSilenceFired();
-      mockCommitmentNotFired();
-      mockLLMResponse('Hey, been thinking about you. Everything good?');
-      mockSendMessage.mockResolvedValueOnce({ message_id: 1 });
-
-      const result = await runSweep();
-
-      expect(result.triggered).toBe(true);
-      expect(result.reflectiveResult?.triggered).toBe(true);
-      expect(result.reflectiveResult?.triggerType).toBe('silence');
-      expect(result.message).toBe('Hey, been thinking about you. Everything good?');
-
-      expect(mockSendMessage).toHaveBeenCalledWith(
-        12345,
-        'Hey, been thinking about you. Everything good?',
-      );
-      expect(mockSaveMessage).toHaveBeenCalledWith(
-        12345n,
-        'ASSISTANT',
-        'Hey, been thinking about you. Everything good?',
-        'JOURNAL',
-      );
-      expect(mockSetLastSentReflective).toHaveBeenCalledTimes(1);
-      expect(mockSetLastSentReflective).toHaveBeenCalledWith(expect.any(Date));
-    });
-
-    it('passes trigger context into reflective system prompt for LLM', async () => {
-      const context = 'John has been quiet for 5.0 days. His usual rhythm is about 1.2 days between messages.';
-      mockDeadlineNotFired();
-      mockSilenceFired(context);
-      mockCommitmentNotFired();
-      mockLLMResponse('Miss hearing from you, mate.');
-      mockSendMessage.mockResolvedValueOnce({ message_id: 2 });
-
-      await runSweep();
-
-      expect(mockCreate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          model: 'claude-sonnet-4-6',
-          system: expect.arrayContaining([
-            expect.objectContaining({
-              type: 'text',
-              text: expect.stringContaining(context),
-              cache_control: { type: 'ephemeral' },
-            }),
-          ]),
-          messages: expect.arrayContaining([
-            expect.objectContaining({ content: context }),
-          ]),
-        }),
-      );
-
-      // System prompt should use PROACTIVE_SYSTEM_PROMPT (not accountability)
-      const callArgs = mockCreate.mock.calls[0]![0];
-      const systemText = Array.isArray(callArgs.system) ? callArgs.system[0].text : callArgs.system;
-      expect(systemText).toContain('close and perceptive friend');
-      expect(systemText).not.toContain('{triggerContext}');
-    });
-
-    it('fires reflective even when accountability already sent today', async () => {
-      mockHasSentTodayAccountability.mockResolvedValue(true);
-      mockHasSentTodayReflective.mockResolvedValue(false);
-      mockSilenceFired();
-      mockCommitmentNotFired();
-      mockLLMResponse('Checking in!');
-      mockSendMessage.mockResolvedValueOnce({ message_id: 104 });
-
-      const result = await runSweep();
-
-      expect(result.triggered).toBe(true);
-      expect(result.reflectiveResult?.triggered).toBe(true);
-      expect(result.accountabilityResult).toBeUndefined();
-    });
-
-    it('calls setLastSentReflective only after successful send — not before', async () => {
-      const callOrder: string[] = [];
-      mockDeadlineNotFired();
-      mockSilenceFired();
-      mockCommitmentNotFired();
-      mockLLMResponse('Checking in!');
-      mockSendMessage.mockImplementation(async () => {
-        callOrder.push('sendMessage');
-        return { message_id: 3 };
-      });
-      mockSaveMessage.mockImplementation(async () => {
-        callOrder.push('saveMessage');
-        return {};
-      });
-      mockSetLastSentReflective.mockImplementation(async () => {
-        callOrder.push('setLastSentReflective');
-      });
-
-      await runSweep();
-
-      expect(callOrder).toEqual(['sendMessage', 'saveMessage', 'setLastSentReflective']);
-    });
-
-    it('silence wins over commitment when both fire (priority 1 < 3)', async () => {
-      mockDeadlineNotFired();
-      mockSilenceFired();
-      mockCommitmentFired();
-      mockLLMResponse('Been a while — how are things?');
-      mockSendMessage.mockResolvedValueOnce({ message_id: 10 });
-
-      const result = await runSweep();
-
-      expect(result.triggered).toBe(true);
-      expect(result.reflectiveResult?.triggerType).toBe('silence');
-    });
-
-    it('commitment fires when silence does not trigger', async () => {
-      mockDeadlineNotFired();
-      mockSilenceNotFired();
-      mockCommitmentFired();
-      mockLLMResponse('Remember that running goal you mentioned?');
-      mockSendMessage.mockResolvedValueOnce({ message_id: 11 });
-
-      const result = await runSweep();
-
-      expect(result.triggered).toBe(true);
-      expect(result.reflectiveResult?.triggerType).toBe('commitment');
-    });
-
-    it('commitment context is passed to LLM when commitment is the winner', async () => {
-      const commitmentContext = 'John made a commitment 14 days ago: "I want to start running every morning". There\'s been no follow-up.';
-      mockDeadlineNotFired();
-      mockSilenceNotFired();
-      mockCommitmentFired(commitmentContext);
-      mockLLMResponse('How is the running going?');
-      mockSendMessage.mockResolvedValueOnce({ message_id: 12 });
-
-      await runSweep();
-
-      expect(mockCreate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          system: expect.arrayContaining([
-            expect.objectContaining({
-              type: 'text',
-              text: expect.stringContaining(commitmentContext),
-              cache_control: { type: 'ephemeral' },
-            }),
-          ]),
-          messages: expect.arrayContaining([
-            expect.objectContaining({ content: commitmentContext }),
-          ]),
-        }),
-      );
-    });
-  });
-
-  // ── Channel independence ─────────────────────────────────────────────────
-
-  describe('channel independence', () => {
-    it('both channels fire on the same sweep tick', async () => {
-      mockDeadlineFired();
-      mockSilenceFired();
-      mockCommitmentNotFired();
-      // Two LLM calls needed (one per channel)
-      mockLLMResponse('Accountability: deadline check.');
-      mockLLMResponse('Reflective: checking in.');
-      mockSendMessage.mockResolvedValue({ message_id: 200 });
-
-      const result = await runSweep();
-
-      expect(result.triggered).toBe(true);
-      expect(result.accountabilityResult?.triggered).toBe(true);
-      expect(result.reflectiveResult?.triggered).toBe(true);
-      expect(mockSendMessage).toHaveBeenCalledTimes(2);
-      expect(mockCreate).toHaveBeenCalledTimes(2);
-    });
-
-    it('accountability fires BEFORE reflective (execution order)', async () => {
-      const callOrder: string[] = [];
-      mockDeadlineFired();
-      mockSilenceFired();
-      mockCommitmentNotFired();
-
-      // Intercept LLM calls to distinguish them by call order
-      mockCreate
-        .mockImplementationOnce(async () => {
-          callOrder.push('accountability-llm');
-          return { content: [{ type: 'text', text: 'Accountability message' }] };
-        })
-        .mockImplementationOnce(async () => {
-          callOrder.push('reflective-llm');
-          return { content: [{ type: 'text', text: 'Reflective message' }] };
-        });
-
-      mockSendMessage.mockResolvedValue({ message_id: 201 });
-
-      await runSweep();
-
-      expect(callOrder.indexOf('accountability-llm')).toBeLessThan(
-        callOrder.indexOf('reflective-llm'),
-      );
-    });
-
-    it('accountability error does not block reflective channel', async () => {
-      mockDeadlineFired();
-      mockSilenceFired();
-      mockCommitmentNotFired();
-
-      // Accountability LLM fails
-      mockCreate.mockRejectedValueOnce(new Error('Accountability LLM failed'));
-      // Reflective LLM succeeds
-      mockLLMResponse('Reflective message still goes out.');
-      mockSendMessage.mockResolvedValueOnce({ message_id: 202 });
-
-      const result = await runSweep();
-
-      // Reflective should still fire
-      expect(result.triggered).toBe(true);
-      expect(result.reflectiveResult?.triggered).toBe(true);
-      // Accountability should not have succeeded
-      expect(result.accountabilityResult?.triggered).toBeFalsy();
-      // Error logged for accountability
-      expect(logger.error).toHaveBeenCalled();
-    });
-
-    it('reflective channel is skipped when already sent today, accountability still runs', async () => {
-      mockHasSentTodayReflective.mockResolvedValue(true);
-      mockHasSentTodayAccountability.mockResolvedValue(false);
-      mockDeadlineFired();
-      mockLLMResponse('Accountability check-in.');
-      mockSendMessage.mockResolvedValueOnce({ message_id: 203 });
-
-      const result = await runSweep();
-
-      expect(result.triggered).toBe(true);
-      expect(result.accountabilityResult?.triggered).toBe(true);
-      expect(result.reflectiveResult).toBeUndefined();
-      // Silence/commitment triggers should not have been called (reflective skipped)
-      expect(mockSilenceDetect).not.toHaveBeenCalled();
-    });
-  });
-
-  // ── Two-phase short-circuit tests (reflective channel) ───────────────────
-
-  it('short-circuits Opus when silence trigger fires (reflective channel)', async () => {
-    mockDeadlineNotFired();
+  it('short-circuits Opus when silence trigger fires', async () => {
     mockSilenceFired();
     mockCommitmentNotFired();
     mockLLMResponse('Hey, checking in.');
@@ -729,7 +492,6 @@ describe('proactive sweep', () => {
   });
 
   it('short-circuits Opus when commitment trigger fires', async () => {
-    mockDeadlineNotFired();
     mockSilenceNotFired();
     mockCommitmentFired();
     mockLLMResponse('How is the running?');
@@ -746,7 +508,6 @@ describe('proactive sweep', () => {
   });
 
   it('short-circuits Opus when both SQL triggers fire', async () => {
-    mockDeadlineNotFired();
     mockSilenceFired();
     mockCommitmentFired();
     mockLLMResponse('Been a while — how are things?');
@@ -763,7 +524,6 @@ describe('proactive sweep', () => {
   });
 
   it('calls Opus phase when no SQL trigger fires — pattern trigger fires', async () => {
-    mockDeadlineNotFired();
     mockSilenceNotFired();
     mockCommitmentNotFired();
     mockBuildSweepContext.mockResolvedValueOnce('## Relational Memory\n- [PATTERN] John often mentions work stress on Mondays');
@@ -774,7 +534,7 @@ describe('proactive sweep', () => {
     mockPatternDetect.mockResolvedValueOnce({
       triggered: true,
       triggerType: 'pattern',
-      priority: 4,
+      priority: 3,
       context: 'Monday stress pattern',
       evidence: ['Work stress mentions'],
     });
@@ -784,13 +544,12 @@ describe('proactive sweep', () => {
     const result = await runSweep();
 
     expect(result.triggered).toBe(true);
-    expect(result.reflectiveResult?.triggerType).toBe('pattern');
+    expect(result.triggerType).toBe('pattern');
     expect(mockBuildSweepContext).toHaveBeenCalledWith(10000);
     expect(mockRunOpusAnalysis).toHaveBeenCalled();
   });
 
-  it('pattern wins over thread when both Opus triggers fire (priority 4 < 5)', async () => {
-    mockDeadlineNotFired();
+  it('pattern wins over thread when both Opus triggers fire (priority 3 < 4)', async () => {
     mockSilenceNotFired();
     mockCommitmentNotFired();
     mockBuildSweepContext.mockResolvedValueOnce('context data');
@@ -801,14 +560,14 @@ describe('proactive sweep', () => {
     mockPatternDetect.mockResolvedValueOnce({
       triggered: true,
       triggerType: 'pattern',
-      priority: 4,
+      priority: 3,
       context: 'Recurring pattern',
       evidence: ['evidence1'],
     });
     mockThreadDetect.mockResolvedValueOnce({
       triggered: true,
       triggerType: 'thread',
-      priority: 5,
+      priority: 4,
       context: 'Unresolved thread',
       evidence: ['evidence2'],
     });
@@ -818,11 +577,20 @@ describe('proactive sweep', () => {
     const result = await runSweep();
 
     expect(result.triggered).toBe(true);
-    expect(result.reflectiveResult?.triggerType).toBe('pattern');
+    expect(result.triggerType).toBe('pattern');
+
+    // Verify the trigger log shows both fired with pattern winning
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        triggerType: 'pattern',
+        firedCount: 2,
+        allFired: ['pattern', 'thread'],
+      }),
+      'proactive.sweep.trigger',
+    );
   });
 
   it('handles Opus phase gracefully when context builder throws', async () => {
-    mockDeadlineNotFired();
     mockSilenceNotFired();
     mockCommitmentNotFired();
     mockBuildSweepContext.mockRejectedValueOnce(new Error('DB connection lost'));
@@ -839,7 +607,6 @@ describe('proactive sweep', () => {
   });
 
   it('handles Opus phase gracefully when runOpusAnalysis throws', async () => {
-    mockDeadlineNotFired();
     mockSilenceNotFired();
     mockCommitmentNotFired();
     mockBuildSweepContext.mockResolvedValueOnce('context data');
@@ -856,7 +623,6 @@ describe('proactive sweep', () => {
   });
 
   it('thread trigger fires when pattern does not', async () => {
-    mockDeadlineNotFired();
     mockSilenceNotFired();
     mockCommitmentNotFired();
     mockBuildSweepContext.mockResolvedValueOnce('context data');
@@ -867,7 +633,7 @@ describe('proactive sweep', () => {
     mockThreadDetect.mockResolvedValueOnce({
       triggered: true,
       triggerType: 'thread',
-      priority: 5,
+      priority: 4,
       context: 'Unresolved thread about travel plans',
       evidence: ['thread evidence'],
     });
@@ -877,25 +643,7 @@ describe('proactive sweep', () => {
     const result = await runSweep();
 
     expect(result.triggered).toBe(true);
-    expect(result.reflectiveResult?.triggerType).toBe('thread');
+    expect(result.triggerType).toBe('thread');
     expect(result.message).toBe('Did you ever sort out those travel plans?');
-  });
-
-  it('does not send message when reflective Anthropic throws (wraps in outer catch)', async () => {
-    mockDeadlineNotFired();
-    mockSilenceFired();
-    mockCommitmentNotFired();
-    mockCreate.mockRejectedValueOnce(new Error('API rate limit'));
-
-    // Reflective error should propagate (outer catch re-throws)
-    await expect(runSweep()).rejects.toThrow('API rate limit');
-
-    expect(mockSendMessage).not.toHaveBeenCalled();
-    expect(mockSaveMessage).not.toHaveBeenCalled();
-    expect(mockSetLastSentReflective).not.toHaveBeenCalled();
-    expect(logger.error).toHaveBeenCalledWith(
-      expect.objectContaining({ err: expect.any(Error) }),
-      'proactive.sweep.error',
-    );
   });
 });

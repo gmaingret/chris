@@ -1,119 +1,126 @@
-# Requirements: v2.1 M007 Decision Archive
+# Requirements: Project Chris
 
-**Defined:** 2026-04-15
-**Milestone:** v2.1 M007 Decision Archive
+**Defined:** 2026-04-13
 **Core Value:** Greg can deposit any memory, thought, or feeling into Chris and later ask questions that Chris answers by searching everything Greg has ever told him — with full fidelity, no data loss, and genuine contextual understanding across English, French, and Russian.
-**Milestone Goal:** Capture every structural decision Greg makes with reasoning and a falsifiable forecast, surface the forecast at its resolution date, and run a post-mortem — converting Chris from reflective journal into epistemic accountability tool.
 
-## v2.1 Requirements — M007 Decision Archive
+## v2.0 Requirements — M006 Trustworthy Chris
 
-### Capture
+Requirements for milestone M006. Each maps to roadmap phases.
 
-- [x] **CAP-01**: Two-phase decision trigger detection — Phase A regex matches decision phrases in EN/FR/RU ("I'm thinking about", "je réfléchis à", "я думаю о", plus full PRD set); Phase B Haiku stakes classifier (`trivial`/`moderate`/`structural`) gates capture — only `structural` activates the flow.
-- [ ] **CAP-02**: 5-question guided capture is implemented as conversational extraction via Haiku structured output, not a rigid Q1→Q5 script — one-message multi-answer is consolidated without re-prompting.
-- [ ] **CAP-03**: Capture has a 3-turn follow-up cap and accepts an abort/escape phrase ("never mind", EN/FR/RU) that cleanly dismisses the in-progress capture.
-- [ ] **CAP-04**: `open-draft` partial-commit status exists — capture can land decisions with missing optional fields rather than null-stuffing or discarding.
-- [ ] **CAP-05**: `resolve_by` accepts natural-language timeframes ("next week", "in 3 months", "by June") with a documented fallback ladder (7 / 30 / 90 / 365 days) when Haiku cannot parse.
-- [x] **CAP-06**: Per-user trigger-suppression list — Greg can mark phrases or specific captured-decision ids as "don't trigger on this pattern again" via a `/decisions suppress <phrase>` sub-command.
+### Trust & Refusal Handling
 
-### Lifecycle
+- [x] **TRUST-01**: Chris detects explicit refusals in EN/FR/RU via pattern matching (15-20 regex patterns per language)
+- [x] **TRUST-02**: Declined topics persist per-session and are injected into subsequent system prompts
+- [x] **TRUST-03**: Chris acknowledges a refusal once and never returns to the declined topic in the same conversation, even after intervening turns
+- [x] **TRUST-04**: Refusal handling rule is present in all 6 mode system prompts
 
-- [ ] **LIFE-01**: `decisions` + `decision_events` + `decision_capture_state` tables added to Drizzle schema with `pgEnum` types for `decision_status` (`open-draft`/`open`/`due`/`resolved`/`reviewed`/`withdrawn`/`stale`/`abandoned`) and `decision_capture_stage`.
-- [ ] **LIFE-02**: `decision_events` is append-only — every status transition and field change is inserted as a new event row; `decisions` table is a projection over this log. Mutable status column is legal only because regenerable from events.
-- [ ] **LIFE-03**: Single `transitionDecision(id, toStatus, payload)` chokepoint enforces the legal transition map and uses optimistic concurrency (`UPDATE … WHERE id=$id AND status=$expected`). Illegal transitions throw and are covered by unit tests.
-- [ ] **LIFE-04**: `decisions.falsification_criterion` is `NOT NULL`; Haiku validator flags hedge-only predictions ("probably fine", "it should work out") at capture time and issues one pushback before accepting.
-- [ ] **LIFE-05**: Contradiction detection (M002) is extended to scan new `decisions.reasoning` entries against existing Pensieve entries; confidence ≥ 0.75; 3-second timeout; fire-and-forget.
-- [ ] **LIFE-06**: New `DECISION` value added to the epistemic-tag enum; decision summary is tagged `DECISION` (not reused `INTENTION`) to prevent the commitment trigger from double-firing on captured decisions.
+### Anti-Sycophancy
 
-### Resolution
+- [x] **SYCO-01**: Constitutional anti-sycophancy preamble is prefixed to all 6 modes via `buildSystemPrompt()`
+- [x] **SYCO-02**: The Hard Rule — Chris never tells Greg he is right because of who he is (no appeals to track record as evidence)
+- [x] **SYCO-03**: Three forbidden behaviors encoded as hard constraints: never resolve contradictions alone, never extrapolate to novel situations, never optimize for emotional satisfaction
+- [x] **SYCO-04**: Praise quarantine post-processor (Haiku) strips reflexive flattery from JOURNAL/REFLECT/PRODUCE responses
+- [x] **SYCO-05**: COACH and PSYCHOLOGY modes bypass praise quarantine (already forbid flattery at prompt level)
 
-- [ ] **RES-01**: New `ACCOUNTABILITY` mode (or explicit COACH extension chosen at plan-phase) bypasses the praise quarantine at the prompt level — follows the COACH/PSYCHOLOGY bypass pattern (D025). The Hard Rule (D027) is forbidden explicitly in the mode's system prompt.
-- [ ] **RES-02**: Resolution prompts surface within 24 hours of `resolve_by` passing; prompt text cites the original prediction and asks "what actually happened?" in Greg's language of the last user message.
-- [ ] **RES-03**: When Greg responds to a resolution prompt, the engine pre-processor intercepts (based on `decision_capture_state = AWAITING_RESOLUTION`) and routes to the resolution handler instead of normal mode detection — response is stored in `resolution` and `decisions` transitions `due → resolved`.
-- [ ] **RES-04**: After resolution, exactly one post-mortem follow-up question is asked (chosen by Haiku-classified outcome class: hit/miss/ambiguous/unverifiable). Response stored in `resolution_notes`; `decisions` transitions `resolved → reviewed`. Both responses become Pensieve entries with `source_ref_id` pointing to the decision row.
-- [ ] **RES-05**: Resolution includes ±48h Pensieve retrieval surfacing surrounding entries as context for the post-mortem prompt (cheap M001 reuse). Popper falsification criterion is re-displayed passively in the prompt.
-- [ ] **RES-06**: Auto-escalation — if Greg does not respond to a resolution prompt within 48 hours, a second prompt is sent once. After 2 non-replies the decision transitions to `stale` and no further prompts fire (but `/decisions` still surfaces it).
+### Retrieval & Grounding
 
-### Stats
+- [x] **RETR-01**: JOURNAL mode uses hybrid retrieval (FACT/RELATIONSHIP/PREFERENCE/VALUE tags) before each Sonnet call
+- [x] **RETR-02**: Structured fact injection — stable facts extracted from FACT/RELATIONSHIP-tagged entries and injected as "Known Facts" key-value block
+- [x] **RETR-03**: Memory audit completed — all incorrect/outdated Pensieve entries about Greg reconciled against ground truth
+- [x] **RETR-04**: Chris says "I don't have any memories about that" for facts not in the Pensieve instead of confabulating
 
-- [ ] **STAT-01**: `/decisions` Telegram command with sub-commands: no args (summary), `open`, `recent`, `stats [30|90|365]`, `suppress <phrase>`, `reclassify`. Pull-only — Chris never unprompted-pushes stats.
-- [ ] **STAT-02**: Accuracy computed via 2-axis Haiku classification (`outcome` ∈ hit/miss/partial/ambiguous/unverifiable × `reasoning` ∈ sound/lucky/flawed) cached on the `decision_events` row with model version string; never recomputed on read.
-- [ ] **STAT-03**: N≥10 floor — no accuracy percentage is displayed below 10 resolved decisions in the chosen window; instead shows "N=<count>, threshold not met". Above floor, Wilson 95% confidence intervals are rendered alongside the point estimate.
-- [ ] **STAT-04**: Rolling 30 / 90 / 365-day windows computed in SQL via `FILTER (WHERE resolved_at >= now() - interval 'N days')` — single round-trip, timezone-correct. `unverifiable` count surfaced explicitly as a separate denominator.
-- [ ] **STAT-05**: Domain-tag breakdown — accuracy computed per domain tag inferred by Haiku at capture time; `/decisions reclassify` admin sub-command re-runs classification when model version changes, preserving originals alongside new values.
+### Language & Conversation Quality
 
-### Scheduler / Sweep
-
-- [ ] **SWEEP-01**: New `decision-deadline` trigger added to the proactive sweep as a fifth SQL-first trigger at priority=2 (between silence=1 and commitment=3). Extends existing `TriggerDetector` interface per D010 two-phase execution.
-- [ ] **SWEEP-02**: Channel separation — sweep daily cap is split into `reflective_outreach` (silence/commitment/pattern/thread, existing behavior) and `accountability_outreach` (decision-deadline) with independent caps; on same-day collision the channels fire serially, not one blocking the other.
-- [ ] **SWEEP-03**: Engine pre-processor #0 checks `decision_capture_state` BEFORE mute/refusal/language/mode detection — rows in `AWAITING_RESOLUTION` / `AWAITING_POSTMORTEM` / `CAPTURING` bypass normal routing and go directly to the capture/resolution handler.
-- [ ] **SWEEP-04**: Stale-context prompt text — when a resolution prompt fires more than 48 hours past `resolve_by`, the prompt is explicitly dated ("On 2026-04-01 you predicted…") rather than implicitly recent-framed.
+- [x] **LANG-01**: Language detection via `franc` runs as engine pre-processing, not prompt rules
+- [x] **LANG-02**: Messages below 4 words or 15 characters inherit language of previous user message; default English if no prior
+- [x] **LANG-03**: Detected language passed as hard system parameter overriding statistical bias from conversation history
+- [x] **LANG-04**: Question-pressure reduced in JOURNAL prompt — questions are optional, Chris can simply respond
 
 ### Testing & Validation
 
-- [ ] **TEST-10**: End-to-end synthetic fixture test using `vi.useFakeTimers` / `vi.setSystemTime` — exercises capture → deadline transition → resolution prompt → post-mortem → stats under a simulated 14-day window. No real calendar time.
-- [ ] **TEST-11**: Concurrency race test — sweep and user-reply attempting to transition the same decision simultaneously; optimistic concurrency resolves cleanly with exactly one winner, `decision_events` reflects attempted-and-rejected transition.
-- [ ] **TEST-12**: Same-day trigger collision test — decision-deadline and silence triggers both fire on the same mock-clock day; validates channel separation fires both serially without either starving the other.
-- [ ] **TEST-13**: Live ACCOUNTABILITY integration suite against real Sonnet — 3 scenarios (hit / miss / unverifiable) × 3-of-3 passes — asserts absence-of-flattery AND absence-of-condemnation; follows the D023/D032 live-suite pattern.
-- [ ] **TEST-14**: Vague-prediction resistance test — 10 adversarial vague predictions ("probably fine", "it'll work out", "I think so") — Haiku validator flags ≥ 9 on first pass and issues exactly one pushback before accepting.
+- [x] **TEST-01**: 3 live integration tests for refusal handling (EN/FR/RU), 3-of-3 passes
+- [x] **TEST-02**: 3 live tests for topic-decline persistence across 5+ intervening turns, 3-of-3 passes
+- [x] **TEST-03**: 3 live tests for JOURNAL grounding with seeded facts verified via Haiku follow-up, 3-of-3 passes
+- [x] **TEST-04**: 3 live tests for language switching EN/FR/RU verified via `franc` on response, 3-of-3 passes
+- [x] **TEST-05**: 3 live tests for sycophancy resistance to weak arguments, 3-of-3 passes
+- [x] **TEST-06**: 3 live tests for hallucination resistance (facts NOT in Pensieve), 3-of-3 passes
+- [x] **TEST-07**: 3 live tests for structured fact retrieval accuracy (seeded location/dates reported verbatim), 3-of-3 passes
+- [x] **TEST-08**: 3 live tests for performative apology detection (actually-different behavior after callout), 3-of-3 passes
+- [x] **TEST-09**: Contradiction false-positive audit — 20 adversarial non-contradictory pairs, 0 false positives
 
-## Future Requirements (deferred to v2.2 / M013)
+## Future Requirements
 
-- **FUTURE-M007-01**: Opus pattern detection across misses — requires ≥ 20 resolved decisions with outcome data before inference is meaningful.
-- **FUTURE-M007-02**: Auto-fire Popper probe on disconfirming evidence discovered in Pensieve during proactive sweep.
-- **FUTURE-M007-03**: Domain-specific calibration curves rendered as plain-text ASCII sparklines in `/decisions stats`.
-- **FUTURE-M007-04**: Inferred `captured_context` — time-of-day + surrounding Pensieve auto-attached to capture row.
-- **FUTURE-M007-05**: Partial-capture recovery prompts — "you started capturing a decision 3 days ago but didn't finish; want to resume?"
+Deferred to subsequent milestones. Tracked but not in current roadmap.
 
-## Out of Scope (explicit exclusions)
+### M007 — Decision Archive
 
-- **OOS-M007-01**: Forced numeric probability on predictions — full Brier scoring pipeline. *Reason:* Brier requires ≥ 100 forecasts per probability bucket for meaningful calibration; Greg's expected ~20/year is orders of magnitude below. Free-text predictions + Haiku classification give more signal per entry.
-- **OOS-M007-02**: Auto-resolving decisions by scanning Pensieve for outcome. *Reason:* Resolution is an epistemic event (Greg naming the outcome in his words); automating it converts accountability into box-ticking and collapses the post-mortem cadence.
-- **OOS-M007-03**: Editing captured reasoning after outcome is known. *Reason:* Defeats the entire purpose — the archive must preserve what Greg actually thought at decision time.
-- **OOS-M007-04**: Multi-question structured post-mortems. *Reason:* Duke/Parrish agree one open question outperforms structured forms (fatigue + script-completion gaming).
-- **OOS-M007-05**: Unprompted accuracy-stat pushes ("your 30-day accuracy dropped to 45%"). *Reason:* Stat pushes fail on both edges — flattery when high, punishment when low. Accountability is an answer to a question, not a notification.
-- **OOS-M007-06**: Charts, graphs, or visualizations in Telegram output. *Reason:* Plain-text-only UX discipline; a number with a CI beats a sparkline in chat.
-- **OOS-M007-07**: Betting / stakes / prediction-market mechanics. *Reason:* Category error — Chris is an archive, not a prediction market.
+- **DECI-01**: Decision capture protocol (5-question)
+- **DECI-02**: Decision lifecycle state machine
+- **DECI-03**: Forecast resolution scheduler
+
+### M008 — Episodic Consolidation
+
+- **EPIS-01**: Daily end-of-day summaries
+- **EPIS-02**: Importance scoring
+- **EPIS-03**: Recency-based retrieval routing
+
+### M009 — Ritual Infrastructure (MVP)
+
+- **RITU-01**: Daily voice note with rotating prompts
+- **RITU-02**: Daily wellbeing snapshot (energy/mood/anxiety 1-5)
+- **RITU-03**: Weekly review (observation + Socratic question + open slot)
+
+## Out of Scope
+
+Explicitly excluded. Documented to prevent scope creep.
+
+| Feature | Reason |
+|---------|--------|
+| Haiku-classified refusal detection | Pattern-based is cheap, deterministic, good enough (D020) |
+| Profile layer changes | Deferred to M010-M012; requires real data from M009 |
+| Decision archive | M007 scope — depends on M006 trust fixes |
+| Ritual scheduling | M009 scope — depends on M007 and M008 |
+| Multi-user support | Out of scope by design (D009) |
+| Voice message transcription | Deferred — transcription error risk too high without review flow |
 
 ## Traceability
 
-| Requirement | Phase | Status  | Notes |
-|-------------|-------|---------|-------|
-| CAP-01      | 14    | Complete | Two-phase detection (regex + Haiku stakes) — atomic with Phase B (guards C3) |
-| CAP-02      | 14    | Pending | Conversational Haiku extraction (guards C1) |
-| CAP-03      | 14    | Pending | 3-turn cap + EN/FR/RU abort phrase |
-| CAP-04      | 14    | Pending | `open-draft` partial-commit |
-| CAP-05      | 14    | Pending | Natural-language `resolve_by` + 7/30/90/365d fallback ladder |
-| CAP-06      | 14    | Complete | `/decisions suppress` sub-command (persistent) |
-| LIFE-01     | 13    | Pending | Drizzle schema + pgEnums (including open-draft/withdrawn/stale/abandoned) |
-| LIFE-02     | 13    | Pending | Append-only `decision_events`; `decisions` is projection (guards C4) |
-| LIFE-03     | 13    | Pending | `transitionDecision()` chokepoint + optimistic concurrency |
-| LIFE-04     | 13    | Pending | `falsification_criterion NOT NULL` + hedge-word validator (guards C2) |
-| LIFE-05     | 14    | Pending | Contradiction detection extended to decisions.reasoning |
-| LIFE-06     | 13    | Pending | `DECISION` epistemic tag (prevents commitment trigger double-fire) |
-| RES-01      | 16    | Pending | ACCOUNTABILITY mode bypasses praise quarantine + forbids The Hard Rule (guards C7) |
-| RES-02      | 16    | Pending | 24h surfacing + prediction citation in Greg's language |
-| RES-03      | 16    | Pending | Pre-processor routes AWAITING_RESOLUTION to resolution handler |
-| RES-04      | 16    | Pending | Single Haiku-classified post-mortem; both replies become Pensieve entries with source_ref_id |
-| RES-05      | 16    | Pending | ±48h Pensieve context + Popper criterion redisplay |
-| RES-06      | 16    | Pending | 48h auto-escalation; 2 non-replies → `stale` |
-| STAT-01     | 17    | Pending | `/decisions` + sub-commands, pull-only |
-| STAT-02     | 17    | Pending | 2-axis Haiku classification cached on decision_events with model version (guards M4) |
-| STAT-03     | 17    | Pending | N≥10 floor + Wilson 95% CI (guards C6) |
-| STAT-04     | 17    | Pending | SQL FILTER windows; `unverifiable` separate denominator |
-| STAT-05     | 17    | Pending | Domain-tag breakdown + `/decisions reclassify` preserving originals |
-| SWEEP-01    | 15    | Pending | `decision-deadline` trigger priority=2 |
-| SWEEP-02    | 15    | Pending | Channel separation `reflective_outreach` vs `accountability_outreach` (guards C5) |
-| SWEEP-03    | 14    | Pending | Engine pre-processor #0 runs before mute/refusal/language/mode |
-| SWEEP-04    | 15    | Pending | Dated prompt text >48h past `resolve_by` |
-| TEST-10     | 18    | Pending | End-to-end `vi.setSystemTime` 14-day fixture |
-| TEST-11     | 18    | Pending | Concurrency race — optimistic concurrency winner |
-| TEST-12     | 18    | Pending | Same-day decision-deadline + silence collision |
-| TEST-13     | 18    | Pending | Live ACCOUNTABILITY suite — hit/miss/unverifiable × 3-of-3 real Sonnet (D023/D032) |
-| TEST-14     | 18    | Pending | Vague-prediction Haiku validator ≥9/10 flags + one pushback |
+Which phases cover which requirements. Updated during roadmap creation.
 
-**Coverage:** 31/31 ✓ — no orphans.
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| RETR-03 | Phase 6 | Satisfied |
+| TRUST-01 | Phase 7 | Satisfied |
+| TRUST-02 | Phase 7 | Satisfied |
+| TRUST-03 | Phase 7 | Satisfied |
+| TRUST-04 | Phase 7 | Satisfied |
+| SYCO-01 | Phase 7 | Satisfied |
+| SYCO-02 | Phase 7 | Satisfied |
+| SYCO-03 | Phase 7 | Satisfied |
+| LANG-01 | Phase 7 | Satisfied |
+| LANG-02 | Phase 7 | Satisfied |
+| LANG-03 | Phase 7 | Satisfied |
+| LANG-04 | Phase 7 | Satisfied |
+| RETR-01 | Phase 11 | Satisfied |
+| RETR-02 | Phase 11 | Satisfied |
+| RETR-04 | Phase 11 | Satisfied |
+| SYCO-04 | Phase 9 | Satisfied |
+| SYCO-05 | Phase 9 | Satisfied |
+| TEST-01 | Phase 10 | Satisfied |
+| TEST-02 | Phase 10 | Satisfied |
+| TEST-03 | Phase 11 | Satisfied |
+| TEST-04 | Phase 10 | Satisfied |
+| TEST-05 | Phase 10 | Satisfied |
+| TEST-06 | Phase 10 | Satisfied |
+| TEST-07 | Phase 10 | Satisfied |
+| TEST-08 | Phase 10 | Satisfied |
+| TEST-09 | Phase 10 | Satisfied |
+
+**Coverage:**
+- v2.0 requirements: 26 total
+- Mapped to phases: 26
+- Unmapped: 0
 
 ---
-
-*Defined: 2026-04-15 · Traceability filled: 2026-04-15*
+*Requirements defined: 2026-04-13*
+*Last updated: 2026-04-15 — RETR-01/02/04 + TEST-03 closed by Phase 11 Identity Grounding. All 26 v2.0 requirements satisfied.*

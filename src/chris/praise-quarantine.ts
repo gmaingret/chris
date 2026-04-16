@@ -79,7 +79,7 @@ export async function quarantinePraise(response: string, mode: ChrisMode): Promi
   // Mode bypass — COACH and PSYCHOLOGY handle flattery in their own prompts (SYCO-05).
   // Pure pass-through: neutral tokens like "Beautiful" or "Oh" can legitimately open
   // substantive responses in these modes and must not be truncated.
-  if (mode === 'COACH' || mode === 'PSYCHOLOGY' || mode === 'ACCOUNTABILITY') {
+  if (mode === 'COACH' || mode === 'PSYCHOLOGY') {
     return response;
   }
 
