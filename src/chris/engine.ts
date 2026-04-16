@@ -9,8 +9,59 @@ import { handleCoach } from './modes/coach.js';
 import { handlePsychology } from './modes/psychology.js';
 import { handleProduce } from './modes/produce.js';
 import { writeRelationalMemory } from '../memory/relational.js';
-import { detectContradictions } from './contradiction.js';
+import { detectContradictions, type DetectedContradiction } from './contradiction.js';
 import { formatContradictionNotice } from './personality.js';
+import {
+  getActiveDecisionCapture,
+  clearCapture,
+  isAbortPhrase,
+  type CaptureDraft,
+} from '../decisions/capture-state.js';
+import { handleCapture, openCapture } from '../decisions/capture.js';
+import { detectTriggerPhrase, classifyStakes } from '../decisions/triggers.js';
+import { isSuppressed } from '../decisions/suppressions.js';
+
+// ── Contradiction surface-suppression ──────────────────────────────────────
+// The detector doesn't know what's already been shown to the user, so without
+// suppression it re-fires on the same past entry every turn while the topic
+// stays live. Keyed by (chatId, past-entryId) with a TTL so the notice can
+// legitimately reappear if the user returns to the topic much later.
+
+const SURFACED_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+const surfacedContradictions = new Map<string, Map<string, number>>();
+
+function pruneSurfaced(chatId: string): Map<string, number> {
+  const now = Date.now();
+  let perChat = surfacedContradictions.get(chatId);
+  if (!perChat) {
+    perChat = new Map();
+    surfacedContradictions.set(chatId, perChat);
+    return perChat;
+  }
+  for (const [entryId, ts] of perChat) {
+    if (now - ts > SURFACED_TTL_MS) perChat.delete(entryId);
+  }
+  return perChat;
+}
+
+function filterAlreadySurfaced(
+  chatId: string,
+  detected: DetectedContradiction[],
+): DetectedContradiction[] {
+  const perChat = pruneSurfaced(chatId);
+  return detected.filter((c) => !perChat.has(c.entryId));
+}
+
+function markSurfaced(chatId: string, surfaced: DetectedContradiction[]): void {
+  const perChat = pruneSurfaced(chatId);
+  const now = Date.now();
+  for (const c of surfaced) perChat.set(c.entryId, now);
+}
+
+/** Test-only: reset the in-memory surfaced-contradiction map. */
+export function __resetSurfacedContradictionsForTests(): void {
+  surfacedContradictions.clear();
+}
 import { quarantinePraise } from './praise-quarantine.js';
 import { detectMuteIntent, generateMuteAcknowledgment } from '../proactive/mute.js';
 import { setMuteUntil } from '../proactive/state.js';
@@ -20,6 +71,16 @@ import { config } from '../config.js';
 import { LLMError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 import { stripFences } from '../utils/text.js';
+
+// ── Abort acknowledgment (PP#0) ──────────────────────────────────────────
+
+function abortAcknowledgment(lang: 'en' | 'fr' | 'ru'): string {
+  switch (lang) {
+    case 'en': return 'Okay — dropping that.';
+    case 'fr': return 'Okay — on laisse tomber.';
+    case 'ru': return 'Хорошо — отменяю.';
+  }
+}
 
 export type ChrisMode = 'JOURNAL' | 'INTERROGATE' | 'REFLECT' | 'COACH' | 'PSYCHOLOGY' | 'PRODUCE' | 'PHOTOS';
 
@@ -99,6 +160,59 @@ export async function processMessage(
   const start = Date.now();
 
   try {
+    // ── PP#0: active decision-capture check (SWEEP-03) ─────────────────
+    // Runs BEFORE mute/refusal/language/mode detection (D-24).
+    const activeCapture = await getActiveDecisionCapture(chatId);
+    if (activeCapture) {
+      const draft = activeCapture.draft as CaptureDraft;
+      const lang = draft.language_at_capture;
+
+      // D-25: abort-phrase check INSIDE PP#0 (handler entry).
+      if (isAbortPhrase(text, lang)) {
+        await clearCapture(chatId);
+        const ack = abortAcknowledgment(lang);
+        await saveMessage(chatId, 'USER', text, 'JOURNAL');
+        await saveMessage(chatId, 'ASSISTANT', ack, 'JOURNAL');
+        return ack;
+      }
+
+      // Phase 14: handle CAPTURING stages; Phase 16 will branch AWAITING_RESOLUTION / AWAITING_POSTMORTEM here.
+      if (
+        activeCapture.stage === 'DECISION' ||
+        activeCapture.stage === 'ALTERNATIVES' ||
+        activeCapture.stage === 'REASONING' ||
+        activeCapture.stage === 'PREDICTION' ||
+        activeCapture.stage === 'FALSIFICATION'
+      ) {
+        const reply = await handleCapture(chatId, text);
+        await saveMessage(chatId, 'USER', text, 'JOURNAL');
+        await saveMessage(chatId, 'ASSISTANT', reply, 'JOURNAL');
+        return reply;
+      }
+      // AWAITING_RESOLUTION / AWAITING_POSTMORTEM / DONE → Phase 16 will handle; for now fall through.
+    }
+
+    // ── PP#1: decision-trigger detection ───────────────────────────────
+    // Suppression check precedes regex (D-17).
+    if (!(await isSuppressed(text, chatId))) {
+      const triggerMatch = detectTriggerPhrase(text);
+      if (triggerMatch) {
+        const tier = await classifyStakes(text);  // D-06 fail-closed to 'trivial'
+        if (tier === 'structural') {
+          // D-22: franc on the exact triggering message; lock into draft.
+          const chatIdStr = chatId.toString();
+          const prevLang = getLastUserLanguage(chatIdStr);
+          const detected = detectLanguage(text, prevLang);
+          const lang: 'en' | 'fr' | 'ru' = detected === 'French' ? 'fr' : detected === 'Russian' ? 'ru' : 'en';
+          const q1 = await openCapture(chatId, text, lang);
+          await saveMessage(chatId, 'USER', text, 'JOURNAL');
+          await saveMessage(chatId, 'ASSISTANT', q1, 'JOURNAL');
+          return q1;
+        }
+        // trivial / moderate / fail-closed → fall through to normal engine.
+      }
+    }
+
     // Pre-process: check for mute intent before mode detection (K012)
     const muteResult = await detectMuteIntent(text);
     if (muteResult.muted) {
@@ -224,9 +338,15 @@ export async function processMessage(
           detectContradictions(text),
           new Promise<never[]>((resolve) => setTimeout(() => resolve([]), DETECTION_TIMEOUT_MS)),
         ]);
-        const notice = formatContradictionNotice(detected);
+        // Suppress re-surfacing a contradiction against the same past entry
+        // within a short window — the detector has no memory of what's already
+        // been shown to the user, so without this it repeats every turn while
+        // the topic stays live.
+        const filtered = filterAlreadySurfaced(chatIdStr, detected);
+        const notice = formatContradictionNotice(filtered, language);
         if (notice) {
           response += notice;
+          markSurfaced(chatIdStr, filtered);
         }
       } catch (detectionError) {
         // Never break the response flow — swallow and log
