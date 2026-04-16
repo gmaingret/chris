@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: M007 Decision Archive
 status: executing
-stopped_at: Phase 17 context gathered
-last_updated: "2026-04-16T15:58:38.854Z"
+stopped_at: Phase 18 context gathered
+last_updated: "2026-04-16T18:24:55.153Z"
 last_activity: 2026-04-16
 progress:
   total_phases: 6
@@ -72,6 +72,6 @@ None. Between-phases pause for M006 (≥1 week real Telegram use before M007) ac
 
 ## Session Continuity
 
-Last session: 2026-04-16T13:58:08.486Z
-Stopped at: Phase 17 context gathered
-Resume file: .planning/phases/17-decisions-command-accuracy-stats/17-CONTEXT.md
+Last session: 2026-04-16T18:24:55.150Z
+Stopped at: Phase 18 context gathered
+Resume file: .planning/phases/18-synthetic-fixture-live-accountability-integration-suite/18-CONTEXT.md
