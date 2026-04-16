@@ -3,14 +3,14 @@
  *
  * Hedge-word-primed Haiku judgment on (prediction, falsification_criterion).
  * Fail-soft default: 'acceptable' (anti-interrogation ethos — don't pushback on error).
- * 3s hard timeout.
+ * 15s hard timeout (increased from 3s — real Haiku API calls need headroom).
  */
 
 import { callLLM } from '../llm/client.js';
 import { VAGUE_VALIDATOR_PROMPT } from '../llm/prompts.js';
 import { logger } from '../utils/logger.js';
 
-const VAGUE_TIMEOUT_MS = 3000;
+const VAGUE_TIMEOUT_MS = 15000;
 
 export type VaguenessVerdict = 'acceptable' | 'vague';
 
@@ -49,7 +49,7 @@ export async function validateVagueness(input: VaguenessInput): Promise<Vaguenes
   });
   try {
     const raw = await Promise.race([
-      callLLM(VAGUE_VALIDATOR_PROMPT, userContent, 60),
+      callLLM(VAGUE_VALIDATOR_PROMPT, userContent, 200),
       new Promise<null>((r) => setTimeout(() => r(null), VAGUE_TIMEOUT_MS)),
     ]);
     if (!raw) return { verdict: 'acceptable' };  // fail-soft: timeout
