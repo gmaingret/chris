@@ -116,36 +116,41 @@ export async function runSweep(): Promise<SweepResult> {
             logger.error({ response }, 'proactive.sweep.accountability.error');
           } else {
             // Extract decision ID from evidence (format: 'Decision ID: <uuid>')
-            const decisionId = deadlineResult.evidence![0]!.replace('Decision ID: ', '');
+            const evidenceEntry = deadlineResult.evidence?.[0];
+            if (!evidenceEntry || !evidenceEntry.startsWith('Decision ID: ')) {
+              logger.error({ evidence: deadlineResult.evidence }, 'proactive.sweep.accountability.error');
+            } else {
+              const decisionId = evidenceEntry.replace('Decision ID: ', '');
 
-            // Write AWAITING_RESOLUTION row BEFORE sending the message
-            await upsertAwaitingResolution(BigInt(config.telegramAuthorizedUserId), decisionId);
+              // Write AWAITING_RESOLUTION row BEFORE sending the message
+              await upsertAwaitingResolution(BigInt(config.telegramAuthorizedUserId), decisionId);
 
-            // Send via Telegram
-            await bot.api.sendMessage(config.telegramAuthorizedUserId, messageText);
+              // Send via Telegram
+              await bot.api.sendMessage(config.telegramAuthorizedUserId, messageText);
 
-            // Save to conversation history
-            await saveMessage(
-              BigInt(config.telegramAuthorizedUserId),
-              'ASSISTANT',
-              messageText,
-              'JOURNAL',
-            );
+              // Save to conversation history
+              await saveMessage(
+                BigInt(config.telegramAuthorizedUserId),
+                'ASSISTANT',
+                messageText,
+                'JOURNAL',
+              );
 
-            // Update accountability cap
-            await setLastSentAccountability(new Date());
+              // Update accountability cap
+              await setLastSentAccountability(new Date());
 
-            const latencyMs = Date.now() - startMs;
-            logger.info(
-              { triggerType: 'decision-deadline', latencyMs, messageLength: messageText.length },
-              'proactive.sweep.accountability.sent',
-            );
+              const latencyMs = Date.now() - startMs;
+              logger.info(
+                { triggerType: 'decision-deadline', latencyMs, messageLength: messageText.length },
+                'proactive.sweep.accountability.sent',
+              );
 
-            accountabilityResult = {
-              triggered: true,
-              triggerType: 'decision-deadline',
-              message: messageText,
-            };
+              accountabilityResult = {
+                triggered: true,
+                triggerType: 'decision-deadline',
+                message: messageText,
+              };
+            }
           }
         }
       } catch (err) {
