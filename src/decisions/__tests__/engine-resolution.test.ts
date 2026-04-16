@@ -1,14 +1,9 @@
 /**
- * Phase 16 Wave 0 RED scaffold — PP#0 resolution routing in the engine.
+ * Phase 16 — PP#0 resolution routing in the engine.
  * Covers RES-02/RES-03 engine integration.
- *
- * ALL tests are intentionally failing (RED). They import handleResolution and
- * handlePostmortem from src/decisions/resolution.ts which does not yet exist.
- * Plans 03-05 will turn these GREEN.
  *
  * Run: npx vitest run src/decisions/__tests__/engine-resolution.test.ts
  */
-// @ts-expect-error — Plan 03 creates src/decisions/resolution.ts
 import { handleResolution, handlePostmortem } from '../resolution.js';
 
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
