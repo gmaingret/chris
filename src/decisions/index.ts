@@ -32,3 +32,13 @@ export { detectTriggerPhrase, detectTriggerPhraseDetailed, classifyStakes } from
 export type { TriggerMatch, StakesTier } from './triggers.js';
 
 export { addSuppression, isSuppressed, listSuppressions } from './suppressions.js';
+
+export {
+  parseResolveBy,
+  daysFromNow,
+  matchClarifierReply,
+  buildResolveByClarifierQuestion,
+  buildResolveByDefaultAnnouncement,
+  CLARIFIER_LADDER_DAYS,
+} from './resolve-by.js';
+export type { ClarifierChoice } from './resolve-by.js';
