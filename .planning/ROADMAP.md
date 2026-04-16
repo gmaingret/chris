@@ -90,13 +90,11 @@ Plans:
   2. The sweep has two independent channels — `reflective_outreach` and `accountability_outreach` — with separate daily caps; same-day collisions fire serially, neither blocking the other (guards C5).
   3. When a prompt fires more than 48 hours past `resolve_by`, the text is explicitly dated ("On 2026-04-01 you predicted…") rather than implicitly recent-framed.
   4. Global mute suppresses both channels; the accountability channel never bypasses mute.
-**Plans**: 5 plans
+**Plans**: 3 plans
 Plans:
-- [x] 14-01-PLAN.md — Wave 0: schema 0004, prompt constants, trigger fixtures, six RED test scaffolds
-- [x] 14-02-PLAN.md — Wave 1: CAP-01 — Phase A regex (EN/FR/RU with parity) + Phase B Haiku stakes classifier (fail-closed)
-- [x] 14-03-PLAN.md — Wave 1: CAP-06 primitive — DB-backed suppressions with per-chat substring match
-- [x] 14-04-PLAN.md — Wave 1: CAP-02/03/04/05 + LIFE-05 — capture.ts, resolve-by.ts, vague-validator.ts, capture-state write helpers
-- [x] 14-05-PLAN.md — Wave 2: SWEEP-03 + CAP-06 surface — engine PP#0/PP#1 wiring + /decisions suppress bot command
+- [ ] 15-01-PLAN.md — Wave 1: deadline trigger factory + priority renumbering + tests (SWEEP-01, SWEEP-04)
+- [ ] 15-02-PLAN.md — Wave 1: channel-aware state helpers + ACCOUNTABILITY_SYSTEM_PROMPT (SWEEP-02)
+- [ ] 15-03-PLAN.md — Wave 2: dual-channel sweep refactor + upsertAwaitingResolution + sweep tests (SWEEP-01, SWEEP-02, SWEEP-04)
 
 ### Phase 16: Resolution, Post-Mortem & ACCOUNTABILITY Mode
 **Goal**: A resolution reply produces a neutral, Pensieve-grounded post-mortem that neither flatters a hit nor condemns a miss — or M007 inverts M006.
@@ -170,7 +168,7 @@ Plans:
 | 12. Identity rename residuals     | v2.0      | 1/1   | Complete     | 2026-04-15 |
 | 13. Schema & Lifecycle Primitives | v2.1      | 5/5 | Complete   | 2026-04-15 |
 | 14. Capture Flow                  | v2.1      | 5/5 | Complete    | 2026-04-16 |
-| 15. Deadline Trigger & Sweep      | v2.1      | 0/?   | Not started  | -          |
+| 15. Deadline Trigger & Sweep      | v2.1      | 0/3   | Planned      | -          |
 | 16. Resolution + ACCOUNTABILITY   | v2.1      | 0/?   | Not started  | -          |
 | 17. `/decisions` & Accuracy Stats | v2.1      | 0/?   | Not started  | -          |
 | 18. Synthetic + Live Suite        | v2.1      | 0/?   | Not started  | -          |
