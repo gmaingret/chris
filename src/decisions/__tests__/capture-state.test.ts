@@ -11,7 +11,7 @@ import { db, sql } from '../../db/connection.js';
 // @ts-expect-error — tables not yet in schema.ts (Plan 02)
 import { decisions, decisionEvents, decisionCaptureState } from '../../db/schema.js';
 // @ts-expect-error — Plan 04/05 creates this module
-import { getActiveDecisionCapture } from '../capture-state.js';
+import { getActiveDecisionCapture, upsertAwaitingResolution } from '../capture-state.js';
 
 describe('capture-state: real DB — decision_capture_state helpers', () => {
   beforeAll(async () => {
@@ -65,5 +65,41 @@ describe('capture-state: real DB — decision_capture_state helpers', () => {
         message: expect.stringMatching(/duplicate key|unique constraint/i),
       }),
     });
+  });
+
+  // ── Phase 15: upsertAwaitingResolution ─────────────────────────────────────
+
+  it('upsertAwaitingResolution inserts a row with stage=AWAITING_RESOLUTION and decisionId', async () => {
+    const decisionId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+    await upsertAwaitingResolution(42n, decisionId);
+
+    const row = await getActiveDecisionCapture(42n);
+    expect(row).not.toBeNull();
+    expect(row!.stage).toBe('AWAITING_RESOLUTION');
+    expect(row!.decisionId).toBe(decisionId);
+    expect(row!.chatId).toBe(42n);
+  });
+
+  it('upsertAwaitingResolution upserts (replaces) if a row already exists for that chatId', async () => {
+    const firstDecisionId = 'aaaaaaaa-bbbb-cccc-dddd-000000000001';
+    const secondDecisionId = 'aaaaaaaa-bbbb-cccc-dddd-000000000002';
+
+    // Insert an existing capture row first
+    await db.insert(decisionCaptureState).values({
+      chatId: 77n,
+      stage: 'DECISION' as never,
+      draft: { some: 'draft' },
+      decisionId: firstDecisionId,
+    });
+
+    // Upsert should replace the row
+    await upsertAwaitingResolution(77n, secondDecisionId);
+
+    const row = await getActiveDecisionCapture(77n);
+    expect(row).not.toBeNull();
+    expect(row!.stage).toBe('AWAITING_RESOLUTION');
+    expect(row!.decisionId).toBe(secondDecisionId);
+    // draft should be reset to empty object
+    expect(row!.draft).toEqual({});
   });
 });

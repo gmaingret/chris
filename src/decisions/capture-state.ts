@@ -79,6 +79,29 @@ export async function clearCapture(chatId: bigint): Promise<void> {
   await db.delete(decisionCaptureState).where(eq(decisionCaptureState.chatId, chatId));
 }
 
+// ── Phase 15 WRITE helper ──────────────────────────────────────────────────
+
+/**
+ * Phase 15: sweep writes AWAITING_RESOLUTION before sending the accountability prompt.
+ * Phase 16's engine PP#0 reads this row to route Greg's reply to the resolution handler.
+ */
+export async function upsertAwaitingResolution(chatId: bigint, decisionId: string): Promise<void> {
+  await db.insert(decisionCaptureState).values({
+    chatId,
+    stage: 'AWAITING_RESOLUTION',
+    draft: {},
+    decisionId,
+  }).onConflictDoUpdate({
+    target: decisionCaptureState.chatId,
+    set: {
+      stage: 'AWAITING_RESOLUTION',
+      draft: {},
+      decisionId,
+      updatedAt: new Date(),
+    },
+  });
+}
+
 // ── Abort-phrase detector (D-04) ───────────────────────────────────────────
 
 /**
