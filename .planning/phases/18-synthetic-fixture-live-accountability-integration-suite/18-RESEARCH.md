@@ -517,17 +517,15 @@ it('flags ≥9 of 10 adversarial vague predictions on first pass', async () => {
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Which sweep function/trigger entry point does TEST-12 call?**
+1. **Which sweep function/trigger entry point does TEST-12 call?** — RESOLVED: Plan 18-01 instructs executor to read `src/proactive/sweep.ts` before writing TEST-12 and adapt the approach based on the orchestrator's actual structure.
    - What we know: `src/proactive/sweep.ts` orchestrates the sweep pipeline; `createDeadlineTrigger()` in `src/proactive/triggers/deadline.ts` is the deadline-trigger factory.
-   - What's unclear: Should TEST-12 call the top-level sweep orchestrator, or call deadline trigger + silence trigger individually? The test must prove channel separation fires BOTH — calling them individually proves they don't interfere but doesn't prove the orchestrator respects both.
-   - Recommendation: Read `src/proactive/sweep.ts` before writing TEST-12 to understand whether the orchestrator runs both channels in one call or whether they must be called separately. This is a 10-minute code read at plan time.
+   - Resolution: Executor reads sweep.ts at implementation time and selects the correct entry point.
 
-2. **Does `handleResolution` need a `chatId` for the mock-clock test to work?**
-   - What we know: `handleResolution(chatId, resolutionText, decisionId)` is the confirmed signature from `resolution.test.ts`.
-   - What's unclear: `handleResolution` calls `getLastUserLanguage(chatId.toString())` internally. In synthetic-fixture.test.ts the clock is fake but the language state module is not mocked. Either the language state module must be seeded, or it must fail-soft (return a default language).
-   - Recommendation: Check whether `getLastUserLanguage` has a fallback for unknown chatIds. If it throws, mock it. If it returns a default ('en'), no action needed.
+2. **Does `handleResolution` need a `chatId` for the mock-clock test to work?** — RESOLVED: Plan 18-01 preemptively seeds language state via `setLastUserLanguage(TEST_CHAT_ID.toString(), 'English')` in `beforeEach`.
+   - What we know: `handleResolution(chatId, resolutionText, decisionId)` calls `getLastUserLanguage(chatId.toString())` internally.
+   - Resolution: Seed the language state in test setup to avoid any fallback issues.
 
 ---
 
