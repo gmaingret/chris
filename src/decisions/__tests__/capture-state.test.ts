@@ -8,9 +8,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { db, sql } from '../../db/connection.js';
-// @ts-expect-error — tables not yet in schema.ts (Plan 02)
 import { decisions, decisionEvents, decisionCaptureState } from '../../db/schema.js';
-// @ts-expect-error — Plan 04/05 creates this module
 import { getActiveDecisionCapture, upsertAwaitingResolution } from '../capture-state.js';
 
 describe('capture-state: real DB — decision_capture_state helpers', () => {
