@@ -1,6 +1,6 @@
 /**
  * Pattern recurrence trigger — wraps OpusAnalysisResult.pattern into
- * a TriggerDetector with priority 3.
+ * a TriggerDetector with priority 4.
  *
  * Fires when Opus detects a recurring pattern with confidence ≥ 0.5.
  */
