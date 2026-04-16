@@ -108,11 +108,11 @@ Plans:
   5. Auto-escalation sends a single second prompt after 48h of silence; two non-replies transitions the decision to `stale` and no further prompts fire.
 **Plans**: 5 plans
 Plans:
-- [x] 14-01-PLAN.md — Wave 0: schema 0004, prompt constants, trigger fixtures, six RED test scaffolds
-- [x] 14-02-PLAN.md — Wave 1: CAP-01 — Phase A regex (EN/FR/RU with parity) + Phase B Haiku stakes classifier (fail-closed)
-- [x] 14-03-PLAN.md — Wave 1: CAP-06 primitive — DB-backed suppressions with per-chat substring match
-- [x] 14-04-PLAN.md — Wave 1: CAP-02/03/04/05 + LIFE-05 — capture.ts, resolve-by.ts, vague-validator.ts, capture-state write helpers
-- [x] 14-05-PLAN.md — Wave 2: SWEEP-03 + CAP-06 surface — engine PP#0/PP#1 wiring + /decisions suppress bot command
+- [ ] 16-01-PLAN.md — Wave 0: RED test scaffolds for resolution, engine-routing, sweep-escalation
+- [ ] 16-02-PLAN.md — Wave 1: RES-01 — ACCOUNTABILITY mode registration (ChrisMode, buildSystemPrompt, praise quarantine bypass)
+- [ ] 16-03-PLAN.md — Wave 1: RES-02/03/04/05 — resolution.ts (handleResolution, handlePostmortem, classifyOutcome) + getTemporalPensieve + updateToAwaitingPostmortem
+- [ ] 16-04-PLAN.md — Wave 2: RES-02/03 — engine PP#0 wiring (AWAITING_RESOLUTION/AWAITING_POSTMORTEM routing) + engine-resolution tests GREEN
+- [ ] 16-05-PLAN.md — Wave 2: RES-06 — sweep escalation (proactive_state keys, 48h follow-up, stale transition) + sweep-escalation tests GREEN
 
 ### Phase 17: `/decisions` Command & Accuracy Stats
 **Goal**: Greg can pull an honest snapshot of his forecasting performance that is structurally incapable of becoming dashboard sycophancy — small N never produces a percentage, and uncertainty is visually present.
@@ -124,31 +124,19 @@ Plans:
   3. Below N=10 resolved-with-verifiable-forecasts in the chosen window, the output shows counts only ("N=<count>, threshold not met") with no percentage; at or above N=10, accuracy displays with a Wilson 95% CI alongside the point estimate (guards C6).
   4. Rolling 30/90/365-day windows are a single SQL round-trip via `FILTER (WHERE resolved_at >= now() - interval 'N days')`; `unverifiable` count is surfaced as an explicit separate denominator.
   5. Accuracy is broken down by domain tag inferred at capture time; `/decisions reclassify` re-runs classification and preserves originals alongside new values.
-**Plans**: 5 plans
-Plans:
-- [x] 14-01-PLAN.md — Wave 0: schema 0004, prompt constants, trigger fixtures, six RED test scaffolds
-- [x] 14-02-PLAN.md — Wave 1: CAP-01 — Phase A regex (EN/FR/RU with parity) + Phase B Haiku stakes classifier (fail-closed)
-- [x] 14-03-PLAN.md — Wave 1: CAP-06 primitive — DB-backed suppressions with per-chat substring match
-- [x] 14-04-PLAN.md — Wave 1: CAP-02/03/04/05 + LIFE-05 — capture.ts, resolve-by.ts, vague-validator.ts, capture-state write helpers
-- [x] 14-05-PLAN.md — Wave 2: SWEEP-03 + CAP-06 surface — engine PP#0/PP#1 wiring + /decisions suppress bot command
+**Plans**: [To be planned]
 
 ### Phase 18: Synthetic Fixture + Live ACCOUNTABILITY Integration Suite
-**Goal**: Every claim in Phases 13–17 is verifiable without calendar waiting, and the ACCOUNTABILITY mode's absence-of-flattery and absence-of-condemnation are proven against real Sonnet before production deploy.
+**Goal**: Every claim in Phases 13-17 is verifiable without calendar waiting, and the ACCOUNTABILITY mode's absence-of-flattery and absence-of-condemnation are proven against real Sonnet before production deploy.
 **Depends on**: Phase 17
 **Requirements**: TEST-10, TEST-11, TEST-12, TEST-13, TEST-14
 **Success Criteria** (what must be TRUE):
-  1. A single `vi.useFakeTimers` / `vi.setSystemTime` fixture exercises capture → `resolve_by` passing → sweep fires deadline prompt → resolution reply → post-mortem → `/decisions stats` over a simulated 14-day window, with no real calendar time elapsed and no skipped tests (honours D018).
+  1. A single `vi.useFakeTimers` / `vi.setSystemTime` fixture exercises capture -> `resolve_by` passing -> sweep fires deadline prompt -> resolution reply -> post-mortem -> `/decisions stats` over a simulated 14-day window, with no real calendar time elapsed and no skipped tests (honours D018).
   2. A concurrency race test proves sweep and user-reply attempting to transition the same decision simultaneously resolve with exactly one winner, and `decision_events` reflects the rejected attempt.
   3. A same-day collision test proves decision-deadline and silence triggers firing on the same mock-clock day serialize cleanly without either starving the other.
-  4. Live ACCOUNTABILITY integration suite runs hit/miss/unverifiable scenarios × 3-of-3 against real Sonnet and asserts both absence-of-flattery and absence-of-condemnation (follows D023/D032 precedent — non-optional).
-  5. Vague-prediction resistance test confirms the Haiku validator flags ≥9 of 10 adversarial vague predictions on first pass and issues exactly one pushback before accepting.
-**Plans**: 5 plans
-Plans:
-- [x] 14-01-PLAN.md — Wave 0: schema 0004, prompt constants, trigger fixtures, six RED test scaffolds
-- [x] 14-02-PLAN.md — Wave 1: CAP-01 — Phase A regex (EN/FR/RU with parity) + Phase B Haiku stakes classifier (fail-closed)
-- [x] 14-03-PLAN.md — Wave 1: CAP-06 primitive — DB-backed suppressions with per-chat substring match
-- [x] 14-04-PLAN.md — Wave 1: CAP-02/03/04/05 + LIFE-05 — capture.ts, resolve-by.ts, vague-validator.ts, capture-state write helpers
-- [x] 14-05-PLAN.md — Wave 2: SWEEP-03 + CAP-06 surface — engine PP#0/PP#1 wiring + /decisions suppress bot command
+  4. Live ACCOUNTABILITY integration suite runs hit/miss/unverifiable scenarios x 3-of-3 against real Sonnet and asserts both absence-of-flattery and absence-of-condemnation (follows D023/D032 precedent -- non-optional).
+  5. Vague-prediction resistance test confirms the Haiku validator flags >=9 of 10 adversarial vague predictions on first pass and issues exactly one pushback before accepting.
+**Plans**: [To be planned]
 
 ## Progress
 
@@ -169,7 +157,7 @@ Plans:
 | 13. Schema & Lifecycle Primitives | v2.1      | 5/5 | Complete   | 2026-04-15 |
 | 14. Capture Flow                  | v2.1      | 5/5 | Complete    | 2026-04-16 |
 | 15. Deadline Trigger & Sweep      | v2.1      | 3/3 | Complete    | 2026-04-16 |
-| 16. Resolution + ACCOUNTABILITY   | v2.1      | 0/?   | Not started  | -          |
+| 16. Resolution + ACCOUNTABILITY   | v2.1      | 0/5   | Planned      | -          |
 | 17. `/decisions` & Accuracy Stats | v2.1      | 0/?   | Not started  | -          |
 | 18. Synthetic + Live Suite        | v2.1      | 0/?   | Not started  | -          |
 
@@ -186,7 +174,7 @@ Plans:
 | SWEEP (4) |            | 03          | 01,02,04    |          |          |          |
 | TEST (5)  |            |             |             |          |          | 10-14    |
 
-## Phase-to-Pitfall Guard Map (PITFALLS.md C1–C7)
+## Phase-to-Pitfall Guard Map (PITFALLS.md C1-C7)
 
 | Phase | Guards          | Mechanism |
 | ----- | --------------- | --------- |
@@ -194,5 +182,5 @@ Plans:
 | 14    | C1, C2, C3, M5, M6 | Two-phase detection atomic (regex+Haiku stakes); conversational extraction; vague-prediction validator; EN/FR/RU fixture parity |
 | 15    | C5, M3          | Channel separation (`reflective_outreach` vs `accountability_outreach`); serial collision; dated stale-context prompts |
 | 16    | C7, M2, M6, m3  | ACCOUNTABILITY mode bypasses praise quarantine at prompt level; The Hard Rule forbidden; Pensieve-first writes; auto-escalation |
-| 17    | C2, C6, M4      | N≥10 floor; Wilson 95% CI; unverifiable second denominator; materialized classifications with model version |
+| 17    | C2, C6, M4      | N>=10 floor; Wilson 95% CI; unverifiable second denominator; materialized classifications with model version |
 | 18    | C7 (flatline)   | Live Sonnet suite asserts absence-of-flattery AND absence-of-condemnation (D023/D032) |
