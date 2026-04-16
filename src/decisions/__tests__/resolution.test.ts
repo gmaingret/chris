@@ -13,6 +13,7 @@ import { handleResolution, handlePostmortem, classifyOutcome } from '../resoluti
 import { getTemporalPensieve } from '../../pensieve/retrieve.js';
 
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
+import { eq } from 'drizzle-orm';
 import { db, sql } from '../../db/connection.js';
 import {
   decisions,
@@ -355,10 +356,6 @@ describe('getTemporalPensieve', () => {
     expect(result[0]!.ok).toBe(1);
   });
 
-  afterAll(async () => {
-    await sql.end();
-  });
-
   afterEach(async () => {
     await db.delete(pensieveEntries);
   });
@@ -431,5 +428,138 @@ describe('getTemporalPensieve', () => {
 
     expect(contents).toContain('live entry');
     expect(contents).not.toContain('deleted entry');
+  });
+});
+
+// ── Phase 17 STAT-02: Accuracy classification wiring tests ─────────────────
+
+describe('handleResolution — Phase 17 accuracy classification', () => {
+  beforeAll(async () => {
+    const result = await sql`SELECT 1 as ok`;
+    expect(result[0]!.ok).toBe(1);
+  });
+
+  afterAll(async () => {
+    await sql.end();
+  });
+
+  afterEach(async () => {
+    await db.delete(decisionEvents);
+    await db.delete(decisions);
+    await db.delete(decisionCaptureState);
+    vi.restoreAllMocks();
+  });
+
+  it('writes accuracy_class combined string to decisions row', async () => {
+    const decisionId = await seedDecision('due');
+    await db.insert(decisionCaptureState).values({
+      chatId: 500n,
+      stage: 'AWAITING_RESOLUTION' as never,
+      draft: {},
+      decisionId,
+    });
+
+    // First call: Sonnet acknowledgment
+    // Second call: Haiku classifyOutcome -> 'hit'
+    // Third call: Haiku classifyAccuracy -> 'sound'
+    mockAnthropicCreate
+      .mockResolvedValueOnce({ content: [{ type: 'text', text: 'Great job!' }] })
+      .mockResolvedValueOnce({ content: [{ type: 'text', text: '{"outcome":"hit"}' }] })
+      .mockResolvedValueOnce({ content: [{ type: 'text', text: '{"reasoning":"sound"}' }] });
+
+    await handleResolution(500n, 'I proved the prediction correct.', decisionId);
+
+    const [row] = await db.select().from(decisions).where(eq(decisions.id, decisionId));
+    expect(row!.accuracyClass).toBe('hit/sound');
+  });
+
+  it('writes accuracy_classified_at timestamp to decisions row', async () => {
+    const decisionId = await seedDecision('due');
+    await db.insert(decisionCaptureState).values({
+      chatId: 501n,
+      stage: 'AWAITING_RESOLUTION' as never,
+      draft: {},
+      decisionId,
+    });
+
+    const before = new Date();
+    mockAnthropicCreate
+      .mockResolvedValueOnce({ content: [{ type: 'text', text: 'Acknowledged.' }] })
+      .mockResolvedValueOnce({ content: [{ type: 'text', text: '{"outcome":"miss"}' }] })
+      .mockResolvedValueOnce({ content: [{ type: 'text', text: '{"reasoning":"flawed"}' }] });
+
+    await handleResolution(501n, 'I got it wrong.', decisionId);
+
+    const [row] = await db.select().from(decisions).where(eq(decisions.id, decisionId));
+    expect(row!.accuracyClassifiedAt).toBeInstanceOf(Date);
+    expect(row!.accuracyClassifiedAt!.getTime()).toBeGreaterThanOrEqual(before.getTime());
+  });
+
+  it('writes accuracy_model_version = HAIKU_MODEL to decisions row', async () => {
+    const decisionId = await seedDecision('due');
+    await db.insert(decisionCaptureState).values({
+      chatId: 502n,
+      stage: 'AWAITING_RESOLUTION' as never,
+      draft: {},
+      decisionId,
+    });
+
+    mockAnthropicCreate
+      .mockResolvedValueOnce({ content: [{ type: 'text', text: 'Noted.' }] })
+      .mockResolvedValueOnce({ content: [{ type: 'text', text: '{"outcome":"ambiguous"}' }] })
+      .mockResolvedValueOnce({ content: [{ type: 'text', text: '{"reasoning":"lucky"}' }] });
+
+    await handleResolution(502n, 'It was ambiguous.', decisionId);
+
+    const [row] = await db.select().from(decisions).where(eq(decisions.id, decisionId));
+    expect(row!.accuracyModelVersion).toBe('test-haiku');
+  });
+
+  it('inserts a classified event into decision_events with accuracy snapshot', async () => {
+    const decisionId = await seedDecision('due');
+    await db.insert(decisionCaptureState).values({
+      chatId: 503n,
+      stage: 'AWAITING_RESOLUTION' as never,
+      draft: {},
+      decisionId,
+    });
+
+    mockAnthropicCreate
+      .mockResolvedValueOnce({ content: [{ type: 'text', text: 'Acknowledged.' }] })
+      .mockResolvedValueOnce({ content: [{ type: 'text', text: '{"outcome":"hit"}' }] })
+      .mockResolvedValueOnce({ content: [{ type: 'text', text: '{"reasoning":"sound"}' }] });
+
+    await handleResolution(503n, 'My prediction was correct.', decisionId);
+
+    const events = await db.select().from(decisionEvents).where(eq(decisionEvents.decisionId, decisionId));
+    const classifiedEvent = events.find((e) => e.eventType === 'classified');
+    expect(classifiedEvent).toBeDefined();
+    expect((classifiedEvent!.snapshot as Record<string, unknown>).accuracyClass).toBe('hit/sound');
+    expect((classifiedEvent!.snapshot as Record<string, unknown>).accuracyModelVersion).toBe('test-haiku');
+  });
+
+  it('completes resolution even when classifyAccuracy throws — accuracy_class set to <outcome>/unknown', async () => {
+    const decisionId = await seedDecision('due');
+    await db.insert(decisionCaptureState).values({
+      chatId: 504n,
+      stage: 'AWAITING_RESOLUTION' as never,
+      draft: {},
+      decisionId,
+    });
+
+    // Sonnet: ack, classifyOutcome: hit, classifyAccuracy: throws
+    mockAnthropicCreate
+      .mockResolvedValueOnce({ content: [{ type: 'text', text: 'Good job.' }] })
+      .mockResolvedValueOnce({ content: [{ type: 'text', text: '{"outcome":"hit"}' }] })
+      .mockRejectedValueOnce(new Error('Network error during accuracy classification'));
+
+    const result = await handleResolution(504n, 'I nailed it.', decisionId);
+
+    // Resolution still completes
+    expect(typeof result).toBe('string');
+    expect(result.length).toBeGreaterThan(0);
+
+    const [row] = await db.select().from(decisions).where(eq(decisions.id, decisionId));
+    expect(row!.accuracyClass).toBe('hit/unknown');
   });
 });

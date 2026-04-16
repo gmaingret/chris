@@ -12,7 +12,7 @@
  */
 
 import { db } from '../db/connection.js';
-import { decisions, pensieveEntries } from '../db/schema.js';
+import { decisions, pensieveEntries, decisionEvents } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { anthropic, HAIKU_MODEL, SONNET_MODEL } from '../llm/client.js';
 import { transitionDecision } from './lifecycle.js';
@@ -25,6 +25,7 @@ import { getTemporalPensieve } from '../pensieve/retrieve.js';
 import { getLastUserLanguage, detectLanguage } from '../chris/language.js';
 import { buildSystemPrompt } from '../chris/personality.js';
 import { logger } from '../utils/logger.js';
+import { classifyAccuracy } from './classify-accuracy.js';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -292,6 +293,32 @@ export async function handleResolution(
 
   // 9. classifyOutcome
   const outcome = await classifyOutcome(text, decision.prediction, decision.falsificationCriterion);
+
+  // Phase 17 STAT-02: 2-axis accuracy classification (D-01, D-02, D-03)
+  let accuracyClass = `${outcome}/unknown`;
+  try {
+    const reasoning = await classifyAccuracy(outcome, text, decision.prediction);
+    accuracyClass = `${outcome}/${reasoning}`;
+  } catch (err) {
+    logger.warn(
+      { error: err instanceof Error ? err.message : String(err) },
+      'resolution.classifyAccuracy.error',
+    );
+  }
+  // Write to decisions projection row (D-03)
+  await db.update(decisions).set({
+    accuracyClass,
+    accuracyClassifiedAt: new Date(),
+    accuracyModelVersion: HAIKU_MODEL,
+    updatedAt: new Date(),
+  }).where(eq(decisions.id, decisionId));
+  // Append classified event to decision_events (D-11, NOT through transitionDecision — Pitfall 3)
+  await db.insert(decisionEvents).values({
+    decisionId,
+    eventType: 'classified',
+    snapshot: { accuracyClass, accuracyModelVersion: HAIKU_MODEL },
+    actor: 'system',
+  });
 
   // 10. Generate class-specific post-mortem question
   const question = postMortemQuestion(outcome, detectedLanguage);
