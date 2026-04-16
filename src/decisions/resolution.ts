@@ -211,7 +211,11 @@ export async function handleResolution(
   }
 
   // 2. Detect Greg's reply language (Pitfall 1: do NOT read from activeCapture.draft)
-  const detectedLanguage = getLastUserLanguage(chatId.toString()) ?? detectLanguage(text, null) ?? 'en';
+  const rawLang = getLastUserLanguage(chatId.toString()) ?? detectLanguage(text, null) ?? 'English';
+  // Normalize: detectLanguage/getLastUserLanguage return full names ('French', 'Russian', 'English')
+  // but postMortemQuestion/notedAck/alreadyResolvedMessage use short codes ('fr', 'ru', 'en').
+  // Use rawLang for buildSystemPrompt (expects full names), langCode for helper functions.
+  const detectedLanguage = rawLang === 'French' ? 'fr' : rawLang === 'Russian' ? 'ru' : 'en';
 
   // 3. Get +/-48h Pensieve context (pass windowMs = 48h in milliseconds)
   const centerDate = decision.resolveBy ?? new Date();
@@ -235,7 +239,7 @@ export async function handleResolution(
     'ACCOUNTABILITY',
     decisionContext,
     temporalContext,
-    detectedLanguage,
+    rawLang,
   );
 
   let acknowledgment: string;
@@ -335,8 +339,9 @@ export async function handlePostmortem(
   text: string,
   decisionId: string,
 ): Promise<string> {
-  // 1. Detect language
-  const detectedLanguage = getLastUserLanguage(chatId.toString()) ?? detectLanguage(text, null) ?? 'en';
+  // 1. Detect language — normalize full names to short codes for helper functions
+  const rawPostLang = getLastUserLanguage(chatId.toString()) ?? detectLanguage(text, null) ?? 'English';
+  const detectedLanguage = rawPostLang === 'French' ? 'fr' : rawPostLang === 'Russian' ? 'ru' : 'en';
 
   // 2. Store resolution_notes
   await db
