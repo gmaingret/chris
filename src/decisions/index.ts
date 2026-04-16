@@ -20,3 +20,6 @@ export type { DecisionStatusLiteral } from './errors.js';
 export { regenerateDecisionFromEvents } from './regenerate.js';
 
 export { getActiveDecisionCapture } from './capture-state.js';
+
+export { detectTriggerPhrase, detectTriggerPhraseDetailed, classifyStakes } from './triggers.js';
+export type { TriggerMatch, StakesTier } from './triggers.js';

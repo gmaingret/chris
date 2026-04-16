@@ -6,9 +6,6 @@
  *   - detectTriggerPhrase: positives hit, negatives miss (meta-guards).
  *   - classifyStakes: fail-closed-to-trivial on timeout/invalid JSON (D-06, D-08).
  *
- * Will fail until Wave 1 "triggers" plan lands src/decisions/triggers.ts and
- * wires Haiku via src/llm/client.ts.
- *
  * Run: npx vitest run src/decisions/__tests__/triggers.test.ts
  */
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
@@ -27,7 +24,15 @@ import {
   FR_NEGATIVES,
   RU_NEGATIVES,
 } from '../triggers-fixtures.js';
-// @ts-expect-error — Wave 1 creates this module
+
+// Mutable mock for callLLM — set per test via mockCallLLM.mockImplementation(...)
+const mockCallLLM = vi.fn();
+
+vi.mock('../../llm/client.js', async (importOriginal) => {
+  const mod: Record<string, unknown> = await importOriginal();
+  return { ...mod, callLLM: (...args: unknown[]) => mockCallLLM(...args) };
+});
+
 import { detectTriggerPhrase, classifyStakes } from '../triggers.js';
 
 describe('CAP-01: trigger detection + stakes classifier', () => {
@@ -104,13 +109,9 @@ describe('CAP-01: trigger detection + stakes classifier', () => {
 
   describe('classifyStakes: Haiku-wired with fail-closed default (D-05, D-06, D-08)', () => {
     it('classifyStakes returns trivial on timeout', async () => {
-      vi.mock('../../llm/client.js', async (importOriginal) => {
-        const mod: Record<string, unknown> = await importOriginal();
-        return {
-          ...mod,
-          callLLM: () => new Promise((resolve) => setTimeout(resolve, 5000)),
-        };
-      });
+      mockCallLLM.mockImplementation(
+        () => new Promise((resolve) => setTimeout(resolve, 5000)),
+      );
       const start = Date.now();
       const tier = await classifyStakes('I need to decide whether to move');
       const elapsed = Date.now() - start;
@@ -119,25 +120,17 @@ describe('CAP-01: trigger detection + stakes classifier', () => {
     });
 
     it('classifyStakes returns parsed tier for valid JSON response', async () => {
-      vi.mock('../../llm/client.js', async (importOriginal) => {
-        const mod: Record<string, unknown> = await importOriginal();
-        return {
-          ...mod,
-          callLLM: () => Promise.resolve('{"tier":"structural"}'),
-        };
-      });
+      mockCallLLM.mockImplementation(() =>
+        Promise.resolve('{"tier":"structural"}'),
+      );
       const tier = await classifyStakes("I'm thinking about quitting");
       expect(tier).toBe('structural');
     });
 
     it('classifyStakes fail-closes to trivial on invalid JSON', async () => {
-      vi.mock('../../llm/client.js', async (importOriginal) => {
-        const mod: Record<string, unknown> = await importOriginal();
-        return {
-          ...mod,
-          callLLM: () => Promise.resolve('not valid json at all'),
-        };
-      });
+      mockCallLLM.mockImplementation(() =>
+        Promise.resolve('not valid json at all'),
+      );
       const tier = await classifyStakes("I'm thinking about quitting");
       expect(tier).toBe('trivial');
     });
