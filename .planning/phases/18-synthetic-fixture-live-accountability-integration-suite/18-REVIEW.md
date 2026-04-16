@@ -2,20 +2,16 @@
 phase: 18-synthetic-fixture-live-accountability-integration-suite
 reviewed: 2026-04-16T00:00:00Z
 depth: standard
-files_reviewed: 7
+files_reviewed: 3
 files_reviewed_list:
-  - src/decisions/__tests__/live-accountability.test.ts
   - src/decisions/__tests__/synthetic-fixture.test.ts
+  - src/decisions/__tests__/live-accountability.test.ts
   - src/decisions/__tests__/vague-validator-live.test.ts
-  - src/decisions/vague-validator.ts
-  - src/llm/client.ts
-  - src/llm/prompts.ts
-  - src/pensieve/retrieve.ts
 findings:
   critical: 0
-  warning: 7
-  info: 5
-  total: 12
+  warning: 6
+  info: 4
+  total: 10
 status: issues_found
 ---
 
@@ -23,16 +19,14 @@ status: issues_found
 
 **Reviewed:** 2026-04-16T00:00:00Z
 **Depth:** standard
-**Files Reviewed:** 7
+**Files Reviewed:** 3
 **Status:** issues_found
 
 ## Summary
 
-Seven source files reviewed: three integration test files for the Phase 18 synthetic-fixture and live-accountability suite (TEST-10/11/12/13/14), plus the vague-validator implementation, the LLM client wrapper, the prompt templates, and the Pensieve retrieval module.
+Three integration test files for the Phase 18 synthetic-fixture and live-accountability suite were reviewed. The tests are well-structured with clear commentary, proper use of `vi.hoisted`, and appropriate `describe.skipIf` guards for live API tests.
 
-The production source files (`vague-validator.ts`, `client.ts`, `retrieve.ts`) are defensively coded and well-structured. The `prompts.ts` file has one notable stale-copy issue. The primary findings are concentrated in the test files, where unscoped `db.delete()` calls without WHERE clauses create data integrity risks in shared Postgres environments, a bare `JSON.parse` is unguarded in the Haiku judge, and `sql.end()` placement risks non-deterministic failures in TEST-12.
-
-No security vulnerabilities were found. No critical bugs in production code.
+Six warnings were found, all concerning data integrity in test setup/teardown. The dominant pattern is unscoped `db.delete()` calls without `WHERE` clauses that silently delete rows across all chatIds — this will cause data corruption if any two test files from this suite run concurrently or sequentially in a shared Postgres database. There is also a bare `JSON.parse` without error handling in the Haiku judge used by `live-accountability.test.ts`, and a `sql.end()` ordering concern that could cause non-deterministic failures.
 
 ---
 
@@ -41,10 +35,10 @@ No security vulnerabilities were found. No critical bugs in production code.
 ### WR-01: Unscoped `db.delete(decisionEvents)` deletes all rows across all chatIds
 
 **File:** `src/decisions/__tests__/synthetic-fixture.test.ts:255`
-**Issue:** The `cleanup()` helper issues `await db.delete(decisionEvents)` with no WHERE clause, deleting every row in the table regardless of chatId. If another test file runs concurrently or leaves rows from a prior run, this blanket delete silently removes data outside `TEST_CHAT_ID = 99918`. The `decisionEvents` table has no direct `chatId` column but does have a `decisionId` FK that enables scoping.
+**Issue:** The `cleanup()` helper deletes `decisionEvents` with no `WHERE` clause. `decisionEvents` has no `chatId` column, but it has a `decisionId` FK. If another test file is running concurrently (or left rows from a previous run), this blanket delete will silently remove data that does not belong to `TEST_CHAT_ID = 99918`. The same issue appears in `vague-validator-live.test.ts` (see WR-05).
 **Fix:**
 ```typescript
-// Scope via a subquery on this test's decisions:
+// Instead of blanket delete, scope via a subquery on the test chat's decisions:
 await db.delete(decisionEvents).where(
   inArray(
     decisionEvents.decisionId,
@@ -52,34 +46,39 @@ await db.delete(decisionEvents).where(
   ),
 );
 ```
+Or, insert a `TEST_RUN_ID` tag into each seeded decision and filter on it.
 
 ---
 
 ### WR-02: Unscoped `db.delete(pensieveEntries)` deletes all entries across all chatIds
 
 **File:** `src/decisions/__tests__/synthetic-fixture.test.ts:264`
-**Issue:** `cleanup()` deletes from `pensieveEntries` with no WHERE clause. This purges Pensieve data seeded by any other concurrently running test suite sharing the same database.
+**Issue:** `cleanup()` deletes from `pensieveEntries` with no `WHERE` clause. This will silently purge Pensieve data seeded by any other concurrently running test suite.
 **Fix:**
 ```typescript
-// Filter by a column that scopes to this test's data, e.g. source:
+// Filter by source or sourceRefId if those carry chatId context, e.g.:
 await db.delete(pensieveEntries).where(eq(pensieveEntries.source, 'telegram'));
-// Or, if pensieveEntries has a chatId equivalent column, use that.
+// Or more precisely, scope to entries written during this test run only.
 ```
-If no scoping column is available, document that cleanup is intentionally global and ensure test suites never run in parallel.
+If `pensieveEntries` has a `chatId`-equivalent column, use that. If not, consider adding a `testRunId` metadata field or using a transaction that is rolled back.
 
 ---
 
-### WR-03: `sql.end()` in TEST-11 `afterAll` risks non-deterministic failures in TEST-12
+### WR-03: `sql.end()` in TEST-11 `afterAll` may cause TEST-12 non-deterministic failures
 
 **File:** `src/decisions/__tests__/synthetic-fixture.test.ts:437-440`
-**Issue:** `sql.end()` closes the shared postgres.js connection pool after TEST-11 finishes. TEST-12 executes after TEST-11 in the same file and calls `runSweep()`. The comment on line 438 asserts TEST-12 "does not need the pool open," but that is a claim about mock coverage — not a runtime guarantee. Any transitive code path in the sweep that touches the real `sql` tagged-template instance will throw "connection ended." This produces non-deterministic failures depending on mock completeness.
+**Issue:** `sql.end()` closes the shared postgres.js connection pool at the end of TEST-11. TEST-12 executes after TEST-11 in the same file and calls `runSweep()`. Even though TEST-12 mocks most DB paths, `runSweep` and its transitive imports are loaded in the same process and share the same `sql` tagged-template instance from `../../db/connection.js`. If any non-mocked code path touches `sql` during TEST-12, it will throw a "connection ended" error.
+
+The comment on line 438 says TEST-12 "does not need the pool open" but that is an assertion about the mock coverage, not a guarantee. The safest pattern is to close the pool in the top-level `afterAll` of the file or in a global teardown.
 **Fix:**
 ```typescript
-// Remove sql.end() from TEST-11's afterAll.
-// Add a single file-level afterAll at the bottom of the file:
+// Move sql.end() to a file-level afterAll at the bottom of the file,
+// after all describe blocks have run:
 afterAll(async () => {
   await sql.end();
 });
+
+// Remove the sql.end() call from TEST-11's afterAll.
 ```
 
 ---
@@ -87,7 +86,7 @@ afterAll(async () => {
 ### WR-04: Bare `JSON.parse` in `classifyAccountabilityTone` — unhandled parse error
 
 **File:** `src/decisions/__tests__/live-accountability.test.ts:65`
-**Issue:** `JSON.parse(cleaned)` throws a `SyntaxError` if Haiku returns non-JSON (rate limit error, partial API response, or markdown-wrapped JSON that the regex strip misses). The thrown error surfaces as an opaque parse failure rather than a useful assertion message. Because this runs inside a `for (let i = 0; i < 3; i++)` loop, an unhandled throw also bypasses `cleanupIteration`, leaving orphaned DB rows.
+**Issue:** `JSON.parse(cleaned)` throws a `SyntaxError` if Haiku returns non-JSON (rate limit message, API error, or markdown-wrapped JSON that the regex strip missed). The thrown error will surface as an opaque parse failure rather than a useful assertion failure, making live-test debugging harder.
 **Fix:**
 ```typescript
 let parsed: AccountabilityClassification;
@@ -95,21 +94,10 @@ try {
   parsed = JSON.parse(cleaned) as AccountabilityClassification;
 } catch {
   throw new Error(
-    `Haiku judge returned non-JSON. Raw text: ${text.slice(0, 300)}`
+    `Haiku judge returned non-JSON response. Raw text: ${text.slice(0, 200)}`
   );
 }
 return parsed;
-```
-Additionally, wrap `cleanupIteration` in a `finally` block to ensure cleanup runs even if classification fails:
-```typescript
-try {
-  const response = await handleResolution(...);
-  const classification = await classifyAccountabilityTone(response);
-  expect(classification.flattery).toBe('none');
-  expect(classification.condemnation).toBe('none');
-} finally {
-  await cleanupIteration(decisionId);
-}
 ```
 
 ---
@@ -117,26 +105,23 @@ try {
 ### WR-05: Unscoped `db.delete(decisionEvents)` and `db.delete(decisions)` in `vague-validator-live.test.ts`
 
 **File:** `src/decisions/__tests__/vague-validator-live.test.ts:104-105`
-**Issue:** Both deletes have no WHERE clause, identical to WR-01. These run in `afterEach`, firing after every test. In a shared database, this will remove decisions and events that do not belong to `TEST_CHAT_ID = 99920`.
+**Issue:** Both deletes have no `WHERE` clause, identical to WR-01. These run in `afterEach`, which fires after each test. Test 1 (flag-rate test) seeds no decisions, so the blank delete is harmless there, but Test 2 (pushback test) creates a decision row. The blank deletes will remove any decision and event rows in the entire table regardless of chatId.
+
+Additionally, `pensieveEntries` on line 107 is filtered by `source='telegram'` but not by `chatId`, which can affect other test data.
 **Fix:**
 ```typescript
-// Scope decisionEvents via subquery:
-await db.delete(decisionEvents).where(
-  inArray(
-    decisionEvents.decisionId,
-    db.select({ id: decisions.id }).from(decisions).where(eq(decisions.chatId, TEST_CHAT_ID)),
-  ),
-);
+// Scope decisionEvents via subquery as shown in WR-01.
 // Scope decisions:
 await db.delete(decisions).where(eq(decisions.chatId, TEST_CHAT_ID));
+// Scope pensieve entries by chatId if a column exists, or accept the source filter as best-effort.
 ```
 
 ---
 
-### WR-06: Unscoped decision `rows` assertion in vague-validator Test 2 — false-positive risk
+### WR-06: `rows` query in vague-validator Test 2 not scoped to TEST_CHAT_ID
 
 **File:** `src/decisions/__tests__/vague-validator-live.test.ts:162-165`
-**Issue:** `db.select().from(decisions)` fetches all decision rows across all chatIds. In a shared database, rows seeded by a concurrent test suite can satisfy `rows.length >= 1` even if Test 2 failed to commit the decision for `TEST_CHAT_ID`, producing a false-positive pass.
+**Issue:** `db.select().from(decisions)` fetches all decision rows across all chatIds. In a shared database, rows seeded by a concurrent test suite could satisfy the `rows.length >= 1` assertion, producing a false-positive pass even if Test 2 failed to commit the decision for `TEST_CHAT_ID`.
 **Fix:**
 ```typescript
 const rows = await db
@@ -148,85 +133,57 @@ expect(rows.length).toBeGreaterThanOrEqual(1);
 
 ---
 
-### WR-07: `CONTRADICTION_DETECTION_PROMPT` and `RELATIONAL_MEMORY_PROMPT` use "John" instead of "Greg"
-
-**File:** `src/llm/prompts.ts:228-258`, `261-298`
-**Issue:** `CONTRADICTION_DETECTION_PROMPT` addresses the user as "John" throughout ("What John just said", "John has decided", etc.) and `RELATIONAL_MEMORY_PROMPT` similarly refers to "John and Chris". All other prompts in the file are personalized to "Greg". These prompts are sent verbatim to Haiku/Opus, so the model may produce responses that reference a user named "John" when the actual user is Greg.
-**Fix:** Replace every instance of "John" with "Greg" in both prompts, consistent with the rest of the file.
-
----
-
 ## Info
 
-### IN-01: `callLLM` JSDoc documents "empty string on failure" but only handles missing text blocks — API errors propagate
-
-**File:** `src/llm/client.ts:16-30`
-**Issue:** The JSDoc comment says "Returns the first text block content as a string, or empty string on failure." The empty-string path only executes when `block?.type !== 'text'`; actual API errors (rate limits, network failures) throw unhandled exceptions. `vague-validator.ts` wraps calls in its own try/catch, which compensates, but other callers may rely on the documented empty-string contract.
-**Fix:** Update the JSDoc to clarify that network/API exceptions are not caught, or add a try/catch to match the documented behavior:
-```typescript
-export async function callLLM(system: string, user: string, maxTokens = 100): Promise<string> {
-  try {
-    const response = await anthropic.messages.create({ ... });
-    const block = response.content[0];
-    return block?.type === 'text' ? block.text : '';
-  } catch {
-    return ''; // matches documented "empty string on failure"
-  }
-}
-```
-
----
-
-### IN-02: Unused import `upsertAwaitingResolution` in `synthetic-fixture.test.ts`
+### IN-01: Unused import `upsertAwaitingResolution` in synthetic-fixture.test.ts
 
 **File:** `src/decisions/__tests__/synthetic-fixture.test.ts:205`
-**Issue:** `upsertAwaitingResolution` is imported from `../capture-state.js` but TEST-10 performs the equivalent work via a raw `db.insert` (lines 325-338) and TEST-12 uses the hoisted mock `mockUpsertAwaitingResolution`. The imported symbol is never called directly in the test file.
+**Issue:** `upsertAwaitingResolution` is imported from `../capture-state.js` but TEST-10 uses a raw `db.insert` (line 325-338) rather than the imported function. TEST-12 uses the mock version via `mockUpsertAwaitingResolution`. The imported symbol is never called directly.
 **Fix:** Remove the import, or replace the raw `db.insert` block in TEST-10 with a call to `upsertAwaitingResolution` so the import is used and the test exercises the real helper.
 
 ---
 
-### IN-03: Loop variable `i` unused in live-accountability scenarios — iteration number lost on failure
+### IN-02: Loop variable `i` unused in live-accountability scenarios
 
 **File:** `src/decisions/__tests__/live-accountability.test.ts:154, 189, 224`
-**Issue:** All three scenario loops use `let i = 0; i < 3; i++` but `i` is never used inside the loop body. When an iteration fails, the error gives no indication of which iteration produced the failure.
+**Issue:** The 3-iteration loops use `let i = 0; i < 3; i++` but `i` is never referenced inside the loop body. When an iteration fails, Vitest reports the assertion error but gives no indication of which iteration (1, 2, or 3) produced the failure.
 **Fix:**
 ```typescript
 for (let i = 0; i < 3; i++) {
   // ... existing code ...
-  // Use i in the error message if assertion fails:
-  expect(classification.flattery, `flattery on iteration ${i + 1}`).toBe('none');
-  expect(classification.condemnation, `condemnation on iteration ${i + 1}`).toBe('none');
+  expect(classification.flattery).withContext(`iteration ${i + 1}`).toBe('none');
+  // or simply log iteration on failure:
+  if (classification.flattery !== 'none' || classification.condemnation !== 'none') {
+    throw new Error(`Iteration ${i + 1} failed: ${JSON.stringify(classification)}`);
+  }
 }
 ```
 
 ---
 
-### IN-04: Test 1 vague-flag assertion gives no per-prediction failure detail
+### IN-03: Test 1 vague-flag rate gives no per-prediction failure detail
 
 **File:** `src/decisions/__tests__/vague-validator-live.test.ts:113-119`
-**Issue:** When `flaggedCount < 9`, the failing assertion only reports the count, giving no indication of which specific predictions the model missed. Debugging a prompt regression requires re-running manually.
+**Issue:** When `flaggedCount < 9`, the failing assertion only says the count was wrong. There is no output showing which specific predictions were not flagged, making it hard to debug prompt regressions.
 **Fix:**
 ```typescript
-const unflagged: string[] = [];
+const failures: string[] = [];
 for (const { prediction, falsification_criterion, lang } of ADVERSARIAL_PREDICTIONS) {
   const result = await validateVagueness({ prediction, falsification_criterion });
   if (result.verdict !== 'vague') {
-    unflagged.push(`[${lang}] "${prediction}"`);
+    failures.push(`[${lang}] "${prediction}"`);
   }
 }
-expect(
-  ADVERSARIAL_PREDICTIONS.length - unflagged.length,
-  `Unflagged:\n${unflagged.join('\n')}`
-).toBeGreaterThanOrEqual(9);
+expect(failures, `Unflagged predictions:\n${failures.join('\n')}`).toHaveLength(0 /* or <= 1 */);
 ```
 
 ---
 
-### IN-05: Magic number `172800000` in deadline mock lacks comment
+### IN-04: Magic number `172800000` in `STALE_CONTEXT_THRESHOLD_MS` mock
 
 **File:** `src/decisions/__tests__/synthetic-fixture.test.ts:166`
-**Issue:** `STALE_CONTEXT_THRESHOLD_MS: 172800000` is hardcoded without explanation. If the real module's threshold changes, the mock silently diverges.
-**Fix:**
+**Issue:** The constant `172800000` (48 hours in milliseconds) is hardcoded in the mock without a named constant or comment. If the real module's threshold changes, the test will silently diverge.
+**Fix:** Either import the real constant from `../../proactive/triggers/deadline.js` in a separate non-mocked import, or annotate the value:
 ```typescript
 STALE_CONTEXT_THRESHOLD_MS: 172_800_000, // 48 hours — must match deadline.ts
 ```

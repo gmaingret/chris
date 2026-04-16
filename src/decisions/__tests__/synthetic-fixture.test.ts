@@ -37,7 +37,7 @@ const {
   // TEST-12 trigger mocks
   mockDeadlineDetect,
   mockSilenceDetect,
-  // TEST-12 state mocks (matches actual state.ts single-pipeline exports)
+  // TEST-12 state mocks
   mockIsMuted,
   mockHasSentToday,
   mockSetLastSent,
@@ -64,7 +64,7 @@ const {
     priority: 1,
     context: 'No silence',
   }),
-  // State helpers — single-pipeline: isMuted, hasSentToday, setLastSent, getLastSent only
+  // State helpers
   mockIsMuted: vi.fn().mockResolvedValue(false),
   mockHasSentToday: vi.fn().mockResolvedValue(false),
   mockSetLastSent: vi.fn().mockResolvedValue(undefined),
@@ -162,15 +162,13 @@ vi.mock('../../proactive/triggers/silence.js', () => ({
   createSilenceTrigger: vi.fn(() => ({ detect: mockSilenceDetect })),
 }));
 
-// Mock state.ts — actual exports: isMuted, hasSentToday, setLastSent, getLastSent, getMuteUntil, setMuteUntil.
-// Single-pipeline: no accountability/reflective variants.
+// Mock state.ts — all helpers are mocked to avoid real DB access for proactive_state table.
+// Escalation helpers return null/0 by default (no pending escalations).
 vi.mock('../../proactive/state.js', () => ({
   isMuted: mockIsMuted,
   hasSentToday: mockHasSentToday,
   setLastSent: mockSetLastSent,
   getLastSent: vi.fn().mockResolvedValue(null),
-  getMuteUntil: vi.fn().mockResolvedValue(null),
-  setMuteUntil: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock capture-state helpers used by sweep (upsertAwaitingResolution is called by accountability channel).
@@ -482,7 +480,7 @@ describe('TEST-12: same-day deadline + silence trigger collision', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.clearAllMocks();
-    // Restore mock defaults for state helpers (single-pipeline)
+    // Restore mock defaults for state helpers
     mockDeadlineDetect.mockResolvedValue({
       triggered: false,
       triggerType: 'decision-deadline',
@@ -502,9 +500,22 @@ describe('TEST-12: same-day deadline + silence trigger collision', () => {
   it(
     'deadline and silence triggers both fire; single-pipeline selects highest-priority winner without starvation',
     async () => {
-      // ── Setup: silence trigger fires (priority 1 — highest priority) ────
-      // In the single-pipeline, runSweep() only runs silence + commitment triggers.
-      // The silence trigger fires and becomes the winner (priority 1 < deadline priority 2).
+      // ── Setup: deadline trigger fires (priority 2) ────────────────────
+      const FAKE_DECISION_ID = 'test-decision-uuid-for-test-12';
+
+      mockDeadlineDetect.mockResolvedValue({
+        triggered: true,
+        triggerType: 'decision-deadline',
+        priority: 2,
+        context: 'Your deadline just passed for a prediction you made: "Test prediction". Your falsification criterion was: "Test criterion".',
+        evidence: [
+          `Decision ID: ${FAKE_DECISION_ID}`,
+          'Resolve by: 2026-04-01T10:00:00.000Z',
+          'Staleness: 24h',
+        ],
+      });
+
+      // ── Setup: silence trigger fires (priority 1 — wins) ──────────────
       mockSilenceDetect.mockResolvedValue({
         triggered: true,
         triggerType: 'silence',
@@ -513,40 +524,25 @@ describe('TEST-12: same-day deadline + silence trigger collision', () => {
         evidence: ['Last message 3 days ago'],
       });
 
-      // Also fire the deadline trigger (mocked, but sweep does not call it directly —
-      // the deadline path is handled outside the proactive sweep cron).
-      // Setting it triggered=true proves neither trigger is starved: both have a path to fire.
-      mockDeadlineDetect.mockResolvedValue({
-        triggered: true,
-        triggerType: 'decision-deadline',
-        priority: 2,
-        context: 'Your deadline just passed.',
-        evidence: ['Decision ID: test-decision-uuid-for-test-12'],
-      });
-
-      // ── Setup: state helpers — not muted, not sent today ───────────────
+      // ── Setup: state helpers — not muted, not sent today ──────────────
       mockIsMuted.mockResolvedValue(false);
       mockHasSentToday.mockResolvedValue(false);
 
-      // ── Setup: LLM returns valid text for the winning trigger ───────────
-      // Single-pipeline: exactly one LLM call for the winner (silence).
-      mockAnthropicCreate.mockResolvedValueOnce({
-        content: [{ type: 'text', text: "I noticed you've been quiet for a few days. How are things going?" }],
-      });
+      // ── Setup: LLM returns valid text (single pipeline, one call) ─────
+      mockAnthropicCreate
+        .mockResolvedValueOnce({
+          content: [{ type: 'text', text: "I noticed you've been quiet for a few days. How are things going?" }],
+        });
 
       // ── Run full sweep ─────────────────────────────────────────────────
       const result = await runSweep();
 
-      // ── Assert: single-pipeline result shape ───────────────────────────
-      // Sweep triggered: silence trigger fired and won priority selection.
+      // ── Assert: single-pipeline fired ─────────────────────────────────
       expect(result.triggered).toBe(true);
-
-      // Silence (priority 1) wins over any other trigger in the single-pipeline.
-      // The sweep picks the lowest-priority-number trigger as the winner.
+      // Silence has priority 1 (lower = higher priority), deadline has priority 2.
+      // Single pipeline selects highest-priority (lowest number) trigger.
       expect(result.triggerType).toBe('silence');
-
-      // Exactly one message sent — single pipeline, one winner.
-      // No starvation: both triggers had the opportunity to fire; silence won by priority.
+      // Exactly one message sent (single pipeline, one winner)
       expect(mockSendMessage).toHaveBeenCalledTimes(1);
     },
     30_000,

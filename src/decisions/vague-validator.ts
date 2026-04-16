@@ -3,7 +3,7 @@
  *
  * Hedge-word-primed Haiku judgment on (prediction, falsification_criterion).
  * Fail-soft default: 'acceptable' (anti-interrogation ethos — don't pushback on error).
- * 15s hard timeout (increased from 3s — real Haiku API calls need headroom).
+ * 15s hard timeout.
  */
 
 import { callLLM } from '../llm/client.js';
