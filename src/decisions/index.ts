@@ -23,3 +23,5 @@ export { getActiveDecisionCapture } from './capture-state.js';
 
 export { detectTriggerPhrase, detectTriggerPhraseDetailed, classifyStakes } from './triggers.js';
 export type { TriggerMatch, StakesTier } from './triggers.js';
+
+export { addSuppression, isSuppressed, listSuppressions } from './suppressions.js';
