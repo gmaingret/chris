@@ -8,7 +8,7 @@
 import type { TriggerDetector, TriggerResult } from './types.js';
 import type { OpusAnalysisResult } from './opus-analysis.js';
 
-const THREAD_PRIORITY = 4;
+const THREAD_PRIORITY = 5;
 const CONFIDENCE_THRESHOLD = 0.5;
 
 export function createThreadTrigger(

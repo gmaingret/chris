@@ -8,7 +8,7 @@
 import type { TriggerDetector, TriggerResult } from './types.js';
 import type { OpusAnalysisResult } from './opus-analysis.js';
 
-const PATTERN_PRIORITY = 3;
+const PATTERN_PRIORITY = 4;
 const CONFIDENCE_THRESHOLD = 0.5;
 
 export function createPatternTrigger(
