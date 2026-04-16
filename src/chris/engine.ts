@@ -18,6 +18,7 @@ import {
   type CaptureDraft,
 } from '../decisions/capture-state.js';
 import { handleCapture, openCapture } from '../decisions/capture.js';
+import { handleResolution, handlePostmortem } from '../decisions/resolution.js';
 import { detectTriggerPhrase, classifyStakes } from '../decisions/triggers.js';
 import { isSuppressed } from '../decisions/suppressions.js';
 
@@ -165,8 +166,24 @@ export async function processMessage(
     // Runs BEFORE mute/refusal/language/mode detection (D-24).
     const activeCapture = await getActiveDecisionCapture(chatId);
     if (activeCapture) {
+      // Route AWAITING_RESOLUTION / AWAITING_POSTMORTEM before abort-phrase check:
+      // these stages have draft={} with no language_at_capture, and abort semantics
+      // don't apply to resolution flows (CR-01, WR-01).
+      if (activeCapture.stage === 'AWAITING_RESOLUTION') {
+        const reply = await handleResolution(chatId, text, activeCapture.decisionId!);
+        await saveMessage(chatId, 'USER', text, 'JOURNAL');
+        await saveMessage(chatId, 'ASSISTANT', reply, 'JOURNAL');
+        return reply;
+      }
+      if (activeCapture.stage === 'AWAITING_POSTMORTEM') {
+        const reply = await handlePostmortem(chatId, text, activeCapture.decisionId!);
+        await saveMessage(chatId, 'USER', text, 'JOURNAL');
+        await saveMessage(chatId, 'ASSISTANT', reply, 'JOURNAL');
+        return reply;
+      }
+
       const draft = activeCapture.draft as CaptureDraft;
-      const lang = draft.language_at_capture;
+      const lang: 'en' | 'fr' | 'ru' = draft.language_at_capture ?? 'en';
 
       // D-25: abort-phrase check INSIDE PP#0 (handler entry).
       if (isAbortPhrase(text, lang)) {
@@ -177,7 +194,7 @@ export async function processMessage(
         return ack;
       }
 
-      // Phase 14: handle CAPTURING stages; Phase 16 will branch AWAITING_RESOLUTION / AWAITING_POSTMORTEM here.
+      // Phase 14: handle CAPTURING stages.
       if (
         activeCapture.stage === 'DECISION' ||
         activeCapture.stage === 'ALTERNATIVES' ||
@@ -190,7 +207,7 @@ export async function processMessage(
         await saveMessage(chatId, 'ASSISTANT', reply, 'JOURNAL');
         return reply;
       }
-      // AWAITING_RESOLUTION / AWAITING_POSTMORTEM / DONE → Phase 16 will handle; for now fall through.
+      // DONE → fall through to normal engine.
     }
 
     // ── PP#1: decision-trigger detection ───────────────────────────────
