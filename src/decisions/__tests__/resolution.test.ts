@@ -315,8 +315,9 @@ describe('classifyOutcome', () => {
     });
 
     const result = await classifyOutcome(
-      'I will be happier within 3 months',
-      'I was happier within 3 months',
+      'I was happier within 3 months',        // resolutionText
+      'I will be happier within 3 months',     // prediction
+      'I am not happier after 3 months',       // criterion
     );
     expect(result).toBe('hit');
   });
@@ -327,8 +328,9 @@ describe('classifyOutcome', () => {
     });
 
     const result = await classifyOutcome(
-      'I will be happier within 3 months',
-      'I was not happier at all',
+      'I was not happier at all',              // resolutionText
+      'I will be happier within 3 months',     // prediction
+      'I am not happier after 3 months',       // criterion
     );
     expect(result).toBe('miss');
   });
@@ -339,8 +341,9 @@ describe('classifyOutcome', () => {
     });
 
     const result = await classifyOutcome(
-      'I will be happier within 3 months',
-      'some resolution text',
+      'some resolution text',                  // resolutionText
+      'I will be happier within 3 months',     // prediction
+      'I am not happier after 3 months',       // criterion
     );
     expect(result).toBe('ambiguous');
   });
