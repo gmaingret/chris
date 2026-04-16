@@ -6,9 +6,10 @@ const mockValues = vi.fn(() => ({ returning: mockReturning }));
 const mockInsert = vi.fn(() => ({ values: mockValues }));
 
 // Select chain for conversation.ts (select→from→where→orderBy→limit)
+// Also supports decisions/capture-state.ts (select→from→where→limit)
 const mockLimit = vi.fn();
 const mockOrderBy = vi.fn(() => ({ limit: mockLimit }));
-const mockSelectWhere = vi.fn(() => ({ orderBy: mockOrderBy }));
+const mockSelectWhere = vi.fn(() => ({ orderBy: mockOrderBy, limit: mockLimit }));
 const mockFrom = vi.fn(() => ({ where: mockSelectWhere }));
 const mockSelect = vi.fn(() => ({ from: mockFrom }));
 
@@ -155,8 +156,37 @@ vi.mock('../modes/produce.js', () => ({
   handleProduce: mockHandleProduce,
 }));
 
+// ── Mock decision capture/trigger modules (Phase 14 PP#0/PP#1) ────────────
+const mockGetActiveDecisionCapture = vi.fn();
+const mockClearCapture = vi.fn();
+const mockIsAbortPhrase = vi.fn();
+vi.mock('../../decisions/capture-state.js', () => ({
+  getActiveDecisionCapture: mockGetActiveDecisionCapture,
+  clearCapture: mockClearCapture,
+  isAbortPhrase: mockIsAbortPhrase,
+}));
+
+const mockHandleCapture = vi.fn();
+const mockOpenCapture = vi.fn();
+vi.mock('../../decisions/capture.js', () => ({
+  handleCapture: mockHandleCapture,
+  openCapture: mockOpenCapture,
+}));
+
+const mockDetectTriggerPhrase = vi.fn();
+const mockClassifyStakes = vi.fn();
+vi.mock('../../decisions/triggers.js', () => ({
+  detectTriggerPhrase: mockDetectTriggerPhrase,
+  classifyStakes: mockClassifyStakes,
+}));
+
+const mockIsSuppressed = vi.fn();
+vi.mock('../../decisions/suppressions.js', () => ({
+  isSuppressed: mockIsSuppressed,
+}));
+
 // ── Import modules under test after mocks ──────────────────────────────────
-const { detectMode, processMessage } = await import('../engine.js');
+const { detectMode, processMessage, __resetSurfacedContradictionsForTests } = await import('../engine.js');
 const { handleJournal } = await import('../modes/journal.js');
 const { buildSystemPrompt } = await import('../personality.js');
 const { formatContradictionNotice } = await import('../personality.js');
@@ -197,7 +227,7 @@ describe('formatContradictionNotice', () => {
     expect(result).toContain('💡 I noticed something');
     expect(result).toContain('March 15, 2025');
     expect(result).toContain("I'll never go back to corporate work.");
-    expect(result).toContain('people change');
+    expect(result.toLowerCase()).toContain('people change');
     expect(result).toContain('What do you think?');
   });
 
@@ -589,6 +619,7 @@ describe('handleJournal', () => {
 describe('processMessage (engine)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    __resetSurfacedContradictionsForTests();
     // Mode detection → JOURNAL
     mockCreate.mockResolvedValueOnce(makeLLMResponse('{"mode": "JOURNAL"}'));
     // Sonnet response
@@ -602,6 +633,11 @@ describe('processMessage (engine)', () => {
     mockDetectContradictions.mockResolvedValue([]);
     mockDetectMuteIntent.mockResolvedValue({ muted: false });
     mockQuarantinePraise.mockImplementation((response: string) => Promise.resolve(response));
+
+    // Phase 14 PP#0/PP#1 defaults — no active capture, no suppression, no trigger
+    mockGetActiveDecisionCapture.mockResolvedValue(null);
+    mockIsSuppressed.mockResolvedValue(false);
+    mockDetectTriggerPhrase.mockReturnValue(null);
   });
 
   it('detects mode, routes to journal, and returns response', async () => {
@@ -1089,6 +1125,11 @@ describe('praise quarantine integration (SYCO-04/05)', () => {
     mockDetectContradictions.mockResolvedValue([]);
     mockDetectMuteIntent.mockResolvedValue({ muted: false });
     mockQuarantinePraise.mockImplementation((response: string) => Promise.resolve(response));
+
+    // Phase 14 PP#0/PP#1 defaults — no active capture, no suppression, no trigger
+    mockGetActiveDecisionCapture.mockResolvedValue(null);
+    mockIsSuppressed.mockResolvedValue(false);
+    mockDetectTriggerPhrase.mockReturnValue(null);
   });
 
   it('calls quarantinePraise for JOURNAL mode', async () => {
