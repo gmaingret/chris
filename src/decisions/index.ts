@@ -51,3 +51,7 @@ export {
 export type { VaguenessVerdict, VaguenessResult, VaguenessInput } from './vague-validator.js';
 
 export { handleCapture, openCapture } from './capture.js';
+
+export { handleResolution, handlePostmortem, classifyOutcome } from './resolution.js';
+
+export { upsertAwaitingResolution, updateToAwaitingPostmortem } from './capture-state.js';

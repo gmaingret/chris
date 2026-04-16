@@ -82,10 +82,11 @@ function abortAcknowledgment(lang: 'en' | 'fr' | 'ru'): string {
   }
 }
 
-export type ChrisMode = 'JOURNAL' | 'INTERROGATE' | 'REFLECT' | 'COACH' | 'PSYCHOLOGY' | 'PRODUCE' | 'PHOTOS';
+export type ChrisMode = 'JOURNAL' | 'INTERROGATE' | 'REFLECT' | 'COACH' | 'PSYCHOLOGY' | 'PRODUCE' | 'PHOTOS' | 'ACCOUNTABILITY';
 
 export const VALID_MODES = new Set<ChrisMode>([
   'JOURNAL', 'INTERROGATE', 'REFLECT', 'COACH', 'PSYCHOLOGY', 'PRODUCE', 'PHOTOS',
+  // ACCOUNTABILITY is NOT auto-detected — routed by pre-processor based on capture state
 ]);
 
 /**
@@ -262,7 +263,7 @@ export async function processMessage(
 
     // Save user message to conversation history (PHOTOS mode may override this below)
     let userMessageSaved = false;
-    if (mode !== 'PHOTOS') {
+    if (mode !== 'PHOTOS' && mode !== 'ACCOUNTABILITY') {
       await saveMessage(chatId, 'USER', text, mode);
       userMessageSaved = true;
     }
@@ -294,7 +295,7 @@ export async function processMessage(
           response = photoResult.response;
           // Enrich the saved user message with photo context so subsequent turns
           // know what Chris saw (images aren't persisted in conversation history)
-          await saveMessage(chatId, 'USER', `${text}\n\n${photoResult.photoContext}`, mode);
+          await saveMessage(chatId, 'USER', `${text}\n\n${photoResult.photoContext}`, mode as Exclude<ChrisMode, 'ACCOUNTABILITY'>);
           userMessageSaved = true;
         } else {
           // No photos found — tell the user naturally instead of falling back to journal
@@ -306,6 +307,11 @@ export async function processMessage(
         }
         break;
       }
+      default:
+        // ACCOUNTABILITY is routed by the pre-processor before reaching this switch.
+        // If it somehow arrives here, fall back to JOURNAL.
+        response = await handleJournal(chatId, text, language, declinedTopics, opts);
+        break;
     }
 
     // ── Praise quarantine (JOURNAL, REFLECT, PRODUCE only) — SYCO-04 ──
@@ -360,7 +366,10 @@ export async function processMessage(
     }
 
     // Save assistant response to conversation history
-    await saveMessage(chatId, 'ASSISTANT', response, mode);
+    // ACCOUNTABILITY is not a DB-stored conversation mode — skip saving (pre-processor handles it)
+    if (mode !== 'ACCOUNTABILITY') {
+      await saveMessage(chatId, 'ASSISTANT', response, mode);
+    }
 
     // Fire-and-forget: analyze journal exchanges for relational observations
     if (mode === 'JOURNAL') {

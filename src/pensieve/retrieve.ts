@@ -246,13 +246,16 @@ export const JOURNAL_SEARCH_OPTIONS: SearchOptions = {
  * Retrieve Pensieve entries within a temporal window around a center date.
  * Used by the resolution handler to provide +/-48h context for post-mortem (RES-05).
  * No semantic search — pure time-based query on created_at.
+ *
+ * @param centerDate - center of the temporal window
+ * @param windowMs - half-window size in milliseconds (default: 48 hours = 172_800_000 ms)
  */
 export async function getTemporalPensieve(
   centerDate: Date,
-  windowHours: number = 48,
+  windowMs: number = 48 * 3_600_000,
 ): Promise<(typeof pensieveEntries.$inferSelect)[]> {
-  const lower = new Date(centerDate.getTime() - windowHours * 3_600_000);
-  const upper = new Date(centerDate.getTime() + windowHours * 3_600_000);
+  const lower = new Date(centerDate.getTime() - windowMs);
+  const upper = new Date(centerDate.getTime() + windowMs);
 
   const rows = await db
     .select()

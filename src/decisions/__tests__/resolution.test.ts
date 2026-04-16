@@ -63,12 +63,7 @@ describe('handleResolution', () => {
     expect(result[0]!.ok).toBe(1);
   });
 
-  afterAll(async () => {
-    await sql.end();
-  });
-
   afterEach(async () => {
-    await db.delete(pensieveEntries);
     await db.delete(decisionEvents);
     await db.delete(decisions);
     await db.delete(decisionCaptureState);
@@ -199,12 +194,7 @@ describe('handlePostmortem', () => {
     expect(result[0]!.ok).toBe(1);
   });
 
-  afterAll(async () => {
-    await sql.end();
-  });
-
   afterEach(async () => {
-    await db.delete(pensieveEntries);
     await db.delete(decisionEvents);
     await db.delete(decisions);
     await db.delete(decisionCaptureState);
@@ -381,25 +371,25 @@ describe('getTemporalPensieve', () => {
       {
         content: 'entry at -72h',
         source: 'telegram',
-        epistemicTag: 'OBSERVATION',
+        epistemicTag: 'FACT',
         createdAt: minus72h,
       },
       {
         content: 'entry at -24h',
         source: 'telegram',
-        epistemicTag: 'OBSERVATION',
+        epistemicTag: 'FACT',
         createdAt: minus24h,
       },
       {
         content: 'entry at +24h',
         source: 'telegram',
-        epistemicTag: 'OBSERVATION',
+        epistemicTag: 'FACT',
         createdAt: plus24h,
       },
       {
         content: 'entry at +72h',
         source: 'telegram',
-        epistemicTag: 'OBSERVATION',
+        epistemicTag: 'FACT',
         createdAt: plus72h,
       },
     ]);
@@ -421,13 +411,13 @@ describe('getTemporalPensieve', () => {
       {
         content: 'live entry',
         source: 'telegram',
-        epistemicTag: 'OBSERVATION',
+        epistemicTag: 'FACT',
         createdAt: minus12h,
       },
       {
         content: 'deleted entry',
         source: 'telegram',
-        epistemicTag: 'OBSERVATION',
+        epistemicTag: 'FACT',
         createdAt: minus12h,
         deletedAt: new Date(),
       },
