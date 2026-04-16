@@ -37,7 +37,7 @@ See [milestones/v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md) for full phase deta
 ### 🚧 v2.1 M007 Decision Archive (Phases 13-18)
 
 - [x] **Phase 13: Schema & Lifecycle Primitives** — Append-only `decision_events`, projection `decisions`, capture-state table, transition chokepoint with optimistic concurrency (completed 2026-04-15)
-- [ ] **Phase 14: Capture Flow** — Two-phase trigger detection (regex + Haiku stakes), conversational 5-slot extraction, vague-prediction validator, pre-processors wired into engine
+- [x] **Phase 14: Capture Flow** — Two-phase trigger detection (regex + Haiku stakes), conversational 5-slot extraction, vague-prediction validator, pre-processors wired into engine (completed 2026-04-16)
 - [ ] **Phase 15: Deadline Trigger & Sweep Integration** — Fifth SQL-first trigger at priority=2, channel separation (`reflective_outreach` vs `accountability_outreach`), dated stale-context prompts
 - [ ] **Phase 16: Resolution, Post-Mortem & ACCOUNTABILITY Mode** — New ACCOUNTABILITY mode bypassing praise quarantine, Pensieve-first write ordering, ±48h context retrieval, auto-escalation after 2 non-replies
 - [ ] **Phase 17: `/decisions` Command & Accuracy Stats** — Haiku 2-axis classification cached with model version, N≥10 floor, Wilson 95% CI, domain-tag breakdown
@@ -78,8 +78,8 @@ Plans:
 - [x] 14-01-PLAN.md — Wave 0: schema 0004, prompt constants, trigger fixtures, six RED test scaffolds
 - [x] 14-02-PLAN.md — Wave 1: CAP-01 — Phase A regex (EN/FR/RU with parity) + Phase B Haiku stakes classifier (fail-closed)
 - [x] 14-03-PLAN.md — Wave 1: CAP-06 primitive — DB-backed suppressions with per-chat substring match
-- [ ] 14-04-PLAN.md — Wave 1: CAP-02/03/04/05 + LIFE-05 — capture.ts, resolve-by.ts, vague-validator.ts, capture-state write helpers
-- [ ] 14-05-PLAN.md — Wave 2: SWEEP-03 + CAP-06 surface — engine PP#0/PP#1 wiring + /decisions suppress bot command
+- [x] 14-04-PLAN.md — Wave 1: CAP-02/03/04/05 + LIFE-05 — capture.ts, resolve-by.ts, vague-validator.ts, capture-state write helpers
+- [x] 14-05-PLAN.md — Wave 2: SWEEP-03 + CAP-06 surface — engine PP#0/PP#1 wiring + /decisions suppress bot command
 
 ### Phase 15: Deadline Trigger & Sweep Integration
 **Goal**: When a decision's `resolve_by` passes, Chris surfaces the resolution prompt within 24 hours without starving or being starved by the four existing reflective-outreach triggers.
@@ -94,9 +94,9 @@ Plans:
 Plans:
 - [x] 14-01-PLAN.md — Wave 0: schema 0004, prompt constants, trigger fixtures, six RED test scaffolds
 - [x] 14-02-PLAN.md — Wave 1: CAP-01 — Phase A regex (EN/FR/RU with parity) + Phase B Haiku stakes classifier (fail-closed)
-- [ ] 14-03-PLAN.md — Wave 1: CAP-06 primitive — DB-backed suppressions with per-chat substring match
-- [ ] 14-04-PLAN.md — Wave 1: CAP-02/03/04/05 + LIFE-05 — capture.ts, resolve-by.ts, vague-validator.ts, capture-state write helpers
-- [ ] 14-05-PLAN.md — Wave 2: SWEEP-03 + CAP-06 surface — engine PP#0/PP#1 wiring + /decisions suppress bot command
+- [x] 14-03-PLAN.md — Wave 1: CAP-06 primitive — DB-backed suppressions with per-chat substring match
+- [x] 14-04-PLAN.md — Wave 1: CAP-02/03/04/05 + LIFE-05 — capture.ts, resolve-by.ts, vague-validator.ts, capture-state write helpers
+- [x] 14-05-PLAN.md — Wave 2: SWEEP-03 + CAP-06 surface — engine PP#0/PP#1 wiring + /decisions suppress bot command
 
 ### Phase 16: Resolution, Post-Mortem & ACCOUNTABILITY Mode
 **Goal**: A resolution reply produces a neutral, Pensieve-grounded post-mortem that neither flatters a hit nor condemns a miss — or M007 inverts M006.
@@ -111,10 +111,10 @@ Plans:
 **Plans**: 5 plans
 Plans:
 - [x] 14-01-PLAN.md — Wave 0: schema 0004, prompt constants, trigger fixtures, six RED test scaffolds
-- [ ] 14-02-PLAN.md — Wave 1: CAP-01 — Phase A regex (EN/FR/RU with parity) + Phase B Haiku stakes classifier (fail-closed)
-- [ ] 14-03-PLAN.md — Wave 1: CAP-06 primitive — DB-backed suppressions with per-chat substring match
-- [ ] 14-04-PLAN.md — Wave 1: CAP-02/03/04/05 + LIFE-05 — capture.ts, resolve-by.ts, vague-validator.ts, capture-state write helpers
-- [ ] 14-05-PLAN.md — Wave 2: SWEEP-03 + CAP-06 surface — engine PP#0/PP#1 wiring + /decisions suppress bot command
+- [x] 14-02-PLAN.md — Wave 1: CAP-01 — Phase A regex (EN/FR/RU with parity) + Phase B Haiku stakes classifier (fail-closed)
+- [x] 14-03-PLAN.md — Wave 1: CAP-06 primitive — DB-backed suppressions with per-chat substring match
+- [x] 14-04-PLAN.md — Wave 1: CAP-02/03/04/05 + LIFE-05 — capture.ts, resolve-by.ts, vague-validator.ts, capture-state write helpers
+- [x] 14-05-PLAN.md — Wave 2: SWEEP-03 + CAP-06 surface — engine PP#0/PP#1 wiring + /decisions suppress bot command
 
 ### Phase 17: `/decisions` Command & Accuracy Stats
 **Goal**: Greg can pull an honest snapshot of his forecasting performance that is structurally incapable of becoming dashboard sycophancy — small N never produces a percentage, and uncertainty is visually present.
@@ -128,11 +128,11 @@ Plans:
   5. Accuracy is broken down by domain tag inferred at capture time; `/decisions reclassify` re-runs classification and preserves originals alongside new values.
 **Plans**: 5 plans
 Plans:
-- [ ] 14-01-PLAN.md — Wave 0: schema 0004, prompt constants, trigger fixtures, six RED test scaffolds
-- [ ] 14-02-PLAN.md — Wave 1: CAP-01 — Phase A regex (EN/FR/RU with parity) + Phase B Haiku stakes classifier (fail-closed)
-- [ ] 14-03-PLAN.md — Wave 1: CAP-06 primitive — DB-backed suppressions with per-chat substring match
-- [ ] 14-04-PLAN.md — Wave 1: CAP-02/03/04/05 + LIFE-05 — capture.ts, resolve-by.ts, vague-validator.ts, capture-state write helpers
-- [ ] 14-05-PLAN.md — Wave 2: SWEEP-03 + CAP-06 surface — engine PP#0/PP#1 wiring + /decisions suppress bot command
+- [x] 14-01-PLAN.md — Wave 0: schema 0004, prompt constants, trigger fixtures, six RED test scaffolds
+- [x] 14-02-PLAN.md — Wave 1: CAP-01 — Phase A regex (EN/FR/RU with parity) + Phase B Haiku stakes classifier (fail-closed)
+- [x] 14-03-PLAN.md — Wave 1: CAP-06 primitive — DB-backed suppressions with per-chat substring match
+- [x] 14-04-PLAN.md — Wave 1: CAP-02/03/04/05 + LIFE-05 — capture.ts, resolve-by.ts, vague-validator.ts, capture-state write helpers
+- [x] 14-05-PLAN.md — Wave 2: SWEEP-03 + CAP-06 surface — engine PP#0/PP#1 wiring + /decisions suppress bot command
 
 ### Phase 18: Synthetic Fixture + Live ACCOUNTABILITY Integration Suite
 **Goal**: Every claim in Phases 13–17 is verifiable without calendar waiting, and the ACCOUNTABILITY mode's absence-of-flattery and absence-of-condemnation are proven against real Sonnet before production deploy.
@@ -146,11 +146,11 @@ Plans:
   5. Vague-prediction resistance test confirms the Haiku validator flags ≥9 of 10 adversarial vague predictions on first pass and issues exactly one pushback before accepting.
 **Plans**: 5 plans
 Plans:
-- [ ] 14-01-PLAN.md — Wave 0: schema 0004, prompt constants, trigger fixtures, six RED test scaffolds
-- [ ] 14-02-PLAN.md — Wave 1: CAP-01 — Phase A regex (EN/FR/RU with parity) + Phase B Haiku stakes classifier (fail-closed)
-- [ ] 14-03-PLAN.md — Wave 1: CAP-06 primitive — DB-backed suppressions with per-chat substring match
-- [ ] 14-04-PLAN.md — Wave 1: CAP-02/03/04/05 + LIFE-05 — capture.ts, resolve-by.ts, vague-validator.ts, capture-state write helpers
-- [ ] 14-05-PLAN.md — Wave 2: SWEEP-03 + CAP-06 surface — engine PP#0/PP#1 wiring + /decisions suppress bot command
+- [x] 14-01-PLAN.md — Wave 0: schema 0004, prompt constants, trigger fixtures, six RED test scaffolds
+- [x] 14-02-PLAN.md — Wave 1: CAP-01 — Phase A regex (EN/FR/RU with parity) + Phase B Haiku stakes classifier (fail-closed)
+- [x] 14-03-PLAN.md — Wave 1: CAP-06 primitive — DB-backed suppressions with per-chat substring match
+- [x] 14-04-PLAN.md — Wave 1: CAP-02/03/04/05 + LIFE-05 — capture.ts, resolve-by.ts, vague-validator.ts, capture-state write helpers
+- [x] 14-05-PLAN.md — Wave 2: SWEEP-03 + CAP-06 surface — engine PP#0/PP#1 wiring + /decisions suppress bot command
 
 ## Progress
 
@@ -169,7 +169,7 @@ Plans:
 | 11. Identity Grounding            | v2.0      | 3/3   | Complete     | 2026-04-15 |
 | 12. Identity rename residuals     | v2.0      | 1/1   | Complete     | 2026-04-15 |
 | 13. Schema & Lifecycle Primitives | v2.1      | 5/5 | Complete   | 2026-04-15 |
-| 14. Capture Flow                  | v2.1      | 3/5 | In Progress|  |
+| 14. Capture Flow                  | v2.1      | 5/5 | Complete    | 2026-04-16 |
 | 15. Deadline Trigger & Sweep      | v2.1      | 0/?   | Not started  | -          |
 | 16. Resolution + ACCOUNTABILITY   | v2.1      | 0/?   | Not started  | -          |
 | 17. `/decisions` & Accuracy Stats | v2.1      | 0/?   | Not started  | -          |
