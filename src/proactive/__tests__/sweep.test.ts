@@ -19,7 +19,15 @@ const {
   mockPatternDetect,
   mockThreadDetect,
   mockUpsertAwaitingResolution,
+  mockClearCapture,
   mockGetLastUserLanguage,
+  mockGetEscalationSentAt,
+  mockSetEscalationSentAt,
+  mockGetEscalationCount,
+  mockSetEscalationCount,
+  mockClearEscalationKeys,
+  mockTransitionDecision,
+  mockDbSelect,
 } = vi.hoisted(() => ({
   mockIsMuted: vi.fn(),
   mockHasSentTodayReflective: vi.fn(),
@@ -37,7 +45,15 @@ const {
   mockPatternDetect: vi.fn(),
   mockThreadDetect: vi.fn(),
   mockUpsertAwaitingResolution: vi.fn(),
+  mockClearCapture: vi.fn(),
   mockGetLastUserLanguage: vi.fn(() => 'English'),
+  mockGetEscalationSentAt: vi.fn(),
+  mockSetEscalationSentAt: vi.fn(),
+  mockGetEscalationCount: vi.fn(),
+  mockSetEscalationCount: vi.fn(),
+  mockClearEscalationKeys: vi.fn(),
+  mockTransitionDecision: vi.fn(),
+  mockDbSelect: vi.fn(),
 }));
 
 // ── Module mocks ───────────────────────────────────────────────────────────
@@ -48,6 +64,11 @@ vi.mock('../state.js', () => ({
   setLastSentReflective: mockSetLastSentReflective,
   hasSentTodayAccountability: mockHasSentTodayAccountability,
   setLastSentAccountability: mockSetLastSentAccountability,
+  getEscalationSentAt: mockGetEscalationSentAt,
+  setEscalationSentAt: mockSetEscalationSentAt,
+  getEscalationCount: mockGetEscalationCount,
+  setEscalationCount: mockSetEscalationCount,
+  clearEscalationKeys: mockClearEscalationKeys,
 }));
 
 vi.mock('../triggers/silence.js', () => ({
@@ -119,6 +140,30 @@ vi.mock('../../utils/logger.js', () => ({
 
 vi.mock('../../decisions/capture-state.js', () => ({
   upsertAwaitingResolution: mockUpsertAwaitingResolution,
+  clearCapture: mockClearCapture,
+}));
+
+vi.mock('../../decisions/lifecycle.js', () => ({
+  transitionDecision: mockTransitionDecision,
+}));
+
+vi.mock('../../db/schema.js', () => ({
+  decisionCaptureState: { chatId: 'chatId', decisionId: 'decisionId', stage: 'stage' },
+  decisions: { id: 'id' },
+}));
+
+vi.mock('../../db/connection.js', () => ({
+  db: {
+    select: mockDbSelect.mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([]),
+      }),
+    }),
+  },
+}));
+
+vi.mock('drizzle-orm', () => ({
+  eq: vi.fn((...args: unknown[]) => args),
 }));
 
 vi.mock('../../chris/language.js', () => ({

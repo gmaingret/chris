@@ -32,8 +32,13 @@ import {
   setLastSentReflective,
   hasSentTodayAccountability,
   setLastSentAccountability,
+  getEscalationSentAt,
+  setEscalationSentAt,
+  getEscalationCount,
+  setEscalationCount,
+  clearEscalationKeys,
 } from './state.js';
-import { PROACTIVE_SYSTEM_PROMPT, ACCOUNTABILITY_SYSTEM_PROMPT } from './prompts.js';
+import { PROACTIVE_SYSTEM_PROMPT, ACCOUNTABILITY_SYSTEM_PROMPT, ACCOUNTABILITY_FOLLOWUP_PROMPT } from './prompts.js';
 import { createSilenceTrigger } from './triggers/silence.js';
 import { createCommitmentTrigger } from './triggers/commitment.js';
 import { createDeadlineTrigger } from './triggers/deadline.js';
@@ -41,8 +46,13 @@ import { buildSweepContext } from './context-builder.js';
 import { runOpusAnalysis } from './triggers/opus-analysis.js';
 import { createPatternTrigger } from './triggers/pattern.js';
 import { createThreadTrigger } from './triggers/thread.js';
-import { upsertAwaitingResolution } from '../decisions/capture-state.js';
+import { upsertAwaitingResolution, clearCapture } from '../decisions/capture-state.js';
 import { getLastUserLanguage } from '../chris/language.js';
+import { transitionDecision } from '../decisions/lifecycle.js';
+import { decisionCaptureState, decisions } from '../db/schema.js';
+import { eq } from 'drizzle-orm';
+import { db } from '../db/connection.js';
+
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -139,6 +149,10 @@ export async function runSweep(): Promise<SweepResult> {
               // Update accountability cap
               await setLastSentAccountability(new Date());
 
+              // Initialize escalation tracking for this decision (RES-06)
+              await setEscalationSentAt(decisionId, new Date());
+              await setEscalationCount(decisionId, 1);
+
               const latencyMs = Date.now() - startMs;
               logger.info(
                 { triggerType: 'decision-deadline', latencyMs, messageLength: messageText.length },
@@ -157,6 +171,93 @@ export async function runSweep(): Promise<SweepResult> {
         // Error in accountability channel does NOT block reflective channel
         logger.error({ err }, 'proactive.sweep.accountability.error');
       }
+    }
+
+    // ── ESCALATION: check AWAITING_RESOLUTION rows for 48h non-reply (RES-06) ──
+    // Runs OUTSIDE the daily cap check — escalation is follow-up, not cold outreach.
+    try {
+      const awaitingRows = await db
+        .select({
+          chatId: decisionCaptureState.chatId,
+          decisionId: decisionCaptureState.decisionId,
+        })
+        .from(decisionCaptureState)
+        .where(eq(decisionCaptureState.stage, 'AWAITING_RESOLUTION'));
+
+      for (const row of awaitingRows) {
+        if (!row.decisionId) continue;
+
+        const sentAt = await getEscalationSentAt(row.decisionId);
+        const count = await getEscalationCount(row.decisionId);
+
+        if (sentAt === null) {
+          // First prompt was just sent by the deadline trigger above (or in a prior sweep tick).
+          // Record the timestamp and set count to 1.
+          await setEscalationSentAt(row.decisionId, new Date());
+          await setEscalationCount(row.decisionId, 1);
+          continue;
+        }
+
+        const hoursSinceSent = (Date.now() - sentAt.getTime()) / 3_600_000;
+
+        if (hoursSinceSent < 48) {
+          // Within 48h window — do nothing, wait for Greg to reply.
+          continue;
+        }
+
+        if (count >= 2) {
+          // Two prompts sent, still no reply → transition to stale (D-17: silent).
+          try {
+            await transitionDecision(row.decisionId, 'due', 'stale', { actor: 'sweep' });
+          } catch (err) {
+            // If already transitioned (concurrent), log and continue.
+            logger.warn({ err, decisionId: row.decisionId }, 'proactive.sweep.escalation.stale.failed');
+          }
+          await clearCapture(row.chatId);
+          await clearEscalationKeys(row.decisionId);
+          logger.info({ decisionId: row.decisionId }, 'proactive.sweep.escalation.stale');
+          continue;
+        }
+
+        if (count === 1) {
+          // 48h passed since first prompt, no reply → send follow-up (D-18).
+          const [decision] = await db
+            .select()
+            .from(decisions)
+            .where(eq(decisions.id, row.decisionId))
+            .limit(1);
+
+          if (!decision) {
+            logger.warn({ decisionId: row.decisionId }, 'proactive.sweep.escalation.decision.not.found');
+            continue;
+          }
+
+          const triggerContext = `Prediction: ${decision.prediction || decision.decisionText}\nFalsification criterion: ${decision.falsificationCriterion}\nDeadline: ${decision.resolveBy?.toISOString().slice(0, 10) ?? 'unknown'}`;
+
+          const followUpPrompt = ACCOUNTABILITY_FOLLOWUP_PROMPT.replace('{triggerContext}', triggerContext);
+
+          const response = await anthropic.messages.create({
+            model: SONNET_MODEL,
+            max_tokens: 256,
+            system: [{ type: 'text', text: followUpPrompt, cache_control: { type: 'ephemeral' } }],
+            messages: [{ role: 'user', content: triggerContext }],
+          });
+
+          const firstBlock = response.content[0];
+          const messageText = firstBlock?.type === 'text' ? firstBlock.text : '';
+
+          if (messageText) {
+            await bot.api.sendMessage(config.telegramAuthorizedUserId, messageText);
+            await saveMessage(BigInt(config.telegramAuthorizedUserId), 'ASSISTANT', messageText, 'JOURNAL');
+            await setEscalationCount(row.decisionId, 2);
+            await setEscalationSentAt(row.decisionId, new Date());
+            logger.info({ decisionId: row.decisionId }, 'proactive.sweep.escalation.followup.sent');
+          }
+        }
+      }
+    } catch (err) {
+      // Escalation errors do NOT block reflective channel
+      logger.error({ err }, 'proactive.sweep.escalation.error');
     }
 
     // ── REFLECTIVE CHANNEL (independent per D-05) ──────────────────────────
