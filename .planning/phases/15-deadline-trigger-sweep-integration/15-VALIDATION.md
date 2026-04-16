@@ -17,9 +17,9 @@ created: 2026-04-16
 
 | Property | Value |
 |----------|-------|
-| **Framework** | jest 29.x (via ts-jest) |
-| **Config file** | `jest.config.ts` |
-| **Quick run command** | `npx jest --testPathPattern='deadline\|sweep\|accountability' --no-coverage` |
+| **Framework** | Vitest 4.1.2 |
+| **Config file** | `vitest.config.ts` |
+| **Quick run command** | `npm test -- src/proactive/__tests__/deadline.test.ts src/proactive/__tests__/state.test.ts` |
 | **Full suite command** | `npm test` |
 | **Estimated runtime** | ~15 seconds |
 
@@ -27,7 +27,7 @@ created: 2026-04-16
 
 ## Sampling Rate
 
-- **After every task commit:** Run `npx jest --testPathPattern='deadline\|sweep\|accountability' --no-coverage`
+- **After every task commit:** Run `npm test -- src/proactive/__tests__/deadline.test.ts src/proactive/__tests__/state.test.ts`
 - **After every plan wave:** Run `npm test`
 - **Before `/gsd-verify-work`:** Full suite must be green
 - **Max feedback latency:** 15 seconds
@@ -38,9 +38,9 @@ created: 2026-04-16
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 15-01-01 | 01 | 0 | SWEEP-01 | — | N/A | unit | `npx jest --testPathPattern=deadline` | ❌ W0 | ⬜ pending |
-| 15-01-02 | 01 | 0 | SWEEP-02 | — | N/A | unit | `npx jest --testPathPattern=sweep` | ❌ W0 | ⬜ pending |
-| 15-01-03 | 01 | 0 | SWEEP-04 | — | N/A | unit | `npx jest --testPathPattern=accountability` | ❌ W0 | ⬜ pending |
+| 15-01-01 | 01 | 1 | SWEEP-01, SWEEP-04 | — | N/A | unit | `npm test -- src/proactive/__tests__/deadline.test.ts` | ❌ W0 | ⬜ pending |
+| 15-02-01 | 02 | 1 | SWEEP-02 | — | N/A | unit | `npm test -- src/proactive/__tests__/state.test.ts` | ❌ W0 | ⬜ pending |
+| 15-03-02 | 03 | 2 | SWEEP-01, SWEEP-02, SWEEP-04 | — | N/A | unit | `npm test -- src/proactive/__tests__/sweep.test.ts` | Exists | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 

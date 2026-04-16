@@ -488,17 +488,19 @@ export async function runSweep(): Promise<SweepResult> {
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Where does `decisionCaptureState` row for `AWAITING_RESOLUTION` get written in Phase 15?**
    - What we know: CONTEXT.md says the sweep transitions the decision `open → due` and sends the prompt. The ARCHITECTURE.md (from Phase 15's canonical refs) says the sweep also inserts a `decision_capture_state` row (stage=AWAITING_RESOLUTION) before `sendMessage`, so the engine knows Greg's next reply is a resolution response.
    - What's unclear: Phase 15 CONTEXT.md doesn't explicitly mention writing `decision_capture_state`. The resolution handler is Phase 16. If Phase 15 doesn't write the capture state row, Phase 16 has nothing to route against.
    - Recommendation: Phase 15 SHOULD write the `decision_capture_state` row (stage=AWAITING_RESOLUTION, decisionId=candidate.id) before sending the message. This is consistent with ARCHITECTURE.md §3 and with Phase 16 pre-processor #0 routing. The planner should include this as a task step, not leave it to Phase 16.
+   - **RESOLVED:** Plan 03 Task 1 adds `upsertAwaitingResolution()` to `capture-state.ts`, called in sweep before `sendMessage` in the accountability path (Plan 03 Task 2).
 
 2. **Does `runSweep()` return value shape need extension for two-channel results?**
    - What we know: Existing callers (the cron scheduler) only use `result.triggered`. The sweep tests check `result.triggerType` and `result.message` for assertions.
    - What's unclear: If both channels fire, which `triggerType`/`message` is returned?
    - Recommendation: Extend `SweepResult` with `accountabilityResult` and `reflectiveResult` sub-objects. Keep the top-level `triggered` as `true` if either fired. The existing sweep tests will need updates to check the right sub-object.
+   - **RESOLVED:** Plan 03 Task 2 extends `SweepResult` with `accountabilityResult?: ChannelResult` and `reflectiveResult?: ChannelResult` sub-objects.
 
 ---
 
