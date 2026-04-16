@@ -124,7 +124,11 @@ Plans:
   3. Below N=10 resolved-with-verifiable-forecasts in the chosen window, the output shows counts only ("N=<count>, threshold not met") with no percentage; at or above N=10, accuracy displays with a Wilson 95% CI alongside the point estimate (guards C6).
   4. Rolling 30/90/365-day windows are a single SQL round-trip via `FILTER (WHERE resolved_at >= now() - interval 'N days')`; `unverifiable` count is surfaced as an explicit separate denominator.
   5. Accuracy is broken down by domain tag inferred at capture time; `/decisions reclassify` re-runs classification and preserves originals alongside new values.
-**Plans**: [To be planned]
+**Plans**: 3 plans
+Plans:
+- [ ] 17-01-PLAN.md — classifyAccuracy reasoning-axis Haiku classifier + resolution hook (STAT-02)
+- [ ] 17-02-PLAN.md — Stats SQL queries, Wilson CI, output formatters, removeSuppression (STAT-03, STAT-04)
+- [ ] 17-03-PLAN.md — /decisions command sub-commands wiring + reclassify (STAT-01, STAT-05)
 
 ### Phase 18: Synthetic Fixture + Live ACCOUNTABILITY Integration Suite
 **Goal**: Every claim in Phases 13-17 is verifiable without calendar waiting, and the ACCOUNTABILITY mode's absence-of-flattery and absence-of-condemnation are proven against real Sonnet before production deploy.
@@ -158,7 +162,7 @@ Plans:
 | 14. Capture Flow                  | v2.1      | 5/5 | Complete    | 2026-04-16 |
 | 15. Deadline Trigger & Sweep      | v2.1      | 3/3 | Complete    | 2026-04-16 |
 | 16. Resolution + ACCOUNTABILITY   | v2.1      | 5/5 | Complete   | 2026-04-16 |
-| 17. `/decisions` & Accuracy Stats | v2.1      | 0/?   | Not started  | -          |
+| 17. `/decisions` & Accuracy Stats | v2.1      | 0/3   | Planned      | -          |
 | 18. Synthetic + Live Suite        | v2.1      | 0/?   | Not started  | -          |
 
 ## v2.1 Coverage
