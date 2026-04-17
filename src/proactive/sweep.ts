@@ -283,6 +283,12 @@ export async function runSweep(): Promise<SweepResult> {
           const messageText = firstBlock?.type === 'text' ? firstBlock.text : '';
 
           if (messageText) {
+            // WR-03: Intentional — escalation follow-ups bypass the daily accountability cap
+            // per D-17/D-18. This whole escalation block runs outside the
+            // hasSentTodayAccountability gate (see the comment at the top of this try-block).
+            // We deliberately do NOT call setLastSentAccountability here: a follow-up is a
+            // continuation of an already-open prompt, not a fresh cold outreach, and the
+            // 48h+48h escalation cadence is independent of the once-per-day rule.
             await bot.api.sendMessage(config.telegramAuthorizedUserId, messageText);
             await saveMessage(BigInt(config.telegramAuthorizedUserId), 'ASSISTANT', messageText, 'JOURNAL');
             await setEscalationCount(row.decisionId, 2);
