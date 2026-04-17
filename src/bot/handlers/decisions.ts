@@ -67,11 +67,15 @@ export async function handleDecisionsCommand(ctx: Context): Promise<void> {
     return;
   }
 
-  const [sub, ...rest] = after.split(/\s+/);
+  // IN-05: compute `sub` once with a default so downstream branches can use
+  // `sub === 'open'` etc. without scattered non-null assertions or
+  // repeated `.toLowerCase()` calls.
+  const [subRaw = '', ...rest] = after.split(/\s+/);
+  const sub = subRaw.toLowerCase();
   const arg = rest.join(' ').trim();
 
   // ── suppress <phrase> ───────────────────────────────────────────────────
-  if (sub!.toLowerCase() === 'suppress') {
+  if (sub === 'suppress') {
     if (!arg) { await ctx.reply(usageMessage(lang)); return; }
     if (arg.length > 200) { await ctx.reply(tooLongMessage(lang)); return; }
     try {
@@ -88,7 +92,7 @@ export async function handleDecisionsCommand(ctx: Context): Promise<void> {
   }
 
   // ── open ────────────────────────────────────────────────────────────────
-  if (sub!.toLowerCase() === 'open') {
+  if (sub === 'open') {
     try {
       const rows = await fetchOpenDecisions(chatIdBig);
       if (rows.length === 0) {
@@ -104,7 +108,7 @@ export async function handleDecisionsCommand(ctx: Context): Promise<void> {
   }
 
   // ── recent ──────────────────────────────────────────────────────────────
-  if (sub!.toLowerCase() === 'recent') {
+  if (sub === 'recent') {
     try {
       const rows = await fetchRecentDecisions(chatIdBig, 5);
       if (rows.length === 0) {
@@ -120,7 +124,7 @@ export async function handleDecisionsCommand(ctx: Context): Promise<void> {
   }
 
   // ── stats [30|90|365] ───────────────────────────────────────────────────
-  if (sub!.toLowerCase() === 'stats') {
+  if (sub === 'stats') {
     const validWindows = [30, 90, 365];
     let windowDays = 90; // D-08: default 90 days
     if (arg) {
@@ -149,7 +153,7 @@ export async function handleDecisionsCommand(ctx: Context): Promise<void> {
   }
 
   // ── suppressions ────────────────────────────────────────────────────────
-  if (sub!.toLowerCase() === 'suppressions') {
+  if (sub === 'suppressions') {
     try {
       const phrases = await listSuppressions(chatIdBig);
       if (phrases.length === 0) {
@@ -166,7 +170,7 @@ export async function handleDecisionsCommand(ctx: Context): Promise<void> {
   }
 
   // ── unsuppress <phrase> ─────────────────────────────────────────────────
-  if (sub!.toLowerCase() === 'unsuppress') {
+  if (sub === 'unsuppress') {
     if (!arg) { await ctx.reply(unsuppressUsageMessage(lang)); return; }
     try {
       const removed = await removeSuppression(chatIdBig, arg);
@@ -181,7 +185,7 @@ export async function handleDecisionsCommand(ctx: Context): Promise<void> {
   }
 
   // ── reclassify ──────────────────────────────────────────────────────────
-  if (sub!.toLowerCase() === 'reclassify') {
+  if (sub === 'reclassify') {
     try {
       const toReclassify = await db
         .select({
