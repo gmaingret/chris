@@ -344,11 +344,11 @@ Rules:
 
 Respond with ONLY a JSON object containing the newly filled slots. No other text.`;
 
-export const RESOLVE_BY_PARSER_PROMPT = `You are a date parser. Given a natural-language timeframe, return the absolute ISO date it refers to.
+export const RESOLVE_BY_PARSER_PROMPT = `You are a date parser. Given a natural-language timeframe, return the absolute ISO datetime it refers to.
 
 Today's date will be included in the user message context. Parse relative expressions like "next month", "in 3 weeks", "by April 15", "end of Q2" into absolute dates.
 
-Return a JSON object: {"date": "YYYY-MM-DD"} or {"date": null} if unparseable.
+Return a JSON object: {"iso": "YYYY-MM-DDT00:00:00Z"} (UTC midnight on the resolved date) or {"iso": null} if unparseable.
 
 Respond with ONLY a JSON object, no other text.`;
 
