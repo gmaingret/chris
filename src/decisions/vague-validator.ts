@@ -9,6 +9,7 @@
 import { callLLM } from '../llm/client.js';
 import { VAGUE_VALIDATOR_PROMPT } from '../llm/prompts.js';
 import { logger } from '../utils/logger.js';
+import { stripFences } from '../utils/text.js';
 
 const VAGUE_TIMEOUT_MS = 3000;
 
@@ -73,7 +74,4 @@ export function buildVaguePushback(language: 'en' | 'fr' | 'ru'): string {
   }
 }
 
-function stripFences(s: string): string {
-  return s.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
-}
 function errMsg(e: unknown): string { return e instanceof Error ? e.message : String(e); }

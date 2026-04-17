@@ -20,6 +20,7 @@ import {
   CAPTURE_EXTRACTION_PROMPT,
 } from '../llm/prompts.js';
 import { logger } from '../utils/logger.js';
+import { stripFences } from '../utils/text.js';
 import {
   getActiveDecisionCapture,
   updateCaptureDraft,
@@ -455,7 +456,4 @@ async function tryCommit(chatId: bigint, draft: CaptureDraft, lang: 'en' | 'fr' 
 
 // ── Utilities ─────────────────────────────────────────────────────────────
 
-function stripFences(s: string): string {
-  return s.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
-}
 function errMsg(e: unknown): string { return e instanceof Error ? e.message : String(e); }

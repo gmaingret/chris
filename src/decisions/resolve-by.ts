@@ -8,6 +8,7 @@
 import { callLLM } from '../llm/client.js';
 import { RESOLVE_BY_PARSER_PROMPT } from '../llm/prompts.js';
 import { logger } from '../utils/logger.js';
+import { stripFences } from '../utils/text.js';
 
 const RESOLVE_BY_TIMEOUT_MS = 2000;  // D-18
 
@@ -105,7 +106,4 @@ export function buildResolveByDefaultAnnouncement(language: 'en' | 'fr' | 'ru'):
   }
 }
 
-function stripFences(s: string): string {
-  return s.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
-}
 function errMsg(e: unknown): string { return e instanceof Error ? e.message : String(e); }
