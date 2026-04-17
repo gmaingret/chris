@@ -20,8 +20,8 @@ import { eq, desc, and } from 'drizzle-orm';
  */
 export async function addSuppression(chatId: bigint, phrase: string): Promise<void> {
   const normalized = phrase.trim().toLowerCase();
-  if (normalized.length === 0) {
-    throw new Error('suppression phrase must be non-empty after trimming');
+  if (normalized.length < 3) {
+    throw new Error('suppression phrase must be at least 3 characters after trimming');
   }
   if (normalized.length > 200) {
     throw new Error('suppression phrase exceeds 200 character limit');
