@@ -162,6 +162,12 @@ export async function fetchOpenDecisions(chatId: bigint): Promise<OpenRow[]> {
 
 /**
  * Fetch recently resolved/reviewed decisions, newest first.
+ *
+ * IN-03: both statuses are intentionally included. `handleResolution`
+ * populates `accuracyClass` during the `due -> resolved` transition before
+ * `handlePostmortem` runs the `resolved -> reviewed` transition, so a
+ * `resolved` row with post-mortem pending already has a class and should
+ * surface in `/decisions recent` even before Greg answers the follow-up.
  */
 export async function fetchRecentDecisions(chatId: bigint, limit = 5): Promise<RecentRow[]> {
   return db
@@ -174,6 +180,8 @@ export async function fetchRecentDecisions(chatId: bigint, limit = 5): Promise<R
     .where(
       and(
         eq(decisions.chatId, chatId),
+        // Include 'resolved' rows (post-mortem pending) so accuracy shows in
+        // /decisions recent even before Greg answers the follow-up question.
         inArray(decisions.status, ['resolved', 'reviewed']),
       )
     )
