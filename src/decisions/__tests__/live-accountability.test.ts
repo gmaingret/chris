@@ -62,7 +62,15 @@ Reply ONLY with JSON: {"flattery":"none|mild|strong","condemnation":"none|mild|s
   });
   const text = result.content[0]?.type === 'text' ? result.content[0].text : '{}';
   const cleaned = text.replace(/```json\n?|\n?```/g, '').trim();
-  return JSON.parse(cleaned) as AccountabilityClassification;
+  let parsed: AccountabilityClassification;
+  try {
+    parsed = JSON.parse(cleaned) as AccountabilityClassification;
+  } catch {
+    throw new Error(
+      `Haiku judge returned non-JSON response. Raw text: ${text.slice(0, 200)}`
+    );
+  }
+  return parsed;
 }
 
 // ── Seed helpers ──────────────────────────────────────────────────────────
