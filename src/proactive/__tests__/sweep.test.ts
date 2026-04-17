@@ -25,6 +25,7 @@ const {
   mockSetEscalationSentAt,
   mockGetEscalationCount,
   mockSetEscalationCount,
+  mockSetEscalationState,
   mockClearEscalationKeys,
   mockTransitionDecision,
   mockDbSelect,
@@ -51,6 +52,7 @@ const {
   mockSetEscalationSentAt: vi.fn(),
   mockGetEscalationCount: vi.fn(),
   mockSetEscalationCount: vi.fn(),
+  mockSetEscalationState: vi.fn(),
   mockClearEscalationKeys: vi.fn(),
   mockTransitionDecision: vi.fn(),
   mockDbSelect: vi.fn(),
@@ -68,6 +70,7 @@ vi.mock('../state.js', () => ({
   setEscalationSentAt: mockSetEscalationSentAt,
   getEscalationCount: mockGetEscalationCount,
   setEscalationCount: mockSetEscalationCount,
+  setEscalationState: mockSetEscalationState,
   clearEscalationKeys: mockClearEscalationKeys,
 }));
 

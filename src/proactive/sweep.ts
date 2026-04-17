@@ -36,6 +36,7 @@ import {
   setEscalationSentAt,
   getEscalationCount,
   setEscalationCount,
+  setEscalationState,
   clearEscalationKeys,
 } from './state.js';
 import { PROACTIVE_SYSTEM_PROMPT, ACCOUNTABILITY_SYSTEM_PROMPT, ACCOUNTABILITY_FOLLOWUP_PROMPT } from './prompts.js';
@@ -149,9 +150,12 @@ export async function runSweep(): Promise<SweepResult> {
               // Update accountability cap
               await setLastSentAccountability(new Date());
 
-              // Initialize escalation tracking for this decision (RES-06)
-              await setEscalationSentAt(decisionId, new Date());
-              await setEscalationCount(decisionId, 1);
+              // Initialize escalation tracking for this decision (RES-06).
+              // WR-01: seed (sentAt, count) atomically so a partial failure
+              // never leaves the pair desynced (e.g. count=1 without sentAt
+              // would cause the legacy bootstrap branch in the escalation
+              // loop to re-stamp sentAt and restart the 48h clock).
+              await setEscalationState(decisionId, 1, new Date());
 
               const latencyMs = Date.now() - startMs;
               logger.info(
@@ -291,8 +295,10 @@ export async function runSweep(): Promise<SweepResult> {
             // 48h+48h escalation cadence is independent of the once-per-day rule.
             await bot.api.sendMessage(config.telegramAuthorizedUserId, messageText);
             await saveMessage(BigInt(config.telegramAuthorizedUserId), 'ASSISTANT', messageText, 'JOURNAL');
-            await setEscalationCount(row.decisionId, 2);
-            await setEscalationSentAt(row.decisionId, new Date());
+            // WR-01: Bump (count, sentAt) atomically so a partial failure cannot
+            // leave count=2 without the matching sentAt bump (which would cause
+            // the next sweep's stale branch to fire against an outdated timestamp).
+            await setEscalationState(row.decisionId, 2, new Date());
             logger.info({ decisionId: row.decisionId }, 'proactive.sweep.escalation.followup.sent');
           }
         }

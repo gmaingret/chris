@@ -47,6 +47,7 @@ const {
   mockSetEscalationSentAt,
   mockGetEscalationCount,
   mockSetEscalationCount,
+  mockSetEscalationState,
   mockClearEscalationKeys,
   // TEST-12 bot / conversation mocks
   mockSendMessage,
@@ -83,6 +84,8 @@ const {
   mockSetEscalationSentAt: vi.fn().mockResolvedValue(undefined),
   mockGetEscalationCount: vi.fn().mockResolvedValue(0),
   mockSetEscalationCount: vi.fn().mockResolvedValue(undefined),
+  // WR-01: atomic (count, sentAt) pair used by the bootstrap + follow-up paths.
+  mockSetEscalationState: vi.fn().mockResolvedValue(undefined),
   mockClearEscalationKeys: vi.fn().mockResolvedValue(undefined),
   // Bot / conversation
   mockSendMessage: vi.fn().mockResolvedValue(undefined),
@@ -192,6 +195,7 @@ vi.mock('../../proactive/state.js', () => ({
   setEscalationSentAt: mockSetEscalationSentAt,
   getEscalationCount: mockGetEscalationCount,
   setEscalationCount: mockSetEscalationCount,
+  setEscalationState: mockSetEscalationState,
   clearEscalationKeys: mockClearEscalationKeys,
   getLastSent: vi.fn().mockResolvedValue(null),
 }));
@@ -548,6 +552,7 @@ describe('TEST-12: same-day deadline + silence trigger collision (channel separa
     mockSetLastSentReflective.mockResolvedValue(undefined);
     mockSetEscalationSentAt.mockResolvedValue(undefined);
     mockSetEscalationCount.mockResolvedValue(undefined);
+    mockSetEscalationState.mockResolvedValue(undefined);
     mockClearEscalationKeys.mockResolvedValue(undefined);
     mockClearCapture.mockResolvedValue(undefined);
     mockBuildSweepContext.mockResolvedValue('sweep context');
@@ -621,9 +626,15 @@ describe('TEST-12: same-day deadline + silence trigger collision (channel separa
       expect(mockSetLastSentAccountability).toHaveBeenCalledTimes(1);
       expect(mockSetLastSentReflective).toHaveBeenCalledTimes(1);
 
-      // Initial escalation state written (bootstrap + per-tick escalation loop pass)
-      expect(mockSetEscalationSentAt).toHaveBeenCalledWith(FAKE_DECISION_ID, expect.any(Date));
-      expect(mockSetEscalationCount).toHaveBeenCalledWith(FAKE_DECISION_ID, 1);
+      // Initial escalation state written atomically (bootstrap path).
+      // WR-01: sweep.ts now seeds (sentAt, count) via setEscalationState in a single
+      // drizzle transaction instead of two independent KV writes. Asserting the
+      // combined helper makes the atomicity contract explicit at the test boundary.
+      expect(mockSetEscalationState).toHaveBeenCalledWith(
+        FAKE_DECISION_ID,
+        1,
+        expect.any(Date),
+      );
     },
     30_000,
   );

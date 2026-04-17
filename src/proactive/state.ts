@@ -181,6 +181,49 @@ export async function setEscalationCount(decisionId: string, count: number): Pro
   await setValue(escalationCountKey(decisionId), count);
 }
 
+/**
+ * Atomically persist both the escalation prompt count and the prompt sent-at
+ * timestamp for a specific decision inside a single drizzle transaction.
+ *
+ * WR-01: Without a transaction, `setEscalationCount` followed by
+ * `setEscalationSentAt` (or the reverse) are two independent KV writes. If the
+ * second call fails (connection drop, constraint error), only one of the pair
+ * lands in `proactive_state`. On the next sweep tick the stale reader sees a
+ * desynced (count, sentAt) pair — e.g. count=2 without the matching sentAt
+ * bump — and may transition the decision to `stale` prematurely or re-send a
+ * follow-up against an outdated timestamp.
+ *
+ * Call this helper whenever the count AND sentAt must advance together (the
+ * bootstrap and 48h follow-up branches in `sweep.ts`). The legacy single-key
+ * setters are kept for cases that only need to stamp one value (e.g. the
+ * legacy-row bootstrap branch that may preserve an existing count).
+ */
+export async function setEscalationState(
+  decisionId: string,
+  count: number,
+  sentAt: Date,
+): Promise<void> {
+  const sentKey = escalationSentKey(decisionId);
+  const countKey = escalationCountKey(decisionId);
+  const now = new Date();
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(proactiveState)
+      .values({ key: sentKey, value: sentAt.toISOString(), updatedAt: now })
+      .onConflictDoUpdate({
+        target: proactiveState.key,
+        set: { value: sentAt.toISOString(), updatedAt: now },
+      });
+    await tx
+      .insert(proactiveState)
+      .values({ key: countKey, value: count, updatedAt: now })
+      .onConflictDoUpdate({
+        target: proactiveState.key,
+        set: { value: count, updatedAt: now },
+      });
+  });
+}
+
 /** Clean up all escalation keys for a decision (on reviewed or stale). */
 export async function clearEscalationKeys(decisionId: string): Promise<void> {
   await deleteKey(escalationSentKey(decisionId));

@@ -211,6 +211,14 @@ vi.mock('../state.js', async (importOriginal) => {
       stateStore.set(escalationCountKey(decisionId), count);
       return Promise.resolve();
     }),
+    // WR-01: atomic (count, sentAt) pair. In tests backed by the in-memory
+    // stateStore the "transaction" is a best-effort Map.set pair — good enough
+    // to exercise the caller contract (both keys land) without a real DB.
+    setEscalationState: vi.fn().mockImplementation((decisionId: string, count: number, sentAt: Date) => {
+      stateStore.set(escalationSentKey(decisionId), sentAt.toISOString());
+      stateStore.set(escalationCountKey(decisionId), count);
+      return Promise.resolve();
+    }),
     clearEscalationKeys: vi.fn().mockImplementation((decisionId: string) => {
       stateStore.delete(escalationSentKey(decisionId));
       stateStore.delete(escalationCountKey(decisionId));
