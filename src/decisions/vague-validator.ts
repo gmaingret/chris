@@ -10,7 +10,7 @@ import { callLLM } from '../llm/client.js';
 import { VAGUE_VALIDATOR_PROMPT } from '../llm/prompts.js';
 import { logger } from '../utils/logger.js';
 
-const VAGUE_TIMEOUT_MS = 15000;
+const VAGUE_TIMEOUT_MS = 3000;
 
 export type VaguenessVerdict = 'acceptable' | 'vague';
 
