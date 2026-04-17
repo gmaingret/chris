@@ -320,14 +320,14 @@ Respond with ONLY a JSON object, no other text.`;
 export const STAKES_CLASSIFICATION_PROMPT = `You are a decision-stakes classifier. Given a message, classify the structural importance of any decision being discussed.
 
 Return a JSON object with exactly one field:
-{"stakes": "trivial" | "moderate" | "structural"}
+{"tier": "trivial" | "moderate" | "structural"}
 
 Definitions:
 - trivial: Routine daily choices (what to eat, which route to take). No lasting consequences.
 - moderate: Choices with some impact but easily reversible (trying a new tool, scheduling a meeting).
 - structural: Choices that meaningfully shape the future and are hard to undo (career moves, relationship commitments, financial investments, health decisions, relocating).
 
-If no decision is being discussed, return {"stakes": "trivial"}.
+If no decision is being discussed, return {"tier": "trivial"}.
 Respond with ONLY a JSON object, no other text.`;
 
 export const CAPTURE_EXTRACTION_PROMPT = `You are a decision-capture extractor. Given the current draft state and a user reply, extract any new information that fills empty slots.
