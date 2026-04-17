@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: M007 Decision Archive
 status: executing
-stopped_at: Phase 18 context gathered
-last_updated: "2026-04-16T21:36:25.182Z"
-last_activity: 2026-04-16
+stopped_at: Completed 19-01-PLAN.md — scripts/test.sh + types.ts + state.ts + state.test.ts byte-exact from 4c156c3
+last_updated: "2026-04-17T09:23:49.795Z"
+last_activity: 2026-04-17
 progress:
-  total_phases: 6
-  completed_phases: 1
-  total_plans: 2
-  completed_plans: 4
-  percent: 100
+  total_phases: 7
+  completed_phases: 6
+  total_plans: 27
+  completed_plans: 26
+  percent: 96
 ---
 
 # Project State
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-15 for v2.1 M007 Decision Archive milestone)
 
 **Core value:** Greg can deposit any memory, thought, or feeling into Chris and later ask questions that Chris answers by searching everything Greg has ever told him — with full fidelity, no data loss, and genuine contextual understanding across English, French, and Russian.
-**Current focus:** Phase 18 — synthetic-fixture-live-accountability-integration-suite
+**Current focus:** Phase 19 — Proactive Pipeline Restoration
 
 ## Current Position
 
-Phase: 18
-Plan: Not started
+Phase: 19 (Proactive Pipeline Restoration) — EXECUTING
+Plan: 2 of 4
 Next: `/gsd-plan-phase 13` — decompose Schema & Lifecycle Primitives into plans
-Status: Executing Phase 18
-Last activity: 2026-04-16
+Status: Ready to execute
+Last activity: 2026-04-17
 
 ## v2.1 Milestone Roadmap (Phases 13-18)
 
@@ -61,6 +61,12 @@ Full log in PROJECT.md Key Decisions table. Most load-bearing for M007:
 - D025 praise quarantine bypassed at prompt level for flattery-forbidden modes — ACCOUNTABILITY follows COACH/PSYCHOLOGY pattern
 - D027 The Hard Rule — explicitly forbidden in ACCOUNTABILITY system prompt
 
+### Decisions in force for Phase 19
+
+- **D19-01-A upheld (2026-04-17):** setEscalationContext/getEscalationContext NOT restored — they do not exist in canonical 4c156c3, no consumer imports them, no requirement mandates them. ROADMAP Phase 19 success criterion 1 mention is treated as optimistic.
+- **D19-01-B upheld (2026-04-17):** scripts/test.sh restoration moved from Plan 19-04 Task 1 to Plan 19-01 Task 0, eliminating circular wave dependency. All subsequent Wave gates now use the canonical 5-migration harness.
+- **Pre-existing failures ruled out of Phase 19 scope (2026-04-17):** 45 engine.*/photos-memory/language test failures in Wave 1 gate traced to pre-existing bug in engine.test.ts mock chain (select→from→where→limit not covered) introduced by e4cb9da's partial restore of engine.ts PP#0 block. Proven pre-existing via rollback+rerun. Logged in `.planning/phases/19-proactive-pipeline-restoration/deferred-items.md` for post-Phase-19 cleanup.
+
 ### Pending Todos
 
 - Execute `/gsd-plan-phase 13` to plan Schema & Lifecycle Primitives.
@@ -72,6 +78,12 @@ None. Between-phases pause for M006 (≥1 week real Telegram use before M007) ac
 
 ## Session Continuity
 
-Last session: 2026-04-16T18:24:55.150Z
-Stopped at: Phase 18 context gathered
-Resume file: .planning/phases/18-synthetic-fixture-live-accountability-integration-suite/18-CONTEXT.md
+Last session: 2026-04-17T09:23:49.792Z
+Stopped at: Completed 19-01-PLAN.md — scripts/test.sh + types.ts + state.ts + state.test.ts byte-exact from 4c156c3
+Resume file: None
+
+## Performance Metrics
+
+| Phase | Plan | Duration | Tasks | Files | Notes |
+|-------|------|----------|-------|-------|-------|
+| 19 | 01 | 36min | 5 | 4 | byte-exact restoration; Wave 1 gate green; 9 pre-existing failing test files catalogued out-of-scope |

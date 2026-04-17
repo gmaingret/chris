@@ -45,7 +45,7 @@
 ### Scheduler / Sweep
 
 - [ ] **SWEEP-01**: New `decision-deadline` trigger added to the proactive sweep as a fifth SQL-first trigger at priority=2 (between silence=1 and commitment=3). Extends existing `TriggerDetector` interface per D010 two-phase execution.
-- [ ] **SWEEP-02**: Channel separation — sweep daily cap is split into `reflective_outreach` (silence/commitment/pattern/thread, existing behavior) and `accountability_outreach` (decision-deadline) with independent caps; on same-day collision the channels fire serially, not one blocking the other.
+- [x] **SWEEP-02**: Channel separation — sweep daily cap is split into `reflective_outreach` (silence/commitment/pattern/thread, existing behavior) and `accountability_outreach` (decision-deadline) with independent caps; on same-day collision the channels fire serially, not one blocking the other.
 - [ ] **SWEEP-03**: Engine pre-processor #0 checks `decision_capture_state` BEFORE mute/refusal/language/mode detection — rows in `AWAITING_RESOLUTION` / `AWAITING_POSTMORTEM` / `CAPTURING` bypass normal routing and go directly to the capture/resolution handler.
 - [ ] **SWEEP-04**: Stale-context prompt text — when a resolution prompt fires more than 48 hours past `resolve_by`, the prompt is explicitly dated ("On 2026-04-01 you predicted…") rather than implicitly recent-framed.
 
@@ -103,7 +103,7 @@
 | STAT-04     | 17    | Pending | SQL FILTER windows; `unverifiable` separate denominator |
 | STAT-05     | 17    | Pending | Domain-tag breakdown + `/decisions reclassify` preserving originals |
 | SWEEP-01    | 19    | Pending | Reassigned from Phase 15 — trigger exists in deadline.ts but never invoked by sweep.ts (v2.1 gap closure) |
-| SWEEP-02    | 19    | Pending | Reassigned from Phase 15 — channel-aware state helpers missing from state.ts (v2.1 gap closure) |
+| SWEEP-02    | 19    | Complete | Reassigned from Phase 15 — channel-aware state helpers missing from state.ts (v2.1 gap closure) |
 | SWEEP-03    | 14    | Pending | Engine pre-processor #0 runs before mute/refusal/language/mode |
 | SWEEP-04    | 19    | Pending | Reassigned from Phase 15 — dated stale-context logic exists in deadline.ts but trigger never invoked (v2.1 gap closure) |
 | TEST-10     | 18    | Pending | End-to-end `vi.setSystemTime` 14-day fixture |
