@@ -14,7 +14,7 @@
  * Run: DATABASE_URL=... ANTHROPIC_API_KEY=... npx vitest run src/decisions/__tests__/vague-validator-live.test.ts
  */
 import { describe, it, expect, afterEach, beforeAll, afterAll, vi } from 'vitest';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { db, sql } from '../../db/connection.js';
 import {
   decisions,
@@ -100,9 +100,14 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('TEST-14: vague-prediction resis
   });
 
   afterEach(async () => {
-    // FK-safe cleanup
-    await db.delete(decisionEvents);
-    await db.delete(decisions);
+    // FK-safe cleanup — scoped to TEST_CHAT_ID to avoid affecting other test data.
+    await db.delete(decisionEvents).where(
+      inArray(
+        decisionEvents.decisionId,
+        db.select({ id: decisions.id }).from(decisions).where(eq(decisions.chatId, TEST_CHAT_ID)),
+      ),
+    );
+    await db.delete(decisions).where(eq(decisions.chatId, TEST_CHAT_ID));
     await db.delete(decisionCaptureState).where(eq(decisionCaptureState.chatId, TEST_CHAT_ID));
     await db.delete(pensieveEntries).where(eq(pensieveEntries.source, 'telegram'));
     vi.restoreAllMocks();
