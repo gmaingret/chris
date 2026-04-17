@@ -51,4 +51,18 @@ The full Docker Postgres test suite (`bash scripts/test.sh`) surfaced 9 failing 
 
 ---
 
-*Created: 2026-04-17 during Plan 19-01 Task 4 wave-end gate analysis*
+## Source: Plan 19-02 Wave 2 Gate (2026-04-17)
+
+Wave 2 Docker suite surfaced one additional file failure beyond the Wave 1 baseline:
+
+| File | Failures | Cause | Category |
+|---|---|---|---|
+| `src/chris/__tests__/contradiction-false-positive.test.ts` | 20 | huggingface `EACCES` mkdir on `node_modules/@huggingface/transformers/.cache` (node_modules is root-owned in sandbox; claude user cannot write) | **B (environmental)** |
+
+The Wave 1 gate may not have triggered this particular test file's huggingface download path (test ordering/timing differs between runs). Same root cause as live-integration.test.ts EACCES already catalogued in Wave 1 Category B.
+
+**Attribution:** not a Phase 19-02 regression. prompts.ts restoration added two string constants — zero semantic impact on @huggingface/transformers. Proven by: byte-exact diff against canonical `4c156c3`, `tsc --noEmit` clean, no Wave 1 green test turning red.
+
+---
+
+*Created: 2026-04-17 during Plan 19-01 Task 4 wave-end gate analysis; updated during Plan 19-02 Task 2 wave-end gate analysis*
