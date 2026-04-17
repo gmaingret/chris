@@ -111,10 +111,16 @@ vi.mock('../../db/connection.js', () => {
 
       chain.where = vi.fn().mockReturnValue(chain);
 
+      chain.orderBy = vi.fn().mockReturnValue(chain);
+
       chain.limit = vi.fn().mockImplementation((_n: number) => {
         // decisions table (not capture, not events)
         if (tableName === 'decisions') {
           return Promise.resolve(decisionRows);
+        }
+        // decision_capture_state select: escalation scan uses .orderBy().limit()
+        if (tableName === 'decision_capture_state') {
+          return Promise.resolve(awaitingRows);
         }
         return Promise.resolve([]);
       });

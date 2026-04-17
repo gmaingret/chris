@@ -50,7 +50,7 @@ import { upsertAwaitingResolution, clearCapture } from '../decisions/capture-sta
 import { getLastUserLanguage } from '../chris/language.js';
 import { transitionDecision } from '../decisions/lifecycle.js';
 import { decisionCaptureState, decisions } from '../db/schema.js';
-import { eq } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import { db } from '../db/connection.js';
 
 
@@ -176,13 +176,20 @@ export async function runSweep(): Promise<SweepResult> {
     // ── ESCALATION: check AWAITING_RESOLUTION rows for 48h non-reply (RES-06) ──
     // Runs OUTSIDE the daily cap check — escalation is follow-up, not cold outreach.
     try {
+      // Bound the escalation scan — each row performs 4-6 KV reads/writes plus
+      // a Sonnet call on the follow-up path. Without a LIMIT + ORDER BY, the
+      // sweep-tick latency is unbounded as the table grows. `updatedAt ASC`
+      // puts the least-recently-touched AWAITING_RESOLUTION row first so the
+      // oldest waiters escalate first across sweep ticks.
       const awaitingRows = await db
         .select({
           chatId: decisionCaptureState.chatId,
           decisionId: decisionCaptureState.decisionId,
         })
         .from(decisionCaptureState)
-        .where(eq(decisionCaptureState.stage, 'AWAITING_RESOLUTION'));
+        .where(eq(decisionCaptureState.stage, 'AWAITING_RESOLUTION'))
+        .orderBy(asc(decisionCaptureState.updatedAt))
+        .limit(10);
 
       for (const row of awaitingRows) {
         if (!row.decisionId) continue;
