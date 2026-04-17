@@ -120,8 +120,15 @@ export async function handleDecisionsCommand(ctx: Context): Promise<void> {
     const validWindows = [30, 90, 365];
     let windowDays = 90; // D-08: default 90 days
     if (arg) {
-      const parsed = parseInt(arg, 10);
-      if (!validWindows.includes(parsed)) {
+      // WR-03: reject trailing garbage ("30abc" -> parseInt returns 30 silently).
+      // Also defends against IN-04: `/decisions stats 30 extra junk` where
+      // rest.join(' ') smuggles extra tokens into arg.
+      if (!/^\d+$/.test(arg)) {
+        await ctx.reply(invalidWindowMessage(lang));
+        return;
+      }
+      const parsed = Number(arg);
+      if (!Number.isInteger(parsed) || !validWindows.includes(parsed)) {
         await ctx.reply(invalidWindowMessage(lang));
         return;
       }
