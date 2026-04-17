@@ -179,13 +179,21 @@ export async function runSweep(): Promise<SweepResult> {
 
     // ── ESCALATION: check AWAITING_RESOLUTION rows for 48h non-reply (RES-06) ──
     // Runs OUTSIDE the daily cap check — escalation is follow-up, not cold outreach.
+    //
+    // WR-02: The query-scope try/catch below only protects the `db.select()` that
+    // fetches the batch of rows. Each per-row iteration has its own try/catch so
+    // that one failing LLM call (Anthropic 5xx, rate limit, network blip) skips
+    // only the offending decision — the remaining awaiting rows in this tick are
+    // still processed. Before the per-row guard was introduced, a single thrown
+    // error aborted the whole loop and delayed every later decision by 24h.
+    let awaitingRows: Array<{ chatId: bigint; decisionId: string | null }> = [];
     try {
       // Bound the escalation scan — each row performs 4-6 KV reads/writes plus
       // a Sonnet call on the follow-up path. Without a LIMIT + ORDER BY, the
       // sweep-tick latency is unbounded as the table grows. `updatedAt ASC`
       // puts the least-recently-touched AWAITING_RESOLUTION row first so the
       // oldest waiters escalate first across sweep ticks.
-      const awaitingRows = await db
+      awaitingRows = await db
         .select({
           chatId: decisionCaptureState.chatId,
           decisionId: decisionCaptureState.decisionId,
@@ -194,24 +202,33 @@ export async function runSweep(): Promise<SweepResult> {
         .where(eq(decisionCaptureState.stage, 'AWAITING_RESOLUTION'))
         .orderBy(asc(decisionCaptureState.updatedAt))
         .limit(10);
+    } catch (err) {
+      // Query failure — no rows to iterate. Log and fall through to reflective.
+      logger.error({ err }, 'proactive.sweep.escalation.error');
+      awaitingRows = [];
+    }
 
-      for (const row of awaitingRows) {
-        if (!row.decisionId) continue;
+    for (const row of awaitingRows) {
+      if (!row.decisionId) continue;
 
+      try {
         const sentAt = await getEscalationSentAt(row.decisionId);
         const count = await getEscalationCount(row.decisionId);
 
         if (sentAt === null) {
-          // WR-02: Legacy-only branch. Phase-16+ the accountability channel seeds both
+          // Legacy-only branch. Phase-16+ the accountability channel seeds both
           // escalation keys immediately after sending the initial prompt (see
-          // setEscalationSentAt/setEscalationCount calls at the top of this function,
-          // ~line 153). An AWAITING_RESOLUTION row with no escalation timestamp can
-          // only arise from:
+          // setEscalationState call at the top of this function, ~line 153).
+          // An AWAITING_RESOLUTION row with no escalation timestamp can only
+          // arise from:
           //   (a) pre-Phase-16 rows that predate the seeding logic, or
           //   (b) escalation keys cleared without clearing the capture row.
           //
           // Stamp a timestamp so the 48h clock starts ticking. Preserve any existing
           // count that may still be in state (don't reset legacy escalation progress).
+          // Kept as two separate writes because the count write is conditional —
+          // the atomic setEscalationState helper always writes both, which would
+          // overwrite existing counts from partially-migrated rows.
           await setEscalationSentAt(row.decisionId, new Date());
           if (count === 0) {
             await setEscalationCount(row.decisionId, 1);
@@ -229,7 +246,7 @@ export async function runSweep(): Promise<SweepResult> {
         if (count >= 2) {
           // Two prompts sent, still no reply → transition to stale (D-17: silent).
           //
-          // WR-01 race guard: handleResolution may have transitioned due→resolved between
+          // Race guard: handleResolution may have transitioned due→resolved between
           // the escalation check above and this line, leaving Greg in AWAITING_POSTMORTEM.
           // We must NOT clearCapture in that case — it would wipe Greg's valid post-mortem
           // state and silently route his next reply to JOURNAL. Only clear capture/keys
@@ -302,10 +319,15 @@ export async function runSweep(): Promise<SweepResult> {
             logger.info({ decisionId: row.decisionId }, 'proactive.sweep.escalation.followup.sent');
           }
         }
+      } catch (err) {
+        // WR-02: Per-row isolation — a single failing LLM call or KV write must
+        // not starve the remaining AWAITING_RESOLUTION rows on this tick.
+        logger.error(
+          { err, decisionId: row.decisionId },
+          'proactive.sweep.escalation.row.error',
+        );
+        // Fall through to the next row.
       }
-    } catch (err) {
-      // Escalation errors do NOT block reflective channel
-      logger.error({ err }, 'proactive.sweep.escalation.error');
     }
 
     // ── REFLECTIVE CHANNEL (independent per D-05) ──────────────────────────
