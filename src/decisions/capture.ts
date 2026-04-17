@@ -194,7 +194,9 @@ async function insertDecision(
   const payload = {
     id,
     status,
-    decisionText: draft.decision_text ?? draft.triggering_message.slice(0, 500),
+    decisionText:
+      draft.decision_text ??
+      ((draft.triggering_message ?? '').slice(0, 500) || '(decision)'),
     alternatives: draft.alternatives ?? null,
     reasoning: draft.reasoning ?? '(not specified in capture)',
     prediction: draft.prediction ?? '(not specified in capture)',
@@ -414,8 +416,12 @@ async function commitOpen(chatId: bigint, draft: CaptureDraft, lang: 'en' | 'fr'
 
 async function commitOpenDraft(chatId: bigint, draft: CaptureDraft, lang: 'en' | 'fr' | 'ru'): Promise<string> {
   const id = randomUUID();
-  // Fill NOT NULL slots with placeholders (RESEARCH A4)
-  draft.decision_text = draft.decision_text ?? draft.triggering_message.slice(0, 500);
+  // Fill NOT NULL slots with placeholders (RESEARCH A4).
+  // triggering_message is typed required but comes from JSONB with no runtime
+  // validation; guard against schema drift / partial writes (WR-06).
+  draft.decision_text =
+    draft.decision_text ??
+    ((draft.triggering_message ?? '').slice(0, 500) || '(decision)');
   draft.reasoning = draft.reasoning ?? '(not specified in capture)';
   draft.prediction = draft.prediction ?? '(not specified in capture)';
   draft.falsification_criterion = draft.falsification_criterion ?? '(not specified in capture)';
