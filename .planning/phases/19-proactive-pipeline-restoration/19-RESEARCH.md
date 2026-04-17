@@ -776,24 +776,24 @@ No new threats introduced by restoration. All controls are inherited from existi
 
 **Summary:** 4 assumptions, all LOW-to-MEDIUM risk. None blocks restoration mechanically; worst-case impact is a small adjustment in Plan 19-04 for snapshot regeneration.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Should `setEscalationContext` / `getEscalationContext` be added despite not existing in canonical?**
+1. **RESOLVED: Should `setEscalationContext` / `getEscalationContext` be added despite not existing in canonical?**
    - What we know: ROADMAP success criterion 1 lists them; Phase 16 VERIFICATION line 51 called them "bonus" exports; grep of `4c156c3:src/proactive/state.ts` shows they DO NOT exist.
    - What's unclear: Whether Phase 16 VERIFICATION was inaccurate, or whether these were present in an even later commit that wasn't reached.
    - Recommendation: Do NOT add them in Phase 19. The canonical restoration target does not include them, no consumer imports them, and no requirement mandates them. If a future phase needs them, add then. Document as "not restored because not present in canonical" in Plan 19-01 SUMMARY.
 
-2. **Is TEST-12's realignment in scope for Phase 19 or Phase 20?**
+2. **RESOLVED: Is TEST-12's realignment in scope for Phase 19 or Phase 20?**
    - What we know: ROADMAP Plan 19-04 explicitly includes "realign TEST-12 to original channel-separation contract."
    - What's unclear: Whether TEST-12 realignment should write a fresh test from scratch or use any fragment of canonical TEST-12. Checking `git show 4c156c3:src/decisions/__tests__/synthetic-fixture.test.ts` shows canonical TEST-12 already has channel-separation assertions — so realignment = replace-with-canonical.
    - Recommendation: Realign TEST-12 by restoring it from `4c156c3:synthetic-fixture.test.ts`. Note: that commit's version has `578 lines` vs current `22014 bytes`. Verify the rest of synthetic-fixture.test.ts (TEST-10, TEST-11) is byte-identical between current and `4c156c3` — if so, replace the whole file. If not, surgical replacement of the TEST-12 describe block is safer.
 
-3. **Does `drizzle-kit generate` need a fresh schema-applied Postgres, or will it work against any Postgres?**
+3. **RESOLVED: Does `drizzle-kit generate` need a fresh schema-applied Postgres, or will it work against any Postgres?**
    - What we know: drizzle-kit config (`drizzle.config.ts`) reads from `DATABASE_URL` env var; the CLI introspects the running database's schema.
    - What's unclear: Whether drizzle-kit generates snapshots FROM the journal (pure filesystem operation) or FROM the live DB state.
    - Recommendation: Plan-phase should attempt Option A on a fresh Docker Postgres with migrations applied. If that doesn't write the missing snapshots, fallback to Option C.
 
-4. **Is there a `tsconfig.json` noUnusedLocals setting that would break canonical sweep.ts?**
+4. **RESOLVED: Is there a `tsconfig.json` noUnusedLocals setting that would break canonical sweep.ts?**
    - What we know: `npx tsc --noEmit` today reports only 2 errors (both on deadline.ts's `decision-deadline` type), no unused-import errors elsewhere.
    - What's unclear: Whether noUnusedLocals is off globally or on for certain paths.
    - Recommendation: Plan-phase should `grep 'noUnused' tsconfig.json`. If enabled, drop the `getLastUserLanguage` import from sweep.ts during restoration (1-line deviation from canonical).

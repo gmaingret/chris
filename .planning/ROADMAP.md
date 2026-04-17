@@ -154,7 +154,7 @@ Plans:
 **Requirements**: SWEEP-01, SWEEP-02, SWEEP-04, RES-02, RES-06
 **Gap Closure**: Closes 5 unsatisfied requirements, 3 FAIL integration checks (sweep wiring / channel separation / ACCOUNTABILITY prompts), 1 PARTIAL (migration meta snapshots), and 2 broken flows (B: deadline→resolution; E: auto-escalation) from `v2.1-MILESTONE-AUDIT.md`.
 **Success Criteria** (what must be TRUE):
-  1. `src/proactive/state.ts` exports `hasSentTodayAccountability`, `hasSentTodayReflective`, `setLastSentAccountability`, `setLastSentReflective`, `getEscalationSentAt`, `setEscalationSentAt`, `getEscalationCount`, `setEscalationCount`, `setEscalationContext`, `getEscalationContext`, and `clearEscalationKeys` — matching the contract cited in Phase 15/16 VERIFICATION.md.
+  1. `src/proactive/state.ts` exports `hasSentTodayAccountability`, `hasSentTodayReflective`, `setLastSentAccountability`, `setLastSentReflective`, `getEscalationSentAt`, `setEscalationSentAt`, `getEscalationCount`, `setEscalationCount`, and `clearEscalationKeys` — matching the contract in canonical commit `4c156c3` (`setEscalationContext`/`getEscalationContext` were listed in Phase 16 VERIFICATION as "bonus" exports but do not exist in canonical source and have no consumers — see 19-RESEARCH.md Q1 RESOLVED).
   2. `src/proactive/prompts.ts` exports `ACCOUNTABILITY_SYSTEM_PROMPT` (neutral-factual with flattery/condemnation guards, forbids The Hard Rule D027) and `ACCOUNTABILITY_FOLLOWUP_PROMPT` (natural stale-context phrasing).
   3. `src/proactive/sweep.ts` runs two independent channels — `accountability_outreach` (priority=2, invokes `createDeadlineTrigger` → `upsertAwaitingResolution`) and `reflective_outreach` (existing silence/commitment/pattern/thread) — with independent daily caps and error isolation.
   4. Escalation block outside daily cap fires a single 48h follow-up; two non-replies transitions the decision to `stale` and clears escalation keys.
@@ -163,10 +163,10 @@ Plans:
   7. Phase 15/16 test suites stay GREEN; `/gsd-audit-milestone v2.1` re-run shows `requirements: 31/31`, no FAIL integration checks, flows B + E marked COMPLETE.
 **Plans**: 4 plans
 Plans:
-- [ ] 19-01-PLAN.md — Wave 1: restore `triggers/types.ts` union + `state.ts` channel-aware + escalation helpers + `state.test.ts` canonical 23-test coverage (SWEEP-02 + RES-06 enabler; SWEEP-01 enabler via types.ts)
+- [ ] 19-01-PLAN.md — Wave 1: restore `scripts/test.sh` (5 migrations + ON_ERROR_STOP=1) as Task 0 so all downstream Docker gates are green; then restore `triggers/types.ts` union + `state.ts` channel-aware + escalation helpers + `state.test.ts` canonical 23-test coverage (SWEEP-02 + RES-06 enabler; SWEEP-01 enabler via types.ts)
 - [ ] 19-02-PLAN.md — Wave 2: restore `prompts.ts` ACCOUNTABILITY_SYSTEM_PROMPT + ACCOUNTABILITY_FOLLOWUP_PROMPT (RES-02/RES-06 enabler; unblocks Plan 19-03 sweep imports)
 - [ ] 19-03-PLAN.md — Wave 3: atomic restore of `sweep.ts` dual-channel + escalation block + `sweep.test.ts`/`deadline.test.ts`/`sweep-escalation.test.ts` from canonical `4c156c3` (SWEEP-01, SWEEP-02, SWEEP-04, RES-02, RES-06)
-- [ ] 19-04-PLAN.md — Wave 4: restore `scripts/test.sh` (5 migrations + ON_ERROR_STOP=1) + realign `synthetic-fixture.test.ts` TEST-12 to channel-separation contract + regenerate migration meta snapshots 0001/0003 (Option A) OR defer (Option C) + final milestone re-audit
+- [ ] 19-04-PLAN.md — Wave 4: realign `synthetic-fixture.test.ts` TEST-12 to channel-separation contract + regenerate migration meta snapshots 0001/0003 (Option A) OR defer with TECH-DEBT-19-01 record (Option C) + final milestone re-audit
 
 ## Progress
 
