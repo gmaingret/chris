@@ -400,7 +400,10 @@ async function commitOpen(chatId: bigint, draft: CaptureDraft, lang: 'en' | 'fr'
   const pensieveText = `Decision: ${draft.decision_text}\nReasoning: ${draft.reasoning}\nPrediction: ${draft.prediction}`;
   const pensieveId = await writePensieveEntry(chatId, pensieveText, id);
 
-  // LIFE-05: fire-and-forget contradiction scan — ONLY on null->open (D-20)
+  // LIFE-05: fire-and-forget contradiction scan — ONLY on null->open (D-20).
+  // pensieveId is the entry JUST inserted above; detectContradictions
+  // filters it out of hybridSearch candidates via its 2nd-arg self-exclusion
+  // (contradiction.ts:87-89) so no spurious self-contradiction fires (WR-08).
   void (async () => {
     try {
       await Promise.race([
