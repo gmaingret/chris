@@ -91,3 +91,13 @@ Resume file: None
 | 19 | 01 | 36min | 5 | 4 | byte-exact restoration; Wave 1 gate green; 9 pre-existing failing test files catalogued out-of-scope |
 | 19 | 02 | small | 2 | 1 | prompts.ts ACCOUNTABILITY_SYSTEM_PROMPT + ACCOUNTABILITY_FOLLOWUP_PROMPT restored; Wave 2 gate stable vs baseline |
 | 19 | 03 | 13min | 2 | 4 | atomic sweep.ts + 3 test files from 4c156c3; 72/72 proactive tests green; TEST-12 expected break deferred to 19-04 |
+
+## Known Tech Debt
+
+_Entries here are deliberate deferrals with a clear reactivation trigger. Each item links to a phase SUMMARY explaining rationale and conditions under which it would be reopened._
+
+- **TECH-DEBT-19-01** — `src/db/migrations/meta/0001_snapshot.json` and `0003_snapshot.json` missing.
+  - See [.planning/phases/19-proactive-pipeline-restoration/19-04-SUMMARY.md](phases/19-proactive-pipeline-restoration/19-04-SUMMARY.md) for rationale.
+  - Attempted regeneration via `npx drizzle-kit generate` (Option A) against a live Docker Postgres with all 5 migrations applied. drizzle-kit read the schema, detected 12 tables, and returned "No schema changes, nothing to migrate" — it does NOT backfill snapshots for already-applied entries. The runtime migrator (scripts/test.sh) applies `.sql` files directly and does not need the snapshots — they are only consulted when `drizzle-kit generate` is invoked for a NEW migration.
+  - **Reactivation trigger:** the next phase that modifies `src/db/schema.ts` (adding a table/column/enum). At that point the absence of 0001/0003 snapshots will cause a drift diff to be mis-computed; regenerate as part of that phase's migration work.
+  - **Audit disposition:** v2.1 milestone audit marks this as PARTIAL, not FAIL — does not block requirement satisfaction for SWEEP-01/02/04, RES-02/06.
