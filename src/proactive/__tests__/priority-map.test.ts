@@ -19,21 +19,31 @@
 import { describe, it, expect, vi } from 'vitest';
 
 // ── Mock DB layer so triggers don't touch real DB during construction ─────
+// Triggers invoke two chain shapes against the drizzle builder:
+//   silence:               .where(c).orderBy(d)                       → await (array)
+//   deadline, commitment:  .where(c).orderBy(d).limit(n)              → await (array)
+// We build a reusable chain object where every method returns the same
+// chainable-thenable — so any terminal await resolves to `[]` regardless of
+// how the caller terminates the chain.
 
-const { mockLimit, mockOrderBy, mockWhere, mockFrom, mockSelect } = vi.hoisted(() => {
-  const mockLimit = vi.fn().mockResolvedValue([]);
-  const mockOrderBy = vi.fn().mockReturnValue({ limit: mockLimit });
-  const mockWhereNoOrder = vi.fn().mockResolvedValue([]);
-  const mockWhere = vi.fn((..._args: unknown[]) => ({
-    orderBy: mockOrderBy,
-    // Some triggers (silence) call .where(...).orderBy(...) without a .limit
-    // Others (commitment/deadline) call .where(...).orderBy(...).limit(...)
-    // Also return a thenable for direct awaits if needed.
-    then: mockWhereNoOrder,
-  }));
-  const mockFrom = vi.fn().mockReturnValue({ where: mockWhere });
-  const mockSelect = vi.fn().mockReturnValue({ from: mockFrom });
-  return { mockLimit, mockOrderBy, mockWhere, mockFrom, mockSelect };
+const { mockSelect } = vi.hoisted(() => {
+  function makeChain(): Record<string, unknown> {
+    const chain: Record<string, unknown> = {};
+    chain.from = vi.fn().mockReturnValue(chain);
+    chain.where = vi.fn().mockReturnValue(chain);
+    chain.orderBy = vi.fn().mockReturnValue(chain);
+    chain.limit = vi.fn().mockReturnValue(chain);
+    // Thenable so `await chain` resolves to an empty result set.
+    chain.then = (
+      onFulfilled: (v: unknown) => unknown,
+      onRejected?: (e: unknown) => unknown,
+    ) => Promise.resolve([]).then(onFulfilled, onRejected);
+    return chain;
+  }
+
+  return {
+    mockSelect: vi.fn().mockImplementation(() => makeChain()),
+  };
 });
 
 vi.mock('../../db/connection.js', () => ({
@@ -68,21 +78,18 @@ const emptyAnalysis: OpusAnalysisResult = {
 
 describe('priority map (regression)', () => {
   it('silence trigger returns priority=1', async () => {
-    mockLimit.mockResolvedValue([]);
     const trigger = createSilenceTrigger(12345n, { thresholdMultiplier: 2, baselineDays: 14 });
     const result = await trigger.detect();
     expect(result.priority).toBe(1);
   });
 
   it('deadline trigger returns priority=2', async () => {
-    mockLimit.mockResolvedValue([]);
     const trigger = createDeadlineTrigger();
     const result = await trigger.detect();
     expect(result.priority).toBe(2);
   });
 
   it('commitment trigger returns priority=3', async () => {
-    mockLimit.mockResolvedValue([]);
     const trigger = createCommitmentTrigger(7);
     const result = await trigger.detect();
     expect(result.priority).toBe(3);
@@ -101,8 +108,6 @@ describe('priority map (regression)', () => {
   });
 
   it('priority map is strictly ascending silence < deadline < commitment < pattern < thread', async () => {
-    mockLimit.mockResolvedValue([]);
-
     const silence = await createSilenceTrigger(12345n, { thresholdMultiplier: 2, baselineDays: 14 }).detect();
     const deadline = await createDeadlineTrigger().detect();
     const commitment = await createCommitmentTrigger(7).detect();
