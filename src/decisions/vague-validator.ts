@@ -54,13 +54,15 @@ export async function validateVagueness(input: VaguenessInput): Promise<Vaguenes
       new Promise<null>((r) => setTimeout(() => r(null), VAGUE_TIMEOUT_MS)),
     ]);
     if (!raw) return { verdict: 'acceptable' };  // fail-soft: timeout
-    const cleaned = stripFences(raw);
-    const parsed = JSON.parse(cleaned);
+    const parsed = parseJsonLoose(raw);
     const verdict: VaguenessVerdict = parsed.verdict === 'vague' ? 'vague' : 'acceptable';
     const reason: string | undefined = typeof parsed.reason === 'string' ? parsed.reason : undefined;
     logger.info({ verdict, hedges: detectedHedges.length, latencyMs: Date.now() - start }, 'decisions.vague.validate');
     return { verdict, reason };
   } catch (error) {
+    // Phase 18 WR-04: parse failure is the fail-soft path — log at warn (not info)
+    // so dashboards and grep can surface silent 'acceptable' defaults caused by
+    // malformed Haiku output (missing fences, stray prose around JSON, etc.).
     logger.warn({ error: errMsg(error), latencyMs: Date.now() - start }, 'decisions.vague.error');
     return { verdict: 'acceptable' };  // fail-soft: exception
   }
@@ -75,3 +77,27 @@ export function buildVaguePushback(language: 'en' | 'fr' | 'ru'): string {
 }
 
 function errMsg(e: unknown): string { return e instanceof Error ? e.message : String(e); }
+
+/**
+ * Parse JSON from a Haiku response tolerantly.
+ *
+ * Strategy (Phase 18 WR-04 hardening):
+ *   1. Strip markdown code fences via the shared `stripFences` util (handles
+ *      ```json ... ``` and ``` ... ``` patterns — consolidated in Phase 14 WR-07).
+ *   2. If parse still fails, fall back to extracting the first `{...}` span.
+ *      Guards against Haiku prepending/appending stray prose without fences
+ *      (e.g., "Sure, here it is: {...} Hope that helps.").
+ *
+ * Throws if neither strategy yields valid JSON — caller's try/catch is the
+ * fail-soft boundary (returns verdict:'acceptable' with a warn log).
+ */
+function parseJsonLoose(raw: string): { verdict?: unknown; reason?: unknown } {
+  const cleaned = stripFences(raw);
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const braceMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (!braceMatch) throw new Error('no JSON object found in Haiku response');
+    return JSON.parse(braceMatch[0]);
+  }
+}
