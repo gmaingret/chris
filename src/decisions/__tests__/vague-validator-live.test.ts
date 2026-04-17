@@ -165,8 +165,8 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('TEST-14: vague-prediction resis
     // (either commitOpen or commitOpenDraft, both return a "Got it — I've archived that" style ack)
     expect(turn2Response.length).toBeGreaterThan(0);
 
-    // Verify a decision row was created (capture committed)
-    const rows = await db.select().from(decisions);
+    // Verify a decision row was created (capture committed) — scoped to TEST_CHAT_ID
+    const rows = await db.select().from(decisions).where(eq(decisions.chatId, TEST_CHAT_ID));
     expect(rows.length).toBeGreaterThanOrEqual(1);
 
     // Verify the decision has open-draft status (second-vague landing via D-15)
