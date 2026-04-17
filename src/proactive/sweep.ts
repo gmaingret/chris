@@ -198,10 +198,20 @@ export async function runSweep(): Promise<SweepResult> {
         const count = await getEscalationCount(row.decisionId);
 
         if (sentAt === null) {
-          // First prompt was just sent by the deadline trigger above (or in a prior sweep tick).
-          // Record the timestamp and set count to 1.
+          // WR-02: Legacy-only branch. Phase-16+ the accountability channel seeds both
+          // escalation keys immediately after sending the initial prompt (see
+          // setEscalationSentAt/setEscalationCount calls at the top of this function,
+          // ~line 153). An AWAITING_RESOLUTION row with no escalation timestamp can
+          // only arise from:
+          //   (a) pre-Phase-16 rows that predate the seeding logic, or
+          //   (b) escalation keys cleared without clearing the capture row.
+          //
+          // Stamp a timestamp so the 48h clock starts ticking. Preserve any existing
+          // count that may still be in state (don't reset legacy escalation progress).
           await setEscalationSentAt(row.decisionId, new Date());
-          await setEscalationCount(row.decisionId, 1);
+          if (count === 0) {
+            await setEscalationCount(row.decisionId, 1);
+          }
           continue;
         }
 
