@@ -22,7 +22,7 @@ import {
   decisionCaptureState,
   pensieveEntries,
 } from '../../db/schema.js';
-import { validateVagueness } from '../vague-validator.js';
+import { validateVagueness, buildVaguePushback } from '../vague-validator.js';
 import { handleCapture } from '../capture.js';
 
 // ── Adversarial predictions (D-11: ~4 EN, 3 FR, 3 RU; D-12: hedged-confidence) ──
@@ -154,24 +154,34 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('TEST-14: vague-prediction resis
     // Turn 1: first handleCapture call — vague_validator_run=false → real Haiku runs → pushback
     const turn1Response = await handleCapture(TEST_CHAT_ID, "that's my prediction");
 
-    // The first response should be the vague pushback (real Haiku calls with VAGUE_VALIDATOR_PROMPT)
-    // buildVaguePushback returns: "What would make you say this turned out right or wrong?"
-    expect(turn1Response.length).toBeGreaterThan(0);
+    // The first response must be EXACTLY the vague pushback (D-14 invariant).
+    // buildVaguePushback('en') = "What would make you say this turned out right or wrong?"
+    expect(turn1Response).toBe(buildVaguePushback('en'));
+
+    // D-14 invariant: Turn 1 pushback must NOT commit a decision row.
+    // If it did, Turn 2's row-transition check (0 → 1) would be meaningless.
+    const preRows = await db
+      .select()
+      .from(decisions)
+      .where(eq(decisions.chatId, TEST_CHAT_ID));
+    expect(preRows.length).toBe(0);
 
     // Turn 2: same vague prediction — vague_validator_run=true → validator NOT re-run → accepted
     const turn2Response = await handleCapture(TEST_CHAT_ID, "still feels like it'll work out");
 
-    // Turn 2 should NOT be another pushback — it should be the commit confirmation
-    // (either commitOpen or commitOpenDraft, both return a "Got it — I've archived that" style ack)
+    // D-14 "exactly one pushback": Turn 2 must NOT be the pushback string again —
+    // it must be the commit confirmation (commitOpen or commitOpenDraft ack).
+    expect(turn2Response).not.toBe(buildVaguePushback('en'));
     expect(turn2Response.length).toBeGreaterThan(0);
 
-    // Verify a decision row was created (capture committed) — scoped to TEST_CHAT_ID
-    const rows = await db.select().from(decisions).where(eq(decisions.chatId, TEST_CHAT_ID));
-    expect(rows.length).toBeGreaterThanOrEqual(1);
+    // Row-count transition 0 → 1 proves Turn 2 actually committed (not silently no-op'd).
+    const postRows = await db
+      .select()
+      .from(decisions)
+      .where(eq(decisions.chatId, TEST_CHAT_ID));
+    expect(postRows.length).toBe(1);
 
-    // Verify the decision has open-draft status (second-vague landing via D-15)
-    // or open status (if vague_pushback_fired=true but validator wasn't re-run, secondVague=false)
-    const statuses = rows.map(r => r.status);
-    expect(statuses.some(s => s === 'open' || s === 'open-draft')).toBe(true);
+    // Status: open-draft (second-vague landing via D-15) or open (if secondVague=false).
+    expect(['open', 'open-draft']).toContain(postRows[0]!.status);
   }, 60_000);
 });
