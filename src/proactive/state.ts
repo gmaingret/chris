@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { db } from '../db/connection.js';
 import { proactiveState } from '../db/schema.js';
+import { logger } from '../utils/logger.js';
 
 // ── Key constants ──────────────────────────────────────────────────────────
 
@@ -153,10 +154,26 @@ export async function setEscalationSentAt(decisionId: string, timestamp: Date): 
   await setValue(escalationSentKey(decisionId), timestamp.toISOString());
 }
 
-/** Get the number of accountability prompts sent for a specific decision. */
+/**
+ * Get the number of accountability prompts sent for a specific decision.
+ *
+ * Treats only `null`/`undefined` as "not yet set" → returns 0.
+ * On type mismatch (JSONB corruption: string, bool, object, etc.) logs a
+ * warning and still returns 0 so the sweep tick does not hard-fail. The warn
+ * log makes the corruption visible so it can be investigated instead of
+ * silently re-arming the 48h follow-up cycle.
+ */
 export async function getEscalationCount(decisionId: string): Promise<number> {
   const val = await getValue(escalationCountKey(decisionId));
-  return typeof val === 'number' ? val : 0;
+  if (val == null) return 0;
+  if (typeof val !== 'number') {
+    logger.warn(
+      { decisionId, val, valType: typeof val },
+      'proactive.state.escalation_count.non_numeric',
+    );
+    return 0;
+  }
+  return val;
 }
 
 /** Set the accountability prompt count for a specific decision. */
