@@ -4,7 +4,7 @@
 
 - ✅ **v1.0 Living Memory through Validation** — Phases 1-5 (shipped 2026-04-13)
 - ✅ **v2.0 M006 Trustworthy Chris** — Phases 6-12 (shipped 2026-04-15) — see [milestones/v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md)
-- 🚧 **v2.1 M007 Decision Archive** — Phases 13-18 (started 2026-04-15)
+- 🚧 **v2.1 M007 Decision Archive** — Phases 13-19 (started 2026-04-15)
 
 ## Phases
 
@@ -34,7 +34,7 @@ See [milestones/v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md) for full phase deta
 
 </details>
 
-### 🚧 v2.1 M007 Decision Archive (Phases 13-18)
+### 🚧 v2.1 M007 Decision Archive (Phases 13-19)
 
 - [x] **Phase 13: Schema & Lifecycle Primitives** — Append-only `decision_events`, projection `decisions`, capture-state table, transition chokepoint with optimistic concurrency (completed 2026-04-15)
 - [x] **Phase 14: Capture Flow** — Two-phase trigger detection (regex + Haiku stakes), conversational 5-slot extraction, vague-prediction validator, pre-processors wired into engine (completed 2026-04-16)
@@ -42,6 +42,7 @@ See [milestones/v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md) for full phase deta
 - [x] **Phase 16: Resolution, Post-Mortem & ACCOUNTABILITY Mode** — New ACCOUNTABILITY mode bypassing praise quarantine, Pensieve-first write ordering, ±48h context retrieval, auto-escalation after 2 non-replies (completed 2026-04-16)
 - [x] **Phase 17: `/decisions` Command & Accuracy Stats** — Haiku 2-axis classification cached with model version, N≥10 floor, Wilson 95% CI, domain-tag breakdown (completed 2026-04-16)
 - [x] **Phase 18: Synthetic Fixture + Live ACCOUNTABILITY Integration Suite** — End-to-end `vi.setSystemTime` fixture covering concurrency races + same-day collision + stale-context; live 3-of-3 Sonnet suite for hit/miss/unverifiable (completed 2026-04-16)
+- [ ] **Phase 19: Proactive Pipeline Restoration** — Gap closure for v2.1 audit: restore dual-channel `sweep.ts`, channel-aware + escalation helpers in `state.ts`, ACCOUNTABILITY prompts in `prompts.ts` (lost in worktree merge `5582442`); re-align TEST-12; restore migration meta snapshots
 
 ## Phase Details
 
@@ -147,6 +148,26 @@ Plans:
 - [x] 18-03-PLAN.md — Gap closure Wave 1: Restore callLLM, 5 missing prompts, getTemporalPensieve (lost in worktree merge)
 - [x] 18-04-PLAN.md — Gap closure Wave 2: Fix TEST-12 mock mismatch (single-pipeline sweep), TEST-14 timeout (3s->15s)
 
+### Phase 19: Proactive Pipeline Restoration
+**Goal**: Close the 5 unsatisfied v2.1 requirements (SWEEP-01/02/04, RES-02/06) by restoring the Phase 15/16 source artifacts lost in the destructive worktree merge (commit `5582442`) so the decision-deadline trigger, dual-channel sweep, and escalation block actually execute in production — re-aligning the running code with the state verified in Phase 15/16 VERIFICATION.md.
+**Depends on**: Phase 18
+**Requirements**: SWEEP-01, SWEEP-02, SWEEP-04, RES-02, RES-06
+**Gap Closure**: Closes 5 unsatisfied requirements, 3 FAIL integration checks (sweep wiring / channel separation / ACCOUNTABILITY prompts), 1 PARTIAL (migration meta snapshots), and 2 broken flows (B: deadline→resolution; E: auto-escalation) from `v2.1-MILESTONE-AUDIT.md`.
+**Success Criteria** (what must be TRUE):
+  1. `src/proactive/state.ts` exports `hasSentTodayAccountability`, `hasSentTodayReflective`, `setLastSentAccountability`, `setLastSentReflective`, `getEscalationSentAt`, `setEscalationSentAt`, `getEscalationCount`, `setEscalationCount`, `setEscalationContext`, `getEscalationContext`, and `clearEscalationKeys` — matching the contract cited in Phase 15/16 VERIFICATION.md.
+  2. `src/proactive/prompts.ts` exports `ACCOUNTABILITY_SYSTEM_PROMPT` (neutral-factual with flattery/condemnation guards, forbids The Hard Rule D027) and `ACCOUNTABILITY_FOLLOWUP_PROMPT` (natural stale-context phrasing).
+  3. `src/proactive/sweep.ts` runs two independent channels — `accountability_outreach` (priority=2, invokes `createDeadlineTrigger` → `upsertAwaitingResolution`) and `reflective_outreach` (existing silence/commitment/pattern/thread) — with independent daily caps and error isolation.
+  4. Escalation block outside daily cap fires a single 48h follow-up; two non-replies transitions the decision to `stale` and clears escalation keys.
+  5. Missing Drizzle migration meta snapshots `0001_snapshot.json` and `0003_snapshot.json` are regenerated so `drizzle-kit generate` diffs cleanly against the current schema.
+  6. `TEST-12` is re-aligned from the degraded single-pipeline contract to the original channel-separation contract (deadline + silence fire serially without either starving the other) and passes against the restored sweep.
+  7. Phase 15/16 test suites stay GREEN; `/gsd-audit-milestone v2.1` re-run shows `requirements: 31/31`, no FAIL integration checks, flows B + E marked COMPLETE.
+**Plans**: 4 plans
+Plans:
+- [ ] 19-01-PLAN.md — Restore `state.ts` channel-aware + escalation helpers (SWEEP-02 + RES-06 enabler)
+- [ ] 19-02-PLAN.md — Restore `prompts.ts` ACCOUNTABILITY prompts (integration fix; unblocks sweep)
+- [ ] 19-03-PLAN.md — Restore `sweep.ts` dual-channel refactor + deadline trigger wiring + `upsertAwaitingResolution` + escalation block (SWEEP-01, SWEEP-04, RES-02, RES-06)
+- [ ] 19-04-PLAN.md — Regenerate migration meta snapshots (0001/0003) + realign TEST-12 to original channel-separation contract
+
 ## Progress
 
 | Phase                             | Milestone | Plans | Status       | Completed  |
@@ -169,19 +190,22 @@ Plans:
 | 16. Resolution + ACCOUNTABILITY   | v2.1      | 5/5 | Complete   | 2026-04-16 |
 | 17. `/decisions` & Accuracy Stats | v2.1      | 3/3 | Complete    | 2026-04-16 |
 | 18. Synthetic + Live Suite        | v2.1      | 4/2 | Complete    | 2026-04-16 |
+| 19. Proactive Pipeline Restoration | v2.1     | 0/4 | Not started | —          |
 
 ## v2.1 Coverage
 
 **31/31 v2.1 requirements mapped ✓**
 
-| Category  | Phase 13   | Phase 14    | Phase 15    | Phase 16 | Phase 17 | Phase 18 |
-| --------- | ---------- | ----------- | ----------- | -------- | -------- | -------- |
-| CAP (6)   |            | 01-06       |             |          |          |          |
-| LIFE (6)  | 01,02,03,04,06 | 05      |             |          |          |          |
-| RES (6)   |            |             |             | 01-06    |          |          |
-| STAT (5)  |            |             |             |          | 01-05    |          |
-| SWEEP (4) |            | 03          | 01,02,04    |          |          |          |
-| TEST (5)  |            |             |             |          |          | 10-14    |
+| Category  | Phase 13   | Phase 14    | Phase 15    | Phase 16 | Phase 17 | Phase 18 | Phase 19 (gap closure) |
+| --------- | ---------- | ----------- | ----------- | -------- | -------- | -------- | ---------------------- |
+| CAP (6)   |            | 01-06       |             |          |          |          |                        |
+| LIFE (6)  | 01,02,03,04,06 | 05      |             |          |          |          |                        |
+| RES (6)   |            |             |             | 01,03,04,05 |        |          | 02,06                  |
+| STAT (5)  |            |             |             |          | 01-05    |          |                        |
+| SWEEP (4) |            | 03          |             |          |          |          | 01,02,04               |
+| TEST (5)  |            |             |             |          |          | 10-14    |                        |
+
+_Phase 19 re-owns SWEEP-01/02/04 and RES-02/06 after the v2.1 milestone audit found the Phase 15/16 source artifacts were lost in the destructive worktree merge (commit `5582442`)._
 
 ## Phase-to-Pitfall Guard Map (PITFALLS.md C1-C7)
 
@@ -193,3 +217,4 @@ Plans:
 | 16    | C7, M2, M6, m3  | ACCOUNTABILITY mode bypasses praise quarantine at prompt level; The Hard Rule forbidden; Pensieve-first writes; auto-escalation |
 | 17    | C2, C6, M4      | N>=10 floor; Wilson 95% CI; unverifiable second denominator; materialized classifications with model version |
 | 18    | C7 (flatline)   | Live Sonnet suite asserts absence-of-flattery AND absence-of-condemnation (D023/D032) |
+| 19    | C5, C7, M3, m3  | Gap closure — restores channel separation + dated stale-context + auto-escalation broken by worktree merge |
