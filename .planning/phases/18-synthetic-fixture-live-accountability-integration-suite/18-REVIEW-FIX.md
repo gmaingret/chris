@@ -1,65 +1,89 @@
 ---
 phase: 18-synthetic-fixture-live-accountability-integration-suite
-fixed_at: 2026-04-17T00:00:00Z
-review_path: .planning/phases/18-synthetic-fixture-live-accountability-integration-suite/18-REVIEW.md
-iteration: 1
-findings_in_scope: 6
-fixed: 6
+applied: 2026-04-17T21:00:00Z
+fix_scope: critical_warning
+findings_in_scope: 5
+fixed: 5
 skipped: 0
+iteration: 2
 status: all_fixed
 ---
 
-# Phase 18: Code Review Fix Report
+# Phase 18: Code Review Fix Report (Iteration 2)
 
-**Fixed at:** 2026-04-17T00:00:00Z
-**Source review:** .planning/phases/18-synthetic-fixture-live-accountability-integration-suite/18-REVIEW.md
-**Iteration:** 1
+**Phase:** 18-synthetic-fixture-live-accountability-integration-suite
+**Applied:** 2026-04-17T21:00:00Z
+**Fix scope:** critical_warning (5 Warning findings; 6 Info findings out of scope)
+**Result:** All 5 in-scope findings fixed. 6 atomic fix commits.
 
-**Summary:**
-- Findings in scope: 6
-- Fixed: 6
-- Skipped: 0
+_Note: This is iteration 2. Iteration 1 (2026-04-17T00:00Z) addressed a different set of findings from an earlier review of Phase 18 — those fixes (unscoped db.delete, sql.end refactor, etc.) have already landed on main at commits 693d40d, 134daa6, 1b064a2, 9c8048e, c9856f5, 1b45f59. Iteration 2 addresses the findings surfaced by the post-milestone re-review on 2026-04-17T15:02Z._
 
-## Fixed Issues
+## Fixes Applied (Iteration 2)
 
-### WR-01: Unscoped `db.delete(decisionEvents)` in synthetic-fixture.test.ts:255
+| Finding | Commit | Files |
+|---------|--------|-------|
+| WR-01 | `6f8addb` | `vitest.config.ts` — set `pool: 'forks' + singleFork: true` to serialize test file execution (Vitest 3 syntax) |
+| WR-01 follow-up | `5b77039` | `vitest.config.ts` — migrate to Vitest 4 top-level `fileParallelism: false` (silences DEPRECATED warning) |
+| WR-02 | `e459b17` | `src/decisions/__tests__/vague-validator-live.test.ts` — enforce D-14 one-pushback invariant in TEST-14 Turn 2 |
+| WR-03 | `1f414dd` | `src/llm/client.ts` — correct `callLLM` docstring to document throw-propagation (remove "empty string on failure" lie) |
+| WR-04 | `7cabd0f` | `src/decisions/vague-validator.ts` — add brace-extract fallback for fence-less Haiku JSON via `parseJsonLoose` helper |
+| WR-05 | `b8510fd` | `src/decisions/__tests__/synthetic-fixture.test.ts` — change TEST-10 `afterEach` to `vi.resetAllMocks()` to drain `.mockResolvedValueOnce` queues |
 
-**Files modified:** `src/decisions/__tests__/synthetic-fixture.test.ts`
-**Commit:** 693d40d
-**Applied fix:** Added `inArray` import and scoped the `decisionEvents` delete via a subquery that selects decision IDs belonging to `TEST_CHAT_ID`. This prevents blanket deletion of all decision events across all chat IDs.
+## Fix Details
 
-### WR-02: Unscoped `db.delete(pensieveEntries)` in synthetic-fixture.test.ts:264
+### WR-01 — Parallel test cleanup race
+**Root cause:** Three test files all delete `pensieve_entries WHERE source='telegram'` in setup/teardown. Vitest's default pool runs test files in parallel forks → cleanup from one file wipes rows from another mid-test.
 
-**Files modified:** `src/decisions/__tests__/synthetic-fixture.test.ts`
-**Commit:** 134daa6
-**Applied fix:** Scoped `pensieveEntries` delete by filtering on `source='telegram'` (best-effort scope since `pensieveEntries` has no `chatId` column). This matches the pattern already used in `live-accountability.test.ts`.
+**Decision:** Chose `fileParallelism: false` over per-suite source prefixes. Production code (`resolution.ts`, `capture.ts`) hardcodes `source='telegram'` — re-plumbing per-test source strings through production just for test isolation was out of proportion to the problem.
 
-### WR-03: `sql.end()` in TEST-11 afterAll should be moved to file-level afterAll
+**Vitest 4 follow-up:** Initial commit used `pool: 'forks' + poolOptions.forks.singleFork` which surfaced a DEPRECATED warning on Vitest 4. Follow-up migrates to the top-level `fileParallelism: false` equivalent.
 
-**Files modified:** `src/decisions/__tests__/synthetic-fixture.test.ts`
-**Commit:** 1b064a2
-**Applied fix:** Removed `sql.end()` from TEST-11's `afterAll` block and added a file-level `afterAll` at the bottom of the file (after all describe blocks). This ensures the connection pool remains open for TEST-12 and is only closed after all tests complete.
+### WR-02 — TEST-14 Turn-2 tautology
+**Root cause:** Turn-2 assertions (`response.length > 0` + `status in {'open', 'open-draft'}`) cover every reachable outcome — the test passes even if the D-14 "exactly one pushback" invariant is violated.
 
-### WR-04: Bare `JSON.parse` in live-accountability.test.ts:65 needs error handling
+**Fix:** Imported `buildVaguePushback` and added 5 sharper assertions:
+1. Turn 1 response == `buildVaguePushback('en')` (pushback fires exactly once)
+2. Pre-Turn-2 row count == 0 (no premature commit)
+3. Turn 2 response != `buildVaguePushback('en')` (no second pushback)
+4. Post-Turn-2 row count == 1 (exactly one commit)
+5. Status ∈ {open, open-draft}
 
-**Files modified:** `src/decisions/__tests__/live-accountability.test.ts`
-**Commit:** 9c8048e
-**Applied fix:** Wrapped `JSON.parse(cleaned)` in a try/catch that throws a descriptive error including the first 200 characters of the raw Haiku response text. This makes debugging much easier when Haiku returns non-JSON (rate limit messages, markdown-wrapped JSON, etc.).
+### WR-03 — callLLM docstring lie
+**Root cause:** Docstring claimed "empty string on failure" but `callLLM` has no try/catch — SDK errors propagate.
 
-### WR-05: Unscoped `db.delete(decisionEvents)` and `db.delete(decisions)` in vague-validator-live.test.ts:104-105
+**Decision:** Updated docstring to document throw-propagation rather than wrapping in try/catch. All existing callers already implement timeout + try/catch fail-soft correctly; silently swallowing SDK errors would hide rate-limit pressure from operator logs.
 
-**Files modified:** `src/decisions/__tests__/vague-validator-live.test.ts`
-**Commit:** c9856f5
-**Applied fix:** Added `inArray` import and scoped `decisionEvents` delete via subquery on `TEST_CHAT_ID` decisions (same pattern as WR-01). Scoped `decisions` delete with `where(eq(decisions.chatId, TEST_CHAT_ID))`.
+### WR-04 — Fragile fence stripper
+**Root cause:** Haiku occasionally produces JSON without fences. The original `stripFences` + `JSON.parse` fails on those outputs, silently fail-softing to acceptable.
 
-### WR-06: `rows` query in vague-validator Test 2 not scoped to TEST_CHAT_ID
+**Fix:** Added `parseJsonLoose` helper that falls back to first-`{...}`-span extraction when `JSON.parse(stripFences(raw))` throws. Handles the "prose without fences" edge case. Added WR-04 comment on the warn log to flag the fail-soft path.
 
-**Files modified:** `src/decisions/__tests__/vague-validator-live.test.ts`
-**Commit:** 1b45f59
-**Applied fix:** Added `.where(eq(decisions.chatId, TEST_CHAT_ID))` to the verification query so it only checks for decisions created by this test, preventing false-positive passes from rows left by other test suites.
+**Note:** The shared `stripFences` util was already consolidated in Phase 14 WR-07 (the review text referring to "three local copies" was stale).
+
+### WR-05 — TEST-10 mockResolvedValueOnce queue leak
+**Root cause:** `vi.clearAllMocks()` does NOT drain `.mockResolvedValueOnce()` queues. TEST-10 queues 4 LLM responses in beforeEach but teardown only resets call counts — queued responses leak to the next test.
+
+**Fix:** One-line change: `vi.clearAllMocks()` → `vi.resetAllMocks()` in TEST-10's `afterEach`. Matches the pattern TEST-12's `beforeEach` already uses at line 519.
+
+## Test Gate
+
+**Command:** `bash scripts/test.sh --no-coverage src/decisions/__tests__/synthetic-fixture.test.ts`
+
+**Result:** All 7 tests pass against real Docker Postgres (TEST-10, TEST-11, TEST-12, plus 4 CR-01 regression subtests from Phase 16 fix). No DEPRECATED warnings.
+
+**TEST-13 / TEST-14 (live-accountability.test.ts / vague-validator-live.test.ts):** SKIPPED — `ANTHROPIC_API_KEY` not set in env. Both describe blocks use `describe.skipIf` and were not exercised. The WR-02 and WR-04 changes affect paths only exercised by the live tests — static verification (tsc, file re-read) passed.
+
+**User preference honored:** NEVER skip Docker integration tests — real postgres via `scripts/test.sh` was always started, no mocks substituted.
+
+## Skipped (out of scope)
+
+6 Info findings (IN-01 through IN-06) — scope is `critical_warning`, Info findings not in scope. See `18-REVIEW.md` for details.
+
+## Cross-phase coordination
+
+Phase 19 agent ran in parallel in a separate worktree. Its fixes (escalation-state atomicity in `sweep.ts`, `state.ts`, and related tests) did not overlap with Phase 18's changes. The one shared file — `src/decisions/__tests__/synthetic-fixture.test.ts` — was edited in non-overlapping regions (Phase 18 touched TEST-10's `afterEach`; Phase 19 touched TEST-12's hoisted mocks). Cherry-picking onto main produced no conflicts.
 
 ---
 
-_Fixed: 2026-04-17T00:00:00Z_
-_Fixer: Claude (gsd-code-fixer)_
-_Iteration: 1_
+_Applied: 2026-04-17T21:00:00Z_
+_Fixer: Claude (gsd-code-fixer agent, worktree-isolated)_
