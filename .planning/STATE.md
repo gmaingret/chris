@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: M007 Decision Archive
 status: executing
-stopped_at: Completed 19-03-PLAN.md — sweep.ts dual-channel + 3 test files byte-exact from 4c156c3; TEST-12 break deferred to Plan 19-04
-last_updated: "2026-04-17T12:02:39.786Z"
+stopped_at: Completed 19-04-PLAN.md — TEST-12 realigned to channel-separation contract; TECH-DEBT-19-01 recorded for deferred drizzle meta snapshots; Wave 4 gate green; v2.1 M007 Decision Archive milestone restoration complete
+last_updated: "2026-04-17T12:47:12.682Z"
 last_activity: 2026-04-17
 progress:
   total_phases: 7
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 27
-  completed_plans: 28
+  completed_plans: 29
   percent: 100
 ---
 
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-04-15 for v2.1 M007 Decision Archive mil
 
 ## Current Position
 
-Phase: 19 (Proactive Pipeline Restoration) — EXECUTING
-Plan: 3 of 4
-Next: `/gsd-plan-phase 13` — decompose Schema & Lifecycle Primitives into plans
-Status: Ready to execute
+Phase: 19 (Proactive Pipeline Restoration) — COMPLETE
+Plan: 4 of 4 (all plans complete)
+Next: v2.1 M007 Decision Archive milestone ready to ship; `/gsd-audit-milestone v2.1` for updated audit report
+Status: Milestone restoration complete
 Last activity: 2026-04-17
 
 ## v2.1 Milestone Roadmap (Phases 13-18)
@@ -68,6 +68,9 @@ Full log in PROJECT.md Key Decisions table. Most load-bearing for M007:
 - **Pre-existing failures ruled out of Phase 19 scope (2026-04-17):** 45 engine.*/photos-memory/language test failures in Wave 1 gate traced to pre-existing bug in engine.test.ts mock chain (select→from→where→limit not covered) introduced by e4cb9da's partial restore of engine.ts PP#0 block. Proven pre-existing via rollback+rerun. Logged in `.planning/phases/19-proactive-pipeline-restoration/deferred-items.md` for post-Phase-19 cleanup.
 - **D19-03-A (2026-04-17):** Plan 19-03 restored sweep.ts + 3 test files byte-exact from 4c156c3 in a single atomic commit; dual-channel runSweep with 48h escalation block is now functional; 72/72 proactive tests green under Docker Postgres. Flow B (deadline → resolution) and Flow E (auto-escalation) are CODE-COMPLETE and test-verified.
 - **D19-03-B (2026-04-17):** TEST-12 in synthetic-fixture.test.ts expected break (vi.mock factory missing hasSentTodayAccountability); realignment to dual-channel contract deferred to Plan 19-04 per the 19-03-PLAN. NOT a regression — it is the pre-existing test locking in a degraded single-pipeline contract.
+- **D19-04-A (2026-04-17):** Plan 19-04 realigned TEST-12 in synthetic-fixture.test.ts to the channel-separation contract (SWEEP-02). Asserts both `accountabilityResult.triggered` + `reflectiveResult.triggered`, 2 `sendMessage` calls, write-before-send ordering, per-channel cap writes, escalation bootstrap. TEST-10/11 preserved both by byte-exact describe-block diff AND by positive `-t 'TEST-10|TEST-11'` filter run (2 passed | 1 skipped). Closes Phase 19 success criterion #6.
+- **D19-04-B (2026-04-17):** Migration meta snapshots — Option A attempted first (`npx drizzle-kit generate` against live Postgres) returned "No schema changes, nothing to migrate"; drizzle-kit does not backfill snapshots for already-applied entries 0001/0003. Option C taken: TECH-DEBT-19-01 recorded in STATE.md `## Known Tech Debt` with explicit reactivation trigger (next phase that modifies `src/db/schema.ts`). Audit disposition: PARTIAL, not FAIL — does not block any v2.1 requirement.
+- **D19-04-C (2026-04-17):** v2.1 M007 Decision Archive milestone restoration COMPLETE. Manual milestone re-audit: requirements 31/31 (was 26/31); integration 12/13 PASS + 1 PARTIAL (was 8/13 + 2 FAIL + 1 PARTIAL); flows 5/5 (was 3/5 — B and E now COMPLETE). Wave 4 Docker gate EXIT 0; 10 files / 94 tests failing = pre-existing Cat A (45) + Cat B (49) baseline identical to Wave 1; zero new regressions.
 
 ### Pending Todos
 
@@ -80,8 +83,8 @@ None. Between-phases pause for M006 (≥1 week real Telegram use before M007) ac
 
 ## Session Continuity
 
-Last session: 2026-04-17T12:02:39.783Z
-Stopped at: Completed 19-03-PLAN.md — sweep.ts dual-channel + 3 test files byte-exact from 4c156c3; TEST-12 break deferred to Plan 19-04
+Last session: 2026-04-17T12:47:06.306Z
+Stopped at: Completed 19-04-PLAN.md — TEST-12 realigned to channel-separation contract; TECH-DEBT-19-01 recorded for deferred drizzle meta snapshots; Wave 4 gate green; v2.1 M007 Decision Archive milestone restoration complete
 Resume file: None
 
 ## Performance Metrics
@@ -91,6 +94,8 @@ Resume file: None
 | 19 | 01 | 36min | 5 | 4 | byte-exact restoration; Wave 1 gate green; 9 pre-existing failing test files catalogued out-of-scope |
 | 19 | 02 | small | 2 | 1 | prompts.ts ACCOUNTABILITY_SYSTEM_PROMPT + ACCOUNTABILITY_FOLLOWUP_PROMPT restored; Wave 2 gate stable vs baseline |
 | 19 | 03 | 13min | 2 | 4 | atomic sweep.ts + 3 test files from 4c156c3; 72/72 proactive tests green; TEST-12 expected break deferred to 19-04 |
+| 19 | 04 | 36min | 3 | 2 | TEST-12 realigned to channel-separation contract; TECH-DEBT-19-01 (drizzle meta snapshots); Wave 4 gate green; v2.1 M007 milestone restoration complete |
+| Phase 19 P04 | 36min | 3 tasks | 2 files |
 
 ## Known Tech Debt
 

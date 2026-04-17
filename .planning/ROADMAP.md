@@ -42,7 +42,7 @@ See [milestones/v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md) for full phase deta
 - [x] **Phase 16: Resolution, Post-Mortem & ACCOUNTABILITY Mode** — New ACCOUNTABILITY mode bypassing praise quarantine, Pensieve-first write ordering, ±48h context retrieval, auto-escalation after 2 non-replies (completed 2026-04-16)
 - [x] **Phase 17: `/decisions` Command & Accuracy Stats** — Haiku 2-axis classification cached with model version, N≥10 floor, Wilson 95% CI, domain-tag breakdown (completed 2026-04-16)
 - [x] **Phase 18: Synthetic Fixture + Live ACCOUNTABILITY Integration Suite** — End-to-end `vi.setSystemTime` fixture covering concurrency races + same-day collision + stale-context; live 3-of-3 Sonnet suite for hit/miss/unverifiable (completed 2026-04-16)
-- [ ] **Phase 19: Proactive Pipeline Restoration** — Gap closure for v2.1 audit: restore dual-channel `sweep.ts`, channel-aware + escalation helpers in `state.ts`, ACCOUNTABILITY prompts in `prompts.ts` (lost in worktree merge `5582442`); re-align TEST-12; restore migration meta snapshots
+- [x] **Phase 19: Proactive Pipeline Restoration** — Gap closure for v2.1 audit: restore dual-channel `sweep.ts`, channel-aware + escalation helpers in `state.ts`, ACCOUNTABILITY prompts in `prompts.ts` (lost in worktree merge `5582442`); re-align TEST-12; restore migration meta snapshots (completed 2026-04-17)
 
 ## Phase Details
 
@@ -166,7 +166,7 @@ Plans:
 - [x] 19-01-PLAN.md — Wave 1: restore `scripts/test.sh` (5 migrations + ON_ERROR_STOP=1) as Task 0 so all downstream Docker gates are green; then restore `triggers/types.ts` union + `state.ts` channel-aware + escalation helpers + `state.test.ts` canonical 23-test coverage (SWEEP-02 + RES-06 enabler; SWEEP-01 enabler via types.ts)
 - [x] 19-02-PLAN.md — Wave 2: restore `prompts.ts` ACCOUNTABILITY_SYSTEM_PROMPT + ACCOUNTABILITY_FOLLOWUP_PROMPT (RES-02/RES-06 enabler; unblocks Plan 19-03 sweep imports)
 - [x] 19-03-PLAN.md — Wave 3: atomic restore of `sweep.ts` dual-channel + escalation block + `sweep.test.ts`/`deadline.test.ts`/`sweep-escalation.test.ts` from canonical `4c156c3` (SWEEP-01, SWEEP-02, SWEEP-04, RES-02, RES-06)
-- [ ] 19-04-PLAN.md — Wave 4: realign `synthetic-fixture.test.ts` TEST-12 to channel-separation contract + regenerate migration meta snapshots 0001/0003 (Option A) OR defer with TECH-DEBT-19-01 record (Option C) + final milestone re-audit
+- [x] 19-04-PLAN.md — Wave 4: realign `synthetic-fixture.test.ts` TEST-12 to channel-separation contract + regenerate migration meta snapshots 0001/0003 (Option A) OR defer with TECH-DEBT-19-01 record (Option C) + final milestone re-audit
 
 ## Progress
 
@@ -190,7 +190,7 @@ Plans:
 | 16. Resolution + ACCOUNTABILITY   | v2.1      | 5/5 | Complete   | 2026-04-16 |
 | 17. `/decisions` & Accuracy Stats | v2.1      | 3/3 | Complete    | 2026-04-16 |
 | 18. Synthetic + Live Suite        | v2.1      | 4/2 | Complete    | 2026-04-16 |
-| 19. Proactive Pipeline Restoration | v2.1     | 3/4 | In Progress|  |
+| 19. Proactive Pipeline Restoration | v2.1     | 4/4 | Complete   | 2026-04-17 |
 
 ## v2.1 Coverage
 
