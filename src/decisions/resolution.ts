@@ -205,18 +205,20 @@ export async function handleResolution(
     .where(eq(decisions.id, decisionId))
     .limit(1);
 
-  const decision = rows[0];
-  if (!decision) {
-    logger.warn({ decisionId }, 'resolution.decision-not-found');
-    return notedAck(getLastUserLanguage(chatId.toString()) ?? 'en');
-  }
-
   // 2. Detect Greg's reply language (Pitfall 1: do NOT read from activeCapture.draft)
+  // Hoisted above the !decision check so the decision-not-found fallback also uses
+  // the normalized short code (CR-01 — prior CR-02 fix was missed on this branch).
   const rawLang = getLastUserLanguage(chatId.toString()) ?? detectLanguage(text, null) ?? 'English';
   // Normalize: detectLanguage/getLastUserLanguage return full names ('French', 'Russian', 'English')
   // but postMortemQuestion/notedAck/alreadyResolvedMessage use short codes ('fr', 'ru', 'en').
   // Use rawLang for buildSystemPrompt (expects full names), langCode for helper functions.
   const detectedLanguage = rawLang === 'French' ? 'fr' : rawLang === 'Russian' ? 'ru' : 'en';
+
+  const decision = rows[0];
+  if (!decision) {
+    logger.warn({ decisionId }, 'resolution.decision-not-found');
+    return notedAck(detectedLanguage);
+  }
 
   // 3. Get +/-48h Pensieve context (pass windowMs = 48h in milliseconds)
   const centerDate = decision.resolveBy ?? new Date();

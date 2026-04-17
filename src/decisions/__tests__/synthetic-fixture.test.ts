@@ -624,6 +624,67 @@ describe('TEST-12: same-day deadline + silence trigger collision (channel separa
   );
 });
 
+// ════════════════════════════════════════════════════════════════════════════
+// CR-01 regression: decision-not-found fallback honors session language
+// ════════════════════════════════════════════════════════════════════════════
+
+// Reuses TEST_CHAT_ID + the session-language module cache. No DB row is seeded
+// (the point is the !decision branch at resolution.ts:217–221). The decisionId
+// passed in is a UUID that does not exist in the decisions table, so
+// handleResolution hits the early-return with notedAck(detectedLanguage).
+describe('CR-01 regression: decision-not-found ack respects session language', () => {
+  beforeAll(async () => {
+    const result = await sql`SELECT 1 as ok`;
+    expect(result[0]!.ok).toBe(1);
+  });
+
+  afterEach(() => {
+    clearLanguageState(TEST_CHAT_ID.toString());
+    vi.resetAllMocks();
+  });
+
+  it('French session → returns Noté. (not English "Noted.")', async () => {
+    setLastUserLanguage(TEST_CHAT_ID.toString(), 'French');
+    const ack = await handleResolution(
+      TEST_CHAT_ID,
+      'Salut',
+      '00000000-0000-0000-0000-000000000001',
+    );
+    expect(ack).toBe('Noté.');
+  });
+
+  it('Russian session → returns Принято. (not English "Noted.")', async () => {
+    setLastUserLanguage(TEST_CHAT_ID.toString(), 'Russian');
+    const ack = await handleResolution(
+      TEST_CHAT_ID,
+      'Привет',
+      '00000000-0000-0000-0000-000000000002',
+    );
+    expect(ack).toBe('Принято.');
+  });
+
+  it('English session → returns Noted. (baseline)', async () => {
+    setLastUserLanguage(TEST_CHAT_ID.toString(), 'English');
+    const ack = await handleResolution(
+      TEST_CHAT_ID,
+      'Hi',
+      '00000000-0000-0000-0000-000000000003',
+    );
+    expect(ack).toBe('Noted.');
+  });
+
+  it('No session language, short reply → falls through to English (detectLanguage returns null on short text)', async () => {
+    // getLastUserLanguage returns null; detectLanguage on "Hi" (2 chars) returns null;
+    // fallback chain lands on 'English' → langCode 'en' → 'Noted.'
+    const ack = await handleResolution(
+      TEST_CHAT_ID,
+      'Hi',
+      '00000000-0000-0000-0000-000000000004',
+    );
+    expect(ack).toBe('Noted.');
+  });
+});
+
 // ── File-level teardown ───────────────────────────────────────────────────
 // Close the shared DB connection pool after ALL describe blocks have run.
 // Moved here from TEST-11's afterAll to avoid closing the pool before TEST-12.
