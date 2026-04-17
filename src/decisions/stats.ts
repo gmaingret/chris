@@ -89,8 +89,17 @@ const N_FLOOR = 10;
 /**
  * Fetch reviewed decisions within the rolling window for accuracy computation.
  * windowDays must be validated to [30, 90, 365] by the caller (T-17-02-01).
+ *
+ * Defense-in-depth (WR-02): also asserts windowDays is a positive integer <= 3650
+ * here, so a future caller that forgets the allowlist check cannot regress
+ * `sql.raw(String(windowDays))` into an injection sink.
  */
 export async function fetchStatsData(chatId: bigint, windowDays: number): Promise<StatsRow[]> {
+  if (!Number.isInteger(windowDays) || windowDays <= 0 || windowDays > 3650) {
+    throw new Error(
+      `fetchStatsData: windowDays must be a positive integer <= 3650, got ${windowDays}`,
+    );
+  }
   return db
     .select({
       accuracyClass: decisions.accuracyClass,
