@@ -39,6 +39,10 @@ import { HAIKU_MODEL } from '../../llm/client.js';
 import { getLastUserLanguage } from '../../chris/language.js';
 import { logger } from '../../utils/logger.js';
 
+// WR-04: upper bound on reclassify batch size. Greg-scale (<=20) leaves
+// massive headroom; this caps worst-case Haiku spend and wall-clock time.
+const MAX_RECLASSIFY_BATCH = 200;
+
 export async function handleDecisionsCommand(ctx: Context): Promise<void> {
   const chatId = ctx.chat?.id;
   if (chatId === undefined) return;
@@ -200,6 +204,18 @@ export async function handleDecisionsCommand(ctx: Context): Promise<void> {
         return;
       }
 
+      // WR-04: batch cap prevents unbounded Haiku spend if the Greg-scale
+      // assumption (<=20 decisions) breaks. 200 leaves headroom but caps
+      // worst-case at ~200 * 2 * 5s = 2000s of Haiku calls.
+      if (toReclassify.length > MAX_RECLASSIFY_BATCH) {
+        await ctx.reply(reclassifyBatchCapMessage(lang, MAX_RECLASSIFY_BATCH, toReclassify.length));
+        return;
+      }
+
+      // WR-04: send an "in progress" reply so Telegram does not drop the
+      // connection on long runs, and Greg has visibility.
+      await ctx.reply(reclassifyStartedMessage(lang, toReclassify.length));
+
       let count = 0;
       // Sequential loop — D-12 mandates no parallel (Pitfall 6)
       for (const d of toReclassify) {
@@ -209,21 +225,26 @@ export async function handleDecisionsCommand(ctx: Context): Promise<void> {
         const reasoning = await classifyAccuracy(outcome, d.resolution!, d.prediction);
         const accuracyClass = `${outcome}/${reasoning}`;
 
-        // Update decisions projection row (overwrite with latest — D-11)
-        await db.update(decisions).set({
-          accuracyClass,
-          accuracyClassifiedAt: new Date(),
-          accuracyModelVersion: HAIKU_MODEL,
-          updatedAt: new Date(),
-        }).where(eq(decisions.id, d.id));
+        // WR-04: wrap projection-update + classified-event-insert in a single
+        // transaction so the D-11 invariant ("originals preserved via
+        // append-only event log") cannot be broken by a partial write.
+        await db.transaction(async (tx) => {
+          // Update decisions projection row (overwrite with latest — D-11)
+          await tx.update(decisions).set({
+            accuracyClass,
+            accuracyClassifiedAt: new Date(),
+            accuracyModelVersion: HAIKU_MODEL,
+            updatedAt: new Date(),
+          }).where(eq(decisions.id, d.id));
 
-        // Append classified event to decision_events (D-11 — preserves originals)
-        // Direct insert, NOT through transitionDecision (Pitfall 3)
-        await db.insert(decisionEvents).values({
-          decisionId: d.id,
-          eventType: 'classified',
-          snapshot: { accuracyClass, accuracyModelVersion: HAIKU_MODEL, reclassifiedAt: new Date().toISOString() },
-          actor: 'system',
+          // Append classified event to decision_events (D-11 — preserves originals)
+          // Direct insert, NOT through transitionDecision (Pitfall 3)
+          await tx.insert(decisionEvents).values({
+            decisionId: d.id,
+            eventType: 'classified',
+            snapshot: { accuracyClass, accuracyModelVersion: HAIKU_MODEL, reclassifiedAt: new Date().toISOString() },
+            actor: 'system',
+          });
         });
 
         count++;
@@ -356,5 +377,23 @@ function reclassifyDoneMessage(l: 'en' | 'fr' | 'ru', n: number): string {
     case 'en': return `Reclassified ${n} decisions.`;
     case 'fr': return `${n} decisions reclassifiees.`;
     case 'ru': return `Переклассифицировано ${n} решений.`;
+  }
+}
+
+// WR-04: reclassify batch-cap message (refused to run because queue too large)
+function reclassifyBatchCapMessage(l: 'en' | 'fr' | 'ru', cap: number, actual: number): string {
+  switch (l) {
+    case 'en': return `Refusing to reclassify: ${actual} decisions exceeds the ${cap}-batch cap.`;
+    case 'fr': return `Refus de reclassifier : ${actual} decisions depasse la limite de ${cap}.`;
+    case 'ru': return `Отказано в переклассификации: ${actual} решений превышает лимит пакета ${cap}.`;
+  }
+}
+
+// WR-04: reclassify progress reply so Telegram does not drop the connection
+function reclassifyStartedMessage(l: 'en' | 'fr' | 'ru', n: number): string {
+  switch (l) {
+    case 'en': return `Reclassifying ${n} decisions... this may take a minute.`;
+    case 'fr': return `Reclassification de ${n} decisions en cours... cela peut prendre une minute.`;
+    case 'ru': return `Переклассификация ${n} решений... это может занять минуту.`;
   }
 }
