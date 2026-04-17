@@ -307,19 +307,25 @@ export async function handleResolution(
       'resolution.classifyAccuracy.error',
     );
   }
-  // Write to decisions projection row (D-03)
-  await db.update(decisions).set({
-    accuracyClass,
-    accuracyClassifiedAt: new Date(),
-    accuracyModelVersion: HAIKU_MODEL,
-    updatedAt: new Date(),
-  }).where(eq(decisions.id, decisionId));
-  // Append classified event to decision_events (D-11, NOT through transitionDecision — Pitfall 3)
-  await db.insert(decisionEvents).values({
-    decisionId,
-    eventType: 'classified',
-    snapshot: { accuracyClass, accuracyModelVersion: HAIKU_MODEL },
-    actor: 'system',
+  // WR-05: wrap projection-update + classified-event-insert in a single
+  // transaction so the D-11 invariant ("originals preserved via append-only
+  // event log") cannot be broken by a partial write (e.g. network blip or
+  // constraint error between the two statements).
+  await db.transaction(async (tx) => {
+    // Write to decisions projection row (D-03)
+    await tx.update(decisions).set({
+      accuracyClass,
+      accuracyClassifiedAt: new Date(),
+      accuracyModelVersion: HAIKU_MODEL,
+      updatedAt: new Date(),
+    }).where(eq(decisions.id, decisionId));
+    // Append classified event to decision_events (D-11, NOT through transitionDecision — Pitfall 3)
+    await tx.insert(decisionEvents).values({
+      decisionId,
+      eventType: 'classified',
+      snapshot: { accuracyClass, accuracyModelVersion: HAIKU_MODEL },
+      actor: 'system',
+    });
   });
 
   // 10. Generate class-specific post-mortem question
