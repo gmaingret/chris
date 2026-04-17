@@ -371,9 +371,17 @@ export function formatStatsBlock(rows: StatsRow[], windowDays: number, lang: Lan
   lines.push(unvLabel);
 
   // Domain breakdown
+  // IN-02: localize the fallback label for rows without a domainTag.
+  const noDomainLabel = (() => {
+    switch (lang) {
+      case 'fr': return '(aucun domaine)';
+      case 'ru': return '(без домена)';
+      default: return '(no domain)';
+    }
+  })();
   const domainMap = new Map<string, StatsRow[]>();
   for (const row of rows) {
-    const domain = row.domainTag ?? '(no domain)';
+    const domain = row.domainTag ?? noDomainLabel;
     if (!domainMap.has(domain)) domainMap.set(domain, []);
     domainMap.get(domain)!.push(row);
   }
