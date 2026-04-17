@@ -27,8 +27,15 @@ export type ClarifierChoice = keyof typeof CLARIFIER_LADDER_DAYS;
 export async function parseResolveBy(naturalText: string): Promise<Date | null> {
   const start = Date.now();
   try {
+    // Supply today's date as explicit context so Haiku can resolve relative
+    // expressions ("next month", "in 3 weeks") against a known anchor rather
+    // than its training cutoff (WR-05).
+    const userContent = JSON.stringify({
+      today: new Date().toISOString().slice(0, 10),
+      text: naturalText,
+    });
     const raw = await Promise.race([
-      callLLM(RESOLVE_BY_PARSER_PROMPT, naturalText, 50),
+      callLLM(RESOLVE_BY_PARSER_PROMPT, userContent, 50),
       new Promise<null>((r) => setTimeout(() => r(null), RESOLVE_BY_TIMEOUT_MS)),
     ]);
     if (!raw) {
