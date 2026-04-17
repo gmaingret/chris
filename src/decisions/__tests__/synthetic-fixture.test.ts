@@ -301,7 +301,12 @@ describe('TEST-10: 14-day decision lifecycle fixture', () => {
 
   afterEach(async () => {
     vi.useRealTimers();
-    vi.clearAllMocks();
+    // Phase 18 WR-05: resetAllMocks (not clearAllMocks) also drains any leftover
+    // `.mockResolvedValueOnce` queues. TEST-10 queues 4 one-shot responses for
+    // handleResolution + handlePostmortem; if a mid-test assertion fails, any
+    // undrained responses would leak into the next test that hits mockAnthropicCreate.
+    // Same fix TEST-12 already applies (see its beforeEach comment).
+    vi.resetAllMocks();
     await cleanup();
     clearLanguageState(TEST_CHAT_ID.toString());
   });
