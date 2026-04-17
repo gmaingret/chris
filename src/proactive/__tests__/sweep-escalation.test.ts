@@ -519,4 +519,34 @@ describe('sweep escalation', () => {
     // clearCapture must be called to prevent orphaned AWAITING_RESOLUTION row
     expect(mockClearCapture).toHaveBeenCalledWith(BigInt(CHAT_ID_NUM));
   });
+
+  it('WR-01: when stale transition fails (race lost), clearCapture is NOT called', async () => {
+    // Scenario: Greg replied to the accountability prompt between the escalation
+    // check and the stale transition attempt. handleResolution flipped due→resolved
+    // and set AWAITING_POSTMORTEM. The sweep's due→stale transition then fails
+    // (InvalidTransitionError / OptimisticConcurrencyError). The fix guarantees
+    // clearCapture is NOT called, preserving Greg's AWAITING_POSTMORTEM state.
+    await setEscalationCount(DECISION_ID, 2);
+    await setEscalationSentAt(DECISION_ID, hoursAgo(50));
+
+    setupAwaitingRow();
+
+    mockDeadlineDetect.mockResolvedValue({ triggered: false });
+    // Simulate race: transition throws because decision is already 'resolved'
+    mockTransitionDecision.mockRejectedValueOnce(new Error('InvalidTransitionError'));
+
+    const { runSweep } = await import('../sweep.js');
+    await runSweep();
+
+    // Transition was attempted
+    expect(mockTransitionDecision).toHaveBeenCalledWith(
+      DECISION_ID,
+      'due',
+      'stale',
+      expect.objectContaining({ actor: expect.any(String) }),
+    );
+
+    // clearCapture must NOT be called — it would wipe Greg's AWAITING_POSTMORTEM state
+    expect(mockClearCapture).not.toHaveBeenCalled();
+  });
 });

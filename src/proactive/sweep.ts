@@ -214,15 +214,34 @@ export async function runSweep(): Promise<SweepResult> {
 
         if (count >= 2) {
           // Two prompts sent, still no reply → transition to stale (D-17: silent).
+          //
+          // WR-01 race guard: handleResolution may have transitioned due→resolved between
+          // the escalation check above and this line, leaving Greg in AWAITING_POSTMORTEM.
+          // We must NOT clearCapture in that case — it would wipe Greg's valid post-mortem
+          // state and silently route his next reply to JOURNAL. Only clear capture/keys
+          // when the stale transition actually succeeded here.
+          let staled = false;
           try {
             await transitionDecision(row.decisionId, 'due', 'stale', { actor: 'sweep' });
+            staled = true;
           } catch (err) {
-            // If already transitioned (concurrent), log and continue.
+            // If already transitioned (concurrent resolve/stale), log and continue.
             logger.warn({ err, decisionId: row.decisionId }, 'proactive.sweep.escalation.stale.failed');
           }
-          await clearCapture(row.chatId);
-          await clearEscalationKeys(row.decisionId);
-          logger.info({ decisionId: row.decisionId }, 'proactive.sweep.escalation.stale');
+          if (staled) {
+            await clearCapture(row.chatId);
+            await clearEscalationKeys(row.decisionId);
+            logger.info({ decisionId: row.decisionId }, 'proactive.sweep.escalation.stale');
+          } else {
+            // Race lost — Greg (or another path) already moved the decision off 'due'.
+            // Clear only the escalation keys (decision is no longer awaiting). Leave
+            // decision_capture_state alone so AWAITING_POSTMORTEM, if set, is preserved.
+            await clearEscalationKeys(row.decisionId);
+            logger.info(
+              { decisionId: row.decisionId },
+              'proactive.sweep.escalation.stale.race.skipped',
+            );
+          }
           continue;
         }
 
