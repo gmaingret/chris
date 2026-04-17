@@ -11,7 +11,14 @@ export const anthropic = new Anthropic({
 
 /**
  * Convenience wrapper: Haiku call with system prompt + user content.
- * Returns the first text block content as a string, or empty string on failure.
+ *
+ * Returns the first text block from the response, or `''` if the response has
+ * no text block (e.g., tool-use-only response).
+ *
+ * **Throws** on SDK errors (rate limit, network, 4xx/5xx). Callers that need
+ * fail-soft behavior must wrap this call in try/catch — see `validateVagueness`,
+ * `classifyStakes`, `parseResolveBy`, and the capture extractor for the
+ * established pattern (Promise.race with timeout + try/catch → fail-soft default).
  */
 export async function callLLM(
   systemPrompt: string,
