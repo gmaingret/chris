@@ -37,10 +37,17 @@ const {
   // TEST-12 trigger mocks
   mockDeadlineDetect,
   mockSilenceDetect,
-  // TEST-12 state mocks
+  // TEST-12 state mocks (channel-separation contract per SWEEP-02)
   mockIsMuted,
-  mockHasSentToday,
-  mockSetLastSent,
+  mockHasSentTodayAccountability,
+  mockHasSentTodayReflective,
+  mockSetLastSentAccountability,
+  mockSetLastSentReflective,
+  mockGetEscalationSentAt,
+  mockSetEscalationSentAt,
+  mockGetEscalationCount,
+  mockSetEscalationCount,
+  mockClearEscalationKeys,
   // TEST-12 bot / conversation mocks
   mockSendMessage,
   mockSaveMessage,
@@ -48,6 +55,7 @@ const {
   mockBuildSweepContext,
   mockRunOpusAnalysis,
   mockUpsertAwaitingResolution,
+  mockClearCapture,
 } = vi.hoisted(() => ({
   mockAnthropicCreate: vi.fn(),
   mockCallLLM: vi.fn().mockResolvedValue('{}'),
@@ -64,10 +72,18 @@ const {
     priority: 1,
     context: 'No silence',
   }),
-  // State helpers
+  // State helpers — channel-separation contract (SWEEP-02)
   mockIsMuted: vi.fn().mockResolvedValue(false),
-  mockHasSentToday: vi.fn().mockResolvedValue(false),
-  mockSetLastSent: vi.fn().mockResolvedValue(undefined),
+  mockHasSentTodayAccountability: vi.fn().mockResolvedValue(false),
+  mockHasSentTodayReflective: vi.fn().mockResolvedValue(false),
+  mockSetLastSentAccountability: vi.fn().mockResolvedValue(undefined),
+  mockSetLastSentReflective: vi.fn().mockResolvedValue(undefined),
+  // Escalation KV helpers (RES-06)
+  mockGetEscalationSentAt: vi.fn().mockResolvedValue(null),
+  mockSetEscalationSentAt: vi.fn().mockResolvedValue(undefined),
+  mockGetEscalationCount: vi.fn().mockResolvedValue(0),
+  mockSetEscalationCount: vi.fn().mockResolvedValue(undefined),
+  mockClearEscalationKeys: vi.fn().mockResolvedValue(undefined),
   // Bot / conversation
   mockSendMessage: vi.fn().mockResolvedValue(undefined),
   mockSaveMessage: vi.fn().mockResolvedValue(undefined),
@@ -75,6 +91,7 @@ const {
   mockBuildSweepContext: vi.fn().mockResolvedValue('sweep context'),
   mockRunOpusAnalysis: vi.fn().mockResolvedValue({ triggered: false }),
   mockUpsertAwaitingResolution: vi.fn().mockResolvedValue(undefined),
+  mockClearCapture: vi.fn().mockResolvedValue(undefined),
 }));
 
 // ── File-level mocks (hoisted by Vitest to top of file) ─────────────────────
@@ -162,23 +179,34 @@ vi.mock('../../proactive/triggers/silence.js', () => ({
   createSilenceTrigger: vi.fn(() => ({ detect: mockSilenceDetect })),
 }));
 
-// Mock state.ts — all helpers are mocked to avoid real DB access for proactive_state table.
+// Mock state.ts — channel-separation contract (SWEEP-02).
+// All helpers are mocked to avoid real DB access for proactive_state table.
 // Escalation helpers return null/0 by default (no pending escalations).
 vi.mock('../../proactive/state.js', () => ({
   isMuted: mockIsMuted,
-  hasSentToday: mockHasSentToday,
-  setLastSent: mockSetLastSent,
+  hasSentTodayAccountability: mockHasSentTodayAccountability,
+  hasSentTodayReflective: mockHasSentTodayReflective,
+  setLastSentAccountability: mockSetLastSentAccountability,
+  setLastSentReflective: mockSetLastSentReflective,
+  getEscalationSentAt: mockGetEscalationSentAt,
+  setEscalationSentAt: mockSetEscalationSentAt,
+  getEscalationCount: mockGetEscalationCount,
+  setEscalationCount: mockSetEscalationCount,
+  clearEscalationKeys: mockClearEscalationKeys,
   getLastSent: vi.fn().mockResolvedValue(null),
 }));
 
 // Mock capture-state helpers used by sweep (upsertAwaitingResolution is called by accountability channel).
-// importOriginal preserves real helpers (clearCapture, updateToAwaitingPostmortem, etc.)
-// while overriding only upsertAwaitingResolution to avoid real DB writes in TEST-12.
+// importOriginal preserves real helpers (updateToAwaitingPostmortem, etc.)
+// while overriding only upsertAwaitingResolution + clearCapture to avoid real DB writes in TEST-12.
+// clearCapture is overridden to prevent accidental DB writes if the escalation loop were to find
+// awaiting rows during TEST-12 (it won't, because TEST-12 does not seed decision_capture_state).
 vi.mock('../../decisions/capture-state.js', async (importOriginal) => {
   const mod = await importOriginal<Record<string, unknown>>();
   return {
     ...mod,
     upsertAwaitingResolution: mockUpsertAwaitingResolution,
+    clearCapture: mockClearCapture,
   };
 });
 
@@ -480,11 +508,16 @@ describe('TEST-11: sweep-vs-user concurrency race', () => {
 // TEST-12: Same-day decision-deadline + silence trigger collision
 // ════════════════════════════════════════════════════════════════════════════
 
-describe('TEST-12: same-day deadline + silence trigger collision', () => {
-  afterEach(() => {
-    vi.useRealTimers();
-    vi.clearAllMocks();
-    // Restore mock defaults for state helpers
+// ── TEST-12: same-day decision-deadline + silence trigger collision ─────────
+// Realigned from degraded single-pipeline contract to the original
+// channel-separation contract (SWEEP-02): both channels fire serially,
+// neither starves the other, accountability fires first (D-05).
+describe('TEST-12: same-day deadline + silence trigger collision (channel separation)', () => {
+  beforeEach(() => {
+    // resetAllMocks (not clearAllMocks) also drains any leftover `.mockResolvedValueOnce`
+    // queues from prior tests in the file (TEST-10 queues 4 LLM responses).
+    vi.resetAllMocks();
+    // Default mocks — overridden per-test below
     mockDeadlineDetect.mockResolvedValue({
       triggered: false,
       triggerType: 'decision-deadline',
@@ -498,28 +531,45 @@ describe('TEST-12: same-day deadline + silence trigger collision', () => {
       context: 'No silence',
     });
     mockIsMuted.mockResolvedValue(false);
-    mockHasSentToday.mockResolvedValue(false);
+    mockHasSentTodayAccountability.mockResolvedValue(false);
+    mockHasSentTodayReflective.mockResolvedValue(false);
+    mockGetEscalationSentAt.mockResolvedValue(null);
+    mockGetEscalationCount.mockResolvedValue(0);
+    // Upstream sweep internals — keep undefined-resolving defaults
+    mockSendMessage.mockResolvedValue(undefined);
+    mockSaveMessage.mockResolvedValue(undefined);
+    mockUpsertAwaitingResolution.mockResolvedValue(undefined);
+    mockSetLastSentAccountability.mockResolvedValue(undefined);
+    mockSetLastSentReflective.mockResolvedValue(undefined);
+    mockSetEscalationSentAt.mockResolvedValue(undefined);
+    mockSetEscalationCount.mockResolvedValue(undefined);
+    mockClearEscalationKeys.mockResolvedValue(undefined);
+    mockClearCapture.mockResolvedValue(undefined);
+    mockBuildSweepContext.mockResolvedValue('sweep context');
+    mockRunOpusAnalysis.mockResolvedValue({ triggered: false });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it(
-    'deadline and silence triggers both fire; single-pipeline selects highest-priority winner without starvation',
+    'deadline and silence triggers both fire; channels fire serially without either starving the other',
     async () => {
-      // ── Setup: deadline trigger fires (priority 2) ────────────────────
       const FAKE_DECISION_ID = 'test-decision-uuid-for-test-12';
 
+      // Both triggers fire
       mockDeadlineDetect.mockResolvedValue({
         triggered: true,
         triggerType: 'decision-deadline',
         priority: 2,
-        context: 'Your deadline just passed for a prediction you made: "Test prediction". Your falsification criterion was: "Test criterion".',
+        context: 'On 2026-04-01 you predicted: "Test prediction". Your falsification criterion was: "Test criterion".',
         evidence: [
           `Decision ID: ${FAKE_DECISION_ID}`,
           'Resolve by: 2026-04-01T10:00:00.000Z',
           'Staleness: 24h',
         ],
       });
-
-      // ── Setup: silence trigger fires (priority 1 — wins) ──────────────
       mockSilenceDetect.mockResolvedValue({
         triggered: true,
         triggerType: 'silence',
@@ -528,26 +578,47 @@ describe('TEST-12: same-day deadline + silence trigger collision', () => {
         evidence: ['Last message 3 days ago'],
       });
 
-      // ── Setup: state helpers — not muted, not sent today ──────────────
-      mockIsMuted.mockResolvedValue(false);
-      mockHasSentToday.mockResolvedValue(false);
-
-      // ── Setup: LLM returns valid text (single pipeline, one call) ─────
+      // Accountability channel LLM + reflective channel LLM — TWO calls
       mockAnthropicCreate
+        .mockResolvedValueOnce({
+          content: [{ type: 'text', text: 'On 2026-04-01 you predicted Test prediction. What actually happened?' }],
+        })
         .mockResolvedValueOnce({
           content: [{ type: 'text', text: "I noticed you've been quiet for a few days. How are things going?" }],
         });
 
-      // ── Run full sweep ─────────────────────────────────────────────────
       const result = await runSweep();
 
-      // ── Assert: single-pipeline fired ─────────────────────────────────
+      // SWEEP-02: BOTH channels fire independently
       expect(result.triggered).toBe(true);
-      // Silence has priority 1 (lower = higher priority), deadline has priority 2.
-      // Single pipeline selects highest-priority (lowest number) trigger.
-      expect(result.triggerType).toBe('silence');
-      // Exactly one message sent (single pipeline, one winner)
-      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      expect(result.accountabilityResult?.triggered).toBe(true);
+      expect(result.accountabilityResult?.triggerType).toBe('decision-deadline');
+      expect(result.reflectiveResult?.triggered).toBe(true);
+      expect(result.reflectiveResult?.triggerType).toBe('silence');
+
+      // Exactly TWO messages sent (one per channel) — no starvation
+      expect(mockSendMessage).toHaveBeenCalledTimes(2);
+
+      // D-05: accountability fires FIRST
+      const firstMsg = mockSendMessage.mock.calls[0]?.[1] as string | undefined;
+      const secondMsg = mockSendMessage.mock.calls[1]?.[1] as string | undefined;
+      expect(firstMsg).toContain('predicted');          // accountability message
+      expect(secondMsg).toContain('quiet');              // reflective message (silence content)
+
+      // RES-02: write-before-send routing
+      expect(mockUpsertAwaitingResolution).toHaveBeenCalledTimes(1);
+      expect(mockUpsertAwaitingResolution).toHaveBeenCalledWith(
+        expect.any(BigInt),          // chatId
+        FAKE_DECISION_ID,            // decisionId
+      );
+
+      // Per-channel cap writes
+      expect(mockSetLastSentAccountability).toHaveBeenCalledTimes(1);
+      expect(mockSetLastSentReflective).toHaveBeenCalledTimes(1);
+
+      // Initial escalation state written (bootstrap + per-tick escalation loop pass)
+      expect(mockSetEscalationSentAt).toHaveBeenCalledWith(FAKE_DECISION_ID, expect.any(Date));
+      expect(mockSetEscalationCount).toHaveBeenCalledWith(FAKE_DECISION_ID, 1);
     },
     30_000,
   );
