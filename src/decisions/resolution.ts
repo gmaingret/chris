@@ -146,7 +146,17 @@ export async function classifyOutcome(
     }
 
     const cleaned = textBlock.text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
-    const parsed: unknown = JSON.parse(cleaned);
+
+    // WR-06: explicit inner try/catch mirrors the classify-accuracy.ts:79-84
+    // pattern so malformed JSON surfaces a dedicated `parse-error` log label
+    // instead of getting absorbed by the outer catch as `classify.error`.
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch {
+      logger.warn({ latencyMs: Date.now() - start }, 'resolution.classify.parse-error');
+      return 'ambiguous';
+    }
 
     if (
       typeof parsed !== 'object' ||
