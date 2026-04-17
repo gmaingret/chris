@@ -251,8 +251,8 @@ async function cleanup(): Promise<void> {
   await db
     .delete(decisionCaptureState)
     .where(eq(decisionCaptureState.chatId, TEST_CHAT_ID));
-  // pensieve_entries has no FK constraint from decision tables (sourceRefId is JSONB metadata only).
-  await db.delete(pensieveEntries);
+  // pensieve_entries has no chatId column; scope by source='telegram' as best-effort filter.
+  await db.delete(pensieveEntries).where(eq(pensieveEntries.source, 'telegram'));
 }
 
 // ════════════════════════════════════════════════════════════════════════════
