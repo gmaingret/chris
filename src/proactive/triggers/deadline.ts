@@ -81,7 +81,12 @@ export function createDeadlineTrigger(): TriggerDetector {
         await transitionDecision(candidate.id, 'open', 'due', { actor: 'sweep' });
       } catch (err) {
         if (err instanceof OptimisticConcurrencyError) {
-          // Another process already transitioned this one — retry with next candidate
+          // Another process already transitioned this one — retry with next candidate.
+          // Re-query uses the same `now` bound from above (via the queryDueDecisions
+          // closure). The previously-failed candidate is no longer `status='open'` in
+          // the DB (some other actor transitioned it), so `ORDER BY resolve_by ASC
+          // LIMIT 1` returns the next-oldest open+due row, not the same candidate.
+          // This guarantees we do not infinite-loop on the same row.
           const retryRows = await queryDueDecisions();
           if (retryRows.length === 0) {
             return notTriggered('No due decisions after retry');
