@@ -17,7 +17,7 @@
  * windowDays must be validated to [30, 90, 365] by caller before use (T-17-02-01).
  */
 
-import { db, sql as pgSql } from '../db/connection.js';
+import { db } from '../db/connection.js';
 import { decisions } from '../db/schema.js';
 import { eq, and, gte, inArray, asc, desc } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
