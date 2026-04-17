@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: M007 Decision Archive
 status: executing
-stopped_at: Completed 19-01-PLAN.md — scripts/test.sh + types.ts + state.ts + state.test.ts byte-exact from 4c156c3
-last_updated: "2026-04-17T09:23:49.795Z"
+stopped_at: Completed 19-03-PLAN.md — sweep.ts dual-channel + 3 test files byte-exact from 4c156c3; TEST-12 break deferred to Plan 19-04
+last_updated: "2026-04-17T12:02:39.786Z"
 last_activity: 2026-04-17
 progress:
   total_phases: 7
   completed_phases: 6
   total_plans: 27
-  completed_plans: 26
-  percent: 96
+  completed_plans: 28
+  percent: 100
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-15 for v2.1 M007 Decision Archive mil
 ## Current Position
 
 Phase: 19 (Proactive Pipeline Restoration) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Next: `/gsd-plan-phase 13` — decompose Schema & Lifecycle Primitives into plans
 Status: Ready to execute
 Last activity: 2026-04-17
@@ -66,6 +66,8 @@ Full log in PROJECT.md Key Decisions table. Most load-bearing for M007:
 - **D19-01-A upheld (2026-04-17):** setEscalationContext/getEscalationContext NOT restored — they do not exist in canonical 4c156c3, no consumer imports them, no requirement mandates them. ROADMAP Phase 19 success criterion 1 mention is treated as optimistic.
 - **D19-01-B upheld (2026-04-17):** scripts/test.sh restoration moved from Plan 19-04 Task 1 to Plan 19-01 Task 0, eliminating circular wave dependency. All subsequent Wave gates now use the canonical 5-migration harness.
 - **Pre-existing failures ruled out of Phase 19 scope (2026-04-17):** 45 engine.*/photos-memory/language test failures in Wave 1 gate traced to pre-existing bug in engine.test.ts mock chain (select→from→where→limit not covered) introduced by e4cb9da's partial restore of engine.ts PP#0 block. Proven pre-existing via rollback+rerun. Logged in `.planning/phases/19-proactive-pipeline-restoration/deferred-items.md` for post-Phase-19 cleanup.
+- **D19-03-A (2026-04-17):** Plan 19-03 restored sweep.ts + 3 test files byte-exact from 4c156c3 in a single atomic commit; dual-channel runSweep with 48h escalation block is now functional; 72/72 proactive tests green under Docker Postgres. Flow B (deadline → resolution) and Flow E (auto-escalation) are CODE-COMPLETE and test-verified.
+- **D19-03-B (2026-04-17):** TEST-12 in synthetic-fixture.test.ts expected break (vi.mock factory missing hasSentTodayAccountability); realignment to dual-channel contract deferred to Plan 19-04 per the 19-03-PLAN. NOT a regression — it is the pre-existing test locking in a degraded single-pipeline contract.
 
 ### Pending Todos
 
@@ -78,8 +80,8 @@ None. Between-phases pause for M006 (≥1 week real Telegram use before M007) ac
 
 ## Session Continuity
 
-Last session: 2026-04-17T09:23:49.792Z
-Stopped at: Completed 19-01-PLAN.md — scripts/test.sh + types.ts + state.ts + state.test.ts byte-exact from 4c156c3
+Last session: 2026-04-17T12:02:39.783Z
+Stopped at: Completed 19-03-PLAN.md — sweep.ts dual-channel + 3 test files byte-exact from 4c156c3; TEST-12 break deferred to Plan 19-04
 Resume file: None
 
 ## Performance Metrics
@@ -87,3 +89,5 @@ Resume file: None
 | Phase | Plan | Duration | Tasks | Files | Notes |
 |-------|------|----------|-------|-------|-------|
 | 19 | 01 | 36min | 5 | 4 | byte-exact restoration; Wave 1 gate green; 9 pre-existing failing test files catalogued out-of-scope |
+| 19 | 02 | small | 2 | 1 | prompts.ts ACCOUNTABILITY_SYSTEM_PROMPT + ACCOUNTABILITY_FOLLOWUP_PROMPT restored; Wave 2 gate stable vs baseline |
+| 19 | 03 | 13min | 2 | 4 | atomic sweep.ts + 3 test files from 4c156c3; 72/72 proactive tests green; TEST-12 expected break deferred to 19-04 |

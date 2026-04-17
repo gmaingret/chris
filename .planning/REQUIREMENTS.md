@@ -28,11 +28,11 @@
 ### Resolution
 
 - [ ] **RES-01**: New `ACCOUNTABILITY` mode (or explicit COACH extension chosen at plan-phase) bypasses the praise quarantine at the prompt level — follows the COACH/PSYCHOLOGY bypass pattern (D025). The Hard Rule (D027) is forbidden explicitly in the mode's system prompt.
-- [ ] **RES-02**: Resolution prompts surface within 24 hours of `resolve_by` passing; prompt text cites the original prediction and asks "what actually happened?" in Greg's language of the last user message. *(reassigned to Phase 19 — handler correct but sweep never invokes it; lost in worktree merge `5582442`)*
+- [x] **RES-02**: Resolution prompts surface within 24 hours of `resolve_by` passing; prompt text cites the original prediction and asks "what actually happened?" in Greg's language of the last user message. *(reassigned to Phase 19 — handler correct but sweep never invokes it; lost in worktree merge `5582442`)*
 - [ ] **RES-03**: When Greg responds to a resolution prompt, the engine pre-processor intercepts (based on `decision_capture_state = AWAITING_RESOLUTION`) and routes to the resolution handler instead of normal mode detection — response is stored in `resolution` and `decisions` transitions `due → resolved`.
 - [ ] **RES-04**: After resolution, exactly one post-mortem follow-up question is asked (chosen by Haiku-classified outcome class: hit/miss/ambiguous/unverifiable). Response stored in `resolution_notes`; `decisions` transitions `resolved → reviewed`. Both responses become Pensieve entries with `source_ref_id` pointing to the decision row.
 - [ ] **RES-05**: Resolution includes ±48h Pensieve retrieval surfacing surrounding entries as context for the post-mortem prompt (cheap M001 reuse). Popper falsification criterion is re-displayed passively in the prompt.
-- [ ] **RES-06**: Auto-escalation — if Greg does not respond to a resolution prompt within 48 hours, a second prompt is sent once. After 2 non-replies the decision transitions to `stale` and no further prompts fire (but `/decisions` still surfaces it). *(reassigned to Phase 19 — no escalation block in sweep.ts; `clearEscalationKeys` missing from state.ts; lost in worktree merge `5582442`)*
+- [x] **RES-06**: Auto-escalation — if Greg does not respond to a resolution prompt within 48 hours, a second prompt is sent once. After 2 non-replies the decision transitions to `stale` and no further prompts fire (but `/decisions` still surfaces it). *(reassigned to Phase 19 — no escalation block in sweep.ts; `clearEscalationKeys` missing from state.ts; lost in worktree merge `5582442`)*
 
 ### Stats
 
@@ -44,10 +44,10 @@
 
 ### Scheduler / Sweep
 
-- [ ] **SWEEP-01**: New `decision-deadline` trigger added to the proactive sweep as a fifth SQL-first trigger at priority=2 (between silence=1 and commitment=3). Extends existing `TriggerDetector` interface per D010 two-phase execution.
+- [x] **SWEEP-01**: New `decision-deadline` trigger added to the proactive sweep as a fifth SQL-first trigger at priority=2 (between silence=1 and commitment=3). Extends existing `TriggerDetector` interface per D010 two-phase execution.
 - [x] **SWEEP-02**: Channel separation — sweep daily cap is split into `reflective_outreach` (silence/commitment/pattern/thread, existing behavior) and `accountability_outreach` (decision-deadline) with independent caps; on same-day collision the channels fire serially, not one blocking the other.
 - [ ] **SWEEP-03**: Engine pre-processor #0 checks `decision_capture_state` BEFORE mute/refusal/language/mode detection — rows in `AWAITING_RESOLUTION` / `AWAITING_POSTMORTEM` / `CAPTURING` bypass normal routing and go directly to the capture/resolution handler.
-- [ ] **SWEEP-04**: Stale-context prompt text — when a resolution prompt fires more than 48 hours past `resolve_by`, the prompt is explicitly dated ("On 2026-04-01 you predicted…") rather than implicitly recent-framed.
+- [x] **SWEEP-04**: Stale-context prompt text — when a resolution prompt fires more than 48 hours past `resolve_by`, the prompt is explicitly dated ("On 2026-04-01 you predicted…") rather than implicitly recent-framed.
 
 ### Testing & Validation
 
@@ -92,20 +92,20 @@
 | LIFE-05     | 14    | Pending | Contradiction detection extended to decisions.reasoning |
 | LIFE-06     | 13    | Pending | `DECISION` epistemic tag (prevents commitment trigger double-fire) |
 | RES-01      | 16    | Pending | ACCOUNTABILITY mode bypasses praise quarantine + forbids The Hard Rule (guards C7) |
-| RES-02      | 19    | Pending | Reassigned from Phase 16 — handler correct but sweep never invokes it (v2.1 gap closure) |
+| RES-02      | 19    | Complete | Reassigned from Phase 16 — handler correct but sweep never invokes it (v2.1 gap closure) |
 | RES-03      | 16    | Pending | Pre-processor routes AWAITING_RESOLUTION to resolution handler |
 | RES-04      | 16    | Pending | Single Haiku-classified post-mortem; both replies become Pensieve entries with source_ref_id |
 | RES-05      | 16    | Pending | ±48h Pensieve context + Popper criterion redisplay |
-| RES-06      | 19    | Pending | Reassigned from Phase 16 — no escalation block; `clearEscalationKeys` missing (v2.1 gap closure) |
+| RES-06      | 19    | Complete | Reassigned from Phase 16 — no escalation block; `clearEscalationKeys` missing (v2.1 gap closure) |
 | STAT-01     | 17    | Pending | `/decisions` + sub-commands, pull-only |
 | STAT-02     | 17    | Pending | 2-axis Haiku classification cached on decision_events with model version (guards M4) |
 | STAT-03     | 17    | Pending | N≥10 floor + Wilson 95% CI (guards C6) |
 | STAT-04     | 17    | Pending | SQL FILTER windows; `unverifiable` separate denominator |
 | STAT-05     | 17    | Pending | Domain-tag breakdown + `/decisions reclassify` preserving originals |
-| SWEEP-01    | 19    | Pending | Reassigned from Phase 15 — trigger exists in deadline.ts but never invoked by sweep.ts (v2.1 gap closure) |
+| SWEEP-01    | 19    | Complete | Reassigned from Phase 15 — trigger exists in deadline.ts but never invoked by sweep.ts (v2.1 gap closure) |
 | SWEEP-02    | 19    | Complete | Reassigned from Phase 15 — channel-aware state helpers missing from state.ts (v2.1 gap closure) |
 | SWEEP-03    | 14    | Pending | Engine pre-processor #0 runs before mute/refusal/language/mode |
-| SWEEP-04    | 19    | Pending | Reassigned from Phase 15 — dated stale-context logic exists in deadline.ts but trigger never invoked (v2.1 gap closure) |
+| SWEEP-04    | 19    | Complete | Reassigned from Phase 15 — dated stale-context logic exists in deadline.ts but trigger never invoked (v2.1 gap closure) |
 | TEST-10     | 18    | Pending | End-to-end `vi.setSystemTime` 14-day fixture |
 | TEST-11     | 18    | Pending | Concurrency race — optimistic concurrency winner |
 | TEST-12     | 18    | Pending | Same-day decision-deadline + silence collision |
