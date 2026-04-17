@@ -52,25 +52,33 @@ export function daysFromNow(days: number): Date {
 }
 
 /**
- * Match a clarifier reply to a ladder choice. Supports EN/FR/RU.
+ * Match a clarifier reply to a ladder choice. Dispatches on `language`
+ * so cross-language false-matches (e.g., EN "a month" triggering inside
+ * an FR session) are avoided. RU patterns use Cyrillic-aware Unicode
+ * boundaries since JS `\b` is ASCII-only and fails to separate Cyrillic
+ * letters (e.g., `год` inside `годная`).
  */
 export function matchClarifierReply(text: string, language: 'en' | 'fr' | 'ru'): ClarifierChoice | null {
   const t = text.trim().toLowerCase();
-  // EN
-  if (/\b(a |one |1 )?week\b/i.test(t)) return 'week';
-  if (/\b(a |one |1 )?month\b/i.test(t) && !/three/i.test(t) && !/3 /.test(t)) return 'month';
-  if (/\b(three|3) ?months?\b/i.test(t)) return 'threeMonths';
-  if (/\b(a |one |1 )?year\b/i.test(t)) return 'year';
-  // FR
-  if (/\bsemaine\b/i.test(t)) return 'week';
-  if (/\bmois\b/i.test(t) && !/trois/i.test(t) && !/3 /.test(t)) return 'month';
-  if (/\btrois ?mois\b|\b3 ?mois\b/i.test(t)) return 'threeMonths';
-  if (/\ban(n[eé]e)?s?\b/i.test(t)) return 'year';
-  // RU
-  if (/\bнеделю?\b/i.test(t)) return 'week';
-  if (/\bмесяц\b/i.test(t) && !/три/i.test(t) && !/3 /.test(t)) return 'month';
-  if (/\bтри ?месяца\b|\b3 ?месяца\b/i.test(t)) return 'threeMonths';
-  if (/\bгод\b|\bгода\b/i.test(t)) return 'year';
+  if (language === 'en') {
+    if (/\b(three|3) ?months?\b/i.test(t)) return 'threeMonths';
+    if (/\b(a |one |1 )?week\b/i.test(t)) return 'week';
+    if (/\b(a |one |1 )?month\b/i.test(t)) return 'month';
+    if (/\b(a |one |1 )?year\b/i.test(t)) return 'year';
+    return null;
+  }
+  if (language === 'fr') {
+    if (/\btrois ?mois\b|\b3 ?mois\b/i.test(t)) return 'threeMonths';
+    if (/\bsemaine\b/i.test(t)) return 'week';
+    if (/\bmois\b/i.test(t)) return 'month';
+    if (/\ban(n[eé]e)?s?\b/i.test(t)) return 'year';
+    return null;
+  }
+  // RU — use Unicode-aware boundaries: non-letter (or start/end) around the token.
+  if (/(?:^|[^\p{L}])(?:три ?месяца|3 ?месяца)(?:[^\p{L}]|$)/iu.test(t)) return 'threeMonths';
+  if (/(?:^|[^\p{L}])недел[юи]?(?:[^\p{L}]|$)/iu.test(t)) return 'week';
+  if (/(?:^|[^\p{L}])месяц(?:[^\p{L}]|$)/iu.test(t)) return 'month';
+  if (/(?:^|[^\p{L}])год[а]?(?:[^\p{L}]|$)/iu.test(t)) return 'year';
   return null;
 }
 
