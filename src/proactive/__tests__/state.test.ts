@@ -32,6 +32,10 @@ import {
   getMuteUntil,
   setMuteUntil,
   isMuted,
+  hasSentTodayReflective,
+  setLastSentReflective,
+  hasSentTodayAccountability,
+  setLastSentAccountability,
 } from '../state.js';
 
 describe('ProactiveState', () => {
@@ -193,6 +197,91 @@ describe('ProactiveState', () => {
       const result = await getMuteUntil();
       expect(result).toBeInstanceOf(Date);
       expect(result!.toISOString()).toBe(iso);
+    });
+  });
+
+  // ── channel-aware state helpers ────────────────────────────────────────
+
+  describe('channel-aware state helpers', () => {
+    // hasSentTodayReflective
+
+    it('hasSentTodayReflective returns false when neither last_sent_reflective nor last_sent exists', async () => {
+      // First call: last_sent_reflective = null; second call: last_sent = null
+      mockLimit.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+      expect(await hasSentTodayReflective('Europe/Paris')).toBe(false);
+    });
+
+    it('hasSentTodayReflective returns true when last_sent_reflective was set today', async () => {
+      const now = new Date();
+      // First call: last_sent_reflective = now (today)
+      mockLimit.mockResolvedValueOnce([{ value: now.toISOString() }]);
+      expect(await hasSentTodayReflective('Europe/Paris')).toBe(true);
+    });
+
+    it('hasSentTodayReflective falls back to last_sent when last_sent_reflective is absent (D-07 migration)', async () => {
+      const now = new Date();
+      // First call: last_sent_reflective = null; second call: last_sent = today
+      mockLimit.mockResolvedValueOnce([]).mockResolvedValueOnce([{ value: now.toISOString() }]);
+      expect(await hasSentTodayReflective('Europe/Paris')).toBe(true);
+    });
+
+    it('hasSentTodayReflective ignores last_sent when last_sent_reflective exists', async () => {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      yesterday.setHours(12, 0, 0, 0);
+      // last_sent_reflective = yesterday (not today) → should return false, not fall through to last_sent
+      mockLimit.mockResolvedValueOnce([{ value: yesterday.toISOString() }]);
+      // last_sent would be today, but should never be read
+      const result = await hasSentTodayReflective('Europe/Paris');
+      // mockLimit called exactly once (only last_sent_reflective was queried)
+      expect(mockLimit).toHaveBeenCalledTimes(1);
+      expect(result).toBe(false);
+    });
+
+    it('setLastSentReflective writes to last_sent_reflective key (not last_sent)', async () => {
+      const timestamp = new Date('2026-03-15T10:00:00Z');
+      await setLastSentReflective(timestamp);
+      expect(mockInsert).toHaveBeenCalled();
+      expect(mockValues).toHaveBeenCalledWith(
+        expect.objectContaining({
+          key: 'last_sent_reflective',
+          value: '2026-03-15T10:00:00.000Z',
+        }),
+      );
+    });
+
+    // hasSentTodayAccountability
+
+    it('hasSentTodayAccountability returns false when last_sent_accountability does not exist', async () => {
+      mockLimit.mockResolvedValueOnce([]);
+      expect(await hasSentTodayAccountability('Europe/Paris')).toBe(false);
+    });
+
+    it('hasSentTodayAccountability returns true when last_sent_accountability was set today', async () => {
+      const now = new Date();
+      mockLimit.mockResolvedValueOnce([{ value: now.toISOString() }]);
+      expect(await hasSentTodayAccountability('Europe/Paris')).toBe(true);
+    });
+
+    it('hasSentTodayAccountability does NOT fall back to last_sent (no legacy for accountability)', async () => {
+      // last_sent_accountability = null → false, regardless of last_sent
+      mockLimit.mockResolvedValueOnce([]);
+      const result = await hasSentTodayAccountability('Europe/Paris');
+      // mockLimit called exactly once (only last_sent_accountability was queried)
+      expect(mockLimit).toHaveBeenCalledTimes(1);
+      expect(result).toBe(false);
+    });
+
+    it('setLastSentAccountability writes to last_sent_accountability key', async () => {
+      const timestamp = new Date('2026-03-15T10:00:00Z');
+      await setLastSentAccountability(timestamp);
+      expect(mockInsert).toHaveBeenCalled();
+      expect(mockValues).toHaveBeenCalledWith(
+        expect.objectContaining({
+          key: 'last_sent_accountability',
+          value: '2026-03-15T10:00:00.000Z',
+        }),
+      );
     });
   });
 });
