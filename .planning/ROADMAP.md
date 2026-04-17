@@ -163,10 +163,10 @@ Plans:
   7. Phase 15/16 test suites stay GREEN; `/gsd-audit-milestone v2.1` re-run shows `requirements: 31/31`, no FAIL integration checks, flows B + E marked COMPLETE.
 **Plans**: 4 plans
 Plans:
-- [ ] 19-01-PLAN.md — Restore `state.ts` channel-aware + escalation helpers (SWEEP-02 + RES-06 enabler)
-- [ ] 19-02-PLAN.md — Restore `prompts.ts` ACCOUNTABILITY prompts (integration fix; unblocks sweep)
-- [ ] 19-03-PLAN.md — Restore `sweep.ts` dual-channel refactor + deadline trigger wiring + `upsertAwaitingResolution` + escalation block (SWEEP-01, SWEEP-04, RES-02, RES-06)
-- [ ] 19-04-PLAN.md — Regenerate migration meta snapshots (0001/0003) + realign TEST-12 to original channel-separation contract
+- [ ] 19-01-PLAN.md — Wave 1: restore `triggers/types.ts` union + `state.ts` channel-aware + escalation helpers + `state.test.ts` canonical 23-test coverage (SWEEP-02 + RES-06 enabler; SWEEP-01 enabler via types.ts)
+- [ ] 19-02-PLAN.md — Wave 2: restore `prompts.ts` ACCOUNTABILITY_SYSTEM_PROMPT + ACCOUNTABILITY_FOLLOWUP_PROMPT (RES-02/RES-06 enabler; unblocks Plan 19-03 sweep imports)
+- [ ] 19-03-PLAN.md — Wave 3: atomic restore of `sweep.ts` dual-channel + escalation block + `sweep.test.ts`/`deadline.test.ts`/`sweep-escalation.test.ts` from canonical `4c156c3` (SWEEP-01, SWEEP-02, SWEEP-04, RES-02, RES-06)
+- [ ] 19-04-PLAN.md — Wave 4: restore `scripts/test.sh` (5 migrations + ON_ERROR_STOP=1) + realign `synthetic-fixture.test.ts` TEST-12 to channel-separation contract + regenerate migration meta snapshots 0001/0003 (Option A) OR defer (Option C) + final milestone re-audit
 
 ## Progress
 
