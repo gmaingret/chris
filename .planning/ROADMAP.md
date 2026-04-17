@@ -190,7 +190,7 @@ Plans:
 | 16. Resolution + ACCOUNTABILITY   | v2.1      | 5/5 | Complete   | 2026-04-16 |
 | 17. `/decisions` & Accuracy Stats | v2.1      | 3/3 | Complete    | 2026-04-16 |
 | 18. Synthetic + Live Suite        | v2.1      | 4/2 | Complete    | 2026-04-16 |
-| 19. Proactive Pipeline Restoration | v2.1     | 4/4 | Complete   | 2026-04-17 |
+| 19. Proactive Pipeline Restoration | v2.1     | 4/4 | Complete    | 2026-04-17 |
 
 ## v2.1 Coverage
 
