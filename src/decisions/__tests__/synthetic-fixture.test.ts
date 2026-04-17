@@ -426,9 +426,7 @@ describe('TEST-11: sweep-vs-user concurrency race', () => {
   });
 
   afterAll(async () => {
-    // Close the shared DB connection pool after the last real-DB test suite.
-    // TEST-12 uses mocked sweep functions and does not need the pool open.
-    await sql.end();
+    // Cleanup handled by file-level afterAll below.
   });
 
   afterEach(async () => {
@@ -553,4 +551,11 @@ describe('TEST-12: same-day deadline + silence trigger collision', () => {
     },
     30_000,
   );
+});
+
+// ── File-level teardown ───────────────────────────────────────────────────
+// Close the shared DB connection pool after ALL describe blocks have run.
+// Moved here from TEST-11's afterAll to avoid closing the pool before TEST-12.
+afterAll(async () => {
+  await sql.end();
 });
