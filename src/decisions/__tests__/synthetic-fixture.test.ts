@@ -20,7 +20,7 @@
  */
 
 import { describe, it, expect, beforeAll, beforeEach, afterAll, afterEach, vi } from 'vitest';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { db, sql } from '../../db/connection.js';
 import {
   decisions,
@@ -238,7 +238,13 @@ async function cleanup(): Promise<void> {
   // Delete in FK-safe order: events → decisions → capture state → pensieve entries.
   // Scoped to TEST_CHAT_ID where the schema supports it.
   // decisionEvents references decisions by FK, so delete events first.
-  await db.delete(decisionEvents);
+  // Scope via subquery: only delete events belonging to this test's decisions.
+  await db.delete(decisionEvents).where(
+    inArray(
+      decisionEvents.decisionId,
+      db.select({ id: decisions.id }).from(decisions).where(eq(decisions.chatId, TEST_CHAT_ID)),
+    ),
+  );
   await db
     .delete(decisions)
     .where(eq(decisions.chatId, TEST_CHAT_ID));
