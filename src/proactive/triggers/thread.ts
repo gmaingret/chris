@@ -1,6 +1,8 @@
 /**
  * Unresolved thread trigger — wraps OpusAnalysisResult.thread into
- * a TriggerDetector with priority 4.
+ * a TriggerDetector with priority 5.
+ *
+ * Priority: 5 (silence=1, deadline=2, commitment=3, pattern=4, thread=5)
  *
  * Fires when Opus detects an unresolved thread with confidence ≥ 0.5.
  */
@@ -8,7 +10,7 @@
 import type { TriggerDetector, TriggerResult } from './types.js';
 import type { OpusAnalysisResult } from './opus-analysis.js';
 
-const THREAD_PRIORITY = 4;
+const THREAD_PRIORITY = 5;
 const CONFIDENCE_THRESHOLD = 0.5;
 
 export function createThreadTrigger(

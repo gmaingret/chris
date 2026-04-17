@@ -225,7 +225,7 @@ describe('createPatternTrigger', () => {
     expect(result.triggered).toBe(false);
   });
 
-  it('always returns priority 3', async () => {
+  it('always returns priority 4', async () => {
     const triggered: OpusAnalysisResult = {
       pattern: { detected: true, description: 'x', evidence: [], confidence: 0.8 },
       thread: { detected: false, description: '', evidence: [], confidence: 0 },
@@ -235,8 +235,8 @@ describe('createPatternTrigger', () => {
       thread: { detected: false, description: '', evidence: [], confidence: 0 },
     };
 
-    expect((await createPatternTrigger(triggered).detect()).priority).toBe(3);
-    expect((await createPatternTrigger(notTriggered).detect()).priority).toBe(3);
+    expect((await createPatternTrigger(triggered).detect()).priority).toBe(4);
+    expect((await createPatternTrigger(notTriggered).detect()).priority).toBe(4);
   });
 });
 
@@ -277,7 +277,7 @@ describe('createThreadTrigger', () => {
     expect(result.triggered).toBe(false);
   });
 
-  it('always returns priority 4', async () => {
+  it('always returns priority 5', async () => {
     const triggered: OpusAnalysisResult = {
       pattern: { detected: false, description: '', evidence: [], confidence: 0 },
       thread: { detected: true, description: 'x', evidence: [], confidence: 0.8 },
@@ -287,7 +287,7 @@ describe('createThreadTrigger', () => {
       thread: { detected: false, description: '', evidence: [], confidence: 0 },
     };
 
-    expect((await createThreadTrigger(triggered).detect()).priority).toBe(4);
-    expect((await createThreadTrigger(notTriggered).detect()).priority).toBe(4);
+    expect((await createThreadTrigger(triggered).detect()).priority).toBe(5);
+    expect((await createThreadTrigger(notTriggered).detect()).priority).toBe(5);
   });
 });

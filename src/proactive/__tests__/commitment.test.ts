@@ -55,7 +55,7 @@ describe('commitment trigger', () => {
 
     expect(result.triggered).toBe(false);
     expect(result.triggerType).toBe('commitment');
-    expect(result.priority).toBe(2);
+    expect(result.priority).toBe(3);
     expect(result.context).toBe('No stale commitments found');
   });
 
@@ -86,7 +86,7 @@ describe('commitment trigger', () => {
 
     expect(result.triggered).toBe(true);
     expect(result.triggerType).toBe('commitment');
-    expect(result.priority).toBe(2);
+    expect(result.priority).toBe(3);
     expect(result.context).toContain('14 days ago');
     expect(result.context).toContain('I want to start running every morning');
     expect(result.context).toContain("There's been no follow-up");
@@ -134,18 +134,18 @@ describe('commitment trigger', () => {
     expect(result.evidence![2]).toBe('Entry fff-666: 10 days old');
   });
 
-  it('always returns priority 2 for commitment triggers', async () => {
+  it('always returns priority 3 for commitment triggers', async () => {
     // Not triggered case
     mockLimit.mockResolvedValueOnce([]);
     const trigger1 = createCommitmentTrigger(STALE_DAYS);
-    expect((await trigger1.detect()).priority).toBe(2);
+    expect((await trigger1.detect()).priority).toBe(3);
 
     // Triggered case
     const now = new Date('2026-03-28T12:00:00Z');
     Date.now = () => now.getTime();
     mockLimit.mockResolvedValueOnce([makeEntry('ggg-777', 'Exercise more', 10, now)]);
     const trigger2 = createCommitmentTrigger(STALE_DAYS);
-    expect((await trigger2.detect()).priority).toBe(2);
+    expect((await trigger2.detect()).priority).toBe(3);
   });
 
   it('uses oldest entry context when multiple stale entries found', async () => {

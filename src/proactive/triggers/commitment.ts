@@ -4,6 +4,8 @@
  * Queries pensieveEntries for INTENTION entries older than `staleDays`
  * and fires when John has made commitments he hasn't followed up on.
  *
+ * Priority: 3 (silence=1, deadline=2, commitment=3, pattern=4, thread=5)
+ *
  * Observability: Returns structured TriggerResult with human-readable
  * context describing the stale commitment and its age.
  */
@@ -15,6 +17,7 @@ import type { TriggerResult, TriggerDetector } from './types.js';
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 const MAX_CONTEXT_LENGTH = 200;
+const COMMITMENT_PRIORITY = 3;
 
 /**
  * Truncate text to maxLen characters, appending "…" if truncated.
@@ -30,7 +33,7 @@ export function createCommitmentTrigger(staleDays: number): TriggerDetector {
       const notTriggered = (context: string): TriggerResult => ({
         triggered: false,
         triggerType: 'commitment',
-        priority: 2,
+        priority: COMMITMENT_PRIORITY,
         context,
       });
 
@@ -75,7 +78,7 @@ export function createCommitmentTrigger(staleDays: number): TriggerDetector {
       return {
         triggered: true,
         triggerType: 'commitment',
-        priority: 2,
+        priority: COMMITMENT_PRIORITY,
         context: `John made a commitment ${ageDays} days ago: "${truncate(oldest.content, MAX_CONTEXT_LENGTH)}". There's been no follow-up.`,
         evidence,
       };

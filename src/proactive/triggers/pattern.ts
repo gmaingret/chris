@@ -1,6 +1,8 @@
 /**
  * Pattern recurrence trigger — wraps OpusAnalysisResult.pattern into
- * a TriggerDetector with priority 3.
+ * a TriggerDetector with priority 4.
+ *
+ * Priority: 4 (silence=1, deadline=2, commitment=3, pattern=4, thread=5)
  *
  * Fires when Opus detects a recurring pattern with confidence ≥ 0.5.
  */
@@ -8,7 +10,7 @@
 import type { TriggerDetector, TriggerResult } from './types.js';
 import type { OpusAnalysisResult } from './opus-analysis.js';
 
-const PATTERN_PRIORITY = 3;
+const PATTERN_PRIORITY = 4;
 const CONFIDENCE_THRESHOLD = 0.5;
 
 export function createPatternTrigger(
