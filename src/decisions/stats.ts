@@ -383,7 +383,14 @@ export function formatStatsBlock(rows: StatsRow[], windowDays: number, lang: Lan
     for (const [domain, domainRows] of domainMap) {
       const acc = computeAccuracy(domainRows);
       if (acc.belowFloor) {
-        lines.push(`  ${domain}: N=${acc.n}, threshold not met`);
+        const thresholdLabel = (() => {
+          switch (lang) {
+            case 'fr': return `N=${acc.n}, seuil non atteint`;
+            case 'ru': return `N=${acc.n}, порог не достигнут`;
+            default: return `N=${acc.n}, threshold not met`;
+          }
+        })();
+        lines.push(`  ${domain}: ${thresholdLabel}`);
       } else {
         lines.push(
           `  ${domain}: ${acc.hits}/${acc.n} (${acc.pct}%) [${acc.ci!.lo}-${acc.ci!.hi}% CI]`,
