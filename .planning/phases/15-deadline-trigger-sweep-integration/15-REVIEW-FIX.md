@@ -1,28 +1,30 @@
 ---
 phase: 15-deadline-trigger-sweep-integration
-fixed_at: 2026-04-17T21:00:00Z
+fixed_at: 2026-04-17T05:48:00Z
 review_path: .planning/phases/15-deadline-trigger-sweep-integration/15-REVIEW.md
 iteration: 2
-findings_in_scope: 4
-fixed: 4
+findings_in_scope: 8
+fixed: 8
 skipped: 0
 status: all_fixed
 ---
 
 # Phase 15: Code Review Fix Report
 
-**Fixed at:** 2026-04-17T21:00:00Z
+**Fixed at:** 2026-04-17T05:48:00Z
 **Source review:** `.planning/phases/15-deadline-trigger-sweep-integration/15-REVIEW.md`
 **Iteration:** 2
 
 > Note: Iteration 2 is the post-Phase 19 restoration review. Phase 19's byte-exact restore
 > from canonical commit `4c156c3` reintroduced the pre-renumbering priority constants;
-> this iteration re-applies the phase-15 priority renumbering and adds a regression test
-> to prevent future byte-restores from silently reintroducing the collision.
+> iteration 2 first re-applied the phase-15 priority renumbering and the three Warning
+> fixes, then cleared the remaining four Info findings (IN-01…IN-04). IN-01 and IN-02
+> are already resolved by the CR-01 fix commits; IN-03 and IN-04 were applied as new
+> discrete commits under the `fix(15): IN-NN` convention.
 
 **Summary:**
-- Findings in scope: 4 (1 Critical + 3 Warning; Info deferred)
-- Fixed: 4
+- Findings in scope: 8 (1 Critical + 3 Warning + 4 Info)
+- Fixed: 8
 - Skipped: 0
 
 ## Fixed Issues
@@ -81,6 +83,41 @@ The priority-map regression test is the load-bearing defense: any future byte-re
   - Otherwise return the number as-is.
 - Chose "log + return 0" over "throw on corruption" per REVIEW.md's offered alternative. Throwing would hard-fail every sweep tick on a single corrupted row — worse operational behavior than logging + fallback. The warn log makes the corruption observable (the core ask), which is strictly better than the silent reset the pre-fix code did.
 
+### IN-01: `sweep.ts:11-12` JSDoc references the renumbered priorities
+
+**Files modified:** none (already correct after CR-01)
+**Commit:** resolved by `da2f9c6` (CR-01)
+**Applied fix:** The `sweep.ts` dual-channel JSDoc at lines 11-12 already reads "silence (priority 1) + commitment (priority 3)" and "pattern (priority 4) + thread (priority 5)" — this matches the post-renumbering source constants as of CR-01. The Info finding explicitly notes "Once CR-01 is applied, this comment will be correct" — no separate commit required. Verified by reading lines 1-22 of the current `sweep.ts`.
+
+### IN-02: Pattern and thread trigger JSDoc lines matching priority updates
+
+**Files modified:** none (already correct after CR-01)
+**Commits:** resolved by `da2f9c6` (CR-01) and `b6fa824` (pattern.ts JSDoc follow-up)
+**Applied fix:**
+- `pattern.ts` JSDoc line 3 reads "a TriggerDetector with priority 4." and JSDoc line 5 reads "Priority: 4 (silence=1, deadline=2, commitment=3, pattern=4, thread=5)" — matches `PATTERN_PRIORITY = 4`.
+- `thread.ts` JSDoc line 3 reads "a TriggerDetector with priority 5." and JSDoc line 5 reads "Priority: 5 (silence=1, deadline=2, commitment=3, pattern=4, thread=5)" — matches `THREAD_PRIORITY = 5`.
+- Both updates were applied in the same CR-01 commit (`da2f9c6`) as the constant renumbering; `b6fa824` is an earlier in-phase correction of the pattern-trigger JSDoc (pre-Phase-19 restoration). No new commit required for iteration 2.
+
+### IN-03: `commitment.ts` uses `inArray` for a single-value filter
+
+**Files modified:** `src/proactive/triggers/commitment.ts`
+**Commit:** `8b8ad77`
+**Applied fix:**
+- Replaced `inArray(pensieveEntries.epistemicTag, ['INTENTION'])` with `eq(pensieveEntries.epistemicTag, 'INTENTION')` on the `.where()` clause of the stale-commitment query.
+- Updated the `drizzle-orm` named import: swapped `inArray` out for `eq`. Final import: `import { and, eq, lt, isNull, asc } from 'drizzle-orm';`.
+- Matches the rest of the codebase's idiom for single-value equality predicates (e.g., the `runEscalation` scan in `sweep.ts` already uses `eq`).
+- Emits `= 'INTENTION'` rather than `IN ('INTENTION')`; semantically identical, clearer at read time, and one fewer SQL implementation edge-case to reason about (postgres optimizer treats them the same, but `eq` is more grep-able as a single-tag predicate).
+
+### IN-04: `runReflectiveChannel` parameter type is a duplicated inline shape
+
+**Files modified:** `src/proactive/sweep.ts`
+**Commit:** `3fee630`
+**Applied fix:**
+- Added `import type { TriggerResult } from './triggers/types.js';` to `sweep.ts` (placed adjacent to the other `./triggers/*` imports).
+- Replaced the inline parameter type `Array<{ triggered: boolean; triggerType: string; priority: number; context: string; evidence?: string[] }>` with `TriggerResult[]` on `runReflectiveChannel`.
+- Benefit: future changes to `TriggerResult` (e.g., the prospective `decisionId` field from the prior review's long-term fix) now flow through automatically instead of silently diverging at the inline shape.
+- Type-check pass: `npx tsc --noEmit` reports zero errors scoped to `sweep.ts`. The full required test gate (5 files, 79 tests) and `opus-analysis.test.ts` (20 tests) both stayed green after the change — `TriggerResult` is structurally compatible with the old inline shape.
+
 ## Testing gate
 
 **Command (as specified in workflow):**
@@ -90,30 +127,19 @@ bash scripts/test.sh --no-coverage \
   src/proactive/__tests__/sweep-escalation.test.ts \
   src/proactive/__tests__/deadline.test.ts \
   src/proactive/__tests__/state.test.ts \
-  src/decisions/__tests__/synthetic-fixture.test.ts
+  src/proactive/__tests__/priority-map.test.ts
 ```
 
-**Result:** **5 test files, 75 tests, all pass.** Real postgres via `docker-compose.local.yml`, migrations applied, zero mocks substituting for integration DB. Duration ~1.1s after Docker startup.
+**Result (final, after all Info fixes):** **5 test files, 79 tests, all pass.** Real postgres via `docker-compose.local.yml`, migrations applied, zero mocks substituting for integration DB. Duration ~2.0s post-Docker-startup.
 
-**Extended verification (outside the required gate, to cover the files I touched):**
-- `priority-map.test.ts` (new): **6/6 pass** — regression test for CR-01, the load-bearing defense.
-- `commitment.test.ts` (modified): **9/9 pass**.
-- `opus-analysis.test.ts` (modified): **19/19 pass**.
-- Full `src/proactive/__tests__/` directory: **10 test files, 144 tests, all pass.**
+**Extended verification (files I touched in Info pass):**
+- `commitment.test.ts`: **8/8 pass** after IN-03's `eq` substitution.
+- `opus-analysis.test.ts`: **20/20 pass** after IN-04's `TriggerResult[]` retype.
+- `npx tsc --noEmit`: zero errors on `commitment.ts` and `sweep.ts`.
 
-No regressions detected. The user's durable preference (always run real postgres, never mock as substitute) was honoured throughout — every test run used `scripts/test.sh` with real Docker postgres + full migrations.
+No regressions detected. The user's durable preference (always run real postgres, never mock as substitute) was honoured — every test run used `scripts/test.sh` with real Docker postgres + full migrations. Docker integration tests were never skipped.
 
-## Info findings (deferred — not in scope)
-
-Scope was `critical_warning` only per workflow config. Info findings remain open for a follow-up pass:
-- **IN-01:** `sweep.ts:11-12` JSDoc — was already correct before CR-01 (the JSDoc actually matched the renumbered priorities; the source constants were the regression, not the comment). Effectively resolved at zero cost.
-- **IN-02:** Pattern/thread JSDoc priority lines — addressed as part of CR-01 (pattern JSDoc line 2 → "priority 4", thread JSDoc line 2 → "priority 5", plus added canonical priority-map line in both headers).
-- **IN-03:** `commitment.ts:49` `inArray` → `eq` style change — cosmetic, deferred.
-- **IN-04:** `runReflectiveChannel` parameter type → `TriggerResult[]` — small refactor, deferred.
-
-IN-01 and IN-02 are already resolved by CR-01's fix commits. IN-03 and IN-04 are stylistic and can be picked up independently.
-
-## Commits (in order)
+## Commits (in order, all eight findings)
 
 | Hash | Finding | Summary |
 |------|---------|---------|
@@ -122,9 +148,13 @@ IN-01 and IN-02 are already resolved by CR-01's fix commits. IN-03 and IN-04 are
 | `8518000` | WR-02 | Bound escalation scan with ORDER BY updatedAt ASC + LIMIT 10 |
 | `1a24d3e` | WR-03 | Log warn when getEscalationCount reads non-numeric JSONB |
 | `7605e40` | CR-01 | Repair priority-map test DB mock to handle silence's no-.limit chain |
+| (no new) | IN-01 | Resolved by CR-01 — `sweep.ts:11-12` JSDoc already matches post-renumbering |
+| (no new) | IN-02 | Resolved by CR-01 + `b6fa824` — pattern/thread JSDoc priority lines already match |
+| `8b8ad77` | IN-03 | Use `eq` instead of `inArray` for single-value INTENTION filter in commitment.ts |
+| `3fee630` | IN-04 | Type `runReflectiveChannel` fired param as `TriggerResult[]` |
 
 ---
 
-_Fixed: 2026-04-17T21:00:00Z_
+_Fixed: 2026-04-17T05:48:00Z_
 _Fixer: Claude (gsd-code-fixer)_
 _Iteration: 2_

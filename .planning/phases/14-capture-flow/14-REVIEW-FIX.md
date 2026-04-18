@@ -1,26 +1,93 @@
 ---
 phase: 14-capture-flow
-fixed_at: 2026-04-17T17:22:00Z
+fixed_at: 2026-04-18T05:57:00Z
 review_path: .planning/phases/14-capture-flow/14-REVIEW.md
-iteration: 1
-findings_in_scope: 10
-fixed: 10
+iteration: 2
+findings_in_scope: 14
+fixed: 14
 skipped: 0
 status: all_fixed
 ---
 
 # Phase 14: Code Review Fix Report
 
-**Fixed at:** 2026-04-17T17:22:00Z
+**Fixed at (iteration 2):** 2026-04-18T05:57:00Z
 **Source review:** `.planning/phases/14-capture-flow/14-REVIEW.md`
-**Iteration:** 1
+
+**Summary (cumulative across both iterations):**
+- Findings in scope: 14 (2 Critical + 8 Warning + 4 Info)
+- Fixed: 14 (10 in iteration 1 + 4 in iteration 2)
+- Skipped: 0
+
+---
+
+## Iteration 2 (Info findings, 2026-04-18T05:57:00Z)
+
+Iteration 2 clears the 4 Info findings left out of iteration 1's `critical_warning` scope. All edits are minimal — doc/comment-level for IN-01 and IN-03, a one-line guard for IN-02, and a small JSONB-boundary validator for IN-04. No behavioral regressions for the live-traffic flow; new defensive paths log warnings rather than throw.
+
+### IN-01: Phase attribution drift in handler header
+
+**Files modified:** `src/bot/handlers/decisions.ts`
+**Commit:** 5eaae35
+**Applied fix:** Rewrote the top-of-file JSDoc from "Phase 17 Plan 03" to "Phases 14 + 17" and restructured the sub-command list to annotate each branch with its originating phase/ticket (`Phase 14 (CAP-06)` for `suppress` / `suppressions` / `unsuppress`; `Phase 17 (T-17-03)` for `(no-args)` / `open` / `recent` / `stats` / `reclassify`). Added matching in-line section comments on each `if (sub === …)` block so provenance is visible at the call site as well as the header. Pure documentation — no control-flow changes. Tier-2 `tsc --noEmit` clean for this file.
+
+### IN-02: Empty-string reply from `handleCapture` on no-state path
+
+**Files modified:** `src/bot/bot.ts`
+**Commit:** edfa1ca
+**Applied fix:** Added a one-line guard at `bot.ts:48` — `if (response) await ctx.reply(response)` — so an empty `processMessage` return (reachable only on the narrow race between engine's PP#0 state read and `handleCapture`'s own state read when abort clears in between) does not reach Telegram's "message text is empty" rejection path. Chose the `bot.ts` guard over a localized fallback string in `handleCapture` because:
+  1. The race path has already produced user-visible output via the abort-ack save in engine.ts, so silently skipping an empty `ctx.reply` is the correct semantics — not synthesizing a spurious "OK" message.
+  2. It covers any other future code path in `processMessage` that might return `''` without requiring them each to synthesize their own localized fallback.
+Reviewer suggested engine-side check, but engine doesn't call `ctx.reply` — it returns a string through `processMessage`, and the actual `ctx.reply` happens in `bot.ts:handleTextMessage`. Applied the guard at the real forwarding point.
+
+### IN-03: `isSuppressed` O(n) DB round-trip per message
+
+**Files modified:** `src/decisions/suppressions.ts`
+**Commit:** 075b55a
+**Applied fix:** Documentation-only. Expanded the JSDoc on `isSuppressed` to explicitly record the per-message round-trip cost, the v1 rationale (Greg-scale — "a handful of suppressed phrases per chat" — makes it negligible), and the deferred caching strategy (in-memory per-chat cache invalidated on `addSuppression`/`removeSuppression`). Per the reviewer's own note, caching is out of v1 scope; the fix here is to make the deferral explicit so future readers don't re-discover the same performance concern.
+
+### IN-04: Defensive `?? 'en'` on required `language_at_capture`
+
+**Files modified:** `src/decisions/capture-state.ts`, `src/chris/engine.ts`, `src/decisions/capture.ts`
+**Commit:** 1fd6b07
+**Applied fix:** Added a new `coerceValidDraft(raw: unknown): CaptureDraft` helper in `capture-state.ts` that validates the JSONB-boundary shape and fills safe defaults for the three required fields (`language_at_capture` → `'en'`, `turn_count` → `0`, `triggering_message` → `''`) while preserving all optional fields. Applied it at the two read sites that previously cast `draft as CaptureDraft` in user-facing code:
+  - `engine.ts:186` (PP#0 capture routing): replaces `const draft = activeCapture.draft as CaptureDraft; const lang = draft.language_at_capture ?? 'en';` with `coerceValidDraft(activeCapture.draft)` and drops the now-redundant `?? 'en'` fallback.
+  - `capture.ts:279` (`handleCapture` draft read): replaces `{ ...(state.draft as CaptureDraft) }` with `coerceValidDraft(state.draft)`.
+
+Left the third cast site (`capture-state.ts:68` in `updateCaptureDraft`) unchanged because that path merges-and-writes rather than reads-for-routing, and a corrupt draft at that point would have already been rejected upstream. Removed the now-unused `type CaptureDraft` import in `engine.ts` (all remaining uses are through `coerceValidDraft`'s return type). Validator is lenient (fills defaults + returns successfully) rather than strict (throws) so a single corrupt JSONB row does not take down the engine for all traffic — matches WR-06's defensive-coalescing pattern already applied at the commit-time `triggering_message` use sites, closing the same JSONB-boundary-validation gap the reviewer flagged.
+
+Tier-2 `tsc --noEmit` clean across all three modified files.
+
+## Test gate (iteration 2)
+
+Ran Docker-Postgres tests per user's standing "never skip Docker integration tests" preference.
+
+**Command:** `bash scripts/test.sh --no-coverage src/decisions/__tests__/ src/chris/__tests__/engine.test.ts`
+
+**Two-pass run:**
+  1. **First pass**: missed exporting `ANTHROPIC_API_KEY` from `.env` into the shell — `scripts/test.sh` fell back to `"test-key"` → every `callLLM` returned 401. 34/84 tests failed in ways that merely confirmed the silent-fallback path (vague-validator-live flagged 0/10 because every Haiku call failed → fail-soft `'acceptable'`; live-accountability threw 401 from its own `classifyAccountabilityTone` helper).
+  2. **Second pass** (source `.env` before invoking): **32 failed | 52 passed (84 tests / 4 files)**, duration 44.68s. All 32 failures are pre-existing and match iteration 1's documented pattern:
+
+**Failures (all pre-existing, NOT caused by iteration 2 fixes):**
+  - `chris/__tests__/engine.test.ts` — **29 failures**. All fail with `TypeError: db.select(...).from(...).where(...).limit is not a function` at `decisions/capture-state.ts:46:6` — i.e., at the original `.limit(1)` inside `getActiveDecisionCapture`, which is **upstream** of the new `coerceValidDraft` call site. Exactly the mock-gap iteration 1 documented (the file's db mock never implemented `.limit()`). Verified the failure point is unchanged by my edits: the stack trace's `capture-state.ts:46` line corresponds to the `.limit(1)` call, not the new helper appended below.
+  - `decisions/__tests__/live-accountability.test.ts` — **3 failures** (Scenarios 1/2/3). All fail with `Haiku judge returned non-JSON response. Raw text: \`\`\`json\n{"flattery":"none","condemnation":"none"}\n\`\`\`\n\nThis response: ...`. The test's own `classifyAccountabilityTone` helper at `live-accountability.test.ts:64-82` does a naive `stripFences` via regex that fails when the real Haiku response closes the fence and then appends explanatory prose. Identical root cause to iteration 1's "test-side fence-strip bug" documentation. Completely independent of any Phase 14 source code.
+
+**Passing (52 tests / 2 files):**
+  - `decisions/__tests__/synthetic-fixture.test.ts` — **PASS** (3 tests / 14-day lifecycle, concurrency race, deadline+silence collision)
+  - `decisions/__tests__/vague-validator-live.test.ts` — **PASS** (2 tests / 10 adversarial EN/FR/RU vague predictions flagged by real Haiku + D-14 one-pushback invariant). Note: this suite regressed on first pass due to the API-key env issue; passed cleanly on second pass with real Haiku responses.
+  - 43 of 72 tests in `chris/__tests__/engine.test.ts` — **PASS** (all tests that do not route through `getActiveDecisionCapture`'s mock-gap path).
+  - 4 of 7 tests in `decisions/__tests__/live-accountability.test.ts` — **PASS** (scenarios whose Haiku response happened not to trigger the test-side fence-strip failure).
+
+**Conclusion:** No test that exercises any symbol I introduced or modified in iteration 2 changed status. `coerceValidDraft` is new and has no test coverage yet — that's expected for an Info-level defensive helper that only activates on schema drift the tests never produce. No regression from iteration 1's green set.
+
+## Iteration 1 (Critical + Warning findings, 2026-04-17T17:22:00Z)
+
+Preserved verbatim from iteration 1's report.
 
 **Summary:**
 - Findings in scope: 10 (2 Critical + 8 Warning; 4 Info skipped by scope)
 - Fixed: 10
 - Skipped: 0
-
-## Fixed Issues
 
 ### CR-01: Stakes classifier reads wrong JSON field — feature silently disabled
 
@@ -82,7 +149,7 @@ status: all_fixed
 **Commit:** 421d1ac
 **Applied fix:** Verified `contradiction.ts:87-89` already filters `searchResults` by `r.entry.id !== entryId` before handing candidates to Haiku, so the `pensieveId` of the just-inserted entry is correctly excluded. Added a clarifying comment at the capture call site (line 403-406) documenting the self-exclusion guarantee so future refactors don't silently remove it. No behavioral change — this is a documentation-only fix on a verified-safe path.
 
-## Test gate
+### Iteration 1 test gate
 
 Ran Docker-Postgres tests per user's standing "never skip Docker integration tests" preference.
 
@@ -115,15 +182,8 @@ The task-prompt test list appears to reference the pre-18-01 Phase-14 unit-test 
 
 No test that references any symbol I modified (`classifyStakes`, `parseResolveBy`, `matchClarifierReply`, `addSuppression`, `openCapture`, `handleCapture`, `validateVagueness`, or any of the three prompt constants) changed its pass/fail status as a result of my fixes. Grep confirmed only `vague-validator-live.test.ts` imports any of those symbols, and it still passes.
 
-## Info findings (deferred — out of scope for critical_warning fix pass)
-
-- IN-01: Phase attribution drift in `src/bot/handlers/decisions.ts` header (cosmetic)
-- IN-02: Empty-string reply from `handleCapture` on no-state path (narrow race, low risk)
-- IN-03: `isSuppressed` O(n) DB round-trip (performance, out of v1 scope per the finding itself)
-- IN-04: Defensive `?? 'en'` on required `language_at_capture` (same JSONB-boundary gap as WR-06; addressable by adding the `assertValidDraft` guard recommended in IN-04, which would be the structural fix for both)
-
 ---
 
-_Fixed: 2026-04-17T17:22:00Z_
+_Fixed (iteration 2): 2026-04-18T05:57:00Z_
 _Fixer: Claude (gsd-code-fixer, Opus 4.7 [1M context])_
-_Iteration: 1_
+_Iteration: 2_
