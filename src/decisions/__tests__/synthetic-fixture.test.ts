@@ -223,13 +223,13 @@ import { fetchStatsData } from '../stats.js';
 import { upsertAwaitingResolution } from '../capture-state.js';
 import { setLastUserLanguage, clearLanguageState } from '../../chris/language.js';
 import { runSweep } from '../../proactive/sweep.js';
+import { DAY_MS } from '../../__tests__/fixtures/time.js';
 
 // ── Shared constants ─────────────────────────────────────────────────────────
 
 /** Unique chat ID for this file — avoids collision with other test files' cleanup. */
 const TEST_CHAT_ID = BigInt(99918);
 
-const DAY_MS = 86_400_000;
 const BASE_DATE = new Date('2026-04-01T10:00:00Z');
 
 function advanceDays(n: number): Date {
@@ -614,6 +614,22 @@ describe('TEST-12: same-day deadline + silence trigger collision (channel separa
       const secondMsg = mockSendMessage.mock.calls[1]?.[1] as string | undefined;
       expect(firstMsg).toContain('predicted');          // accountability message
       expect(secondMsg).toContain('quiet');              // reflective message (silence content)
+
+      // IN-01: Assert channel ORDER at the state-helper boundary independent of
+      // prompt text. `invocationCallOrder` is a monotonic global counter vitest
+      // assigns across ALL mock invocations in the test run, so comparing the
+      // first call's order on each mock proves the accountability state write
+      // happened-before the reflective state write. This makes D-05 (accountability
+      // fires first) explicit at the state-write boundary rather than inferred
+      // from the content-matching `firstMsg`/`secondMsg` assertions above, which
+      // work only because the two prompts happen to contain distinguishable tokens.
+      const accountabilityCallOrder =
+        mockSetLastSentAccountability.mock.invocationCallOrder[0];
+      const reflectiveCallOrder =
+        mockSetLastSentReflective.mock.invocationCallOrder[0];
+      expect(accountabilityCallOrder).toBeDefined();
+      expect(reflectiveCallOrder).toBeDefined();
+      expect(accountabilityCallOrder).toBeLessThan(reflectiveCallOrder!);
 
       // RES-02: write-before-send routing
       expect(mockUpsertAwaitingResolution).toHaveBeenCalledTimes(1);
