@@ -143,10 +143,20 @@ export async function setLastSentAccountability(timestamp: Date): Promise<void> 
 const escalationSentKey = (decisionId: string) => `accountability_sent_${decisionId}`;
 const escalationCountKey = (decisionId: string) => `accountability_prompt_count_${decisionId}`;
 
-/** Get when the last accountability prompt was sent for a specific decision. */
+/**
+ * Get when the last accountability prompt was sent for a specific decision.
+ *
+ * IN-05: Uses `val == null` to match the null-check pattern used by the rest
+ * of this file (see `getLastSent`, `getMuteUntil`, `hasSentTodayReflective`,
+ * `hasSentTodayAccountability`). The previous `val ? ...` truthy check also
+ * treated empty string `""` as "not present" — safe in practice because
+ * `setEscalationSentAt` always writes an ISO timestamp, but stylistically
+ * inconsistent and brittle against JSONB corruption scenarios.
+ */
 export async function getEscalationSentAt(decisionId: string): Promise<Date | null> {
   const val = await getValue(escalationSentKey(decisionId));
-  return val ? new Date(val as string) : null;
+  if (val == null) return null;
+  return new Date(val as string);
 }
 
 /** Record when an accountability prompt was sent for a specific decision. */
