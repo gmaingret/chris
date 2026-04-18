@@ -1,7 +1,26 @@
-CREATE TYPE "public"."decision_capture_stage" AS ENUM('DECISION', 'ALTERNATIVES', 'REASONING', 'PREDICTION', 'FALSIFICATION', 'AWAITING_RESOLUTION', 'AWAITING_POSTMORTEM', 'DONE');--> statement-breakpoint
-CREATE TYPE "public"."decision_event_type" AS ENUM('created', 'status_changed', 'field_updated', 'classified');--> statement-breakpoint
-CREATE TYPE "public"."decision_status" AS ENUM('open-draft', 'open', 'due', 'resolved', 'reviewed', 'withdrawn', 'stale', 'abandoned');--> statement-breakpoint
-CREATE TABLE "decision_capture_state" (
+-- MD-02: Idempotency guards added so re-running this migration against a database
+-- that already has these objects does not fail mid-stream. Drizzle's migrator tracks
+-- applied migrations via __drizzle_migrations, so normal forward migration flows are
+-- unaffected. These guards only matter for cold-starts, manual re-applies (e.g. the
+-- raw-psql path in scripts/test.sh), or recovery from a botched partial deploy.
+--
+-- Postgres 16 does NOT support `CREATE TYPE ... IF NOT EXISTS` for enums, so each
+-- enum is wrapped in a `DO $$ ... EXCEPTION WHEN duplicate_object ... $$` block.
+-- Tables and indexes use the standard `IF NOT EXISTS` clause. The FK constraint has
+-- no `IF NOT EXISTS` form either, so it's also wrapped in a DO block.
+DO $$ BEGIN
+	CREATE TYPE "public"."decision_capture_stage" AS ENUM('DECISION', 'ALTERNATIVES', 'REASONING', 'PREDICTION', 'FALSIFICATION', 'AWAITING_RESOLUTION', 'AWAITING_POSTMORTEM', 'DONE');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+	CREATE TYPE "public"."decision_event_type" AS ENUM('created', 'status_changed', 'field_updated', 'classified');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+	CREATE TYPE "public"."decision_status" AS ENUM('open-draft', 'open', 'due', 'resolved', 'reviewed', 'withdrawn', 'stale', 'abandoned');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "decision_capture_state" (
 	"chat_id" bigint PRIMARY KEY NOT NULL,
 	"stage" "decision_capture_stage" NOT NULL,
 	"draft" jsonb NOT NULL,
@@ -10,7 +29,7 @@ CREATE TABLE "decision_capture_state" (
 	"updated_at" timestamp with time zone DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "decision_events" (
+CREATE TABLE IF NOT EXISTS "decision_events" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"decision_id" uuid NOT NULL,
 	"event_type" "decision_event_type" NOT NULL,
@@ -22,7 +41,7 @@ CREATE TABLE "decision_events" (
 	"sequence_no" bigserial NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "decisions" (
+CREATE TABLE IF NOT EXISTS "decisions" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"status" "decision_status" DEFAULT 'open-draft' NOT NULL,
 	"decision_text" text NOT NULL,
@@ -49,7 +68,10 @@ CREATE TABLE "decisions" (
 	"updated_at" timestamp with time zone DEFAULT now()
 );
 --> statement-breakpoint
-ALTER TABLE "decision_events" ADD CONSTRAINT "decision_events_decision_id_decisions_id_fk" FOREIGN KEY ("decision_id") REFERENCES "public"."decisions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "decision_events_decision_id_created_at_sequence_no_idx" ON "decision_events" USING btree ("decision_id","created_at","sequence_no");--> statement-breakpoint
-CREATE INDEX "decisions_status_resolve_by_idx" ON "decisions" USING btree ("status","resolve_by");--> statement-breakpoint
-CREATE INDEX "decisions_chat_id_status_idx" ON "decisions" USING btree ("chat_id","status");
+DO $$ BEGIN
+	ALTER TABLE "decision_events" ADD CONSTRAINT "decision_events_decision_id_decisions_id_fk" FOREIGN KEY ("decision_id") REFERENCES "public"."decisions"("id") ON DELETE no action ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "decision_events_decision_id_created_at_sequence_no_idx" ON "decision_events" USING btree ("decision_id","created_at","sequence_no");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "decisions_status_resolve_by_idx" ON "decisions" USING btree ("status","resolve_by");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "decisions_chat_id_status_idx" ON "decisions" USING btree ("chat_id","status");
