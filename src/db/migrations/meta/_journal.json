@@ -36,6 +36,13 @@
       "when": 1776281772530,
       "tag": "0004_decision_trigger_suppressions",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1776524619341,
+      "tag": "0005_episodic_summaries",
+      "breakpoints": true
     }
   ]
 }
