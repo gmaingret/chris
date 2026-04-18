@@ -102,38 +102,38 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TD-01 | TBD | Pending |
-| EPI-01 | TBD | Pending |
-| EPI-02 | TBD | Pending |
-| EPI-03 | TBD | Pending |
-| EPI-04 | TBD | Pending |
-| CONS-01 | TBD | Pending |
-| CONS-02 | TBD | Pending |
-| CONS-03 | TBD | Pending |
-| CONS-04 | TBD | Pending |
-| CONS-05 | TBD | Pending |
-| CONS-06 | TBD | Pending |
-| CONS-07 | TBD | Pending |
-| CONS-08 | TBD | Pending |
-| CONS-09 | TBD | Pending |
-| CONS-10 | TBD | Pending |
-| CONS-11 | TBD | Pending |
-| CONS-12 | TBD | Pending |
-| CRON-01 | TBD | Pending |
-| CRON-02 | TBD | Pending |
-| RETR-01 | TBD | Pending |
-| RETR-02 | TBD | Pending |
-| RETR-03 | TBD | Pending |
-| RETR-04 | TBD | Pending |
-| RETR-05 | TBD | Pending |
-| RETR-06 | TBD | Pending |
-| CMD-01 | TBD | Pending |
-| OPS-01 | TBD | Pending |
-| TEST-15 | TBD | Pending |
-| TEST-16 | TBD | Pending |
-| TEST-17 | TBD | Pending |
-| TEST-18 | TBD | Pending |
-| TEST-19 | TBD | Pending |
-| TEST-20 | TBD | Pending |
-| TEST-21 | TBD | Pending |
-| TEST-22 | TBD | Pending |
+| TD-01 | Phase 20 | Pending |
+| EPI-01 | Phase 20 | Pending |
+| EPI-02 | Phase 20 | Pending |
+| EPI-03 | Phase 20 | Pending |
+| EPI-04 | Phase 20 | Pending |
+| CONS-01 | Phase 21 | Pending |
+| CONS-02 | Phase 21 | Pending |
+| CONS-03 | Phase 21 | Pending |
+| CONS-04 | Phase 21 | Pending |
+| CONS-05 | Phase 21 | Pending |
+| CONS-06 | Phase 21 | Pending |
+| CONS-07 | Phase 21 | Pending |
+| CONS-08 | Phase 21 | Pending |
+| CONS-09 | Phase 21 | Pending |
+| CONS-10 | Phase 21 | Pending |
+| CONS-11 | Phase 21 | Pending |
+| CONS-12 | Phase 21 | Pending |
+| CRON-01 | Phase 22 | Pending |
+| CRON-02 | Phase 22 | Pending |
+| RETR-01 | Phase 22 | Pending |
+| RETR-02 | Phase 22 | Pending |
+| RETR-03 | Phase 22 | Pending |
+| RETR-04 | Phase 22 | Pending |
+| RETR-05 | Phase 22 | Pending |
+| RETR-06 | Phase 22 | Pending |
+| CMD-01 | Phase 23 | Pending |
+| OPS-01 | Phase 23 | Pending |
+| TEST-15 | Phase 23 | Pending |
+| TEST-16 | Phase 23 | Pending |
+| TEST-17 | Phase 23 | Pending |
+| TEST-18 | Phase 23 | Pending |
+| TEST-19 | Phase 23 | Pending |
+| TEST-20 | Phase 23 | Pending |
+| TEST-21 | Phase 23 | Pending |
+| TEST-22 | Phase 23 | Pending |
