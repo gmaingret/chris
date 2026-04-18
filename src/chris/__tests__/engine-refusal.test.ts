@@ -13,7 +13,9 @@ const {
   const mockValues = vi.fn(() => ({ returning: mockReturning }));
   const mockInsert = vi.fn(() => ({ values: mockValues }));
   const mockOrderBy = vi.fn(() => ({ limit: mockLimit }));
-  const mockSelectWhere = vi.fn(() => ({ orderBy: mockOrderBy }));
+  // Supports both chains: select→from→where→orderBy→limit (conversation.ts)
+  // and select→from→where→limit (decisions/capture-state.ts per v2.1 Phase 14).
+  const mockSelectWhere = vi.fn(() => ({ orderBy: mockOrderBy, limit: mockLimit }));
   const mockFrom = vi.fn(() => ({ where: mockSelectWhere }));
   const mockSelect = vi.fn(() => ({ from: mockFrom }));
   const mockCreate = vi.fn();
@@ -71,6 +73,29 @@ vi.mock('../../pensieve/tagger.js', () => ({
 
 vi.mock('../../pensieve/embeddings.js', () => ({
   embedAndStore: vi.fn(),
+}));
+
+// ── Mock decision-capture modules (v2.1 Phase 14 PP#0/PP#1) ───────────────
+vi.mock('../../decisions/capture-state.js', () => ({
+  getActiveDecisionCapture: vi.fn().mockResolvedValue(null),
+  clearCapture: vi.fn(),
+  isAbortPhrase: vi.fn().mockReturnValue(false),
+  coerceValidDraft: vi.fn((d) => d),
+}));
+vi.mock('../../decisions/capture.js', () => ({
+  handleCapture: vi.fn(),
+  openCapture: vi.fn(),
+}));
+vi.mock('../../decisions/resolution.js', () => ({
+  handleResolution: vi.fn(),
+  handlePostmortem: vi.fn(),
+}));
+vi.mock('../../decisions/triggers.js', () => ({
+  detectTriggerPhrase: vi.fn().mockReturnValue(null),
+  classifyStakes: vi.fn().mockResolvedValue('trivial'),
+}));
+vi.mock('../../decisions/suppressions.js', () => ({
+  isSuppressed: vi.fn().mockResolvedValue(false),
 }));
 
 // ── Imports (after mocks) ─────────────────────────────────────────────────────

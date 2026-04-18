@@ -5,10 +5,12 @@ const mockReturning = vi.fn();
 const mockValues = vi.fn(() => ({ returning: mockReturning }));
 const mockInsert = vi.fn(() => ({ values: mockValues }));
 
-// Select chain for conversation.ts (select→from→where→orderBy→limit)
+// Select chain — supports both:
+//   select→from→where→orderBy→limit  (conversation.ts)
+//   select→from→where→limit          (decisions/capture-state.ts per v2.1 Phase 14)
 const mockLimit = vi.fn();
 const mockOrderBy = vi.fn(() => ({ limit: mockLimit }));
-const mockSelectWhere = vi.fn(() => ({ orderBy: mockOrderBy }));
+const mockSelectWhere = vi.fn(() => ({ orderBy: mockOrderBy, limit: mockLimit }));
 const mockFrom = vi.fn(() => ({ where: mockSelectWhere }));
 const mockSelect = vi.fn(() => ({ from: mockFrom }));
 
@@ -128,6 +130,32 @@ vi.mock('../praise-quarantine.js', () => ({
   quarantinePraise: mockQuarantinePraise,
 }));
 
+// ── Mock decision-capture modules (v2.1 Phase 14 PP#0/PP#1) ───────────────
+// engine.ts PP#0 calls getActiveDecisionCapture on every message; PP#1 runs
+// trigger detection. These mocks keep unit tests from hitting the real DB
+// layer and from classifying every test message through Haiku.
+vi.mock('../../decisions/capture-state.js', () => ({
+  getActiveDecisionCapture: vi.fn().mockResolvedValue(null),
+  clearCapture: vi.fn(),
+  isAbortPhrase: vi.fn().mockReturnValue(false),
+  coerceValidDraft: vi.fn((d) => d),
+}));
+vi.mock('../../decisions/capture.js', () => ({
+  handleCapture: vi.fn(),
+  openCapture: vi.fn(),
+}));
+vi.mock('../../decisions/resolution.js', () => ({
+  handleResolution: vi.fn(),
+  handlePostmortem: vi.fn(),
+}));
+vi.mock('../../decisions/triggers.js', () => ({
+  detectTriggerPhrase: vi.fn().mockReturnValue(null),
+  classifyStakes: vi.fn().mockResolvedValue('trivial'),
+}));
+vi.mock('../../decisions/suppressions.js', () => ({
+  isSuppressed: vi.fn().mockResolvedValue(false),
+}));
+
 // ── Mock handleInterrogate (to verify engine routing) ──────────────────────
 const mockHandleInterrogate = vi.fn();
 vi.mock('../modes/interrogate.js', () => ({
@@ -156,7 +184,7 @@ vi.mock('../modes/produce.js', () => ({
 }));
 
 // ── Import modules under test after mocks ──────────────────────────────────
-const { detectMode, processMessage } = await import('../engine.js');
+const { detectMode, processMessage, __resetSurfacedContradictionsForTests } = await import('../engine.js');
 const { handleJournal } = await import('../modes/journal.js');
 const { buildSystemPrompt } = await import('../personality.js');
 const { formatContradictionNotice } = await import('../personality.js');
@@ -589,6 +617,10 @@ describe('handleJournal', () => {
 describe('processMessage (engine)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Clear module-scoped contradiction TTL map so tests don't share state
+    // across runs (two tests reuse the same entryId and would otherwise see
+    // the second firing filtered out as "already surfaced").
+    __resetSurfacedContradictionsForTests();
     // Mode detection → JOURNAL
     mockCreate.mockResolvedValueOnce(makeLLMResponse('{"mode": "JOURNAL"}'));
     // Sonnet response
