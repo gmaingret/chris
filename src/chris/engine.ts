@@ -284,11 +284,11 @@ export async function processMessage(
     // Detect mode first so we can tag the user message correctly
     const mode = await detectMode(text);
 
-    // Save user message to conversation history (PHOTOS mode may override this below)
-    let userMessageSaved = false;
+    // Save user message to conversation history (PHOTOS mode overrides this
+    // below with an enriched version that includes photo context; ACCOUNTABILITY
+    // is routed by PP#0 before reaching this switch and never falls through).
     if (mode !== 'PHOTOS' && mode !== 'ACCOUNTABILITY') {
       await saveMessage(chatId, 'USER', text, mode);
-      userMessageSaved = true;
     }
 
     // Route to handler based on detected mode
@@ -319,12 +319,10 @@ export async function processMessage(
           // Enrich the saved user message with photo context so subsequent turns
           // know what Chris saw (images aren't persisted in conversation history)
           await saveMessage(chatId, 'USER', `${text}\n\n${photoResult.photoContext}`, mode as Exclude<ChrisMode, 'ACCOUNTABILITY'>);
-          userMessageSaved = true;
         } else {
           // No photos found — tell the user naturally instead of falling back to journal
           // which wouldn't know photos were attempted
           await saveMessage(chatId, 'USER', text, 'JOURNAL');
-          userMessageSaved = true;
           const noPhotosContext = `${text}\n\n[Note: Chris searched the photo library but found no matching photos for this request.]`;
           response = await handleJournal(chatId, noPhotosContext, language, declinedTopics, opts);
         }
