@@ -74,6 +74,16 @@ function buildKnownFactsBlock(): string {
  *   accepted but intentionally ignored: those templates have no placeholder
  *   because the mode is not pattern/observation oriented. Callers may safely
  *   pass a value for these modes — it will be silently dropped.
+ *
+ * IN-04: ACCOUNTABILITY mode overloads the parameter semantics. To avoid a
+ * breaking signature change, `pensieveContext` is substituted into the
+ * `{decisionContext}` placeholder (prediction / falsification criterion /
+ * resolve-by / Greg's resolution), and `relationalContext` is substituted into
+ * the template's own `{pensieveContext}` placeholder (the ±48h temporal
+ * Pensieve block). Callers from `resolution.ts` pass the decision context in
+ * the `pensieveContext` slot and the temporal Pensieve block in the
+ * `relationalContext` slot — see the call site at `resolution.ts` (~line 251)
+ * and the per-case note in the switch below.
  */
 export function buildSystemPrompt(
   mode: ChrisMode,
@@ -115,6 +125,17 @@ export function buildSystemPrompt(
       modeBody = JOURNAL_SYSTEM_PROMPT.replace('{pensieveContext}', contextValue);
       break;
     case 'ACCOUNTABILITY':
+      // IN-04: Parameter overload — ACCOUNTABILITY repurposes the existing
+      // (pensieveContext, relationalContext) slots to avoid introducing a new
+      // signature. `pensieveContext` here carries the per-decision context
+      // block (prediction / falsification criterion / resolve-by / Greg's
+      // resolution text) and fills the template's `{decisionContext}` slot.
+      // `relationalContext` carries the ±48h temporal Pensieve window built
+      // from `getTemporalPensieve(...)` and fills the template's own
+      // `{pensieveContext}` slot. See resolution.ts handleResolution for the
+      // call site that constructs these two values. Future readers: if a new
+      // mode arrives that needs three distinct context channels, promote this
+      // to a typed overload rather than adding a fourth parameter.
       modeBody = ACCOUNTABILITY_RESOLUTION_SYSTEM_PROMPT
         .replace('{decisionContext}', pensieveContext || 'No decision context provided.')
         .replace('{pensieveContext}', relationalContext || 'No surrounding context found.');
