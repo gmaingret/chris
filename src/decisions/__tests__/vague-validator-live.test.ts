@@ -24,6 +24,7 @@ import {
 } from '../../db/schema.js';
 import { validateVagueness, buildVaguePushback } from '../vague-validator.js';
 import { handleCapture } from '../capture.js';
+import { DAY_MS } from '../../__tests__/fixtures/time.js';
 
 // ── Adversarial predictions (D-11: ~4 EN, 3 FR, 3 RU; D-12: hedged-confidence) ──
 
@@ -145,7 +146,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('TEST-14: vague-prediction resis
         reasoning: 'Market signals suggest a shift is needed',
         prediction: "I think the project will probably work out in the end",
         falsification_criterion: "It doesn't feel like it worked out",
-        resolve_by_iso: new Date(Date.now() + 30 * 86_400_000).toISOString(),
+        resolve_by_iso: new Date(Date.now() + 30 * DAY_MS).toISOString(),
         turn_count: 0,
         triggering_message: 'I need to decide whether to commit to this roadmap',
       },

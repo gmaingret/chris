@@ -601,6 +601,12 @@ describe('TEST-12: same-day deadline + silence trigger collision (channel separa
 
       // SWEEP-02: BOTH channels fire independently
       expect(result.triggered).toBe(true);
+      // IN-02: When triggered === true, skippedReason must be undefined. Guards
+      // against a future regression where the happy path mistakenly populates
+      // `skippedReason = 'no_trigger'` (or similar) alongside a successful send.
+      // sweep.ts sets `skippedReason = undefined` on the both-channels-fire path;
+      // asserting it here pins that contract at the test boundary.
+      expect(result.skippedReason).toBeUndefined();
       expect(result.accountabilityResult?.triggered).toBe(true);
       expect(result.accountabilityResult?.triggerType).toBe('decision-deadline');
       expect(result.reflectiveResult?.triggered).toBe(true);
