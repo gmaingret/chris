@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: M008 Episodic Consolidation
 status: in_progress
-stopped_at: Phase 21 planned (4 plans) — ready to execute Phase 20 first
-last_updated: "2026-04-18T12:00:00.000Z"
+stopped_at: Phase 22 planned (5 plans) — ready to execute Phase 20 first
+last_updated: "2026-04-18T13:00:00.000Z"
 last_activity: 2026-04-18
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 4
+  total_plans: 9
   completed_plans: 0
   percent: 0
 ---
@@ -47,7 +47,7 @@ Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (0/4
 |-------|------|--------------|--------|
 | 20 | Schema + Tech Debt | TD-01, EPI-01–04 (5 reqs) | Not started |
 | 21 | Consolidation Engine | CONS-01–12 (12 reqs) | Planned (4 plans) |
-| 22 | Cron + Retrieval Routing | CRON-01–02, RETR-01–06 (8 reqs) | Not started |
+| 22 | Cron + Retrieval Routing | CRON-01–02, RETR-01–06 (8 reqs) | Planned (5 plans) |
 | 23 | Test Suite + Backfill + /summary | TEST-15–22, OPS-01, CMD-01 (10 reqs) | Not started |
 
 **Total:** 35/35 requirements mapped. Coverage: 100%.
