@@ -1,8 +1,9 @@
 import { cosineDistance, asc, isNull, eq, and, inArray, gte, lte } from 'drizzle-orm';
 import { db } from '../db/connection.js';
-import { pensieveEmbeddings, pensieveEntries, epistemicTagEnum } from '../db/schema.js';
+import { pensieveEmbeddings, pensieveEntries, epistemicTagEnum, episodicSummaries } from '../db/schema.js';
 import { embedText } from './embeddings.js';
 import { logger } from '../utils/logger.js';
+import { config } from '../config.js';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -17,6 +18,26 @@ export type SearchOptions = {
   limit?: number;        // default 5
   minScore?: number;     // filter results below this blended score
 };
+
+// ── Internal helpers ───────────────────────────────────────────────────────
+
+/**
+ * Format a JS Date as a 'YYYY-MM-DD' calendar-date string in the given IANA
+ * timezone. Uses Intl.DateTimeFormat (Node 22 native — no third-party tz dep).
+ *
+ * Used by `getEpisodicSummary` and `getEpisodicSummariesRange` to convert
+ * Date inputs to the local-day key used by the `episodic_summaries.summary_date`
+ * column. The 'en-CA' locale yields ISO-style 'YYYY-MM-DD' format.
+ */
+function formatLocalDate(date: Date, tz: string): string {
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return fmt.format(date);
+}
 
 // ── Public API ─────────────────────────────────────────────────────────────
 
@@ -304,3 +325,100 @@ export const JOURNAL_SEARCH_OPTIONS: SearchOptions = {
   recencyBias: 0.3,
   limit: 10,
 };
+
+// ── Episodic Summary Retrieval ──────────────────────────────────────────────
+
+/**
+ * Retrieve the episodic summary for a specific calendar date in
+ * config.proactiveTimezone. Returns null if no row exists for that date.
+ *
+ * The input Date is converted to the local 'YYYY-MM-DD' calendar date in
+ * `config.proactiveTimezone` via `Intl.DateTimeFormat` before querying — so
+ * a UTC instant late on day N may resolve to day N+1 (or vice versa) when
+ * the local timezone offset places it in a different calendar day.
+ *
+ * Used by Phase 22 retrieval routing and INTERROGATE date-anchored context
+ * injection. Never throws — returns null on any error (logged at warn).
+ */
+export async function getEpisodicSummary(
+  date: Date,
+): Promise<typeof episodicSummaries.$inferSelect | null> {
+  const start = Date.now();
+  const localDate = formatLocalDate(date, config.proactiveTimezone);
+  try {
+    const rows = await db
+      .select()
+      .from(episodicSummaries)
+      .where(eq(episodicSummaries.summaryDate, localDate))
+      .limit(1);
+    const row = rows[0] ?? null;
+    logger.info(
+      { date: localDate, found: row !== null, latencyMs: Date.now() - start },
+      'pensieve.episodic.retrieve',
+    );
+    return row;
+  } catch (error) {
+    logger.warn(
+      {
+        date: localDate,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      'pensieve.episodic.error',
+    );
+    return null;
+  }
+}
+
+/**
+ * Retrieve all episodic summaries in an inclusive calendar-date range
+ * [from, to] computed in config.proactiveTimezone. Ordered by summary_date
+ * ascending. Returns an empty array if no rows match or on any DB error.
+ *
+ * Both `from` and `to` Date inputs are converted to local 'YYYY-MM-DD'
+ * calendar dates in `config.proactiveTimezone` before the WHERE clause is
+ * built. The range is inclusive on both bounds.
+ *
+ * Used by M009 weekly review, M010+ profile inference, and INTERROGATE
+ * date-anchored context when the user references a period of days.
+ * Never throws.
+ */
+export async function getEpisodicSummariesRange(
+  from: Date,
+  to: Date,
+): Promise<(typeof episodicSummaries.$inferSelect)[]> {
+  const start = Date.now();
+  const fromLocal = formatLocalDate(from, config.proactiveTimezone);
+  const toLocal = formatLocalDate(to, config.proactiveTimezone);
+  try {
+    const rows = await db
+      .select()
+      .from(episodicSummaries)
+      .where(
+        and(
+          gte(episodicSummaries.summaryDate, fromLocal),
+          lte(episodicSummaries.summaryDate, toLocal),
+        ),
+      )
+      .orderBy(asc(episodicSummaries.summaryDate));
+    logger.info(
+      {
+        from: fromLocal,
+        to: toLocal,
+        resultCount: rows.length,
+        latencyMs: Date.now() - start,
+      },
+      'pensieve.episodic.retrieve',
+    );
+    return rows;
+  } catch (error) {
+    logger.warn(
+      {
+        from: fromLocal,
+        to: toLocal,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      'pensieve.episodic.error',
+    );
+    return [];
+  }
+}
