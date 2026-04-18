@@ -19,20 +19,19 @@ const sessionLanguage = new Map<string, string>();
 /**
  * Detect the language of a user message.
  *
- * LANG-02: Messages below 4 words or 15 characters inherit the language
- * of the previous user message in the conversation. Default to English
- * if no prior user message exists.
+ * LANG-02 / PLAN.md D021: Messages below 4 words or 15 characters inherit
+ * the language of the previous user message in the conversation. Default
+ * to English only if no prior user message exists.
  *
  * LANG-01: Uses franc with restricted language set (eng/fra/rus only).
  * Returns 'English' | 'French' | 'Russian'.
  */
-export function detectLanguage(text: string, previousLanguage: string | null): string | null {
-  // LANG-02: short message threshold — inherit previous if any, otherwise leave
-  // the language unset so Sonnet matches the user's message naturally. Defaulting
-  // to English here mis-anchors multilingual sessions (e.g. "Salut" with no prior).
+export function detectLanguage(text: string, previousLanguage: string | null): string {
+  // LANG-02 / D021: short message threshold — inherit previous if any, default
+  // to English when no prior exists.
   const words = text.trim().split(/\s+/);
   if (words.length < 4 || text.trim().length < 15) {
-    return previousLanguage;
+    return previousLanguage ?? 'English';
   }
 
   // LANG-01: franc with restricted language set
@@ -40,8 +39,8 @@ export function detectLanguage(text: string, previousLanguage: string | null): s
   const languageName = LANGUAGE_NAMES[detected];
 
   if (!languageName) {
-    // 'und' on longer text: inherit previous if any, otherwise unset
-    return previousLanguage;
+    // 'und' on longer text: inherit previous if any, otherwise default to English
+    return previousLanguage ?? 'English';
   }
 
   return languageName;
