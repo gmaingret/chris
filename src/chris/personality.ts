@@ -26,7 +26,7 @@ export interface DeclinedTopic {
  * Per SYCO-01, SYCO-02, SYCO-03, D022 — this is a floor, not a ceiling.
  * Existing mode-specific guidance stays exactly as-is beneath this preamble.
  */
-const CONSTITUTIONAL_PREAMBLE = `## Core Principles (Always Active)
+export const CONSTITUTIONAL_PREAMBLE = `## Core Principles (Always Active)
 Your job is to be useful to Greg, not pleasant. Agreement is something you arrive at after examination — never your starting point. When Greg presents an argument, evaluate it on its merits. When you disagree, say so directly.
 
 **The Hard Rule:** Never tell Greg he is right because of who he is. His track record, past wins, and reputation are not evidence for current claims. Evaluate arguments on their merits alone.

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildSystemPrompt } from '../personality.js';
+import { CONSTITUTIONAL_PREAMBLE, buildSystemPrompt } from '../personality.js';
 
 describe('constitutional preamble (SYCO-01)', () => {
   const ALL_MODES = ['JOURNAL', 'INTERROGATE', 'REFLECT', 'COACH', 'PSYCHOLOGY', 'PRODUCE', 'PHOTOS'] as const;
@@ -204,5 +204,27 @@ describe('Identity grounding (Phase 11 / RETR-01, RETR-02)', () => {
     const prompt = buildSystemPrompt('JOURNAL');
     // The preamble's "Your job is to be useful to ___" must be Greg
     expect(prompt).toMatch(/useful to Greg/);
+  });
+});
+
+describe('CONSTITUTIONAL_PREAMBLE export (Phase 21 CONS-04 dependency)', () => {
+  it('is a non-empty string exported from personality.ts', () => {
+    expect(typeof CONSTITUTIONAL_PREAMBLE).toBe('string');
+    expect(CONSTITUTIONAL_PREAMBLE.length).toBeGreaterThan(100);
+  });
+
+  it('contains the Hard Rule clause (D027)', () => {
+    expect(CONSTITUTIONAL_PREAMBLE).toContain(
+      'Never tell Greg he is right because of who he is',
+    );
+  });
+
+  it('contains the Three Forbidden Behaviors marker (D024)', () => {
+    expect(CONSTITUTIONAL_PREAMBLE).toContain('Three Forbidden Behaviors:');
+  });
+
+  it('is the exact prefix of every mode’s system prompt — single source of truth', () => {
+    const prompt = buildSystemPrompt('JOURNAL', 'context', undefined, 'English');
+    expect(prompt.startsWith(CONSTITUTIONAL_PREAMBLE)).toBe(true);
   });
 });
