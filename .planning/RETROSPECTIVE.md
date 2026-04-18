@@ -22,7 +22,7 @@
 - **Append-only + optimistic concurrency from day 1.** Extending the Pensieve's append-only invariant (D004) into the decision lifecycle meant the concurrency race test was straightforward to write and pass — there's no "mutable row" to race on, only which writer lands first in the event log. The chokepoint pattern caught every illegal transition at the type boundary.
 - **Two-phase trigger execution reused.** The cheap-gate-before-expensive-call pattern (D010) scaled cleanly from M004's proactive sweep into the capture trigger (regex → Haiku stakes) and the deadline trigger (SQL gate → surface). Each two-phase reuse reinforced the architecture.
 - **Byte-exact byte-exact canonical-commit restore.** Phase 19 used `git show 4c156c3:path` diffs to restore `state.ts`, `prompts.ts`, `sweep.ts` after the destructive worktree merge — not re-authoring from summary text. Zero regressions, 49 new proactive tests green on first run. The canonical-commit-as-source-of-truth pattern deserves to persist.
-- **Docker Postgres as integration floor.** All 152 proactive + synthetic-fixture tests run against real Postgres migrations via `scripts/test.sh` (5-migration harness with `ON_ERROR_STOP=1`). No mock-DB lies. When Cat A baseline mock-chain failures surfaced, rollback+rerun against the real DB proved they were pre-existing, not v2.1 regressions.
+- **Docker Postgres as integration floor.** All 152 proactive + synthetic-fixture tests run against real Postgres migrations via `scripts/test.sh` (5-migration harness with `ON_ERROR_STOP=1`). No mock-DB lies. When Cat A baseline mock-chain failures surfaced, rollback+rerun against the real DB *appeared to* prove they were pre-existing, not v2.1 regressions — **see post-closure reframing below: this conclusion was wrong.**
 - **Phase 18 gap closure made explicit.** Plans 18-03 and 18-04 were added mid-phase to restore lost exports and fix test assertion mismatches — admitted as gap-closure work rather than hidden as "test tweaks." Audit trail stayed honest.
 
 ### What Was Inefficient
@@ -54,6 +54,21 @@
 - **Sessions:** One continuous execution window, 2026-04-15 → 2026-04-18. Heavy compaction — state recovered via `.planning/` markdown, not SQLite (per GSD v1 design, D-016 rationale reinforced).
 - **Notable:** Phase 19 gap closure — 4 plans totaling ~100 minutes of execution — cost less than re-deriving Phase 15/16 from SUMMARY would have. Canonical-commit restore is strictly cheaper than re-authoring after a merge accident.
 
+### Post-closure addendum (2026-04-18, after ship)
+
+After the milestone was archived and tagged, a fresh code-review pass on the v2.0 M006 phases (commit `16eca6b`) — specifically the Phase 07 review — reframed one of the tech-debt items this retrospective originally categorized as "pre-existing Cat A baseline."
+
+- **What the audit claimed:** 45 `engine.test.ts`-family test failures (29 in `engine.test.ts`, 3 in `engine-refusal.test.ts`, 13 more in sibling files) were a pre-existing bug introduced by commit `e4cb9da`'s partial PP#0 restore. "Proven pre-existing via rollback+rerun" (Plan 19-01 D19-01 evidence).
+- **What the code review showed:** The real root cause was v2.1 Phase 14's new `getActiveDecisionCapture` call at `engine.ts:168` using a `.where().limit()` chain without `.orderBy()`. The unit-test select mock only supported `.where().orderBy().limit()`. The chain mismatch made 32 tests red. The rollback+rerun "proof" was misleading: it reverted the PP#0 block but not the capture-state imports; the remaining failures were then attributed to unrelated pre-existing state.
+- **Why the v2.1 ship-gate missed it:** The 152-test gate was a deliberately scoped subset — `src/proactive/__tests__/` + `src/decisions/__tests__/synthetic-fixture.test.ts` — that excluded `src/chris/__tests__/engine*.test.ts`. No explicit red flag on that exclusion; no "is this gate actually representative?" question was asked before shipping.
+- **Fix:** Commit `7791241` (`fix(07): CR-02`) — extended the mock chain to cover both shapes and added `vi.mock()` blocks for the five new decision-capture modules. 32 tests green. Same mock-chain gap remains in `engine-mute.test.ts` + `photos-memory.test.ts` — out of Phase 07 scope, flagged for M008 cleanup.
+
+**Lesson added to Key Lessons:**
+
+6. **"Proven pre-existing" needs harder evidence than a rollback.** Rollback+rerun can produce a false negative when the rollback is partial or touches different code than the real cause. A structural audit — "list every new call site added in this phase; confirm every mock still covers them" — would have caught this in Phase 19's gate. For M008, require gap closure PRs to include a "new call sites vs mock coverage" checklist before shipping.
+
+**Lesson added to cross-milestone trends: structural verification beats outcome verification** (already #4 in Top Lessons) is now double-validated — the Phase 15/16 worktree-merge silent-revert was the v2.1-internal instance; the Phase 14 mock-chain regression is the v2.0/v2.1 cross-cutting instance. Both pass "verification report says SATISFIED" but fail "diff the code against the claim."
+
 ---
 
 ## Cross-Milestone Trends
@@ -79,4 +94,5 @@
 1. **Live-Sonnet integration tests catch what mocks can't.** v2.0 introduced them (24-case + FP audit); v2.1 extended them (TEST-13 3-of-3 hit/miss/unverifiable, TEST-14 adversarial vagueness). Every mode-prompt change should ship with a live-suite case or explicit "no behavioral change" justification.
 2. **Append-only + chokepoint is the cheapest concurrency story.** v1.0 Pensieve + v2.1 `decision_events` both pass race tests with minimal locking logic. M008 episodic summaries should inherit the same invariant.
 3. **Between-milestones pause is real engineering discipline, not caution.** v2.0 → v2.1 happened in <72h; v2.1 surfaced trust-breaking edge cases (worktree merge silent-revert) that only became visible under usage pressure. M007 → M008 is mandated ≥2 weeks of real Telegram use before M008 starts, per PLAN.md discipline.
-4. **Structural verification beats outcome verification.** Phase 15/16 had SATISFIED verification reports while the actual sweep code was missing. Structural checks (exports exist, imports resolve, canonical-commit diff is empty) must sit alongside outcome checks (test pass, behavior observed).
+4. **Structural verification beats outcome verification.** Phase 15/16 had SATISFIED verification reports while the actual sweep code was missing; Phase 14 added a new DB call site (`getActiveDecisionCapture` with `.where().limit()`) without updating the unit-test mocks, which the v2.1 ship-gate's scoped 152-test subset then failed to catch. Structural checks (exports exist, imports resolve, canonical-commit diff is empty, every new call site has corresponding mock coverage) must sit alongside outcome checks (test pass, behavior observed). Double-validated across v2.1 — internal (worktree merge silent-revert) and cross-cutting (mock-chain regression flagged as "Cat A pre-existing" then later reframed as real).
+5. **"Proven pre-existing" needs harder evidence than rollback+rerun.** A partial rollback can produce a false negative if it doesn't touch the real cause. Require gap-closure PRs to produce a structural audit — "here are the new call sites this phase adds; here is the mock coverage for each" — rather than relying on "we rolled back and the failures persisted."
