@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: M008 Episodic Consolidation
 status: executing
-stopped_at: Phase 20 complete — all 3 plans shipped; episodic schema test coverage live; Docker gate lifted to 853/914 passing (+10 new, zero regressions)
-last_updated: "2026-04-18T16:42:47Z"
-last_activity: 2026-04-18 -- Phase 20 Plan 03 (EPI-01..03 test coverage) complete; Docker gate 853 passing
+stopped_at: "Phase 21 Plan 01 complete — @anthropic-ai/sdk@0.90.0 on disk + CONSTITUTIONAL_PREAMBLE exported; CONS-04 satisfied; Docker gate 857/61/918 (+4 vs 853 baseline, zero regressions). Next: Plan 21-02 (episodic prompts)."
+last_updated: "2026-04-18T17:37:31Z"
+last_activity: 2026-04-18 -- Phase 21 Plan 01 complete
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 16
-  completed_plans: 3
-  percent: 19
+  completed_plans: 4
+  percent: 25
 ---
 
 # Project State
@@ -21,18 +21,18 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-18 — v2.2 M008 Episodic Consolidation milestone started)
 
 **Core value:** Greg can deposit any memory, thought, or feeling into Chris and later ask questions that Chris answers by searching everything Greg has ever told him — with full fidelity, no data loss, and genuine contextual understanding across English, French, and Russian.
-**Current focus:** Phase 20 — Schema + Tech Debt
+**Current focus:** Phase 21 — Consolidation Engine
 
 ## Current Position
 
-Phase: 20 (Schema + Tech Debt) — COMPLETE
-Plan: 3 of 3 complete (TD-01 resolved + episodic schema/Zod/config live + Zod/schema integration tests shipped)
-Next: `/gsd-new-phase 21` — Consolidation Engine (runConsolidate + prompts + preamble + sources)
-Status: Phase 20 complete; Phase 21 ready to plan
-Last activity: 2026-04-18 -- Phase 20 Plan 03 complete; +10 passing tests (6 Zod + 4 Docker integration); Docker gate lifted to 853/914; zero regressions
+Phase: 21 (Consolidation Engine) — EXECUTING
+Plan: 2 of 4
+Next: Plan 21-02 (episodic prompts — buildConsolidationPrompt with injected CONSTITUTIONAL_PREAMBLE)
+Status: Plan 01 complete; ready to execute 21-02
+Last activity: 2026-04-18 -- Phase 21 Plan 01 complete (SDK 0.90.0 + preamble export)
 
 ```
-Progress: [███░░░░░░░░░░░░░░░░░] 19% (3/16 plans)
+Progress: [█████░░░░░░░░░░░░░░░] 25% (4/16 plans)
 ```
 
 ## Shipped Milestones
@@ -74,7 +74,7 @@ Full log in PROJECT.md Key Decisions table. Most load-bearing going into episodi
 - **Consolidation prompt is the highest-risk surface** — Phase 21 is isolated so it can be iterated against real Sonnet before downstream phases depend on it. The M006 constitutional preamble must be explicitly present in the prompt string (assert by unit test — CONS-04).
 - **Two-dimensional retrieval routing** — both dimensions must ship in Phase 22: (1) recency boundary (≤7 days raw, >7 days summary) AND (2) verbatim-fidelity escape (raw always regardless of age when keywords present). High-importance raw descent (importance >= 8) is a third rule, not optional.
 - **Importance rubric calibration** — full-range ground-truth labels for the TEST-16 fixture (r > 0.7 Pearson) must include scores from the tails (1–2 and 9–10 must each appear at least once). Labels are set before the fixture is written.
-- **Docker test gate** — **853 tests currently passing** (Plan 20-03 lifted from 843). Phase 21+ must not regress this floor. No regressions at any phase boundary.
+- **Docker test gate** — **857 tests currently passing** (Plan 21-01 lifted from 853 via +4 CONSTITUTIONAL_PREAMBLE export assertions; prior Plan 20-03 lifted from 843). Phase 21+ must not regress this floor. No regressions at any phase boundary.
 
 ### Resolved Scoping Decisions (from research open questions)
 
@@ -94,9 +94,9 @@ None. Research confidence: HIGH across all areas (stack, features, architecture,
 
 ## Session Continuity
 
-Last session: 2026-04-18 — Phase 20 Plan 03 complete (Zod unit tests in src/episodic/__tests__/types.test.ts + Docker Postgres schema integration tests in src/episodic/__tests__/schema.test.ts; 6 + 4 = +10 new passing tests; ROADMAP Phase 20 Success Criterion #3 now asserted verbatim; Docker gate lifted to 853 passing / 61 failing / 914 total; zero regressions vs Plan 20-02 baseline of 843/61/904)
-Stopped at: Phase 20 complete — all 5 ROADMAP Phase 20 success criteria proven true. Next: /gsd-new-phase 21 (Consolidation Engine — CONS-01..12).
-Resume file: Start Phase 21 planning. The following Phase 20 artifacts are Phase 21's dependencies (all live + test-covered): src/episodic/types.ts (three-layer Zod chain + parseEpisodicSummary), src/db/schema.ts episodicSummaries pgTable, src/db/migrations/0005_episodic_summaries.sql, config.episodicCron.
+Last session: 2026-04-18T17:37:31Z -- Phase 21 Plan 01 complete (@anthropic-ai/sdk 0.80→0.90 via tarball+lockfile surgical patch; CONSTITUTIONAL_PREAMBLE exported; +4 covering tests; Docker gate 857/61/918 = +4 passing vs 853 Phase 20 baseline, zero regressions, zero new failures; CONS-04 satisfied)
+Stopped at: Phase 21 Plan 01 complete — @anthropic-ai/sdk@0.90.0 on disk + CONSTITUTIONAL_PREAMBLE exported; CONS-04 satisfied; Docker gate 857/61/918. Next: Plan 21-02 (episodic prompts).
+Resume file: Start Plan 21-02. Phase 21 Plan 01 delivered: (a) @anthropic-ai/sdk@0.90.0 with messages.parse()+zodOutputFormat() live; (b) CONSTITUTIONAL_PREAMBLE exported from src/chris/personality.ts. Plan 21-02 may `import { CONSTITUTIONAL_PREAMBLE } from '../chris/personality.js'`. See .planning/phases/21-consolidation-engine/21-01-SUMMARY.md.
 
 ## Known Tech Debt
 

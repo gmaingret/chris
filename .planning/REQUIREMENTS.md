@@ -25,7 +25,7 @@ Requirements for M008 Episodic Consolidation. Each maps to roadmap phases.
 - [ ] **CONS-01**: `runConsolidate(date: Date)` exported from `src/episodic/consolidate.ts`. Fetches the day's Pensieve entries in `config.proactiveTimezone`, fetches M002 contradictions for the day window, fetches M007 decisions created/resolved that day with `lifecycle_state`, calls Sonnet with structured Zod output, inserts row.
 - [ ] **CONS-02**: Entry-count gate before any Sonnet call — zero Pensieve entries for the day produces no Sonnet call, no insert, no API cost. Logged at INFO level.
 - [ ] **CONS-03**: Idempotency guaranteed by pre-flight `SELECT FROM episodic_summaries WHERE summary_date = $1` skip-on-existing AND `INSERT ... ON CONFLICT (summary_date) DO NOTHING` belt-and-suspenders pattern. Re-running consolidation for an already-summarized date is a silent no-op.
-- [ ] **CONS-04**: M006 constitutional preamble explicitly injected into the consolidation system prompt (cron runs outside the engine; preamble does NOT auto-apply). Asserted by a unit test that the assembled prompt contains the preamble's anti-sycophancy clauses (D024).
+- [x] **CONS-04**: M006 constitutional preamble explicitly injected into the consolidation system prompt (cron runs outside the engine; preamble does NOT auto-apply). Asserted by a unit test that the assembled prompt contains the preamble's anti-sycophancy clauses (D024). (Phase 21 Plan 01, 2026-04-18 — seed: `CONSTITUTIONAL_PREAMBLE` exported from `src/chris/personality.ts` with 4 covering assertions in `src/chris/__tests__/personality.test.ts` including D024 Three Forbidden Behaviors marker + D027 Hard Rule clause + `buildSystemPrompt().startsWith(CONSTITUTIONAL_PREAMBLE)` single-source-of-truth invariant. Plan 21-02 will import and inject into the assembled consolidation prompt.)
 - [ ] **CONS-05**: Importance rubric anchored at four bands (1–3 mundane / 4–6 notable / 7–9 significant / 10 life-event-rare) with explicit frequency distribution guidance ("most days are 3–6; 7+ should be uncommon") and chain-of-thought instruction ("explain emotional intensity, novelty, decision presence, contradiction presence before assigning the score").
 - [ ] **CONS-06**: Decision floor hook — if any structural-stakes decision was created OR resolved on the consolidation date (per M007 `decisions` table), importance score is floored at 6. Enforced in the prompt and asserted by fixture test.
 - [ ] **CONS-07**: Contradiction floor hook — if M002 detected any contradiction (`confidence >= 0.75`) on the consolidation date, importance score is floored at 7. Enforced in the prompt and asserted by fixture test.
@@ -110,7 +110,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CONS-01 | Phase 21 | Pending |
 | CONS-02 | Phase 21 | Pending |
 | CONS-03 | Phase 21 | Pending |
-| CONS-04 | Phase 21 | Pending |
+| CONS-04 | Phase 21 | ✅ Complete (Plan 01, 2026-04-18 — seed) |
 | CONS-05 | Phase 21 | Pending |
 | CONS-06 | Phase 21 | Pending |
 | CONS-07 | Phase 21 | Pending |

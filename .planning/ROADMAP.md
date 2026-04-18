@@ -53,7 +53,7 @@ See [milestones/v2.1-ROADMAP.md](milestones/v2.1-ROADMAP.md) for full phase deta
 ### v2.2 M008 Episodic Consolidation (Active — Phases 20-23)
 
 - [x] **Phase 20: Schema + Tech Debt** — TECH-DEBT-19-01 drizzle-kit snapshot regeneration ✅ (Plan 01 complete 2026-04-18) + `episodic_summaries` migration 0005 with all indexes + Zod types + config field ✅ (Plan 02 complete 2026-04-18) + Zod unit tests + Docker Postgres schema integration tests ✅ (Plan 03 complete 2026-04-18; Docker gate 853 passing, +10 vs baseline)
-- [ ] **Phase 21: Consolidation Engine** — `runConsolidate()` with entry-count gate, idempotency, M006 preamble injection, importance rubric + floor hooks, verbatim quote enforcement, M007/M002 read-only integration, sparse-entry guard, failure notification
+- [ ] **Phase 21: Consolidation Engine** — Plan 01: @anthropic-ai/sdk bump to ^0.90.0 + CONSTITUTIONAL_PREAMBLE export ✅ (CONS-04 seed complete 2026-04-18; Docker gate 857/61/918, +4 vs 853 baseline) · Plan 02-04 pending — `runConsolidate()` with entry-count gate, idempotency, M006 preamble injection, importance rubric + floor hooks, verbatim quote enforcement, M007/M002 read-only integration, sparse-entry guard, failure notification
 - [ ] **Phase 22: Cron + Retrieval Routing** — Independent cron in `src/index.ts`; DST-safe scheduling; two-dimensional retrieval routing; high-importance raw descent; INTERROGATE date-anchored injection; Known Facts and embedding separation audit
 - [ ] **Phase 23: Test Suite + Backfill + `/summary`** — 14-day synthetic fixture (8 test cases), live anti-flattery integration test, backfill operator script, `/summary [YYYY-MM-DD]` Telegram command
 
@@ -89,7 +89,7 @@ See [milestones/v2.1-ROADMAP.md](milestones/v2.1-ROADMAP.md) for full phase deta
   4. A fixture day containing a structural M007 decision produces a summary with `importance >= 6`; a fixture day containing an M002 contradiction (confidence >= 0.75) produces a summary with `importance >= 7`, and the summary text or key_quotes preserves both contradicting positions verbatim rather than smoothing them into a single narrative
   5. A fixture day with fewer than 3 entries uses the sparse-entry variant prompt and the resulting summary contains no specifics not traceable to the source entries
 **Plans**: 4 plans
-  - [ ] 21-01-PLAN.md — SDK bump to @anthropic-ai/sdk ^0.90.0 + export CONSTITUTIONAL_PREAMBLE from personality.ts (CONS-04 seed)
+  - [x] 21-01-PLAN.md — SDK bump to @anthropic-ai/sdk ^0.90.0 + export CONSTITUTIONAL_PREAMBLE from personality.ts (CONS-04 seed) ✅ 2026-04-18 (Docker gate 857/61/918, +4 vs 853 Phase 20 baseline, zero regressions; messages.parse() + zodOutputFormat() live; preamble single-source-of-truth test covering D024 + D027)
   - [ ] 21-02-PLAN.md — Prompt assembler in src/episodic/prompts.ts (CONS-04, 05, 09, 10, 11)
   - [ ] 21-03-PLAN.md — Read-only source queries in src/episodic/sources.ts (CONS-08, CONS-09 data layer)
   - [ ] 21-04-PLAN.md — runConsolidate() end-to-end in src/episodic/consolidate.ts + Telegram error notifier (CONS-01, 02, 03, 06, 07, 12)
