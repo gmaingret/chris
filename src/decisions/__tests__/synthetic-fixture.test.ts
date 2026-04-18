@@ -567,7 +567,11 @@ describe('TEST-12: same-day deadline + silence trigger collision (channel separa
   it(
     'deadline and silence triggers both fire; channels fire serially without either starving the other',
     async () => {
-      const FAKE_DECISION_ID = 'test-decision-uuid-for-test-12';
+      // Phase 18 IN-06: Use a real UUID (not a human-readable placeholder).
+      // upsertAwaitingResolution is currently mocked so the shape doesn't reach
+      // postgres, but if the mock is ever tightened (or removed), a non-UUID
+      // string would fail cryptically against the `uuid` column type.
+      const FAKE_DECISION_ID = crypto.randomUUID();
 
       // Both triggers fire
       mockDeadlineDetect.mockResolvedValue({
