@@ -16,11 +16,15 @@
 #      and `prevId` so it chains from 0000_snapshot. Save as 0001_snapshot.json.
 #   3. Apply migrations 0002 + 0003 on top. Introspect again. Patch id/prevId
 #      so it chains from 0002_snapshot. Save as 0003_snapshot.json.
-#   4. Copy regenerated snapshots into src/db/migrations/meta/.
-#   5. Acceptance gate: tear down, fresh postgres, apply ALL five migrations
+#   4. Re-chain 0002.prevId → new 0001.id and 0004.prevId → new 0003.id. This
+#      is a required step because drizzle-kit rejects duplicate prevId values
+#      across the snapshot chain (deviation from the original plan scope; see
+#      Plan 20-01 SUMMARY.md "Deviations").
+#   5. Copy regenerated + re-chained snapshots into src/db/migrations/meta/.
+#   6. Acceptance gate: tear down, fresh postgres, apply ALL five migrations
 #      0000..0004, run `drizzle-kit generate`. MUST print
 #      "No schema changes, nothing to migrate".
-#   6. Cleanup: docker compose down --volumes, rm -rf .tmp/drizzle-regen-*.
+#   7. Cleanup: docker compose down --volumes, rm -rf .tmp/drizzle-regen-*.
 #
 # Rationale: Plan 19-04 verified Option A ("drizzle-kit generate against
 # fully-migrated Docker") returns "No schema changes" — drizzle-kit does
@@ -138,11 +142,13 @@ CFG
   # it; touch an empty one so the config validates.
   printf '' > "${work_dir}/schema.ts"
 
+  # Run drizzle-kit introspect; redirect ALL output to stderr so this
+  # function's stdout is reserved for the snapshot file path.
   (
     cd "${work_dir}"
     # Pipe an empty stdin in case drizzle-kit prompts for anything.
-    yes '' 2>/dev/null | npx drizzle-kit introspect 2>&1 | tail -20 || true
-  )
+    yes '' 2>/dev/null | npx drizzle-kit introspect >&2 2>&1 || true
+  ) >&2
 
   # The emitted snapshot is out/meta/0000_snapshot.json
   local snap="${work_dir}/out/meta/0000_snapshot.json"
@@ -150,11 +156,14 @@ CFG
     echo "❌ introspect did not produce a snapshot at ${snap}" >&2
     return 1
   fi
-  echo "${snap}"
+  printf '%s\n' "${snap}"
 }
 
 # Patch a newly-introspected snapshot's id/prevId fields using node (no jq
-# available in this env). Args: src_snapshot dst_snapshot new_id prev_id
+# available in this env). Writes with 2-space indentation to match drizzle-kit's
+# native serialization style (verified via probe: drizzle-kit generate emits
+# 2-space indented JSON).
+# Args: src_snapshot dst_snapshot new_id prev_id
 patch_snapshot_chain() {
   local src="$1" dst="$2" new_id="$3" prev_id="$4"
   node -e "
@@ -162,7 +171,8 @@ patch_snapshot_chain() {
     const s = JSON.parse(fs.readFileSync('${src}', 'utf8'));
     s.id = '${new_id}';
     s.prevId = '${prev_id}';
-    fs.writeFileSync('${dst}', JSON.stringify(s, null, '\t') + '\n');
+    // Match drizzle-kit's native output: 2-space indent, no trailing newline.
+    fs.writeFileSync('${dst}', JSON.stringify(s, null, 2));
   "
 }
 
@@ -170,6 +180,23 @@ patch_snapshot_chain() {
 snapshot_id() {
   local file="$1"
   node -e "console.log(JSON.parse(require('fs').readFileSync('${file}', 'utf8')).id);"
+}
+
+# Update only the prevId of an existing snapshot in-place. Used to re-chain
+# 0002 and 0004 after inserting new 0001 and 0003 snapshots — drizzle-kit
+# rejects duplicate prevId values across the chain, so we must re-point
+# 0002 → new_0001.id and 0004 → new_0003.id. This preserves the snapshot
+# content (byte-accurate schema serialization); only the chain pointer
+# changes.
+patch_prev_id_inplace() {
+  local file="$1" new_prev="$2"
+  node -e "
+    const fs = require('fs');
+    const s = JSON.parse(fs.readFileSync('${file}', 'utf8'));
+    s.prevId = '${new_prev}';
+    // Match drizzle-kit's native output: 2-space indent, no trailing newline.
+    fs.writeFileSync('${file}', JSON.stringify(s, null, 2));
+  "
 }
 
 # Generate a deterministic-ish new UUID (v4). We don't need crypto-strength
@@ -222,13 +249,21 @@ patch_snapshot_chain \
   "${ID_0002}"
 echo "  → staged ${OUT_DIR}/0003_snapshot.json (id=${NEW_ID_0003:0:8}..., prevId=${ID_0002:0:8}...)"
 
-# ── Step 4: install regenerated snapshots (unless --check-only) ──────────
+# ── Step 4: install regenerated snapshots + re-chain 0002/0004 ─────────────
 if [[ "${CHECK_ONLY}" -eq 1 ]]; then
   echo "ℹ️  --check-only: staged snapshots in ${OUT_DIR} but not installing."
 else
   echo "📥 Installing regenerated snapshots into ${META_DIR}/..."
   cp "${OUT_DIR}/0001_snapshot.json" "${META_DIR}/0001_snapshot.json"
   cp "${OUT_DIR}/0003_snapshot.json" "${META_DIR}/0003_snapshot.json"
+
+  # Re-chain 0002 and 0004 so their prevId points at the new 0001/0003 ids
+  # (instead of the pre-regen values that skipped over them). Drizzle-kit
+  # rejects duplicate prevId values across snapshots — this is NOT optional.
+  echo "🔗 Re-chaining 0002.prevId → new 0001.id (${NEW_ID_0001:0:8}...)"
+  patch_prev_id_inplace "${META_DIR}/0002_snapshot.json" "${NEW_ID_0001}"
+  echo "🔗 Re-chaining 0004.prevId → new 0003.id (${NEW_ID_0003:0:8}...)"
+  patch_prev_id_inplace "${META_DIR}/0004_snapshot.json" "${NEW_ID_0003}"
 fi
 
 # ── Step 5: acceptance gate — fresh DB, all 5 migrations, generate = no-op ──
