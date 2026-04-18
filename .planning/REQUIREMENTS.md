@@ -15,10 +15,10 @@ Requirements for M008 Episodic Consolidation. Each maps to roadmap phases.
 
 ### Schema & Storage
 
-- [ ] **EPI-01**: New `episodic_summaries` table created via migration 0005 with fields: `id` (uuid pk), `summary_date` (date, NOT NULL), `summary` (text, NOT NULL), `importance` (integer, NOT NULL, CHECK 1–10), `topics` (text[], NOT NULL default '{}'), `emotional_arc` (text, NOT NULL), `key_quotes` (text[], NOT NULL default '{}'), `source_entry_ids` (uuid[], NOT NULL default '{}'), `created_at` (timestamptz, NOT NULL default now()).
-- [ ] **EPI-02**: Indexes in initial migration: `UNIQUE(summary_date)` (idempotency + DST safety); `GIN(topics)` (M009 weekly aggregation); `btree(importance)` (M010 profile inference + M008 high-importance raw descent). All three indexes must ship in migration 0005, not retrofitted.
-- [ ] **EPI-03**: Zod schema for `EpisodicSummary` defined in `src/episodic/types.ts` and exported. Used by `messages.parse()` for structured Sonnet output and by Drizzle for runtime validation before insert.
-- [ ] **EPI-04**: `config.episodicCron` field added to `src/config.ts` with default `"0 23 * * *"` (23:00 daily in `config.proactiveTimezone`). Type-validated. Documented as "When the daily episodic consolidation cron fires."
+- [x] **EPI-01**: New `episodic_summaries` table created via migration 0005 with fields: `id` (uuid pk), `summary_date` (date, NOT NULL), `summary` (text, NOT NULL), `importance` (integer, NOT NULL, CHECK 1–10), `topics` (text[], NOT NULL default '{}'), `emotional_arc` (text, NOT NULL), `key_quotes` (text[], NOT NULL default '{}'), `source_entry_ids` (uuid[], NOT NULL default '{}'), `created_at` (timestamptz, NOT NULL default now()). (Phase 20 Plan 02, 2026-04-18)
+- [x] **EPI-02**: Indexes in initial migration: `UNIQUE(summary_date)` (idempotency + DST safety); `GIN(topics)` (M009 weekly aggregation); `btree(importance)` (M010 profile inference + M008 high-importance raw descent). All three indexes must ship in migration 0005, not retrofitted. (Phase 20 Plan 02, 2026-04-18)
+- [x] **EPI-03**: Zod schema for `EpisodicSummary` defined in `src/episodic/types.ts` and exported. Used by `messages.parse()` for structured Sonnet output and by Drizzle for runtime validation before insert. (Phase 20 Plan 02, 2026-04-18 — three-layer chain SonnetOutput → Insert → DB-read per CONTEXT.md D-11/D-12/D-13)
+- [x] **EPI-04**: `config.episodicCron` field added to `src/config.ts` with default `"0 23 * * *"` (23:00 daily in `config.proactiveTimezone`). Type-validated. Documented as "When the daily episodic consolidation cron fires." (Phase 20 Plan 02, 2026-04-18)
 
 ### Consolidation Engine
 
@@ -103,10 +103,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | TD-01 | Phase 20 | ✅ Complete (Plan 01, 2026-04-18) |
-| EPI-01 | Phase 20 | Pending |
-| EPI-02 | Phase 20 | Pending |
-| EPI-03 | Phase 20 | Pending |
-| EPI-04 | Phase 20 | Pending |
+| EPI-01 | Phase 20 | ✅ Complete (Plan 02, 2026-04-18) |
+| EPI-02 | Phase 20 | ✅ Complete (Plan 02, 2026-04-18) |
+| EPI-03 | Phase 20 | ✅ Complete (Plan 02, 2026-04-18) |
+| EPI-04 | Phase 20 | ✅ Complete (Plan 02, 2026-04-18) |
 | CONS-01 | Phase 21 | Pending |
 | CONS-02 | Phase 21 | Pending |
 | CONS-03 | Phase 21 | Pending |

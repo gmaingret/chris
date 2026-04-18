@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: M008 Episodic Consolidation
 status: executing
-stopped_at: Phase 20 Plan 01 complete — TECH-DEBT-19-01 resolved; snapshots regenerated via scripts/regen-snapshots.sh
-last_updated: "2026-04-18T14:30:00.000Z"
-last_activity: 2026-04-18 -- Phase 20 Plan 01 (TD-01) complete; D-03 acceptance gate green
+stopped_at: Phase 20 Plan 02 complete — episodic_summaries migration 0005 + Zod types + episodicCron config live; Docker gate green (843/904, zero regressions)
+last_updated: "2026-04-18T15:50:00.000Z"
+last_activity: 2026-04-18 -- Phase 20 Plan 02 (EPI-01..04) complete; migration 0005 applied; drizzle no-op confirmed
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 16
-  completed_plans: 1
-  percent: 6
+  completed_plans: 2
+  percent: 13
 ---
 
 # Project State
@@ -26,13 +26,13 @@ See: .planning/PROJECT.md (updated 2026-04-18 — v2.2 M008 Episodic Consolidati
 ## Current Position
 
 Phase: 20 (Schema + Tech Debt) — EXECUTING
-Plan: 2 of 3 (Plan 01 complete — TD-01 resolved)
-Next: `/gsd-execute-phase 20` (continue with Plan 02: episodic_summaries schema + Zod + config)
+Plan: 3 of 3 (Plans 01 + 02 complete — TD-01 resolved; episodic schema + Zod + config live)
+Next: `/gsd-execute-phase 20` (continue with Plan 03: Zod + schema integration tests + Docker gate)
 Status: Executing Phase 20
-Last activity: 2026-04-18 -- Phase 20 Plan 01 (TD-01) complete; D-03 acceptance gate green
+Last activity: 2026-04-18 -- Phase 20 Plan 02 (EPI-01..04) complete; migration 0005 + Zod three-layer schema + config.episodicCron shipped; D-03 gate + \d episodic_summaries + tsc + full Docker suite all green
 
 ```
-Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (0/4 phases)
+Progress: [██░░░░░░░░░░░░░░░░░░] 13% (2/16 plans)
 ```
 
 ## Shipped Milestones
@@ -45,7 +45,7 @@ Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (0/4
 
 | Phase | Name | Requirements | Status |
 |-------|------|--------------|--------|
-| 20 | Schema + Tech Debt | TD-01, EPI-01–04 (5 reqs) | Not started |
+| 20 | Schema + Tech Debt | TD-01, EPI-01–04 (5 reqs) | Executing (2/3 plans — TD-01 + EPI-01..04 complete; tests pending) |
 | 21 | Consolidation Engine | CONS-01–12 (12 reqs) | Planned (4 plans) |
 | 22 | Cron + Retrieval Routing | CRON-01–02, RETR-01–06 (8 reqs) | Planned (5 plans) |
 | 23 | Test Suite + Backfill + /summary | TEST-15–22, OPS-01, CMD-01 (10 reqs) | Not started |
@@ -94,9 +94,9 @@ None. Research confidence: HIGH across all areas (stack, features, architecture,
 
 ## Session Continuity
 
-Last session: 2026-04-18 — Phase 20 Plan 01 complete (TECH-DEBT-19-01 resolved via clean-slate iterative replay; scripts/regen-snapshots.sh delivered; D-03 acceptance gate green; 843/904 Docker tests passing, 61 failures pre-existing per Plan 19-04 baseline)
-Stopped at: Phase 20 Plan 01 complete — next is Plan 02 (episodic_summaries schema + Zod + config)
-Resume file: .planning/phases/20-schema-tech-debt/20-02-PLAN.md
+Last session: 2026-04-18 — Phase 20 Plan 02 complete (episodic_summaries migration 0005 + three-layer Zod schema in src/episodic/types.ts + config.episodicCron; drizzle no-op against fully-migrated Docker; \d episodic_summaries shows 9 cols + PK + 3 spec indexes + CHECK; 843/904 Docker tests passing — parity with Plan 20-01 baseline, zero regressions)
+Stopped at: Phase 20 Plan 02 complete — next is Plan 03 (Zod + schema integration tests + Docker gate raise)
+Resume file: .planning/phases/20-schema-tech-debt/20-03-PLAN.md
 
 ## Known Tech Debt
 

@@ -52,7 +52,7 @@ See [milestones/v2.1-ROADMAP.md](milestones/v2.1-ROADMAP.md) for full phase deta
 
 ### v2.2 M008 Episodic Consolidation (Active — Phases 20-23)
 
-- [ ] **Phase 20: Schema + Tech Debt** — TECH-DEBT-19-01 drizzle-kit snapshot regeneration ✅ (Plan 01 complete 2026-04-18) + `episodic_summaries` migration 0005 with all indexes + Zod types + config field (Plans 02–03 pending)
+- [ ] **Phase 20: Schema + Tech Debt** — TECH-DEBT-19-01 drizzle-kit snapshot regeneration ✅ (Plan 01 complete 2026-04-18) + `episodic_summaries` migration 0005 with all indexes + Zod types + config field ✅ (Plan 02 complete 2026-04-18); test coverage (Plan 03 pending)
 - [ ] **Phase 21: Consolidation Engine** — `runConsolidate()` with entry-count gate, idempotency, M006 preamble injection, importance rubric + floor hooks, verbatim quote enforcement, M007/M002 read-only integration, sparse-entry guard, failure notification
 - [ ] **Phase 22: Cron + Retrieval Routing** — Independent cron in `src/index.ts`; DST-safe scheduling; two-dimensional retrieval routing; high-importance raw descent; INTERROGATE date-anchored injection; Known Facts and embedding separation audit
 - [ ] **Phase 23: Test Suite + Backfill + `/summary`** — 14-day synthetic fixture (8 test cases), live anti-flattery integration test, backfill operator script, `/summary [YYYY-MM-DD]` Telegram command
@@ -75,7 +75,7 @@ See [milestones/v2.1-ROADMAP.md](milestones/v2.1-ROADMAP.md) for full phase deta
   5. The 152-test Docker Postgres gate remains green after the schema change
 **Plans**: 3 plans
   - [x] 20-01-PLAN.md — TECH-DEBT-19-01 clean-slate drizzle snapshot regen (TD-01) — completed 2026-04-18
-  - [ ] 20-02-PLAN.md — `episodic_summaries` schema + migration 0005 + Zod types + `episodicCron` config (EPI-01..04)
+  - [x] 20-02-PLAN.md — `episodic_summaries` schema + migration 0005 + Zod types + `episodicCron` config (EPI-01..04) — completed 2026-04-18
   - [ ] 20-03-PLAN.md — Zod + schema integration tests + Docker gate (TEST coverage)
 
 ### Phase 21: Consolidation Engine
@@ -145,7 +145,7 @@ See [milestones/v2.1-ROADMAP.md](milestones/v2.1-ROADMAP.md) for full phase deta
 | 17. `/decisions` & Accuracy Stats  | v2.1      | 3/3   | Complete    | 2026-04-16 |
 | 18. Synthetic + Live Suite         | v2.1      | 4/2   | Complete    | 2026-04-16 |
 | 19. Proactive Pipeline Restoration | v2.1      | 4/4   | Complete    | 2026-04-17 |
-| 20. Schema + Tech Debt             | v2.2      | 0/TBD | Not started | -          |
+| 20. Schema + Tech Debt             | v2.2      | 2/3   | Executing   | -          |
 | 21. Consolidation Engine           | v2.2      | 0/4   | Planned     | -          |
 | 22. Cron + Retrieval Routing       | v2.2      | 0/TBD | Not started | -          |
 | 23. Test Suite + Backfill + /summary | v2.2    | 0/TBD | Not started | -          |
