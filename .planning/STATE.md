@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: M007 Decision Archive
-status: completed
-stopped_at: Completed 19-04-PLAN.md — TEST-12 realigned to channel-separation contract; TECH-DEBT-19-01 recorded for deferred drizzle meta snapshots; Wave 4 gate green; v2.1 M007 Decision Archive milestone restoration complete
-last_updated: "2026-04-17T12:53:48.385Z"
-last_activity: 2026-04-17
+status: shipped
+stopped_at: v2.1 M007 Decision Archive shipped — all 31 requirements satisfied, 7 phases archived, tag v2.1 pushed
+last_updated: "2026-04-18T06:30:00.000Z"
+last_activity: 2026-04-18
 progress:
   total_phases: 7
   completed_phases: 7
@@ -18,91 +18,63 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-15 for v2.1 M007 Decision Archive milestone)
+See: .planning/PROJECT.md (updated 2026-04-18 after v2.1 M007 Decision Archive milestone shipped)
 
 **Core value:** Greg can deposit any memory, thought, or feeling into Chris and later ask questions that Chris answers by searching everything Greg has ever told him — with full fidelity, no data loss, and genuine contextual understanding across English, French, and Russian.
-**Current focus:** Phase 19 — Proactive Pipeline Restoration
+**Current focus:** Between-milestones pause — real Telegram use of M007 decision archive for ≥2 weeks before starting M008 Episodic Consolidation.
 
 ## Current Position
 
-Phase: 19
-Plan: Not started
-Next: v2.1 M007 Decision Archive milestone ready to ship; `/gsd-audit-milestone v2.1` for updated audit report
-Status: Milestone restoration complete
-Last activity: 2026-04-17
-
-## v2.1 Milestone Roadmap (Phases 13-18)
-
-- Phase 13 — Schema & Lifecycle Primitives (guards C4, M1)
-- Phase 14 — Capture Flow (guards C1, C2, C3, M5, M6)
-- Phase 15 — Deadline Trigger & Sweep Integration (guards C5, M3)
-- Phase 16 — Resolution + ACCOUNTABILITY Mode (guards C7, M2, M6, m3)
-- Phase 17 — `/decisions` Command & Accuracy Stats (guards C2, C6, M4)
-- Phase 18 — Synthetic Fixture + Live ACCOUNTABILITY Suite (guards C7 flatline)
+Phase: — (between milestones)
+Plan: —
+Next: `/gsd-new-milestone` for M008 Episodic Consolidation after ≥2 weeks of real M007 use
+Status: v2.1 shipped
+Last activity: 2026-04-18
 
 ## Shipped Milestones
 
 - **v1.0 Living Memory through Validation** — 2026-04-13 (Phases 1-5)
 - **v2.0 M006 Trustworthy Chris** — 2026-04-15 (Phases 6-12, 19 plans, 26/26 requirements)
+- **v2.1 M007 Decision Archive** — 2026-04-18 (Phases 13-19, 27 plans, 36 tasks, 31/31 requirements)
 
 ## Accumulated Context
 
-### Decisions in force for M007
+### Decisions in force for M008
 
-Full log in PROJECT.md Key Decisions table. Most load-bearing for M007:
+Full log in PROJECT.md Key Decisions table. Most load-bearing going into episodic consolidation:
 
-- D001 three-tier LLM (Haiku for stakes classification + accuracy scoring)
-- D004 append-only Pensieve — `decision_events` extends this invariant to lifecycle
-- D010 two-phase trigger execution — applies to decision trigger (regex→Haiku stakes) and deadline trigger (SQL gate→surface)
+- D004 append-only Pensieve — M008 must consume Pensieve without mutating it
+- D010 two-phase trigger execution — consolidation will reuse SQL-first gating for cheap Opus calls
 - D017/D018/D019 per-phase commits, no skipped tests, explicit production deploy
-- D020 pattern-based detection for bounded problems — reused for EN/FR/RU trigger regex
-- D021 `franc` language detection — thread Greg's language through capture/resolution
-- D023/D032 live integration tests vs real Sonnet — mandatory for ACCOUNTABILITY mode
-- D025 praise quarantine bypassed at prompt level for flattery-forbidden modes — ACCOUNTABILITY follows COACH/PSYCHOLOGY pattern
-- D027 The Hard Rule — explicitly forbidden in ACCOUNTABILITY system prompt
-
-### Decisions in force for Phase 19
-
-- **D19-01-A upheld (2026-04-17):** setEscalationContext/getEscalationContext NOT restored — they do not exist in canonical 4c156c3, no consumer imports them, no requirement mandates them. ROADMAP Phase 19 success criterion 1 mention is treated as optimistic.
-- **D19-01-B upheld (2026-04-17):** scripts/test.sh restoration moved from Plan 19-04 Task 1 to Plan 19-01 Task 0, eliminating circular wave dependency. All subsequent Wave gates now use the canonical 5-migration harness.
-- **Pre-existing failures ruled out of Phase 19 scope (2026-04-17):** 45 engine.*/photos-memory/language test failures in Wave 1 gate traced to pre-existing bug in engine.test.ts mock chain (select→from→where→limit not covered) introduced by e4cb9da's partial restore of engine.ts PP#0 block. Proven pre-existing via rollback+rerun. Logged in `.planning/phases/19-proactive-pipeline-restoration/deferred-items.md` for post-Phase-19 cleanup.
-- **D19-03-A (2026-04-17):** Plan 19-03 restored sweep.ts + 3 test files byte-exact from 4c156c3 in a single atomic commit; dual-channel runSweep with 48h escalation block is now functional; 72/72 proactive tests green under Docker Postgres. Flow B (deadline → resolution) and Flow E (auto-escalation) are CODE-COMPLETE and test-verified.
-- **D19-03-B (2026-04-17):** TEST-12 in synthetic-fixture.test.ts expected break (vi.mock factory missing hasSentTodayAccountability); realignment to dual-channel contract deferred to Plan 19-04 per the 19-03-PLAN. NOT a regression — it is the pre-existing test locking in a degraded single-pipeline contract.
-- **D19-04-A (2026-04-17):** Plan 19-04 realigned TEST-12 in synthetic-fixture.test.ts to the channel-separation contract (SWEEP-02). Asserts both `accountabilityResult.triggered` + `reflectiveResult.triggered`, 2 `sendMessage` calls, write-before-send ordering, per-channel cap writes, escalation bootstrap. TEST-10/11 preserved both by byte-exact describe-block diff AND by positive `-t 'TEST-10|TEST-11'` filter run (2 passed | 1 skipped). Closes Phase 19 success criterion #6.
-- **D19-04-B (2026-04-17):** Migration meta snapshots — Option A attempted first (`npx drizzle-kit generate` against live Postgres) returned "No schema changes, nothing to migrate"; drizzle-kit does not backfill snapshots for already-applied entries 0001/0003. Option C taken: TECH-DEBT-19-01 recorded in STATE.md `## Known Tech Debt` with explicit reactivation trigger (next phase that modifies `src/db/schema.ts`). Audit disposition: PARTIAL, not FAIL — does not block any v2.1 requirement.
-- **D19-04-C (2026-04-17):** v2.1 M007 Decision Archive milestone restoration COMPLETE. Manual milestone re-audit: requirements 31/31 (was 26/31); integration 12/13 PASS + 1 PARTIAL (was 8/13 + 2 FAIL + 1 PARTIAL); flows 5/5 (was 3/5 — B and E now COMPLETE). Wave 4 Docker gate EXIT 0; 10 files / 94 tests failing = pre-existing Cat A (45) + Cat B (49) baseline identical to Wave 1; zero new regressions.
+- D023/D032 live integration tests for any prompt-level behavior
+- D024 four-layer anti-sycophancy — episodic summaries must not reinforce flattering self-narratives
+- D027 The Hard Rule — forbidden in consolidation prompts
+- M007 decision archive is now a source stream for episodic summaries (resolved/reviewed decisions carry outcomes that belong in weekly/monthly rituals)
 
 ### Pending Todos
 
-- Execute `/gsd-plan-phase 13` to plan Schema & Lifecycle Primitives.
-- During Phase 16 planning, decide: ACCOUNTABILITY as new mode vs COACH extension (PITFALLS C7 accepts either).
+- After ≥2 weeks of real M007 Telegram use: run `/gsd-new-milestone` to begin M008 Episodic Consolidation.
+- Human UAT pass on 12 deferred items (live Telegram feel, ACCOUNTABILITY tone quality, `/decisions` dashboard format, FR/RU localization).
+- Run TEST-13 + TEST-14 locally with `ANTHROPIC_API_KEY` set to verify live Sonnet ACCOUNTABILITY + Haiku vague-prediction resistance.
+- Optional: `/gsd-validate-phase 13/14/15/16/18/19` to close Nyquist gaps (non-blocking, audit status already `partial`).
+- Optional: backfill SUMMARY frontmatter (`requirements-completed:`) on plans 14-04, 15-01, 15-02, 16-01/02/04, 17-01/02/03, 18-01/03/04 for future-audit ergonomics.
 
 ### Blockers/Concerns
 
-None. Between-phases pause for M006 (≥1 week real Telegram use before M007) acknowledged; user confirmed proceeding with M007 planning now. Post-M007, pause ≥2 weeks of real Telegram use before M008 Episodic Consolidation.
+None. Between-milestones pause of ≥2 weeks is mandatory before M008 per PLAN.md discipline — real usage tells things that planning does not.
 
 ## Session Continuity
 
-Last session: 2026-04-17T12:47:06.306Z
-Stopped at: Completed 19-04-PLAN.md — TEST-12 realigned to channel-separation contract; TECH-DEBT-19-01 recorded for deferred drizzle meta snapshots; Wave 4 gate green; v2.1 M007 Decision Archive milestone restoration complete
+Last session: 2026-04-18T06:30:00Z
+Stopped at: v2.1 M007 Decision Archive shipped — archives written to `milestones/v2.1-*`, phase directories archived to `milestones/v2.1-phases/`, git tag `v2.1` created and pushed
 Resume file: None
-
-## Performance Metrics
-
-| Phase | Plan | Duration | Tasks | Files | Notes |
-|-------|------|----------|-------|-------|-------|
-| 19 | 01 | 36min | 5 | 4 | byte-exact restoration; Wave 1 gate green; 9 pre-existing failing test files catalogued out-of-scope |
-| 19 | 02 | small | 2 | 1 | prompts.ts ACCOUNTABILITY_SYSTEM_PROMPT + ACCOUNTABILITY_FOLLOWUP_PROMPT restored; Wave 2 gate stable vs baseline |
-| 19 | 03 | 13min | 2 | 4 | atomic sweep.ts + 3 test files from 4c156c3; 72/72 proactive tests green; TEST-12 expected break deferred to 19-04 |
-| 19 | 04 | 36min | 3 | 2 | TEST-12 realigned to channel-separation contract; TECH-DEBT-19-01 (drizzle meta snapshots); Wave 4 gate green; v2.1 M007 milestone restoration complete |
-| Phase 19 P04 | 36min | 3 tasks | 2 files |
 
 ## Known Tech Debt
 
 _Entries here are deliberate deferrals with a clear reactivation trigger. Each item links to a phase SUMMARY explaining rationale and conditions under which it would be reopened._
 
 - **TECH-DEBT-19-01** — `src/db/migrations/meta/0001_snapshot.json` and `0003_snapshot.json` missing.
-  - See [.planning/phases/19-proactive-pipeline-restoration/19-04-SUMMARY.md](phases/19-proactive-pipeline-restoration/19-04-SUMMARY.md) for rationale.
-  - Attempted regeneration via `npx drizzle-kit generate` (Option A) against a live Docker Postgres with all 5 migrations applied. drizzle-kit read the schema, detected 12 tables, and returned "No schema changes, nothing to migrate" — it does NOT backfill snapshots for already-applied entries. The runtime migrator (scripts/test.sh) applies `.sql` files directly and does not need the snapshots — they are only consulted when `drizzle-kit generate` is invoked for a NEW migration.
+  - See [milestones/v2.1-phases/19-proactive-pipeline-restoration/19-04-SUMMARY.md](milestones/v2.1-phases/19-proactive-pipeline-restoration/19-04-SUMMARY.md) for rationale.
+  - Attempted regeneration via `npx drizzle-kit generate` (Option A) against a live Docker Postgres with all 5 migrations applied. drizzle-kit read the schema, detected 12 tables, and returned "No schema changes, nothing to migrate" — it does NOT backfill snapshots for already-applied entries. The runtime migrator (`scripts/test.sh`) applies `.sql` files directly and does not need the snapshots — they are only consulted when `drizzle-kit generate` is invoked for a NEW migration.
   - **Reactivation trigger:** the next phase that modifies `src/db/schema.ts` (adding a table/column/enum). At that point the absence of 0001/0003 snapshots will cause a drift diff to be mis-computed; regenerate as part of that phase's migration work.
   - **Audit disposition:** v2.1 milestone audit marks this as PARTIAL, not FAIL — does not block requirement satisfaction for SWEEP-01/02/04, RES-02/06.

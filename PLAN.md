@@ -293,22 +293,24 @@ Execution runs inside GSD v1 (`get-shit-done-cc`), not v2. GSD v1 operates as Cl
 
 ## Current State
 
-**Shipped:** v1.0 (2026-04-13), v2.0 M006 Trustworthy Chris (2026-04-15).
+**Shipped:** v1.0 (2026-04-13), v2.0 M006 Trustworthy Chris (2026-04-15), **v2.1 M007 Decision Archive (2026-04-18)**.
 
-All 26 v2.0 requirements satisfied with code + live-suite evidence. Chris is deployed on self-hosted Proxmox (192.168.1.50) with both containers healthy. Four trust-breaking failures observed on 2026-04-11 (refusal ignoring, fact confabulation, performative apologies, question pressure) are closed. Constitutional anti-sycophancy preamble, `franc`-based language detection, JOURNAL hybrid retrieval with structured Known Facts block, Haiku praise quarantine, 24-case live integration suite, and 20-pair contradiction FP audit are all in place. Identity grounding ("Greg" in all user-facing prompts) unified after Phase 10 surfaced a TEST-03 regression.
+All 31 v2.1 requirements satisfied. The decision archive is live end-to-end: two-phase trigger detection (EN/FR/RU regex + Haiku stakes) opens a conversational 5-slot capture, `transitionDecision` enforces the lifecycle chokepoint with optimistic concurrency over an append-only `decision_events` log, the dual-channel proactive sweep fires `decision-deadline` prompts on its own `accountability_outreach` channel, resolution routes through a new ACCOUNTABILITY mode that bypasses the praise quarantine while forbidding The Hard Rule (D027), and `/decisions stats` exposes 2-axis accuracy with an N≥10 Wilson CI floor. The 152-test Docker Postgres gate (proactive + synthetic-fixture) runs clean in 4.19s.
 
-Zero tech debt carried into v3.0.
+Chris is deployed on self-hosted Proxmox (192.168.1.50) with both containers healthy. Constitutional anti-sycophancy (v2.0), structured Known Facts retrieval, Haiku praise quarantine, and identity grounding all hold. v2.1 layers decision accountability on top of v2.0 without regressing any prior behavior.
 
-**M007 progress (v2.1):** Phases 13-17 complete. Schema lifecycle primitives, conversational 5-slot capture flow, dual-channel sweep with deadline trigger + accountability channel, resolution/post-mortem/accountability mode (Phase 16), and `/decisions` command surface with 2-axis accuracy stats + Wilson CI (Phase 17) are all in place. Phase 17 delivers: 8 sub-commands (`open`, `recent`, `stats [30|90|365]`, `suppress`, `suppressions`, `unsuppress`, `reclassify`, dashboard), N>=10 floor preventing dashboard sycophancy, and reasoning-axis classification cached at resolution time.
+**Tech debt carried into v2.2+:**
+- **TECH-DEBT-19-01** — drizzle-kit meta snapshots for migrations 0001/0003 are missing. drizzle-kit does not backfill snapshots for already-applied entries; the runtime migrator (`scripts/test.sh`) applies `.sql` directly and does not consult them. Reactivation trigger: next phase that modifies `src/db/schema.ts`.
+- **12 human-UAT items** (live Telegram feel, ACCOUNTABILITY tone, `/decisions` dashboard format, FR/RU localization) and **TEST-13 / TEST-14** live-API runs gated on `ANTHROPIC_API_KEY`.
 
-Archived detail: `.planning/milestones/v2.0-ROADMAP.md`, `.planning/milestones/v2.0-REQUIREMENTS.md`, `.planning/milestones/v2.0-MILESTONE-AUDIT.md`.
+Archived detail: `.planning/milestones/v2.0-*`, `.planning/milestones/v2.1-*`, `.planning/milestones/v2.1-phases/` (phase directories).
 
 ## Next Milestone
 
-Per the soul-system execution order (see "Implementation Phases" below), next up is **M007 Decision Archive**. Start with `/gsd-new-milestone`. Per the between-phases pause discipline, M006 should run for at least a week in real use before M007 starts — validate trust fixes against real conversation before layering new scope.
+Per the soul-system execution order, next up is **M008 Episodic Consolidation**. Start with `/gsd-new-milestone`. Per the between-phases pause discipline, M007 should run for **at least two weeks of real Telegram use** before M008 starts — validate decision capture triggers, ACCOUNTABILITY tone, and stats honesty in real conversation before layering episodic memory on top.
 
 <details>
-<summary>v2.0 M006 Trustworthy Chris (shipped — historical)</summary>
+<summary>v2.0 M006 Trustworthy Chris (shipped 2026-04-15 — historical)</summary>
 
 **Goal:** Fix four trust-breaking conversational failures and harden Chris with constitutional anti-sycophancy + structured fact retrieval before any soul-system work is layered on top.
 
@@ -325,6 +327,26 @@ Per the soul-system execution order (see "Implementation Phases" below), next up
 - Memory audit against ground truth (Phase 6)
 - Identity grounding: John→Greg unification (Phase 11)
 - Tech-debt closure: residual rename + SUMMARY frontmatter backfill (Phase 12)
+
+</details>
+
+<details>
+<summary>v2.1 M007 Decision Archive (shipped 2026-04-18 — historical)</summary>
+
+**Goal:** Capture every structural decision Greg makes with reasoning and a falsifiable forecast, surface the forecast at its resolution date, and run a post-mortem — converting Chris from reflective journal into epistemic accountability tool.
+
+**Delivered (31/31 requirements):**
+- Schema & lifecycle primitives: append-only `decision_events` + `decisions` projection + `decision_capture_state`; `transitionDecision()` chokepoint with optimistic concurrency and 3 distinguishable error classes; replayable projection via `regenerateDecisionFromEvents()` (Phase 13)
+- Capture flow: EN/FR/RU two-phase trigger (regex + Haiku `trivial`/`moderate`/`structural` stakes); conversational 5-slot Haiku extraction with 3-turn cap + abort phrases; `parseResolveBy` with 7/30/90/365-day fallback ladder; engine PP#0/PP#1 pre-processors; `/decisions suppress` persistence (Phase 14)
+- Dual-channel proactive sweep: fifth `decision-deadline` trigger at priority 2; `reflective_outreach` / `accountability_outreach` channels with independent daily caps; dated stale-context ≥48h; write-before-send via `upsertAwaitingResolution` (Phases 15 + 19)
+- ACCOUNTABILITY mode + resolution + post-mortem: new mode bypasses praise quarantine and forbids The Hard Rule (D027); `handleResolution` → `classifyOutcome` (Haiku, fail-closed) → `handlePostmortem`; ±48h `getTemporalPensieve` context; Popper criterion redisplay; auto-escalation after 48h silence (Phases 16 + 19)
+- `/decisions` command + accuracy stats: 8 sub-commands pull-only; 2-axis Haiku classification cached at resolution time with model version; N≥10 Wilson 95% CI floor; SQL `FILTER` rolling 30/90/365-day windows; domain-tag breakdown; `/decisions reclassify` (Phase 17)
+- Synthetic fixture + live suite: single `vi.setSystemTime` 14-day lifecycle (TEST-10); concurrency race (TEST-11); channel-separation collision (TEST-12); live ACCOUNTABILITY 3-of-3 (TEST-13, API-gated); vague-validator live resistance (TEST-14, API-gated) (Phase 18)
+- Proactive pipeline restoration: byte-exact restore of `state.ts`/`prompts.ts`/`sweep.ts` from canonical `4c156c3` (lost in worktree merge `5582442`); TEST-12 realigned to channel-separation contract; Phase 15/16 `VERIFICATION.md` re-aligned with runtime code (Phase 19)
+
+**Tech debt carried:** TECH-DEBT-19-01 (drizzle-kit meta snapshots for migrations 0001/0003) + 3 Phase 13 Info deferrals documented `Fix: None required` + 12 human-UAT items + TEST-13 / TEST-14 live-API runs pending `ANTHROPIC_API_KEY`.
+
+**New decisions logged during v2.1:** D-04 decision lifecycle map (legal transitions + open-draft/stale/abandoned terminal set); D-07 legacy-key reflective fallback; D-14 vague-prediction one-pushback invariant; D-17 pre-regex suppression check; D-18 live ACCOUNTABILITY 3-of-3 against real Sonnet; D-25 abort-phrase detection inside PP#0; D-28 write-before-send ordering for sweep.
 
 </details>
 
@@ -346,4 +368,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-16 after Phase 17 (/decisions Command & Accuracy Stats) completed*
+*Last updated: 2026-04-18 after v2.1 M007 Decision Archive milestone shipped*
