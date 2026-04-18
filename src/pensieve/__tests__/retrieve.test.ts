@@ -7,6 +7,8 @@ vi.mock('../../config.js', () => ({
     embeddingDimensions: 1024,
     logLevel: 'info',
     databaseUrl: 'postgres://mock',
+    // RETR-01 episodic helpers convert Date inputs in this tz before querying.
+    proactiveTimezone: 'Europe/Paris',
   },
 }));
 
@@ -43,7 +45,7 @@ vi.mock('../../db/connection.js', () => ({
 }));
 
 // ── Import module under test after mocks ───────────────────────────────────
-const { searchPensieve, hybridSearch, REFLECT_SEARCH_OPTIONS, COACH_SEARCH_OPTIONS, PSYCHOLOGY_SEARCH_OPTIONS, PRODUCE_SEARCH_OPTIONS, CONTRADICTION_SEARCH_OPTIONS, JOURNAL_SEARCH_OPTIONS } = await import('../retrieve.js');
+const { searchPensieve, hybridSearch, getEpisodicSummary, getEpisodicSummariesRange, REFLECT_SEARCH_OPTIONS, COACH_SEARCH_OPTIONS, PSYCHOLOGY_SEARCH_OPTIONS, PRODUCE_SEARCH_OPTIONS, CONTRADICTION_SEARCH_OPTIONS, JOURNAL_SEARCH_OPTIONS } = await import('../retrieve.js');
 import type { SearchOptions, SearchResult } from '../retrieve.js';
 import { JOURNAL_SYSTEM_PROMPT } from '../../llm/prompts.js';
 
@@ -505,5 +507,77 @@ describe('JOURNAL_SYSTEM_PROMPT', () => {
 
   it('contains hallucination resistance instruction', () => {
     expect(JOURNAL_SYSTEM_PROMPT).toContain("I don't have any memories about that");
+  });
+});
+
+// ── Episodic helpers — error paths (RETR-01) ──────────────────────────────
+//
+// Happy-path + timezone-boundary + range coverage for getEpisodicSummary /
+// getEpisodicSummariesRange lives in `retrieve.episodic.test.ts` (Docker-
+// Postgres integration). Here we exercise the never-throw contract: the
+// helpers must return null / [] and log `pensieve.episodic.error` on any
+// DB failure. Forcing the mocked `db.select()` to throw is the cleanest way
+// to drive that path without wiring a closed-connection scenario.
+
+describe('episodic helpers — error paths', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('getEpisodicSummary returns null and logs pensieve.episodic.error on DB throw', async () => {
+    mockSelect.mockImplementationOnce(() => {
+      throw new Error('connection reset');
+    });
+
+    const row = await getEpisodicSummary(new Date('2026-04-15T10:00:00Z'));
+
+    expect(row).toBeNull();
+    expect(mockLogWarn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        date: expect.any(String),
+        error: 'connection reset',
+      }),
+      'pensieve.episodic.error',
+    );
+  });
+
+  it('getEpisodicSummariesRange returns [] and logs pensieve.episodic.error on DB throw', async () => {
+    mockSelect.mockImplementationOnce(() => {
+      throw new Error('query timed out');
+    });
+
+    const rows = await getEpisodicSummariesRange(
+      new Date('2026-04-10T10:00:00Z'),
+      new Date('2026-04-15T10:00:00Z'),
+    );
+
+    expect(rows).toEqual([]);
+    expect(mockLogWarn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: expect.any(String),
+        to: expect.any(String),
+        error: 'query timed out',
+      }),
+      'pensieve.episodic.error',
+    );
+  });
+
+  it('formatLocalDate routes Date through config.proactiveTimezone (observable in error log)', async () => {
+    // Force a throw so the warn log fires with the formatted localDate.
+    // 2026-04-15T22:30:00Z = 2026-04-16 00:30 in Europe/Paris (CEST).
+    // The log payload's `date` field proves the helper used the tz, not UTC.
+    mockSelect.mockImplementationOnce(() => {
+      throw new Error('boom');
+    });
+
+    await getEpisodicSummary(new Date('2026-04-15T22:30:00Z'));
+
+    expect(mockLogWarn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        date: '2026-04-16',
+        error: 'boom',
+      }),
+      'pensieve.episodic.error',
+    );
   });
 });
