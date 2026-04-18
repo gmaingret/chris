@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: M008 Episodic Consolidation
 status: in_progress
-stopped_at: Roadmap created — Phase 20 ready to plan
+stopped_at: Phase 20 context gathered — ready to plan
 last_updated: "2026-04-18T00:00:00.000Z"
 last_activity: 2026-04-18
 progress:
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-04-18 — v2.2 M008 Episodic Consolidati
 
 ## Current Position
 
-Phase: 20 — Schema + Tech Debt (not started)
+Phase: 20 — Schema + Tech Debt (context gathered, awaiting plan)
 Plan: —
 Next: `/gsd-plan-phase 20`
-Status: Roadmap defined, awaiting phase planning
-Last activity: 2026-04-18 — Roadmap created (Phases 20-23)
+Status: CONTEXT.md written; TD-01 strategy locked (clean-slate replay on throwaway branch + Docker); ready for research + planning
+Last activity: 2026-04-18 — Phase 20 context gathered (20 decisions, 4 gray areas resolved)
 
 ```
 Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (0/4 phases)
@@ -94,9 +94,9 @@ None. Research confidence: HIGH across all areas (stack, features, architecture,
 
 ## Session Continuity
 
-Last session: 2026-04-18 — roadmap created for v2.2 M008 (4 phases, 35 requirements)
-Stopped at: Roadmap defined — ready for `/gsd-plan-phase 20`
-Resume file: None
+Last session: 2026-04-18 — Phase 20 context gathered (TD-01 snapshot regen strategy + three-layer Zod shape + DB-level importance CHECK + 5-8 new tests)
+Stopped at: Phase 20 CONTEXT.md written — ready for `/gsd-plan-phase 20`
+Resume file: .planning/phases/20-schema-tech-debt/20-CONTEXT.md
 
 ## Known Tech Debt
 
