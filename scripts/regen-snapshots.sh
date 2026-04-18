@@ -1,0 +1,270 @@
+#!/usr/bin/env bash
+#
+# scripts/regen-snapshots.sh — regenerate drizzle-kit meta snapshots for
+# migrations 0001 and 0003 via clean-slate iterative replay per Phase 20
+# CONTEXT.md D-01.
+#
+# Runs in a throwaway Docker container on an isolated volume (compose project
+# `chris-regen`, port 5434). Safe to run on any branch — never mutates the
+# main postgres (which test.sh runs on port 5433, project `chris-local`).
+# Re-runnable on failure.
+#
+# Approach (clean-slate iterative replay):
+#   1. Spin up a fresh Docker postgres on port 5434 (isolated volume).
+#   2. Apply migrations 0000 + 0001. Run drizzle-kit introspect to capture
+#      the schema state at that point. Patch the resulting snapshot's `id`
+#      and `prevId` so it chains from 0000_snapshot. Save as 0001_snapshot.json.
+#   3. Apply migrations 0002 + 0003 on top. Introspect again. Patch id/prevId
+#      so it chains from 0002_snapshot. Save as 0003_snapshot.json.
+#   4. Copy regenerated snapshots into src/db/migrations/meta/.
+#   5. Acceptance gate: tear down, fresh postgres, apply ALL five migrations
+#      0000..0004, run `drizzle-kit generate`. MUST print
+#      "No schema changes, nothing to migrate".
+#   6. Cleanup: docker compose down --volumes, rm -rf .tmp/drizzle-regen-*.
+#
+# Rationale: Plan 19-04 verified Option A ("drizzle-kit generate against
+# fully-migrated Docker") returns "No schema changes" — drizzle-kit does
+# NOT backfill meta for already-applied entries. Clean-slate iterative
+# replay via drizzle-kit introspect is the only path that regenerates the
+# missing intermediate snapshots byte-accurately.
+#
+# Usage:
+#   bash scripts/regen-snapshots.sh            # regenerate and write snapshots
+#   bash scripts/regen-snapshots.sh --check-only  # dry-run: verify only
+#
+set -euo pipefail
+
+# ── Config ────────────────────────────────────────────────────────────────
+COMPOSE_PROJECT="chris-regen"
+COMPOSE_FILE="docker-compose.local.yml"
+REGEN_PORT="5434"
+DB_URL="postgresql://chris:localtest123@localhost:${REGEN_PORT}/chris"
+
+MIGRATIONS_DIR="src/db/migrations"
+META_DIR="${MIGRATIONS_DIR}/meta"
+TMP_DIR=".tmp"
+OUT_DIR="${TMP_DIR}/regen-out"
+
+MIGRATION_0="${MIGRATIONS_DIR}/0000_curved_colonel_america.sql"
+MIGRATION_1="${MIGRATIONS_DIR}/0001_add_photos_psychology_mode.sql"
+MIGRATION_2="${MIGRATIONS_DIR}/0002_decision_archive.sql"
+MIGRATION_3="${MIGRATIONS_DIR}/0003_add_decision_epistemic_tag.sql"
+MIGRATION_4="${MIGRATIONS_DIR}/0004_decision_trigger_suppressions.sql"
+
+CHECK_ONLY=0
+if [[ "${1:-}" == "--check-only" ]]; then
+  CHECK_ONLY=1
+fi
+
+# Override compose file to publish on the regen port so we don't collide with
+# the test postgres on 5433. Also use a unique volume path via tmpfs (already
+# the case in docker-compose.local.yml).
+OVERRIDE_FILE="${TMP_DIR}/docker-compose.regen.override.yml"
+
+mkdir -p "${TMP_DIR}" "${OUT_DIR}"
+
+cat > "${OVERRIDE_FILE}" <<OVR
+services:
+  postgres:
+    ports:
+      - "${REGEN_PORT}:5432"
+OVR
+
+# ── Cleanup on exit ───────────────────────────────────────────────────────
+cleanup() {
+  local rc=$?
+  echo ""
+  echo "🧹 Cleaning up regen postgres (project ${COMPOSE_PROJECT})..."
+  docker compose -p "${COMPOSE_PROJECT}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" \
+    down --volumes --timeout 5 >/dev/null 2>&1 || true
+  rm -rf "${TMP_DIR}/drizzle-regen-"* "${OUT_DIR}" "${OVERRIDE_FILE}" || true
+  # Clean up any accidentally generated acceptance-check artifacts
+  find "${MIGRATIONS_DIR}" -maxdepth 1 -name "0005_acceptance_check*.sql" -delete 2>/dev/null || true
+  find "${META_DIR}" -name "0005_snapshot.json" -delete 2>/dev/null || true
+  exit "${rc}"
+}
+trap cleanup EXIT INT TERM
+
+# ── Helpers ───────────────────────────────────────────────────────────────
+compose() {
+  docker compose -p "${COMPOSE_PROJECT}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" "$@"
+}
+
+wait_ready() {
+  local ready=0
+  for _ in $(seq 1 30); do
+    if compose exec -T postgres pg_isready -U chris -d chris -q 2>/dev/null; then
+      ready=1
+      break
+    fi
+    sleep 1
+  done
+  if [[ "${ready}" -ne 1 ]]; then
+    echo "❌ postgres failed to become ready after 30s" >&2
+    return 1
+  fi
+}
+
+apply_sql() {
+  local sql_file="$1"
+  compose exec -T postgres \
+    psql -U chris -d chris -v ON_ERROR_STOP=1 -q < "${sql_file}"
+}
+
+apply_psql_cmd() {
+  local cmd="$1"
+  compose exec -T postgres \
+    psql -U chris -d chris -v ON_ERROR_STOP=1 -q -c "${cmd}"
+}
+
+# Run drizzle-kit introspect into a given out dir and return the emitted
+# snapshot file path (always the 0000_snapshot.json, since introspect starts
+# a fresh chain).
+introspect_to() {
+  local work_dir="$1"
+  mkdir -p "${work_dir}/out"
+  # Minimal config pointing at the regen DB and the staging out dir.
+  cat > "${work_dir}/drizzle.config.ts" <<CFG
+import { defineConfig } from 'drizzle-kit';
+export default defineConfig({
+  schema: './schema.ts',
+  out: './out',
+  dialect: 'postgresql',
+  dbCredentials: { url: '${DB_URL}' },
+  extensionsFilters: ['postgis'],
+});
+CFG
+  # Drizzle-kit introspect needs a schema.ts file to exist but will overwrite
+  # it; touch an empty one so the config validates.
+  printf '' > "${work_dir}/schema.ts"
+
+  (
+    cd "${work_dir}"
+    # Pipe an empty stdin in case drizzle-kit prompts for anything.
+    yes '' 2>/dev/null | npx drizzle-kit introspect 2>&1 | tail -20 || true
+  )
+
+  # The emitted snapshot is out/meta/0000_snapshot.json
+  local snap="${work_dir}/out/meta/0000_snapshot.json"
+  if [[ ! -f "${snap}" ]]; then
+    echo "❌ introspect did not produce a snapshot at ${snap}" >&2
+    return 1
+  fi
+  echo "${snap}"
+}
+
+# Patch a newly-introspected snapshot's id/prevId fields using node (no jq
+# available in this env). Args: src_snapshot dst_snapshot new_id prev_id
+patch_snapshot_chain() {
+  local src="$1" dst="$2" new_id="$3" prev_id="$4"
+  node -e "
+    const fs = require('fs');
+    const s = JSON.parse(fs.readFileSync('${src}', 'utf8'));
+    s.id = '${new_id}';
+    s.prevId = '${prev_id}';
+    fs.writeFileSync('${dst}', JSON.stringify(s, null, '\t') + '\n');
+  "
+}
+
+# Read an existing snapshot's id (for building the chain).
+snapshot_id() {
+  local file="$1"
+  node -e "console.log(JSON.parse(require('fs').readFileSync('${file}', 'utf8')).id);"
+}
+
+# Generate a deterministic-ish new UUID (v4). We don't need crypto-strength
+# randomness — just uniqueness within the chain.
+new_uuid() {
+  node -e "console.log(require('crypto').randomUUID());"
+}
+
+# ── Step 1: bring up fresh regen postgres ─────────────────────────────────
+echo "🐘 Starting regen postgres (project ${COMPOSE_PROJECT}, port ${REGEN_PORT})..."
+compose up -d postgres >/dev/null
+wait_ready
+apply_psql_cmd "CREATE EXTENSION IF NOT EXISTS vector;"
+
+# ── Step 2: apply 0000 + 0001, introspect, save 0001_snapshot ────────────
+echo "📦 Applying migrations 0000 + 0001..."
+apply_sql "${MIGRATION_0}"
+apply_sql "${MIGRATION_1}"
+
+echo "🔍 Introspecting for 0001_snapshot..."
+REGEN_0001_DIR="${TMP_DIR}/drizzle-regen-0001"
+rm -rf "${REGEN_0001_DIR}"
+SNAP_0001_RAW=$(introspect_to "${REGEN_0001_DIR}")
+
+ID_0000=$(snapshot_id "${META_DIR}/0000_snapshot.json")
+NEW_ID_0001=$(new_uuid)
+patch_snapshot_chain \
+  "${SNAP_0001_RAW}" \
+  "${OUT_DIR}/0001_snapshot.json" \
+  "${NEW_ID_0001}" \
+  "${ID_0000}"
+echo "  → staged ${OUT_DIR}/0001_snapshot.json (id=${NEW_ID_0001:0:8}..., prevId=${ID_0000:0:8}...)"
+
+# ── Step 3: apply 0002 + 0003, introspect, save 0003_snapshot ────────────
+echo "📦 Applying migrations 0002 + 0003..."
+apply_sql "${MIGRATION_2}"
+apply_sql "${MIGRATION_3}"
+
+echo "🔍 Introspecting for 0003_snapshot..."
+REGEN_0003_DIR="${TMP_DIR}/drizzle-regen-0003"
+rm -rf "${REGEN_0003_DIR}"
+SNAP_0003_RAW=$(introspect_to "${REGEN_0003_DIR}")
+
+ID_0002=$(snapshot_id "${META_DIR}/0002_snapshot.json")
+NEW_ID_0003=$(new_uuid)
+patch_snapshot_chain \
+  "${SNAP_0003_RAW}" \
+  "${OUT_DIR}/0003_snapshot.json" \
+  "${NEW_ID_0003}" \
+  "${ID_0002}"
+echo "  → staged ${OUT_DIR}/0003_snapshot.json (id=${NEW_ID_0003:0:8}..., prevId=${ID_0002:0:8}...)"
+
+# ── Step 4: install regenerated snapshots (unless --check-only) ──────────
+if [[ "${CHECK_ONLY}" -eq 1 ]]; then
+  echo "ℹ️  --check-only: staged snapshots in ${OUT_DIR} but not installing."
+else
+  echo "📥 Installing regenerated snapshots into ${META_DIR}/..."
+  cp "${OUT_DIR}/0001_snapshot.json" "${META_DIR}/0001_snapshot.json"
+  cp "${OUT_DIR}/0003_snapshot.json" "${META_DIR}/0003_snapshot.json"
+fi
+
+# ── Step 5: acceptance gate — fresh DB, all 5 migrations, generate = no-op ──
+echo ""
+echo "🧪 Acceptance gate: fresh postgres + all 5 migrations + drizzle-kit generate..."
+
+compose down --volumes --timeout 5 >/dev/null 2>&1 || true
+compose up -d postgres >/dev/null
+wait_ready
+apply_psql_cmd "CREATE EXTENSION IF NOT EXISTS vector;"
+apply_sql "${MIGRATION_0}"
+apply_sql "${MIGRATION_1}"
+apply_sql "${MIGRATION_2}"
+apply_sql "${MIGRATION_3}"
+apply_sql "${MIGRATION_4}"
+
+# Run generate from repo root. Use a distinctive name so any accidentally-
+# produced migration is easy to spot and cleanup.
+set +e
+GEN_OUT=$(DATABASE_URL="${DB_URL}" npx drizzle-kit generate --name acceptance_check 2>&1)
+GEN_RC=$?
+set -e
+
+echo "${GEN_OUT}"
+
+if echo "${GEN_OUT}" | grep -q "No schema changes"; then
+  echo ""
+  echo "✓ Snapshot regeneration acceptance gate: No schema changes"
+  # Defensive cleanup in case drizzle-kit wrote anything
+  find "${MIGRATIONS_DIR}" -maxdepth 1 -name "0005_acceptance_check*.sql" -delete 2>/dev/null || true
+  find "${META_DIR}" -name "0005_snapshot.json" -delete 2>/dev/null || true
+  exit 0
+else
+  echo ""
+  echo "✗ Regeneration failed — snapshots diverge from schema.ts"
+  echo "  drizzle-kit exited ${GEN_RC} and emitted the above diff."
+  echo "  Inspect .tmp/regen-out/*.json and compare to schema.ts, then iterate."
+  exit 1
+fi
