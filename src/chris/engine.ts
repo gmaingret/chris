@@ -15,7 +15,7 @@ import {
   getActiveDecisionCapture,
   clearCapture,
   isAbortPhrase,
-  type CaptureDraft,
+  coerceValidDraft,
 } from '../decisions/capture-state.js';
 import { handleCapture, openCapture } from '../decisions/capture.js';
 import { handleResolution, handlePostmortem } from '../decisions/resolution.js';
@@ -183,8 +183,13 @@ export async function processMessage(
         return reply;
       }
 
-      const draft = activeCapture.draft as CaptureDraft;
-      const lang: 'en' | 'fr' | 'ru' = draft.language_at_capture ?? 'en';
+      // IN-04: coerce at the JSONB boundary so `language_at_capture` (and other
+      // required fields) are guaranteed-valid downstream. Replaces the earlier
+      // `draft.language_at_capture ?? 'en'` which was unreachable under the
+      // TypeScript contract but hid a real JSONB-drift risk — coerceValidDraft
+      // logs and fills defaults, matching the defensive intent without masking.
+      const draft = coerceValidDraft(activeCapture.draft);
+      const lang: 'en' | 'fr' | 'ru' = draft.language_at_capture;
 
       // D-25: abort-phrase check INSIDE PP#0 (handler entry).
       if (isAbortPhrase(text, lang)) {

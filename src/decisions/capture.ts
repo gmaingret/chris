@@ -27,6 +27,7 @@ import {
   clearCapture,
   isAbortPhrase,
   createCaptureDraft,
+  coerceValidDraft,
 } from './capture-state.js';
 import type { CaptureDraft, DecisionCaptureStage } from './capture-state.js';
 import { transitionDecision } from './lifecycle.js';
@@ -276,7 +277,11 @@ export async function handleCapture(chatId: bigint, text: string): Promise<strin
     return '';
   }
 
-  const draft = { ...(state.draft as CaptureDraft) };
+  // IN-04: coerce at the JSONB boundary (paired with engine.ts:186). Guarantees
+  // language_at_capture, turn_count, and triggering_message are valid even if
+  // the JSONB row drifts from the CaptureDraft type — matching WR-06's
+  // defensive-coalescing pattern already applied at commit-time use sites.
+  const draft = coerceValidDraft(state.draft);
   const lang = draft.language_at_capture;  // D-22: NEVER re-detect
 
   // ── Abort check ─────────────────────────────────────────────────────

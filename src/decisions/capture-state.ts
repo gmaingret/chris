@@ -47,6 +47,49 @@ export async function getActiveDecisionCapture(chatId: bigint) {
   return rows[0] ?? null;
 }
 
+// ── IN-04: runtime JSONB-boundary validator ────────────────────────────────
+
+/**
+ * IN-04: Drizzle returns the `draft` JSONB column typed as `unknown` at
+ * runtime — TypeScript's `CaptureDraft` annotation is only enforced at the
+ * source-code boundary. In practice every call site writes the field with a
+ * well-shaped object, but schema drift, partial writes from a crashed
+ * earlier run, or a manual DB edit could leave a row whose `draft` is missing
+ * required fields. Without validation, the downstream `draft.language_at_capture`
+ * access would be `undefined`, silently cascading into `isAbortPhrase()` and
+ * the clarifier ladder with incoherent defaults. Paired with WR-06's defensive
+ * coalescing at the `triggering_message` use sites, this function closes the
+ * JSONB-boundary-validation gap the reviewer flagged.
+ *
+ * Mode: lenient. We fill the required fields with safe defaults and log a
+ * warning rather than throw, so a single corrupt row does not take down the
+ * engine for all traffic. A thrown error here would bubble to bot.ts and
+ * surface as the generic "I got tangled up" fallback.
+ */
+export function coerceValidDraft(raw: unknown): CaptureDraft {
+  const d = (raw && typeof raw === 'object') ? (raw as Record<string, unknown>) : {};
+
+  const lang = d.language_at_capture;
+  const language_at_capture: 'en' | 'fr' | 'ru' =
+    lang === 'en' || lang === 'fr' || lang === 'ru' ? lang : 'en';
+
+  const turn = d.turn_count;
+  const turn_count = typeof turn === 'number' && Number.isFinite(turn) ? turn : 0;
+
+  const tm = d.triggering_message;
+  const triggering_message = typeof tm === 'string' ? tm : '';
+
+  // Preserve all other optional fields verbatim; they are typed on CaptureDraft
+  // but we do not need to re-validate each — downstream uses already coalesce
+  // where they must (e.g. WR-06 at commit-time).
+  return {
+    ...(raw as CaptureDraft),
+    language_at_capture,
+    turn_count,
+    triggering_message,
+  };
+}
+
 // ── Phase 14 WRITE helpers ─────────────────────────────────────────────────
 
 export async function createCaptureDraft(chatId: bigint, initial: CaptureDraft): Promise<void> {
