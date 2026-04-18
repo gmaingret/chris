@@ -224,11 +224,12 @@ import { upsertAwaitingResolution } from '../capture-state.js';
 import { setLastUserLanguage, clearLanguageState } from '../../chris/language.js';
 import { runSweep } from '../../proactive/sweep.js';
 import { DAY_MS } from '../../__tests__/fixtures/time.js';
+import { CHAT_ID_SYNTHETIC_FIXTURE } from '../../__tests__/fixtures/chat-ids.js';
 
 // ── Shared constants ─────────────────────────────────────────────────────────
 
 /** Unique chat ID for this file — avoids collision with other test files' cleanup. */
-const TEST_CHAT_ID = BigInt(99918);
+const TEST_CHAT_ID = CHAT_ID_SYNTHETIC_FIXTURE;
 
 const BASE_DATE = new Date('2026-04-01T10:00:00Z');
 

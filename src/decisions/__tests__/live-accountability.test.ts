@@ -28,8 +28,9 @@ import { anthropic, HAIKU_MODEL } from '../../llm/client.js';
 import { handleResolution } from '../resolution.js';
 import { upsertAwaitingResolution } from '../capture-state.js';
 import { setLastUserLanguage, clearLanguageState } from '../../chris/language.js';
+import { CHAT_ID_LIVE_ACCOUNTABILITY } from '../../__tests__/fixtures/chat-ids.js';
 
-const TEST_CHAT_ID = BigInt(99919);
+const TEST_CHAT_ID = CHAT_ID_LIVE_ACCOUNTABILITY;
 
 // ── Haiku judge ────────────────────────────────────────────────────────────
 

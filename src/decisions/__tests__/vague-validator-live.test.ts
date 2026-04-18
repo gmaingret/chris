@@ -25,6 +25,7 @@ import {
 import { validateVagueness, buildVaguePushback } from '../vague-validator.js';
 import { handleCapture } from '../capture.js';
 import { DAY_MS } from '../../__tests__/fixtures/time.js';
+import { CHAT_ID_VAGUE_VALIDATOR_LIVE } from '../../__tests__/fixtures/chat-ids.js';
 
 // ── Adversarial predictions (D-11: ~4 EN, 3 FR, 3 RU; D-12: hedged-confidence) ──
 
@@ -88,7 +89,7 @@ const ADVERSARIAL_PREDICTIONS: Array<{
   },
 ];
 
-const TEST_CHAT_ID = BigInt(99920);
+const TEST_CHAT_ID = CHAT_ID_VAGUE_VALIDATOR_LIVE;
 
 describe.skipIf(!process.env.ANTHROPIC_API_KEY)('TEST-14: vague-prediction resistance (live Haiku)', () => {
   beforeAll(async () => {
