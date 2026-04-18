@@ -25,6 +25,8 @@ export {
   updateCaptureDraft,
   clearCapture,
   isAbortPhrase,
+  upsertAwaitingResolution,
+  updateToAwaitingPostmortem,
 } from './capture-state.js';
 export type { CaptureDraft, DecisionCaptureStage } from './capture-state.js';
 
@@ -53,5 +55,3 @@ export type { VaguenessVerdict, VaguenessResult, VaguenessInput } from './vague-
 export { handleCapture, openCapture } from './capture.js';
 
 export { handleResolution, handlePostmortem, classifyOutcome } from './resolution.js';
-
-export { upsertAwaitingResolution, updateToAwaitingPostmortem } from './capture-state.js';
