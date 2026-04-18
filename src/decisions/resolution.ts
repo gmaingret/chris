@@ -26,6 +26,7 @@ import { getLastUserLanguage, detectLanguage } from '../chris/language.js';
 import { buildSystemPrompt } from '../chris/personality.js';
 import { logger } from '../utils/logger.js';
 import { classifyAccuracy } from './classify-accuracy.js';
+import { clearEscalationKeys } from '../proactive/state.js';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -348,19 +349,16 @@ export async function handleResolution(
   await writePensieveEntry(chatId, acknowledgment, decisionId)
     .catch((err) => logger.warn({ err }, 'resolution.pensieve.write.failed'));
 
-  // 12. clearEscalationKeys — fire-and-forget, guarded (Plan 05 ships this export)
-  void (async () => {
-    try {
-      const { clearEscalationKeys } = await import('../proactive/state.js') as {
-        clearEscalationKeys?: (decisionId: string) => Promise<void>;
-      };
-      if (typeof clearEscalationKeys === 'function') {
-        await clearEscalationKeys(decisionId);
-      }
-    } catch (_e) {
-      // Escalation cleanup is best-effort — never fail the resolution handler
-    }
-  })();
+  // 12. clearEscalationKeys — fire-and-forget, best-effort cleanup.
+  // IN-01: Previously used a dynamic import + `typeof === 'function'` guard as
+  // a defensive safety net when `proactive/state.ts` was temporarily missing
+  // post-merge. Phase 19's restoration (f8ea66f) brought the module back with
+  // `clearEscalationKeys` exported statically, so the guard is now dead code.
+  // Switched to a static top-level import — the `.catch()` still swallows any
+  // runtime failure so this cleanup cannot break the resolution flow.
+  void clearEscalationKeys(decisionId).catch((_e) => {
+    // Escalation cleanup is best-effort — never fail the resolution handler
+  });
 
   return acknowledgment + '\n\n' + question;
 }
@@ -407,19 +405,12 @@ export async function handlePostmortem(
   // 4. clearCapture
   await clearCapture(chatId);
 
-  // 5. clearEscalationKeys — fire-and-forget, guarded
-  void (async () => {
-    try {
-      const { clearEscalationKeys } = await import('../proactive/state.js') as {
-        clearEscalationKeys?: (decisionId: string) => Promise<void>;
-      };
-      if (typeof clearEscalationKeys === 'function') {
-        await clearEscalationKeys(decisionId);
-      }
-    } catch (_e) {
-      // Best-effort cleanup
-    }
-  })();
+  // 5. clearEscalationKeys — fire-and-forget, best-effort cleanup.
+  // IN-01: See handleResolution above for context. Static import replaces the
+  // defensive dynamic import + typeof guard (dead code post-Phase-19).
+  void clearEscalationKeys(decisionId).catch((_e) => {
+    // Best-effort cleanup
+  });
 
   // 6. Pensieve write — awaited for testability; errors caught and logged
   await writePensieveEntry(chatId, text, decisionId)
