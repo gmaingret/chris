@@ -166,7 +166,11 @@ export async function updateToAwaitingPostmortem(chatId: bigint): Promise<void> 
 
 /**
  * Pure string-match abort detector. NOT async — no LLM call.
- * Word-or-prefix match against trimmed message (per D-04).
+ * Word-boundary match against trimmed, lowercased message (per D-04).
+ *
+ * LO-01: Uses a single word-boundary regex — the `(^|\s)phrase(\s|$)` pattern
+ * already covers the three original equality/prefix/regex cases. Called once
+ * per message (not a hot path), so simplicity over micro-optimization wins.
  */
 export function isAbortPhrase(text: string, language: 'en' | 'fr' | 'ru'): boolean {
   const normalized = text.trim().toLowerCase();
@@ -174,12 +178,9 @@ export function isAbortPhrase(text: string, language: 'en' | 'fr' | 'ru'): boole
     language === 'en' ? ABORT_PHRASES_EN :
     language === 'fr' ? ABORT_PHRASES_FR :
     ABORT_PHRASES_RU;
-  for (const p of phrases) {
-    if (normalized === p) return true;
-    if (normalized.startsWith(p + ' ')) return true;
-    // whole-word boundary inside message
-    const re = new RegExp(`(^|\\s)${p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s|$)`, 'i');
-    if (re.test(normalized)) return true;
-  }
-  return false;
+  return phrases.some((p) => {
+    const escaped = p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(`(^|\\s)${escaped}(\\s|$)`, 'i');
+    return re.test(normalized);
+  });
 }
