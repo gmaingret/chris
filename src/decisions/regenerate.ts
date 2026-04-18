@@ -40,9 +40,13 @@ function rehydrateDates(snapshot: Record<string, unknown>): DecisionRow {
     else if (typeof v === 'number') out[col] = new Date(v);
   }
   // bigint chat_id round-trip: jsonb cannot store bigint natively; if the snapshot
-  // carries it as a string, coerce back for deep-equal parity with Drizzle's
-  // bigint-mode read.
-  if (typeof out['chatId'] === 'string') out['chatId'] = BigInt(out['chatId']);
+  // carries it as a string (current writer) or a plain number (defensive against
+  // future writers like migration backfills), coerce back for deep-equal parity
+  // with Drizzle's bigint-mode read. LO-03: previously only handled string.
+  const ch = out['chatId'];
+  if (ch !== null && ch !== undefined && typeof ch !== 'bigint') {
+    out['chatId'] = BigInt(ch as string | number);
+  }
   return out as DecisionRow;
 }
 
