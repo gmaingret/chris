@@ -1,15 +1,17 @@
 /**
- * Phase 17 Plan 03 — /decisions command handler.
+ * Phases 14 + 17 — /decisions command handler.
  *
- * Supports all sub-commands:
- *   (no-args) → dashboard with counts + 90-day accuracy
- *   open       → sorted list of open decisions (soonest first)
- *   recent     → newest-first list of recently resolved decisions
- *   stats [30|90|365] → accuracy stats block with Wilson CI
- *   suppress <phrase> → add decision trigger suppression
- *   suppressions  → list active suppressions
- *   unsuppress <phrase> → remove a suppression
- *   reclassify → re-run 2-axis classification on all reviewed decisions
+ * This file aggregates sub-commands from two phases. Each branch below is
+ * annotated with its originating phase/ticket to preserve provenance:
+ *
+ *   (no-args)                       Phase 17 (T-17-03) — dashboard
+ *   open                            Phase 17 (T-17-03) — open decisions list
+ *   recent                          Phase 17 (T-17-03) — recently resolved list
+ *   stats [30|90|365]               Phase 17 (T-17-03) — accuracy stats + Wilson CI
+ *   suppress <phrase>               Phase 14 (CAP-06)  — add trigger suppression
+ *   suppressions                    Phase 14 (CAP-06)  — list active suppressions
+ *   unsuppress <phrase>             Phase 14 (CAP-06)  — remove a suppression
+ *   reclassify                      Phase 17 (T-17-03) — re-run 2-axis classification
  *
  * Security:
  *   - Stats window validated to [30, 90, 365] allowlist (T-17-03-01)
@@ -74,7 +76,7 @@ export async function handleDecisionsCommand(ctx: Context): Promise<void> {
   const sub = subRaw.toLowerCase();
   const arg = rest.join(' ').trim();
 
-  // ── suppress <phrase> ───────────────────────────────────────────────────
+  // ── suppress <phrase> ── Phase 14 (CAP-06) ──────────────────────────────
   if (sub === 'suppress') {
     if (!arg) { await ctx.reply(usageMessage(lang)); return; }
     if (arg.length > 200) { await ctx.reply(tooLongMessage(lang)); return; }
@@ -91,7 +93,7 @@ export async function handleDecisionsCommand(ctx: Context): Promise<void> {
     return;
   }
 
-  // ── open ────────────────────────────────────────────────────────────────
+  // ── open ── Phase 17 (T-17-03) ──────────────────────────────────────────
   if (sub === 'open') {
     try {
       const rows = await fetchOpenDecisions(chatIdBig);
@@ -107,7 +109,7 @@ export async function handleDecisionsCommand(ctx: Context): Promise<void> {
     return;
   }
 
-  // ── recent ──────────────────────────────────────────────────────────────
+  // ── recent ── Phase 17 (T-17-03) ────────────────────────────────────────
   if (sub === 'recent') {
     try {
       const rows = await fetchRecentDecisions(chatIdBig, 5);
@@ -123,7 +125,7 @@ export async function handleDecisionsCommand(ctx: Context): Promise<void> {
     return;
   }
 
-  // ── stats [30|90|365] ───────────────────────────────────────────────────
+  // ── stats [30|90|365] ── Phase 17 (T-17-03) ────────────────────────────
   if (sub === 'stats') {
     const validWindows = [30, 90, 365];
     let windowDays = 90; // D-08: default 90 days
@@ -152,7 +154,7 @@ export async function handleDecisionsCommand(ctx: Context): Promise<void> {
     return;
   }
 
-  // ── suppressions ────────────────────────────────────────────────────────
+  // ── suppressions ── Phase 14 (CAP-06) ──────────────────────────────────
   if (sub === 'suppressions') {
     try {
       const phrases = await listSuppressions(chatIdBig);
@@ -169,7 +171,7 @@ export async function handleDecisionsCommand(ctx: Context): Promise<void> {
     return;
   }
 
-  // ── unsuppress <phrase> ─────────────────────────────────────────────────
+  // ── unsuppress <phrase> ── Phase 14 (CAP-06) ───────────────────────────
   if (sub === 'unsuppress') {
     if (!arg) { await ctx.reply(unsuppressUsageMessage(lang)); return; }
     try {
@@ -184,7 +186,7 @@ export async function handleDecisionsCommand(ctx: Context): Promise<void> {
     return;
   }
 
-  // ── reclassify ──────────────────────────────────────────────────────────
+  // ── reclassify ── Phase 17 (T-17-03) ───────────────────────────────────
   if (sub === 'reclassify') {
     try {
       const toReclassify = await db
