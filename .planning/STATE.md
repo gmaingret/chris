@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: M008 Episodic Consolidation
 status: executing
-stopped_at: "Phase 21 Plan 03 complete — src/episodic/sources.ts with three timezone-aware day-bounded read helpers (getPensieveEntriesForDay, getContradictionsForDay, getDecisionsForDay) + dayBoundaryUtc + 12 Docker-Postgres integration tests covering boundary, JOIN, lifecycle, and DST 23h/25h correctness; CONS-08 + CONS-09 fully closed end-to-end. Docker gate 889/61/950 (+12 vs 877 baseline, zero regressions). Next: Plan 21-04 (runConsolidate end-to-end — assembles ConsolidationPromptInput via Promise.all of these helpers, calls Sonnet, inserts row)."
-last_updated: "2026-04-18T20:44:40Z"
-last_activity: 2026-04-18 -- Phase 21 Plan 03 complete
+stopped_at: "Phase 21 COMPLETE — all 4 plans shipped, all 12 CONS-XX requirements satisfied. Plan 21-04 delivered runConsolidate(date) end-to-end orchestrator in src/episodic/consolidate.ts (10-step flow: idempotency SELECT → entry-count gate → parallel sources fetch → assembleConsolidationPrompt → anthropic.messages.parse → runtime importance floors → Zod re-validation → ON CONFLICT insert → notifyConsolidationError on catch) + notifyConsolidationError Telegram error notifier + 12 integration tests (CONS-01/02/03/06/07/12). Docker gate 901/61/962 (+12 vs 889 baseline, zero regressions). Next: Phase 22 (CRON-01 cron registration in src/index.ts + RETR-01..06 retrieval routing)."
+last_updated: "2026-04-18T21:23:06Z"
+last_activity: 2026-04-18 -- Phase 21 Plan 04 complete; Phase 21 COMPLETE
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 16
-  completed_plans: 6
-  percent: 37
+  completed_plans: 7
+  percent: 44
 ---
 
 # Project State
@@ -25,14 +25,14 @@ See: .planning/PROJECT.md (updated 2026-04-18 — v2.2 M008 Episodic Consolidati
 
 ## Current Position
 
-Phase: 21 (Consolidation Engine) — EXECUTING
-Plan: 4 of 4
-Next: Plan 21-04 (`runConsolidate(date)` end-to-end in `src/episodic/consolidate.ts` — composes `ConsolidationPromptInput` via `Promise.all([getPensieveEntriesForDay, getContradictionsForDay, getDecisionsForDay])`, calls `client.messages.parse({ system: assembleConsolidationPrompt(input), response_format: zodOutputFormat(EpisodicSummarySonnetOutputSchema), ... })`, inserts row with idempotent ON CONFLICT; routes errors via `notifyError` per CONS-12)
-Status: Plan 03 complete; ready to execute 21-04
-Last activity: 2026-04-18 -- Phase 21 Plan 03 complete (sources.ts day-bounded read helpers + 12 Docker tests covering DST + JOIN + lifecycle)
+Phase: 21 (Consolidation Engine) — COMPLETE
+Plan: 4 of 4 — all complete
+Next: Phase 22 (Cron + Retrieval Routing) — CRON-01 registers `cron.schedule(config.episodicCron, () => runConsolidate(yesterdayDate), { timezone: config.proactiveTimezone })` in `src/index.ts` alongside the existing proactive sweep + sync crons. CRON-02 asserts DST safety. RETR-01..06 wires recency-based + intent-based retrieval routing in `src/pensieve/retrieve.ts` and INTERROGATE-mode date-anchored summary injection. RETR-05/06 audits ensure summary text is provably absent from Known Facts and pensieve_embeddings.
+Status: Phase 21 COMPLETE; ready to execute Phase 22 (5 plans pending)
+Last activity: 2026-04-18 -- Phase 21 Plan 04 complete (consolidate.ts runConsolidate + notify.ts + 12 integration tests; CONS-01/02/03/06/07/12 fully closed; Phase 21 COMPLETE)
 
 ```
-Progress: [███████░░░░░░░░░░░░░] 37% (6/16 plans)
+Progress: [████████░░░░░░░░░░░░] 44% (7/16 plans)
 ```
 
 ## Shipped Milestones
@@ -46,7 +46,7 @@ Progress: [███████░░░░░░░░░░░░░] 37% (6/
 | Phase | Name | Requirements | Status |
 |-------|------|--------------|--------|
 | 20 | Schema + Tech Debt | TD-01, EPI-01–04 (5 reqs) | **COMPLETE** (3/3 plans — TD-01 resolved, EPI-01..04 shipped, test coverage live) |
-| 21 | Consolidation Engine | CONS-01–12 (12 reqs) | Planned (4 plans) |
+| 21 | Consolidation Engine | CONS-01–12 (12 reqs) | **COMPLETE** (4/4 plans — Plan 01 SDK + preamble; Plan 02 prompt assembler + 20 tests; Plan 03 day-bounded sources + 12 tests; Plan 04 runConsolidate + notify + 12 tests; all 12 CONS-XX requirements satisfied) |
 | 22 | Cron + Retrieval Routing | CRON-01–02, RETR-01–06 (8 reqs) | Planned (5 plans) |
 | 23 | Test Suite + Backfill + /summary | TEST-15–22, OPS-01, CMD-01 (10 reqs) | Not started |
 
@@ -74,7 +74,7 @@ Full log in PROJECT.md Key Decisions table. Most load-bearing going into episodi
 - **Consolidation prompt is the highest-risk surface** — Phase 21 is isolated so it can be iterated against real Sonnet before downstream phases depend on it. The M006 constitutional preamble must be explicitly present in the prompt string (assert by unit test — CONS-04).
 - **Two-dimensional retrieval routing** — both dimensions must ship in Phase 22: (1) recency boundary (≤7 days raw, >7 days summary) AND (2) verbatim-fidelity escape (raw always regardless of age when keywords present). High-importance raw descent (importance >= 8) is a third rule, not optional.
 - **Importance rubric calibration** — full-range ground-truth labels for the TEST-16 fixture (r > 0.7 Pearson) must include scores from the tails (1–2 and 9–10 must each appear at least once). Labels are set before the fixture is written.
-- **Docker test gate** — **889 tests currently passing** (Plan 21-03 lifted from 877 via +12 sources.test.ts assertions; Plan 21-02 lifted from 857 via +20 prompts.test.ts assertions; Plan 21-01 lifted from 853 via +4 CONSTITUTIONAL_PREAMBLE export assertions; prior Plan 20-03 lifted from 843). Phase 21+ must not regress this floor. No regressions at any phase boundary.
+- **Docker test gate** — **901 tests currently passing** (Plan 21-04 lifted from 889 via +12 consolidate.test.ts assertions; Plan 21-03 lifted from 877 via +12 sources.test.ts assertions; Plan 21-02 lifted from 857 via +20 prompts.test.ts assertions; Plan 21-01 lifted from 853 via +4 CONSTITUTIONAL_PREAMBLE export assertions; prior Plan 20-03 lifted from 843). Phase 22+ must not regress this floor. No regressions at any phase boundary.
 
 ### Resolved Scoping Decisions (from research open questions)
 
@@ -94,9 +94,9 @@ None. Research confidence: HIGH across all areas (stack, features, architecture,
 
 ## Session Continuity
 
-Last session: 2026-04-18T20:44:40Z -- Phase 21 Plan 03 complete (`src/episodic/sources.ts` with three day-bounded read-only Drizzle helpers + `dayBoundaryUtc` + 12 Docker-Postgres integration tests covering boundary, JOIN, lifecycle, and DST 23h/25h correctness; CONS-08 + CONS-09 fully closed end-to-end; luxon@3.7.2 + @types/luxon@3.7.1 promoted to direct deps via tarball+lockfile patch per Plan 21-01 documented technique; Docker gate 889/61/950 = +12 passing vs 877 Plan 21-02 baseline, zero regressions, zero new failures)
-Stopped at: Phase 21 Plan 03 complete — `getPensieveEntriesForDay`, `getContradictionsForDay`, `getDecisionsForDay` exported from src/episodic/sources.ts with 12 deterministic Docker-Postgres tests; Docker gate 889/61/950. Next: Plan 21-04 (`runConsolidate` end-to-end in src/episodic/consolidate.ts).
-Resume file: Start Plan 21-04. Phase 21 Plan 03 delivered: three pure read-only Drizzle helpers that produce the exact `ConsolidationPromptInput['entries' | 'contradictions' | 'decisions']` shapes from Plan 21-02; `dayBoundaryUtc(date, tz)` is the single source of truth for IANA-timezone day windows (Luxon, DST-correct); CONS-08 boundary asserted (zero `from '../decisions/'` imports); CONS-09 verbatim preservation via dual-aliased JOIN. Plan 21-04 will compose `Promise.all([getPensieveEntriesForDay, getContradictionsForDay, getDecisionsForDay])` → `assembleConsolidationPrompt(input)` → `client.messages.parse({ system, response_format: zodOutputFormat(EpisodicSummarySonnetOutputSchema), ... })` → idempotent insert. See .planning/phases/21-consolidation-engine/21-03-SUMMARY.md.
+Last session: 2026-04-18T21:23:06Z -- Phase 21 Plan 04 complete; **Phase 21 COMPLETE** (`src/episodic/consolidate.ts` runConsolidate(date) end-to-end orchestrator + `src/episodic/notify.ts` notifyConsolidationError + 12 deterministic integration tests in `src/episodic/__tests__/consolidate.test.ts`; CONS-01/02/03/06/07/12 fully closed; idempotency two-layer pre-flight SELECT + ON CONFLICT DO NOTHING; runtime importance floors with REAL_DECISION_STATES filter excluding withdrawn/stale/abandoned/open-draft; localized zod/v4 mirror schema for SDK helper compatibility; Telegram error notification mirroring sync/scheduler.ts pattern; Docker gate 901/61/962 = +12 passing vs 889 Plan 21-03 baseline, zero regressions, zero new failures)
+Stopped at: Phase 21 COMPLETE — all 4 plans shipped, all 12 CONS-XX requirements satisfied. runConsolidate is callable; cron registration is Phase 22 CRON-01 scope. Docker gate 901/61/962. Next: Phase 22 (CRON-01 cron registration in src/index.ts + RETR-01..06 retrieval routing + RETR-05/06 audits for Known Facts and pensieve_embeddings boundary).
+Resume file: Start Phase 22. Phase 21 delivered the full consolidation engine: runConsolidate(date) is the callable entrypoint, idempotent under any concurrency model, returns discriminated `{ inserted, id } | { skipped: 'existing' | 'no-entries' } | { failed, error }`. Phase 22 wires it into the cron + adds retrieval routing. Phase 23 (TEST-15..22 + OPS-01 + CMD-01) covers the synthetic 14-day fixture, live anti-flattery test against real Sonnet, backfill operator script, and `/summary [YYYY-MM-DD]` Telegram command. See .planning/phases/21-consolidation-engine/21-04-SUMMARY.md for the full Plan 04 summary.
 
 ## Known Tech Debt
 
