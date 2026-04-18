@@ -13,7 +13,7 @@
     "test:unit": "vitest run"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.80.0",
+    "@anthropic-ai/sdk": "^0.90.0",
     "@huggingface/transformers": "^3.3.0",
     "dotenv": "^16.4.0",
     "drizzle-orm": "^0.45.2",
