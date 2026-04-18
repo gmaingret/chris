@@ -97,8 +97,14 @@ export async function searchPensieve(
  * Used by resolution.ts to get +/-48h context around a decision's resolve_by date.
  *
  * Returns entries ordered by createdAt ascending (chronological).
+ * Capped at {@link TEMPORAL_PENSIEVE_LIMIT} rows — on a high-volume boundary
+ * day the earliest entries (asc order) are returned and later entries silently
+ * dropped. When the cap is hit, a `pensieve.temporal.truncated` debug log is
+ * emitted so the truncation is observable at the resolution-prompt call site.
  * Never throws -- returns empty array on any error.
  */
+const TEMPORAL_PENSIEVE_LIMIT = 50;
+
 export async function getTemporalPensieve(
   centerDate: Date,
   windowMs: number,
@@ -118,7 +124,22 @@ export async function getTemporalPensieve(
         ),
       )
       .orderBy(asc(pensieveEntries.createdAt))
-      .limit(50);
+      .limit(TEMPORAL_PENSIEVE_LIMIT);
+
+    // IN-03: surface truncation — a boundary day with >50 entries silently
+    // drops later ones, which can bias the resolution prompt toward earliest
+    // context. Emit a debug-level log so operators can spot when the cap is
+    // hit without cluttering info logs on normal days.
+    if (rows.length === TEMPORAL_PENSIEVE_LIMIT) {
+      logger.debug(
+        {
+          centerDate: centerDate.toISOString(),
+          windowMs,
+          limit: TEMPORAL_PENSIEVE_LIMIT,
+        },
+        'pensieve.temporal.truncated',
+      );
+    }
 
     return rows;
   } catch (error) {
