@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: M008 Episodic Consolidation
-status: in_progress
-stopped_at: Phase 22 planned (5 plans) — ready to execute Phase 20 first
-last_updated: "2026-04-18T13:00:00.000Z"
-last_activity: 2026-04-18
+status: executing
+stopped_at: Phase 20 Plan 01 complete — TECH-DEBT-19-01 resolved; snapshots regenerated via scripts/regen-snapshots.sh
+last_updated: "2026-04-18T14:30:00.000Z"
+last_activity: 2026-04-18 -- Phase 20 Plan 01 (TD-01) complete; D-03 acceptance gate green
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 9
-  completed_plans: 0
-  percent: 0
+  total_plans: 16
+  completed_plans: 1
+  percent: 6
 ---
 
 # Project State
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-18 — v2.2 M008 Episodic Consolidation milestone started)
 
 **Core value:** Greg can deposit any memory, thought, or feeling into Chris and later ask questions that Chris answers by searching everything Greg has ever told him — with full fidelity, no data loss, and genuine contextual understanding across English, French, and Russian.
-**Current focus:** v2.2 M008 Episodic Consolidation — Phase 20 next (schema + TECH-DEBT-19-01 resolution).
+**Current focus:** Phase 20 — Schema + Tech Debt
 
 ## Current Position
 
-Phase: 20 — Schema + Tech Debt (context gathered, awaiting plan)
-Plan: —
-Next: `/gsd-plan-phase 20`
-Status: CONTEXT.md written; TD-01 strategy locked (clean-slate replay on throwaway branch + Docker); ready for research + planning
-Last activity: 2026-04-18 — Phase 20 context gathered (20 decisions, 4 gray areas resolved)
+Phase: 20 (Schema + Tech Debt) — EXECUTING
+Plan: 2 of 3 (Plan 01 complete — TD-01 resolved)
+Next: `/gsd-execute-phase 20` (continue with Plan 02: episodic_summaries schema + Zod + config)
+Status: Executing Phase 20
+Last activity: 2026-04-18 -- Phase 20 Plan 01 (TD-01) complete; D-03 acceptance gate green
 
 ```
 Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (0/4 phases)
@@ -94,14 +94,14 @@ None. Research confidence: HIGH across all areas (stack, features, architecture,
 
 ## Session Continuity
 
-Last session: 2026-04-18 — Phase 20 context gathered (TD-01 snapshot regen strategy + three-layer Zod shape + DB-level importance CHECK + 5-8 new tests)
-Stopped at: Phase 20 CONTEXT.md written — ready for `/gsd-plan-phase 20`
-Resume file: .planning/phases/20-schema-tech-debt/20-CONTEXT.md
+Last session: 2026-04-18 — Phase 20 Plan 01 complete (TECH-DEBT-19-01 resolved via clean-slate iterative replay; scripts/regen-snapshots.sh delivered; D-03 acceptance gate green; 843/904 Docker tests passing, 61 failures pre-existing per Plan 19-04 baseline)
+Stopped at: Phase 20 Plan 01 complete — next is Plan 02 (episodic_summaries schema + Zod + config)
+Resume file: .planning/phases/20-schema-tech-debt/20-02-PLAN.md
 
 ## Known Tech Debt
 
 - **TECH-DEBT-19-01** — `src/db/migrations/meta/0001_snapshot.json` and `0003_snapshot.json` missing.
   - See [milestones/v2.1-phases/19-proactive-pipeline-restoration/19-04-SUMMARY.md](milestones/v2.1-phases/19-proactive-pipeline-restoration/19-04-SUMMARY.md) for rationale.
-  - **Reactivation trigger: ACTIVE** — Phase 20 (first schema-touching phase of M008) must resolve this before generating migration 0005.
-  - Resolution: run `npx drizzle-kit generate` against a Docker Postgres with all 4 existing migrations applied and schema.ts containing the new `episodic_summaries` table definition. drizzle-kit will then generate both the snapshot for the new migration AND implicitly regenerate a clean journal that references the prior state.
+  - **Status: RESOLVED** in Phase 20 Plan 01 (2026-04-18) via clean-slate iterative replay (CONTEXT.md D-01). drizzle-kit generate against freshly-migrated Docker now prints "No schema changes, nothing to migrate" — the full chain 0000→0004 is byte-accurate.
+  - Resolution applied: scripts/regen-snapshots.sh (clean-slate iterative replay on a throwaway Docker volume at port 5434 + temp drizzle-kit workspace per snapshot). The Plan 19-04 Option A hint in an earlier version of this file ("drizzle-kit generate will implicitly regenerate") was wrong — drizzle-kit does NOT backfill meta for already-applied entries (empirically verified in Plan 19-04 SUMMARY: "No schema changes, nothing to migrate" was the observed output of Option A).
   - **Audit disposition:** v2.1 milestone audit marks this as PARTIAL, not FAIL — does not block v2.1 requirement satisfaction. Resolved in Phase 20.
