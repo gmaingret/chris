@@ -45,7 +45,13 @@ export async function handleTextMessage(ctx: {
 
   try {
     const response = await processMessage(chatId, userId, text);
-    await ctx.reply(response);
+    // IN-02: guard empty-string reply from processMessage. Reachable only on a
+    // narrow race inside Phase 14 capture flow (e.g. capture cleared between
+    // engine's PP#0 check and handleCapture's own state read). Telegram
+    // rejects empty text with "Bad Request: message text is empty"; silently
+    // skipping is the correct behavior — the user has already seen whatever
+    // reply the ack/abort path produced.
+    if (response) await ctx.reply(response);
   } catch (error) {
     logger.error(
       {
