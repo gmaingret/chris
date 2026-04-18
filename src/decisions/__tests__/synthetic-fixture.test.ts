@@ -272,6 +272,10 @@ async function cleanup(): Promise<void> {
   // Scoped to TEST_CHAT_ID where the schema supports it.
   // decisionEvents references decisions by FK, so delete events first.
   // Scope via subquery: only delete events belonging to this test's decisions.
+  // Phase 18 IN-01: drizzle's `inArray(col, selectBuilder)` emits a correlated
+  // SQL subquery (`WHERE decision_id IN (SELECT id FROM decisions WHERE ...)`)
+  // — it does NOT round-trip to Node to materialize the ID list in memory.
+  // Same round-trip cost as a single DELETE with a JOIN.
   await db.delete(decisionEvents).where(
     inArray(
       decisionEvents.decisionId,
