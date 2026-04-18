@@ -39,6 +39,12 @@ export async function addSuppression(chatId: bigint, phrase: string): Promise<vo
  * substring of `text`.
  *
  * Returns true on first match (short-circuit).
+ *
+ * IN-03 (deferred, out of v1 scope): this runs one DB round-trip on every
+ * inbound message. For Greg's personal-bot scale (a handful of suppressed
+ * phrases per chat) this is negligible. If traffic grows or the suppression
+ * list becomes long, cache the per-chat list in memory and invalidate on
+ * addSuppression / removeSuppression. Intentionally not done in v1.
  */
 export async function isSuppressed(text: string, chatId: bigint): Promise<boolean> {
   const haystack = text.toLowerCase();
