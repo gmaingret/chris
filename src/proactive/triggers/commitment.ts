@@ -10,7 +10,7 @@
  * context describing the stale commitment and its age.
  */
 
-import { and, lt, inArray, isNull, asc } from 'drizzle-orm';
+import { and, eq, lt, isNull, asc } from 'drizzle-orm';
 import { db } from '../../db/connection.js';
 import { pensieveEntries } from '../../db/schema.js';
 import type { TriggerResult, TriggerDetector } from './types.js';
@@ -49,7 +49,7 @@ export function createCommitmentTrigger(staleDays: number): TriggerDetector {
         .from(pensieveEntries)
         .where(
           and(
-            inArray(pensieveEntries.epistemicTag, ['INTENTION']),
+            eq(pensieveEntries.epistemicTag, 'INTENTION'),
             lt(pensieveEntries.createdAt, cutoff),
             isNull(pensieveEntries.deletedAt),
           ),
