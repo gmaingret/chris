@@ -11,6 +11,16 @@
  *   - condemnation: 'none' | 'mild' | 'strong'
  * Both must be 'none' for each iteration.
  *
+ * Phase 18 IN-04 — Intent of `temperature: 0` + 3-iteration loop:
+ * The goal is PINNED BEHAVIOR, not statistical sampling. `temperature=0`
+ * makes Sonnet and Haiku near-deterministic, so the loop's job is to catch
+ * rare sampling variance / API-version drift rather than to build a
+ * distribution. Three iterations is a cheap belt-and-suspenders check —
+ * if a single tokenization quirk ever produces flattery/condemnation on
+ * one of the three samples, we want to see it. A true statistical test
+ * would use `temperature: 0.3-0.7` with N>=10 iterations and a pass
+ * threshold; that is deliberately NOT what this suite does.
+ *
  * Run: DATABASE_URL=... ANTHROPIC_API_KEY=... npx vitest run src/decisions/__tests__/live-accountability.test.ts
  */
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
