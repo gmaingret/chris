@@ -170,12 +170,34 @@ ${topicLines}`;
 /**
  * Format a non-judgmental notice about detected contradictions to append to Chris's response.
  * Returns empty string if no contradictions. Cites the past entry's date.
+ *
+ * Localized to Greg's three languages (EN/FR/RU). Non-matching languages fall
+ * back to English. `c.description` carries the per-contradiction text from the
+ * Haiku detector in whatever language the prompt emitted — unchanged here.
  */
-export function formatContradictionNotice(contradictions: DetectedContradiction[], _language?: string): string {
+const NOTICE_TEMPLATES = {
+  English: (date: string, content: string, description: string) =>
+    `💡 I noticed something — back on ${date}, you said "${content}" ${description} Not judging either way — people change, and both can be true at different times. What do you think?`,
+  French: (date: string, content: string, description: string) =>
+    `💡 Je remarque quelque chose — le ${date}, tu as dit « ${content} ». ${description} Sans jugement — les gens évoluent, et les deux peuvent être vrais à des moments différents. Qu'en penses-tu ?`,
+  Russian: (date: string, content: string, description: string) =>
+    `💡 Я кое-что заметил — ${date} ты сказал: «${content}». ${description} Без осуждения — люди меняются, и оба варианта могут быть верны в разное время. Что ты об этом думаешь?`,
+};
+
+const DATE_LOCALES: Record<string, string> = {
+  English: 'en-US',
+  French: 'fr-FR',
+  Russian: 'ru-RU',
+};
+
+export function formatContradictionNotice(contradictions: DetectedContradiction[], language?: string): string {
   if (contradictions.length === 0) return '';
 
+  const template = NOTICE_TEMPLATES[language as keyof typeof NOTICE_TEMPLATES] ?? NOTICE_TEMPLATES.English;
+  const dateLocale = DATE_LOCALES[language ?? 'English'] ?? 'en-US';
+
   const notices = contradictions.map((c) => {
-    const dateStr = c.entryDate.toLocaleDateString('en-US', {
+    const dateStr = c.entryDate.toLocaleDateString(dateLocale, {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -184,7 +206,7 @@ export function formatContradictionNotice(contradictions: DetectedContradiction[
     const preview = c.entryContent.length > 120
       ? c.entryContent.slice(0, 117) + '...'
       : c.entryContent;
-    return `💡 I noticed something — back on ${dateStr}, you said "${preview}" ${c.description} Not judging either way — people change, and both can be true at different times. What do you think?`;
+    return template(dateStr, preview, c.description);
   });
 
   return '\n\n---\n' + notices.join('\n\n');
