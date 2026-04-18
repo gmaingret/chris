@@ -79,7 +79,14 @@ export async function transitionDecision(
   payload: TransitionPayload = {},
 ) {
   // 1. Fast-fail illegal transitions BEFORE opening a transaction.
-  const legal = LEGAL_TRANSITIONS[fromStatus] ?? [];
+  // LO-04: Distinguish "unknown status literal" (programmer error, bypassed TS)
+  // from "illegal transition" (normal business-rule violation). A caller might
+  // otherwise catch InvalidTransitionError and silently treat a typo/bad cast
+  // as a routine denial.
+  const legal = LEGAL_TRANSITIONS[fromStatus];
+  if (!legal) {
+    throw new TypeError(`Unknown decision status literal: ${fromStatus}`);
+  }
   if (!legal.includes(toStatus) || fromStatus === toStatus) {
     throw new InvalidTransitionError(fromStatus, toStatus);
   }
