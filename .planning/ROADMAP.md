@@ -85,7 +85,11 @@ See [milestones/v2.1-ROADMAP.md](milestones/v2.1-ROADMAP.md) for full phase deta
   3. A unit test verifies the assembled consolidation system prompt contains the M006 constitutional preamble's anti-sycophancy clauses — the preamble is explicitly present, not assumed from engine context
   4. A fixture day containing a structural M007 decision produces a summary with `importance >= 6`; a fixture day containing an M002 contradiction (confidence >= 0.75) produces a summary with `importance >= 7`, and the summary text or key_quotes preserves both contradicting positions verbatim rather than smoothing them into a single narrative
   5. A fixture day with fewer than 3 entries uses the sparse-entry variant prompt and the resulting summary contains no specifics not traceable to the source entries
-**Plans**: TBD
+**Plans**: 4 plans
+  - [ ] 21-01-PLAN.md — SDK bump to @anthropic-ai/sdk ^0.90.0 + export CONSTITUTIONAL_PREAMBLE from personality.ts (CONS-04 seed)
+  - [ ] 21-02-PLAN.md — Prompt assembler in src/episodic/prompts.ts (CONS-04, 05, 09, 10, 11)
+  - [ ] 21-03-PLAN.md — Read-only source queries in src/episodic/sources.ts (CONS-08, CONS-09 data layer)
+  - [ ] 21-04-PLAN.md — runConsolidate() end-to-end in src/episodic/consolidate.ts + Telegram error notifier (CONS-01, 02, 03, 06, 07, 12)
 
 ### Phase 22: Cron + Retrieval Routing
 **Goal**: The daily consolidation fires automatically at 23:00 in Greg's timezone without interfering with the proactive sweep; queries to Chris route to raw entries or episodic summaries based on recency and query intent; INTERROGATE mode injects date-anchored summaries; summary text is provably absent from Known Facts and pensieve_embeddings.
@@ -139,6 +143,6 @@ See [milestones/v2.1-ROADMAP.md](milestones/v2.1-ROADMAP.md) for full phase deta
 | 18. Synthetic + Live Suite         | v2.1      | 4/2   | Complete    | 2026-04-16 |
 | 19. Proactive Pipeline Restoration | v2.1      | 4/4   | Complete    | 2026-04-17 |
 | 20. Schema + Tech Debt             | v2.2      | 0/TBD | Not started | -          |
-| 21. Consolidation Engine           | v2.2      | 0/TBD | Not started | -          |
+| 21. Consolidation Engine           | v2.2      | 0/4   | Planned     | -          |
 | 22. Cron + Retrieval Routing       | v2.2      | 0/TBD | Not started | -          |
 | 23. Test Suite + Backfill + /summary | v2.2    | 0/TBD | Not started | -          |
