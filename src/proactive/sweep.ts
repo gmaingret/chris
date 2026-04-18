@@ -47,6 +47,7 @@ import { buildSweepContext } from './context-builder.js';
 import { runOpusAnalysis } from './triggers/opus-analysis.js';
 import { createPatternTrigger } from './triggers/pattern.js';
 import { createThreadTrigger } from './triggers/thread.js';
+import type { TriggerResult } from './triggers/types.js';
 import { upsertAwaitingResolution, clearCapture } from '../decisions/capture-state.js';
 import { getLastUserLanguage } from '../chris/language.js';
 import { transitionDecision } from '../decisions/lifecycle.js';
@@ -414,7 +415,7 @@ export async function runSweep(): Promise<SweepResult> {
 // ── Reflective channel helper ──────────────────────────────────────────────
 
 async function runReflectiveChannel(
-  fired: Array<{ triggered: boolean; triggerType: string; priority: number; context: string; evidence?: string[] }>,
+  fired: TriggerResult[],
   startMs: number,
 ): Promise<ChannelResult> {
   // Select winner by priority (lowest number = highest priority)
