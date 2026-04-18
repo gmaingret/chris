@@ -53,7 +53,7 @@ See [milestones/v2.1-ROADMAP.md](milestones/v2.1-ROADMAP.md) for full phase deta
 ### v2.2 M008 Episodic Consolidation (Active — Phases 20-23)
 
 - [x] **Phase 20: Schema + Tech Debt** — TECH-DEBT-19-01 drizzle-kit snapshot regeneration ✅ (Plan 01 complete 2026-04-18) + `episodic_summaries` migration 0005 with all indexes + Zod types + config field ✅ (Plan 02 complete 2026-04-18) + Zod unit tests + Docker Postgres schema integration tests ✅ (Plan 03 complete 2026-04-18; Docker gate 853 passing, +10 vs baseline)
-- [ ] **Phase 21: Consolidation Engine** — Plan 01: @anthropic-ai/sdk bump to ^0.90.0 + CONSTITUTIONAL_PREAMBLE export ✅ (CONS-04 seed complete 2026-04-18; Docker gate 857/61/918, +4 vs 853 baseline) · Plan 02-04 pending — `runConsolidate()` with entry-count gate, idempotency, M006 preamble injection, importance rubric + floor hooks, verbatim quote enforcement, M007/M002 read-only integration, sparse-entry guard, failure notification
+- [ ] **Phase 21: Consolidation Engine** — Plan 01: @anthropic-ai/sdk bump to ^0.90.0 + CONSTITUTIONAL_PREAMBLE export ✅ (CONS-04 seed complete 2026-04-18; Docker gate 857/61/918, +4 vs 853 baseline) · Plan 02: assembleConsolidationPrompt pure module + 20 anchor-phrase tests ✅ (CONS-05/09/10/11 satisfied at prompt layer, CONS-04 closed end-to-end, CONS-06/07/08 prompt-layer-present pending runtime closure; Docker gate 877/61/938, +20 vs 857 baseline) · Plan 03-04 pending — `runConsolidate()` with entry-count gate, idempotency, M007/M002 read-only DB integration, failure notification
 - [ ] **Phase 22: Cron + Retrieval Routing** — Independent cron in `src/index.ts`; DST-safe scheduling; two-dimensional retrieval routing; high-importance raw descent; INTERROGATE date-anchored injection; Known Facts and embedding separation audit
 - [ ] **Phase 23: Test Suite + Backfill + `/summary`** — 14-day synthetic fixture (8 test cases), live anti-flattery integration test, backfill operator script, `/summary [YYYY-MM-DD]` Telegram command
 
@@ -90,7 +90,7 @@ See [milestones/v2.1-ROADMAP.md](milestones/v2.1-ROADMAP.md) for full phase deta
   5. A fixture day with fewer than 3 entries uses the sparse-entry variant prompt and the resulting summary contains no specifics not traceable to the source entries
 **Plans**: 4 plans
   - [x] 21-01-PLAN.md — SDK bump to @anthropic-ai/sdk ^0.90.0 + export CONSTITUTIONAL_PREAMBLE from personality.ts (CONS-04 seed) ✅ 2026-04-18 (Docker gate 857/61/918, +4 vs 853 Phase 20 baseline, zero regressions; messages.parse() + zodOutputFormat() live; preamble single-source-of-truth test covering D024 + D027)
-  - [ ] 21-02-PLAN.md — Prompt assembler in src/episodic/prompts.ts (CONS-04, 05, 09, 10, 11)
+  - [x] 21-02-PLAN.md — Prompt assembler in src/episodic/prompts.ts (CONS-04, 05, 09, 10, 11) ✅ 2026-04-18 (Docker gate 877/61/938, +20 vs 857 Plan 21-01 baseline, zero regressions; pure-function `assembleConsolidationPrompt(input)` + `ConsolidationPromptInput` type exported; 20 deterministic anchor-phrase unit tests covering every CONS-XX prompt-layer requirement; CONS-04 closed end-to-end, CONS-05/09/10/11 satisfied, CONS-06/07/08 prompt-layer-present pending runtime closure in Plan 21-04)
   - [ ] 21-03-PLAN.md — Read-only source queries in src/episodic/sources.ts (CONS-08, CONS-09 data layer)
   - [ ] 21-04-PLAN.md — runConsolidate() end-to-end in src/episodic/consolidate.ts + Telegram error notifier (CONS-01, 02, 03, 06, 07, 12)
 
@@ -146,6 +146,6 @@ See [milestones/v2.1-ROADMAP.md](milestones/v2.1-ROADMAP.md) for full phase deta
 | 18. Synthetic + Live Suite         | v2.1      | 4/2   | Complete    | 2026-04-16 |
 | 19. Proactive Pipeline Restoration | v2.1      | 4/4   | Complete    | 2026-04-17 |
 | 20. Schema + Tech Debt             | v2.2      | 3/3   | Complete    | 2026-04-18 |
-| 21. Consolidation Engine           | v2.2      | 0/4   | Planned     | -          |
+| 21. Consolidation Engine           | v2.2      | 2/4   | In progress | -          |
 | 22. Cron + Retrieval Routing       | v2.2      | 0/TBD | Not started | -          |
 | 23. Test Suite + Backfill + /summary | v2.2    | 0/TBD | Not started | -          |

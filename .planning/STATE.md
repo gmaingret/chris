@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: M008 Episodic Consolidation
 status: executing
-stopped_at: "Phase 21 Plan 01 complete — @anthropic-ai/sdk@0.90.0 on disk + CONSTITUTIONAL_PREAMBLE exported; CONS-04 satisfied; Docker gate 857/61/918 (+4 vs 853 baseline, zero regressions). Next: Plan 21-02 (episodic prompts)."
-last_updated: "2026-04-18T17:37:31Z"
-last_activity: 2026-04-18 -- Phase 21 Plan 01 complete
+stopped_at: "Phase 21 Plan 02 complete — assembleConsolidationPrompt pure module in src/episodic/prompts.ts + 20 deterministic unit tests (CONS-04/05/06/07/08/09/10/11 prompt layer); Docker gate 877/61/938 (+20 vs 857 baseline, zero regressions). Next: Plan 21-03 (read-only sources.ts for M002 contradictions + M007 decisions)."
+last_updated: "2026-04-18T19:43:00Z"
+last_activity: 2026-04-18 -- Phase 21 Plan 02 complete
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 16
-  completed_plans: 4
-  percent: 25
+  completed_plans: 5
+  percent: 31
 ---
 
 # Project State
@@ -26,13 +26,13 @@ See: .planning/PROJECT.md (updated 2026-04-18 — v2.2 M008 Episodic Consolidati
 ## Current Position
 
 Phase: 21 (Consolidation Engine) — EXECUTING
-Plan: 2 of 4
-Next: Plan 21-02 (episodic prompts — buildConsolidationPrompt with injected CONSTITUTIONAL_PREAMBLE)
-Status: Plan 01 complete; ready to execute 21-02
-Last activity: 2026-04-18 -- Phase 21 Plan 01 complete (SDK 0.90.0 + preamble export)
+Plan: 3 of 4
+Next: Plan 21-03 (read-only `src/episodic/sources.ts` — M002 contradiction + M007 decision DB queries; ConsolidationPromptInput shapes from Plan 21-02 are the consumer contract)
+Status: Plan 02 complete; ready to execute 21-03
+Last activity: 2026-04-18 -- Phase 21 Plan 02 complete (assembleConsolidationPrompt + 20 anchor-phrase unit tests)
 
 ```
-Progress: [█████░░░░░░░░░░░░░░░] 25% (4/16 plans)
+Progress: [██████░░░░░░░░░░░░░░] 31% (5/16 plans)
 ```
 
 ## Shipped Milestones
@@ -74,7 +74,7 @@ Full log in PROJECT.md Key Decisions table. Most load-bearing going into episodi
 - **Consolidation prompt is the highest-risk surface** — Phase 21 is isolated so it can be iterated against real Sonnet before downstream phases depend on it. The M006 constitutional preamble must be explicitly present in the prompt string (assert by unit test — CONS-04).
 - **Two-dimensional retrieval routing** — both dimensions must ship in Phase 22: (1) recency boundary (≤7 days raw, >7 days summary) AND (2) verbatim-fidelity escape (raw always regardless of age when keywords present). High-importance raw descent (importance >= 8) is a third rule, not optional.
 - **Importance rubric calibration** — full-range ground-truth labels for the TEST-16 fixture (r > 0.7 Pearson) must include scores from the tails (1–2 and 9–10 must each appear at least once). Labels are set before the fixture is written.
-- **Docker test gate** — **857 tests currently passing** (Plan 21-01 lifted from 853 via +4 CONSTITUTIONAL_PREAMBLE export assertions; prior Plan 20-03 lifted from 843). Phase 21+ must not regress this floor. No regressions at any phase boundary.
+- **Docker test gate** — **877 tests currently passing** (Plan 21-02 lifted from 857 via +20 prompts.test.ts assertions; Plan 21-01 lifted from 853 via +4 CONSTITUTIONAL_PREAMBLE export assertions; prior Plan 20-03 lifted from 843). Phase 21+ must not regress this floor. No regressions at any phase boundary.
 
 ### Resolved Scoping Decisions (from research open questions)
 
@@ -94,9 +94,9 @@ None. Research confidence: HIGH across all areas (stack, features, architecture,
 
 ## Session Continuity
 
-Last session: 2026-04-18T17:37:31Z -- Phase 21 Plan 01 complete (@anthropic-ai/sdk 0.80→0.90 via tarball+lockfile surgical patch; CONSTITUTIONAL_PREAMBLE exported; +4 covering tests; Docker gate 857/61/918 = +4 passing vs 853 Phase 20 baseline, zero regressions, zero new failures; CONS-04 satisfied)
-Stopped at: Phase 21 Plan 01 complete — @anthropic-ai/sdk@0.90.0 on disk + CONSTITUTIONAL_PREAMBLE exported; CONS-04 satisfied; Docker gate 857/61/918. Next: Plan 21-02 (episodic prompts).
-Resume file: Start Plan 21-02. Phase 21 Plan 01 delivered: (a) @anthropic-ai/sdk@0.90.0 with messages.parse()+zodOutputFormat() live; (b) CONSTITUTIONAL_PREAMBLE exported from src/chris/personality.ts. Plan 21-02 may `import { CONSTITUTIONAL_PREAMBLE } from '../chris/personality.js'`. See .planning/phases/21-consolidation-engine/21-01-SUMMARY.md.
+Last session: 2026-04-18T19:43:00Z -- Phase 21 Plan 02 complete (assembleConsolidationPrompt pure module + 20 anchor-phrase unit tests covering CONS-04/05/06/07/08/09/10/11 prompt layer; Docker gate 877/61/938 = +20 passing vs 857 Plan 21-01 baseline, zero regressions, zero new failures; CONS-05/09/10/11 satisfied at prompt layer, CONS-04 closed end-to-end, CONS-06/07/08 prompt-layer-present pending runtime closure in Plan 21-04)
+Stopped at: Phase 21 Plan 02 complete — `assembleConsolidationPrompt(input)` pure function exported from src/episodic/prompts.ts with 20 deterministic anchor-phrase tests; Docker gate 877/61/938. Next: Plan 21-03 (read-only src/episodic/sources.ts for M002 contradictions + M007 decisions).
+Resume file: Start Plan 21-03. Phase 21 Plan 02 delivered: (a) `assembleConsolidationPrompt(input: ConsolidationPromptInput): string` — pure prompt assembler with CONSTITUTIONAL_PREAMBLE injection, 4-band importance rubric, verbatim-quote clause, M002 contradiction preservation, M007 decision data injection, CONS-06/07 importance-floor hooks, sparse-entry guard (input-shape-derived). Plan 21-03 will import the `ConsolidationPromptInput` type from `../prompts.js` and produce the `contradictions[]` + `decisions[]` arrays matching its shape. See .planning/phases/21-consolidation-engine/21-02-SUMMARY.md.
 
 ## Known Tech Debt
 
