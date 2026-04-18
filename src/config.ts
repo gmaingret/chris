@@ -42,4 +42,8 @@ export const config = {
   proactiveSilenceBaselineDays: parseInt(process.env.PROACTIVE_SILENCE_BASELINE_DAYS || '14', 10),
   proactiveCommitmentStaleDays: parseInt(process.env.PROACTIVE_COMMITMENT_STALE_DAYS || '7', 10),
   proactiveSweepContextMaxTokens: parseInt(process.env.PROACTIVE_SWEEP_CONTEXT_MAX_TOKENS || '10000', 10),
+
+  // Episodic consolidation (M008 Phase 20)
+  // EPI-04: Episodic consolidation cron — fires at 23:00 in config.proactiveTimezone by default.
+  episodicCron: process.env.EPISODIC_CRON || '0 23 * * *',
 } as const;
