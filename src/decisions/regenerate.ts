@@ -1,29 +1,34 @@
 import { db } from '../db/connection.js';
 import { decisionEvents, decisions } from '../db/schema.js';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, getTableColumns } from 'drizzle-orm';
 
 type DecisionRow = typeof decisions.$inferSelect;
 
 /**
- * Timestamptz columns on `decisions`. When the live .select() returns them as
- * Date objects but the jsonb snapshot round-trips them as ISO 8601 strings,
- * we must rehydrate back to Date for deep-equal parity with the live projection.
+ * Timestamptz columns on `decisions` — DERIVED from the schema at module load
+ * (MD-01). When the live .select() returns them as Date objects but the jsonb
+ * snapshot round-trips them as ISO 8601 strings, we must rehydrate back to
+ * Date for deep-equal parity with the live projection.
  *
- * If a future phase adds a new timestamptz column to `decisions`, extend this
- * list. (Scan: grep "timestamp(.*withTimezone" src/db/schema.ts between the
- * `decisions` table declaration boundaries.)
+ * Previously hand-maintained; now reflected from `getTableColumns(decisions)`
+ * so adding a new timestamptz column to the `decisions` schema is picked up
+ * automatically with no code change required here.
+ *
+ * Drizzle marks PgTimestamp columns with `dataType: 'date'` and
+ * `columnType: 'PgTimestamp'` (or `'PgTimestampString'` — we include both via
+ * the `columnType.includes('Timestamp')` predicate). The key name returned is
+ * the TS property name (`createdAt`), which is what we receive as jsonb keys
+ * from `snapshotForEvent` in lifecycle.ts (which spreads the row directly).
  */
-const TIMESTAMPTZ_COLUMNS = [
-  'createdAt',
-  'updatedAt',
-  'resolveBy',
-  'resolvedAt',
-  'reviewedAt',
-  'withdrawnAt',
-  'staleAt',
-  'abandonedAt',
-  'accuracyClassifiedAt',
-] as const;
+const TIMESTAMPTZ_COLUMNS: readonly string[] = Object.entries(
+  getTableColumns(decisions),
+)
+  .filter(
+    ([, col]) =>
+      (col as { dataType: string }).dataType === 'date' &&
+      (col as { columnType: string }).columnType.includes('Timestamp'),
+  )
+  .map(([name]) => name);
 
 function rehydrateDates(snapshot: Record<string, unknown>): DecisionRow {
   const out: Record<string, unknown> = { ...snapshot };
