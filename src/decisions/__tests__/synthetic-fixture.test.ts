@@ -256,6 +256,13 @@ async function seedDecision(
       status: status as never,
       chatId: overrides.chatId ?? TEST_CHAT_ID,
       decisionText: overrides.decisionText ?? 'Whether to schedule the housewarming party for April 9',
+      // Phase 18 IN-02: `Date.now()` below is intentionally mock-clock-aware —
+      // `vi.setSystemTime` hooks both `new Date()` and `Date.now()`. TEST-10
+      // always passes an explicit `resolveBy`; TEST-11 uses this default at a
+      // fixed real-time wall clock (no `vi.setSystemTime` active) so the
+      // default evaluates to "now + 1 day" in real time. Keep the default for
+      // the TEST-11 case — do NOT "tighten" to require an explicit argument
+      // without updating TEST-11's seed call first.
       resolveBy: overrides.resolveBy ?? new Date(Date.now() + DAY_MS),
       reasoning: overrides.reasoning ?? 'Contractor said renovation would be done',
       prediction: overrides.prediction ?? 'The renovation will be done by next week',
