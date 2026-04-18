@@ -77,6 +77,18 @@ Chris is a tool for authoring a more examined life, not a vessel for preserving 
 
 ---
 
+## Requirements
+
+Requirements are tracked **per milestone**, not aggregated here:
+
+- v2.0 M006: `.planning/milestones/v2.0-REQUIREMENTS.md` (26/26 satisfied)
+- v2.1 M007: `.planning/milestones/v2.1-REQUIREMENTS.md` (31/31 satisfied)
+- v2.2 M008+: created when the milestone is started via `/gsd-new-milestone`
+
+See `## Current State` for the active milestone status and `## Implementation Phases` for the phase-level breakdown.
+
+---
+
 ## Key Decisions
 
 | ID | Decision | Rationale |

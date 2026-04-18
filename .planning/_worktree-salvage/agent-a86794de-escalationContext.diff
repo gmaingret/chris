@@ -1,0 +1,23 @@
+diff --git a/src/proactive/state.ts b/src/proactive/state.ts
+index 9956888..f1d61b9 100644
+--- a/src/proactive/state.ts
++++ b/src/proactive/state.ts
+@@ -168,4 +168,18 @@ export async function setEscalationCount(decisionId: string, count: number): Pro
+ export async function clearEscalationKeys(decisionId: string): Promise<void> {
+   await deleteKey(escalationSentKey(decisionId));
+   await deleteKey(escalationCountKey(decisionId));
++  await deleteKey(escalationContextKey(decisionId));
++}
++
++const escalationContextKey = (decisionId: string) => `accountability_context_${decisionId}`;
++
++/** Store the trigger context string for a decision's escalation chain. */
++export async function setEscalationContext(decisionId: string, context: string): Promise<void> {
++  await setValue(escalationContextKey(decisionId), context);
++}
++
++/** Get the stored trigger context string for a decision's escalation chain. */
++export async function getEscalationContext(decisionId: string): Promise<string | null> {
++  const val = await getValue(escalationContextKey(decisionId));
++  return typeof val === 'string' ? val : null;
+ }
