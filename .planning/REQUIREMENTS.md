@@ -11,7 +11,7 @@ Requirements for M008 Episodic Consolidation. Each maps to roadmap phases.
 
 ### Pre-Work / Tech Debt
 
-- [ ] **TD-01**: TECH-DEBT-19-01 resolved — drizzle-kit meta snapshots for migrations 0001/0003 regenerated so migration 0005 (`episodic_summaries`) writes onto a clean lineage. `drizzle-kit generate` produces no spurious diff after resolution.
+- [x] **TD-01**: TECH-DEBT-19-01 resolved — drizzle-kit meta snapshots for migrations 0001/0003 regenerated so migration 0005 (`episodic_summaries`) writes onto a clean lineage. `drizzle-kit generate` produces no spurious diff after resolution. (Phase 20 Plan 01, 2026-04-18)
 
 ### Schema & Storage
 
@@ -102,7 +102,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TD-01 | Phase 20 | Pending |
+| TD-01 | Phase 20 | ✅ Complete (Plan 01, 2026-04-18) |
 | EPI-01 | Phase 20 | Pending |
 | EPI-02 | Phase 20 | Pending |
 | EPI-03 | Phase 20 | Pending |
