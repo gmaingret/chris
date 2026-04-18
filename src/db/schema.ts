@@ -11,6 +11,8 @@ import {
   integer,
   index,
   unique,
+  check,
+  date,
 } from 'drizzle-orm/pg-core';
 import { vector } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
@@ -297,5 +299,42 @@ export const decisionTriggerSuppressions = pgTable(
   (table) => [
     index('decision_trigger_suppressions_chat_id_idx').on(table.chatId),
     unique('decision_trigger_suppressions_chat_id_phrase_unique').on(table.chatId, table.phrase),
+  ],
+);
+
+// ── Episodic Consolidation (M008 Phase 20) ─────────────────────────────────
+
+/**
+ * EPI-01: episodic_summaries table.
+ *
+ * Per CONTEXT.md D-07: DB-level CHECK (importance BETWEEN 1 AND 10) is intentional —
+ * covers operator paths (OPS-01 backfill, direct psql debugging) not just the Phase 21
+ * engine. This deviates from Phase 13's "defer CHECKs to the write-phase" rule with
+ * explicit rationale.
+ *
+ * Per CONTEXT.md D-08: No CHECK on `source_entry_ids` length (CONS-02 entry-count gate
+ * prevents zero-entry inserts), no CHECK on `summary` length (Zod EpisodicSummaryInsertSchema
+ * enforces min(50)).
+ */
+export const episodicSummaries = pgTable(
+  'episodic_summaries',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    summaryDate: date('summary_date').notNull(),
+    summary: text('summary').notNull(),
+    importance: integer('importance').notNull(),
+    topics: text('topics').array().notNull().default(sql`'{}'`),
+    emotionalArc: text('emotional_arc').notNull(),
+    keyQuotes: text('key_quotes').array().notNull().default(sql`'{}'`),
+    sourceEntryIds: uuid('source_entry_ids').array().notNull().default(sql`'{}'`),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    // EPI-02: all three indexes ship with migration 0005 (non-retrofitted)
+    unique('episodic_summaries_summary_date_unique').on(table.summaryDate),
+    index('episodic_summaries_topics_idx').using('gin', table.topics),
+    index('episodic_summaries_importance_idx').on(table.importance),
+    // D-07: DB-level CHECK on importance bounds
+    check('episodic_summaries_importance_bounds', sql`${table.importance} BETWEEN 1 AND 10`),
   ],
 );
