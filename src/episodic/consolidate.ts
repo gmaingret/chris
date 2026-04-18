@@ -30,6 +30,7 @@
 import { eq } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
+import * as zV4 from 'zod/v4';
 import { anthropic, SONNET_MODEL } from '../llm/client.js';
 import { config } from '../config.js';
 import { db } from '../db/connection.js';
@@ -47,6 +48,37 @@ import {
   parseEpisodicSummary,
 } from './types.js';
 import { notifyConsolidationError } from './notify.js';
+
+/**
+ * Zod v4 mirror of EpisodicSummarySonnetOutputSchema (which is built on the
+ * standard `zod` v3 import in src/episodic/types.ts).
+ *
+ * Why both schemas:
+ *   The SDK's `@anthropic-ai/sdk/helpers/zod::zodOutputFormat()` calls
+ *   `z.toJSONSchema(schema, { reused: 'ref' })` from `zod/v4/core/to-json-schema`,
+ *   which only operates on v4 schemas (they expose `_zod.def`; v3 schemas only
+ *   have `_def`). Passing a v3 schema raises
+ *   `TypeError: Cannot read properties of undefined (reading 'def')`.
+ *
+ *   We keep the v3 `EpisodicSummarySonnetOutputSchema` as the contract surface
+ *   for Phase 20 consumers (tests, downstream Phase 22 retrieval code) and use
+ *   this v4 mirror only at the SDK boundary. The Sonnet response is
+ *   re-validated through the v3 `parseEpisodicSummary` in step 8 — so the v3
+ *   schema remains the authoritative shape check, and the v4 schema is purely
+ *   a JSON-Schema-emitting contract for the SDK.
+ *
+ *   Both schemas MUST stay in lock-step. If Phase 20 tightens any field on the
+ *   v3 schema (e.g. lowers a max, narrows a string format), update this mirror
+ *   in the same commit. The v3 re-validation in step 8 is the safety net that
+ *   catches drift if a discrepancy ever slips through.
+ */
+const EpisodicSummarySonnetOutputSchemaV4 = zV4.object({
+  summary: zV4.string().min(50),
+  importance: zV4.number().int().min(1).max(10),
+  topics: zV4.array(zV4.string().min(1)).min(1).max(10),
+  emotional_arc: zV4.string().min(1),
+  key_quotes: zV4.array(zV4.string().min(1)).max(10),
+});
 
 /**
  * Discriminated result of a single `runConsolidate` invocation.
@@ -114,7 +146,14 @@ async function callSonnetWithRetry(
       },
     ],
     output_config: {
-      format: zodOutputFormat(EpisodicSummarySonnetOutputSchema),
+      // SDK requires a zod/v4 schema (see EpisodicSummarySonnetOutputSchemaV4 above).
+      // The .d.ts surface of @anthropic-ai/sdk/helpers/zod still types the
+      // input as the v3 `ZodType` (the .d.ts imports `from 'zod'` rather than
+      // `from 'zod/v4'`); the runtime, however, calls `z.toJSONSchema()` from
+      // `zod/v4/core/to-json-schema` which only accepts v4 schemas. Cast
+      // through unknown to bridge the SDK's type/runtime mismatch.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      format: zodOutputFormat(EpisodicSummarySonnetOutputSchemaV4 as unknown as any),
     },
   });
 
