@@ -3,7 +3,9 @@ import { storePensieveEntry } from '../../pensieve/store.js';
 import { tagEntry } from '../../pensieve/tagger.js';
 import { embedAndStore } from '../../pensieve/embeddings.js';
 import { buildPensieveContext, buildMessageHistory } from '../../memory/context-builder.js';
-import { hybridSearch, JOURNAL_SEARCH_OPTIONS } from '../../pensieve/retrieve.js';
+import { JOURNAL_SEARCH_OPTIONS } from '../../pensieve/retrieve.js';
+import { retrieveContext, summaryToSearchResult } from '../../pensieve/routing.js';
+import { extractQueryDate } from './date-extraction.js';
 import { buildSystemPrompt, type DeclinedTopic } from '../personality.js';
 import { LLMError } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
@@ -32,8 +34,30 @@ export async function handleJournal(
   void tagEntry(entry.id, text);
   void embedAndStore(entry.id, text);
 
-  // Retrieve relevant Pensieve entries for grounding (RETR-01, D-01, D-10)
-  const searchResults = await hybridSearch(text, JOURNAL_SEARCH_OPTIONS);
+  // Retrieve relevant Pensieve entries for grounding (RETR-01, D-01, D-10).
+  // Phase 22.1 RETR-02/03: route through retrieveContext so a >7d-old query
+  // escalates to the episodic-summary tier; high-importance summaries surface
+  // their source raw entries via descent. Mode-specific JOURNAL_SEARCH_OPTIONS
+  // (tags filter + recencyBias + limit) round-trip through hybridOptions.
+  const queryDate = await extractQueryDate(text, language);
+  const routing = await retrieveContext({
+    query: text,
+    queryDate,
+    rawLimit: JOURNAL_SEARCH_OPTIONS.limit,
+    hybridOptions: JOURNAL_SEARCH_OPTIONS,
+  });
+  const searchResults = routing.summary != null
+    ? [summaryToSearchResult(routing.summary), ...routing.raw]
+    : routing.raw;
+  logger.info(
+    {
+      chatId: chatId.toString(),
+      reason: routing.reason,
+      hasSummary: routing.summary != null,
+      rawCount: routing.raw.length,
+    },
+    'chris.journal.routing',
+  );
   // Phase 11 / RETR-04: suppress per-entry date prefix in JOURNAL so today's seed-stamp does not leak into "back on April 14th..." fabrications. INTERROGATE keeps dates (citation contract).
   const pensieveContext = buildPensieveContext(searchResults, { includeDate: false });
 
