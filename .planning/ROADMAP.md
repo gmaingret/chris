@@ -54,7 +54,7 @@ See [milestones/v2.1-ROADMAP.md](milestones/v2.1-ROADMAP.md) for full phase deta
 
 - [x] **Phase 20: Schema + Tech Debt** — TECH-DEBT-19-01 drizzle-kit snapshot regeneration ✅ (Plan 01 complete 2026-04-18) + `episodic_summaries` migration 0005 with all indexes + Zod types + config field ✅ (Plan 02 complete 2026-04-18) + Zod unit tests + Docker Postgres schema integration tests ✅ (Plan 03 complete 2026-04-18; Docker gate 853 passing, +10 vs baseline)
 - [x] **Phase 21: Consolidation Engine** — Plan 01: @anthropic-ai/sdk bump to ^0.90.0 + CONSTITUTIONAL_PREAMBLE export ✅ (CONS-04 seed complete 2026-04-18; Docker gate 857/61/918, +4 vs 853 baseline) · Plan 02: assembleConsolidationPrompt pure module + 20 anchor-phrase tests ✅ (CONS-05/09/10/11 satisfied at prompt layer, CONS-04 closed end-to-end, CONS-06/07/08 prompt-layer-present pending runtime closure; Docker gate 877/61/938, +20 vs 857 baseline) · Plan 03: src/episodic/sources.ts day-bounded read helpers + 12 Docker tests ✅ (CONS-08 + CONS-09 fully closed end-to-end, DST 23h/25h boundary correctness via Luxon; Docker gate 889/61/950, +12 vs 877 baseline) · Plan 04: runConsolidate() end-to-end + notifyConsolidationError + 12 integration tests ✅ (CONS-01, 02, 03, 06, 07, 12 fully closed; idempotency two-layer SELECT + ON CONFLICT; runtime importance floors; Telegram error notification; Docker gate 901/61/962, +12 vs 889 baseline). All 12 CONS requirements satisfied. Phase 21 COMPLETE.
-- [ ] **Phase 22: Cron + Retrieval Routing** — Independent cron in `src/index.ts`; DST-safe scheduling; two-dimensional retrieval routing; high-importance raw descent; INTERROGATE date-anchored injection; Known Facts and embedding separation audit
+- [ ] **Phase 22: Cron + Retrieval Routing** — Plan 01: `getEpisodicSummary(date)` + `getEpisodicSummariesRange(from, to)` exports in `src/pensieve/retrieve.ts` ✅ (RETR-01 complete 2026-04-18; timezone-aware via `Intl.DateTimeFormat('en-CA')`, never-throw, Docker gate 911/61/972 = +10 vs 901 Phase 21 baseline, zero regressions; 7 Docker integration tests + 3 mocked error-path tests). Remaining: independent cron in `src/index.ts`; DST-safe scheduling; two-dimensional retrieval routing; high-importance raw descent; INTERROGATE date-anchored injection; Known Facts and embedding separation audit
 - [ ] **Phase 23: Test Suite + Backfill + `/summary`** — 14-day synthetic fixture (8 test cases), live anti-flattery integration test, backfill operator script, `/summary [YYYY-MM-DD]` Telegram command
 
 ---
@@ -104,7 +104,12 @@ See [milestones/v2.1-ROADMAP.md](milestones/v2.1-ROADMAP.md) for full phase deta
   3. A query against a day with a summary of `importance >= 8` returns both the summary and the underlying raw source entries
   4. An INTERROGATE-mode query mentioning a date or period older than 7 days injects matching episodic summaries into the context block — confirmed by a unit test on `interrogate.ts`
   5. `grep` of `src/pensieve/known-facts.ts` (or equivalent) contains no JOIN or SELECT referencing `episodic_summaries`; `grep` of the insert path for `pensieve_embeddings` contains no reference to `episodic_summaries`
-**Plans**: TBD
+**Plans**: 5 plans
+  - [x] 22-01-PLAN.md — `getEpisodicSummary` + `getEpisodicSummariesRange` exports in `src/pensieve/retrieve.ts` (RETR-01) ✅ 2026-04-18 (Docker gate 911/61/972, +10 vs 901 Plan 21-04 baseline, zero regressions; both helpers timezone-aware via `Intl.DateTimeFormat('en-CA', { timeZone: config.proactiveTimezone })`, never-throw with structured `pensieve.episodic.{retrieve,error}` logs, internal `formatLocalDate(date, tz)` helper as single source of truth; 7 Docker-Postgres integration tests in new `retrieve.episodic.test.ts` + 3 mocked error-path tests in existing `retrieve.test.ts`; zero touch on `pensieve_embeddings`)
+  - [ ] 22-02-PLAN.md — Two-dimensional retrieval routing in `retrieveContext` (RETR-02 + RETR-03)
+  - [ ] 22-03-PLAN.md — INTERROGATE date-anchored summary injection (RETR-04)
+  - [ ] 22-04-PLAN.md — Known Facts + pensieve_embeddings boundary audit (RETR-05 + RETR-06)
+  - [ ] 22-05-PLAN.md — Independent cron registration in `src/index.ts` with DST safety (CRON-01 + CRON-02)
 
 ### Phase 23: Test Suite + Backfill + `/summary`
 **Goal**: The consolidation pipeline is validated end-to-end by a deterministic 14-day synthetic fixture; Greg can run a backfill for all days since M007 went live; and Greg can inspect any day's episodic summary via Telegram command.
@@ -147,5 +152,5 @@ See [milestones/v2.1-ROADMAP.md](milestones/v2.1-ROADMAP.md) for full phase deta
 | 19. Proactive Pipeline Restoration | v2.1      | 4/4   | Complete    | 2026-04-17 |
 | 20. Schema + Tech Debt             | v2.2      | 3/3   | Complete    | 2026-04-18 |
 | 21. Consolidation Engine           | v2.2      | 3/4   | In progress | -          |
-| 22. Cron + Retrieval Routing       | v2.2      | 0/TBD | Not started | -          |
-| 23. Test Suite + Backfill + /summary | v2.2    | 0/TBD | Not started | -          |
+| 22. Cron + Retrieval Routing       | v2.2      | 1/5   | In progress | -          |
+| 23. Test Suite + Backfill + /summary | v2.2    | 0/4   | Not started | -          |

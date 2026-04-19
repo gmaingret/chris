@@ -42,7 +42,7 @@ Requirements for M008 Episodic Consolidation. Each maps to roadmap phases.
 
 ### Retrieval Routing
 
-- [ ] **RETR-01**: `getEpisodicSummary(date: Date)` and `getEpisodicSummariesRange(from: Date, to: Date)` exported from `src/pensieve/retrieve.ts`. Both timezone-aware in `config.proactiveTimezone`.
+- [x] **RETR-01**: `getEpisodicSummary(date: Date)` and `getEpisodicSummariesRange(from: Date, to: Date)` exported from `src/pensieve/retrieve.ts`. Both timezone-aware in `config.proactiveTimezone`. (Phase 22 Plan 01, 2026-04-18 — both helpers convert Date inputs to 'YYYY-MM-DD' calendar strings via internal `formatLocalDate(date, tz)` using `Intl.DateTimeFormat('en-CA', { timeZone })` (Node 22 native, zero new deps); both never throw — return `null` / `[]` on DB error and emit structured `pensieve.episodic.error` warn log; range helper inclusive on both bounds via `gte + lte`, ordered by `summaryDate` ASC; zero touch on `pensieve_embeddings` (semantic search path unchanged); 7 Docker-Postgres integration tests in new `src/pensieve/__tests__/retrieve.episodic.test.ts` covering happy path, null on missing row, timezone boundary regression `2026-04-15T22:30:00Z → 2026-04-16` in Europe/Paris CEST, inclusive ASC range, empty range, both-boundary inclusion, and out-of-range exclusion + 3 mocked error-path tests in existing `retrieve.test.ts`. Docker gate 911/61/972 = +10 vs 901 Plan 21-04 baseline, zero regressions.)
 - [ ] **RETR-02**: Two-dimensional retrieval routing in `retrieveContext` — recency boundary (≤7 days from today → raw entries always; >7 days → summary first) AND query-intent escape (verbatim-fidelity queries detected via keyword fast-path: "exactly", "verbatim", "what did I say", "exact words" + EN/FR/RU equivalents → raw always regardless of age). Routing decision logged for diagnostic visibility.
 - [ ] **RETR-03**: High-importance raw descent — when a >7-day-old summary with `importance >= 8` matches the query, the source raw entries (via `source_entry_ids`) are also retrieved and surfaced alongside the summary. Asserted by fixture test on an importance-9 day.
 - [ ] **RETR-04**: INTERROGATE mode date-anchored summary injection — when the user asks about a period >7 days ago (e.g., "what was happening 3 weeks ago", "April 1st"), `src/chris/modes/interrogate.ts` injects matching episodic summaries into the context block. Date extraction uses regex/keyword fast-path first, Haiku classifier only as fallback if regex fails.
@@ -121,7 +121,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CONS-12 | Phase 21 | ✅ Complete (Plan 04, 2026-04-18) |
 | CRON-01 | Phase 22 | Pending |
 | CRON-02 | Phase 22 | Pending |
-| RETR-01 | Phase 22 | Pending |
+| RETR-01 | Phase 22 | ✅ Complete (Plan 01, 2026-04-18) |
 | RETR-02 | Phase 22 | Pending |
 | RETR-03 | Phase 22 | Pending |
 | RETR-04 | Phase 22 | Pending |
