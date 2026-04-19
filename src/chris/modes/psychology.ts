@@ -1,5 +1,7 @@
 import { anthropic, OPUS_MODEL } from '../../llm/client.js';
-import { hybridSearch, PSYCHOLOGY_SEARCH_OPTIONS } from '../../pensieve/retrieve.js';
+import { PSYCHOLOGY_SEARCH_OPTIONS } from '../../pensieve/retrieve.js';
+import { retrieveContext, summaryToSearchResult } from '../../pensieve/routing.js';
+import { extractQueryDate } from './date-extraction.js';
 import {
   buildPensieveContext,
   buildRelationalContext,
@@ -30,8 +32,29 @@ export async function handlePsychology(
 ): Promise<string> {
   const start = Date.now();
 
-  // Hybrid search with emotion/fear/belief/dream weighting for psychology context
-  const searchResults = await hybridSearch(text, PSYCHOLOGY_SEARCH_OPTIONS);
+  // Phase 22.1 RETR-02/03: route through retrieveContext; old-dated queries
+  // escalate to the episodic-summary tier; PSYCHOLOGY_SEARCH_OPTIONS (EMOTION/
+  // FEAR/BELIEF/DREAM tag filter + recencyBias 0.2 + limit 15) preserved via
+  // hybridOptions.
+  const queryDate = await extractQueryDate(text, language);
+  const routing = await retrieveContext({
+    query: text,
+    queryDate,
+    rawLimit: PSYCHOLOGY_SEARCH_OPTIONS.limit,
+    hybridOptions: PSYCHOLOGY_SEARCH_OPTIONS,
+  });
+  const searchResults = routing.summary != null
+    ? [summaryToSearchResult(routing.summary), ...routing.raw]
+    : routing.raw;
+  logger.info(
+    {
+      chatId: chatId.toString(),
+      reason: routing.reason,
+      hasSummary: routing.summary != null,
+      rawCount: routing.raw.length,
+    },
+    'chris.psychology.routing',
+  );
 
   // Build formatted Pensieve context with citations
   const pensieveContext = buildPensieveContext(searchResults);
