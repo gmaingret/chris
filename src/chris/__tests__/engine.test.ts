@@ -1121,6 +1121,11 @@ describe('praise quarantine integration (SYCO-04/05)', () => {
     mockDetectContradictions.mockResolvedValue([]);
     mockDetectMuteIntent.mockResolvedValue({ muted: false });
     mockQuarantinePraise.mockImplementation((response: string) => Promise.resolve(response));
+    // Phase 22.1: JOURNAL handler now routes through retrieveContext which
+    // invokes the real routing.ts over the mocked hybridSearch. Default to []
+    // so routing.raw is a real array (vi.resetAllMocks above clears the
+    // inline default from the vi.mock factory).
+    mockHybridSearch.mockResolvedValue([]);
   });
 
   it('calls quarantinePraise for JOURNAL mode', async () => {
