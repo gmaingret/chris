@@ -134,7 +134,10 @@ async function seedPensieveEntries(opts: {
 function buildSonnetOutputForDay(dayIndex: number): EpisodicSummarySonnetOutput {
   return {
     summary: `Backfill fixture summary for day ${dayIndex}, a routine day with steady but unremarkable activity across the afternoon.`,
-    importance: 3 + dayIndex, // 3, 4, 5 across the three days — still within CONS-05 rubric
+    // IN-04: clamp to the Zod max(10) so a future extension of FIXTURE_DATES
+    // beyond 7 days doesn't silently crash validation. Current FIXTURE_DATES
+    // is 3 days (values 3/4/5 within rubric), so the clamp is a no-op today.
+    importance: Math.min(3 + dayIndex, 10),
     topics: ['routine', 'backfill-test'],
     emotional_arc: 'flat and productive',
     key_quotes: [],

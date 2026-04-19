@@ -478,7 +478,13 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
-  vi.useRealTimers();
+  // IN-03: vi.useFakeTimers() is explicitly FORBIDDEN in this file (L15-16,
+  // D-02 inheritance) because it replaces setTimeout/setInterval and breaks
+  // postgres.js keep-alive timers. The file only uses vi.setSystemTime, so
+  // vi.useRealTimers was a dead no-op. Restore the real wall-clock via
+  // setSystemTime instead — defensive against vitest versions where a
+  // prior setSystemTime leaks into subsequent Date.now() reads.
+  vi.setSystemTime(new Date());
 });
 
 afterAll(async () => {
