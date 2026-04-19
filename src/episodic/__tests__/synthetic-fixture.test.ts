@@ -933,3 +933,90 @@ describe('TEST-19: Idempotency retry', () => {
     20_000,
   );
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// TEST-20 — Decision-day importance floor (CONS-06).
+// ════════════════════════════════════════════════════════════════════════════
+//
+// CONS-06 contract: a fixture day with a real (non-withdrawn) structural
+// decision committed within the day window must produce an episodic_summaries
+// row with importance >= 6, regardless of what the Sonnet mock returns.
+// The runtime clamp lives at consolidate.ts L256-263:
+//
+//   if (hasRealDecision) importance = Math.max(importance, 6);
+//
+// where REAL_DECISION_STATES = Set(['open','due','resolved','reviewed']) —
+// excludes 'withdrawn', 'stale', 'abandoned', 'open-draft'.
+//
+// This test seeds a real `decisions` row in 'open' state via direct Drizzle
+// insert (mirroring the consolidate.test.ts seedDecision helper at L153-176).
+// Direct insert is appropriate here because TEST-20 exercises the read-side
+// integration (getDecisionsForDay → runtime floor clamp), not the M007
+// capture flow (which is Phase 18 territory).
+//
+// Two assertions:
+//   1. Mocked Sonnet returns importance=3 (mundane), but the inserted row's
+//      importance is clamped UP to 6 (CONS-06 enforcement).
+//   2. The seeded decisions row has chatId=FIXTURE_CHAT_ID for cleanup.
+
+describe('TEST-20: Decision-day importance floor', () => {
+  it(
+    'day with a captured structural decision produces summary with importance >= 6 (CONS-06)',
+    async () => {
+      const date = '2026-04-10';
+
+      // Seed 2 mundane Pensieve entries (no inherent severity).
+      await seedPensieveEntries({
+        chatId: FIXTURE_CHAT_ID,
+        date,
+        tz: FIXTURE_TZ,
+        entries: [
+          { content: 'Quick note about a regular Tuesday', epistemicTag: 'FACT' },
+          { content: 'Lunch with a friend at the usual spot', epistemicTag: 'FACT' },
+        ],
+      });
+
+      // Seed a real `decisions` row captured INSIDE the day's Paris window.
+      // Direct Drizzle insert — same pattern as consolidate.test.ts L153-176.
+      // status='open' is one of REAL_DECISION_STATES, so CONS-06 fires.
+      await db.insert(decisions).values({
+        chatId: FIXTURE_CHAT_ID,
+        decisionText: 'Accept the consulting offer and leave corporate employment',
+        status: 'open',
+        reasoning: 'Strong network, domain expertise, risk-tolerance window aligns',
+        prediction: 'I will have 3 paying clients within 90 days',
+        falsificationCriterion: 'Fewer than 3 paying clients by 2026-07-10',
+        resolveBy: tzDate('2026-07-10T18:00:00', FIXTURE_TZ),
+        createdAt: dateAtLocalHour(date, FIXTURE_TZ, 14, 0),
+      });
+
+      // Mock Sonnet to return importance=3 (mundane) — the runtime CONS-06
+      // clamp must override this up to 6. Asserts the engine's enforcement,
+      // not the prompt-layer suggestion (the prompt also asks Sonnet to floor
+      // at 6, but the runtime clamp is the load-bearing safety net).
+      mockAnthropicParse.mockResolvedValueOnce(
+        mockParseResponseFor({
+          summary:
+            'Decision-day narrative: Greg captured a structural decision about leaving corporate employment to consult.',
+          importance: 3, // intentionally below the floor — clamp must lift it.
+          topics: ['career decision', 'consulting'],
+          emotional_arc: 'resolute',
+          key_quotes: [],
+        }),
+      );
+
+      vi.setSystemTime(dateAtLocalHour(date, FIXTURE_TZ, 23, 0));
+      const result = await runConsolidate(tzDate(`${date}T12:00:00`, FIXTURE_TZ));
+      expect(result).toMatchObject({ inserted: true });
+
+      const rows = await db
+        .select()
+        .from(episodicSummaries)
+        .where(eq(episodicSummaries.summaryDate, date));
+      expect(rows).toHaveLength(1);
+      // CONS-06 floor — importance must be >= 6 even though Sonnet said 3.
+      expect(rows[0]!.importance).toBeGreaterThanOrEqual(6);
+    },
+    20_000,
+  );
+});
