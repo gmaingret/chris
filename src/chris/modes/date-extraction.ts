@@ -48,13 +48,20 @@ export const DATE_HEURISTIC_KEYWORDS: readonly string[] = [
 
 /**
  * Attempt to extract an ISO date 'YYYY-MM-DD' directly from the query via
- * regex. Returns a Date at midnight UTC or null.
+ * regex. Returns a Date anchored at 12:00 UTC (noon) or null.
+ *
+ * Noon-UTC anchor (WR-02): consumers like `getEpisodicSummary` format this
+ * Date back to a calendar-day string in `config.proactiveTimezone` via
+ * `Intl.DateTimeFormat`. Midnight-UTC anchoring drifts by one day in any
+ * negative-offset tz (America/*, UTC−5 to UTC−10) because midnight UTC maps
+ * to the prior local day. Noon UTC buys ±12h of tz slack, correctly
+ * resolving the same calendar day for every IANA tz on Earth.
  */
 function matchIsoDate(text: string): Date | null {
   const m = text.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
   if (!m) return null;
   const iso = `${m[1]}-${m[2]}-${m[3]}`;
-  const d = new Date(iso + 'T00:00:00Z');
+  const d = new Date(iso + 'T12:00:00Z');
   if (isNaN(d.getTime())) return null;
   return d;
 }
@@ -130,8 +137,11 @@ function matchRelativeAgo(text: string, now: Date): Date | null {
   if (n == null || unit == null) return null;
 
   const shifted = new Date(now.getTime() - n * DAYS_PER_UNIT[unit] * 86_400_000);
-  // Normalize to midnight UTC for consistency with absolute matches
-  shifted.setUTCHours(0, 0, 0, 0);
+  // Normalize to NOON UTC for consistency with absolute matches. Noon-UTC
+  // anchor (WR-02): buys ±12h tz slack so downstream consumers formatting
+  // back to config.proactiveTimezone resolve the same calendar day in every
+  // IANA tz (midnight-UTC would drift one day in negative-offset zones).
+  shifted.setUTCHours(12, 0, 0, 0);
   return shifted;
 }
 
@@ -192,15 +202,23 @@ function matchMonthDay(text: string, now: Date): Date | null {
 
   if (year == null) {
     const thisYear = now.getUTCFullYear();
-    const candidate = new Date(Date.UTC(thisYear, monthIdx, day));
+    // Noon UTC (WR-02) — same rationale as matchIsoDate / matchRelativeAgo:
+    // downstream consumers format back to config.proactiveTimezone, so noon
+    // UTC anchors to the correct calendar day in every IANA tz.
+    const candidate = new Date(Date.UTC(thisYear, monthIdx, day, 12));
     // If the candidate falls in the future relative to now, the user
     // most likely means last year. (E.g., on Jan 5 a query about
     // "December 30" means last year's Dec 30.) If the candidate is
     // today-or-past, current year is correct.
     year = candidate.getTime() > now.getTime() ? thisYear - 1 : thisYear;
   }
-  const d = new Date(Date.UTC(year, monthIdx, day));
+  const d = new Date(Date.UTC(year, monthIdx, day, 12));
   if (isNaN(d.getTime())) return null;
+  // WR-04: Date.UTC silently rolls calendar-overflow — Feb 30 → March 2,
+  // April 31 → May 1. isNaN does not catch this because the produced Date
+  // is valid, just not the date the user typed. Reject any tuple that
+  // Date.UTC renormalized to a different (month, day) pair.
+  if (d.getUTCMonth() !== monthIdx || d.getUTCDate() !== day) return null;
   return d;
 }
 
@@ -265,7 +283,8 @@ Respond with ONLY the JSON object, no prose.`,
       (block as { type: 'text'; text: string }).text.trim(),
     );
     if (typeof parsed.date !== 'string') return null;
-    const d = new Date(parsed.date + 'T00:00:00Z');
+    // Noon UTC (WR-02) — consistent with regex fast-paths. See matchIsoDate.
+    const d = new Date(parsed.date + 'T12:00:00Z');
     if (isNaN(d.getTime())) return null;
     return d;
   } catch (error) {
