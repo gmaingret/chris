@@ -59,6 +59,12 @@ export async function handleJournal(
     'chris.journal.routing',
   );
   // Phase 11 / RETR-04: suppress per-entry date prefix in JOURNAL so today's seed-stamp does not leak into "back on April 14th..." fabrications. INTERROGATE keeps dates (citation contract).
+  // NOTE (22.1 IN-04): the { includeDate: false } flag only suppresses the
+  // builder's (YYYY-MM-DD | tag | score) citation prefix on RAW entries.
+  // Synthetic episodic-summary entries (via summaryToSearchResult) carry a
+  // date marker INSIDE their content string — that date is the semantically
+  // meaningful episode date (the date the user is asking about), not a
+  // storage timestamp, and is MEANT to be visible.
   const pensieveContext = buildPensieveContext(searchResults, { includeDate: false });
 
   // Build conversation context
