@@ -55,7 +55,7 @@ Requirements for M008 Episodic Consolidation. Each maps to roadmap phases.
 
 ### Operations & Backfill
 
-- [ ] **OPS-01**: `scripts/backfill-episodic.ts` operator script with `--from YYYY-MM-DD --to YYYY-MM-DD` arguments. Calls `runConsolidate` day-by-day sequentially with 2-second delay between days (rate limiting). Idempotent by design (CONS-03 skips already-summarized days). Logs progress per day. Resumable on crash via the same idempotent skip.
+- [x] **OPS-01**: `scripts/backfill-episodic.ts` operator script with `--from YYYY-MM-DD --to YYYY-MM-DD` arguments. Calls `runConsolidate` day-by-day sequentially with 2-second delay between days (rate limiting). Idempotent by design (CONS-03 skips already-summarized days). Logs progress per day. Resumable on crash via the same idempotent skip. (Phase 23 Plan 02, 2026-04-19 — 272-line script: --from/--to via node:util parseArgs strict; both required + regex YYYY-MM-DD + luxon validity + from <= to + not future + span <= 365 days, exit 1 with usage on any failure; sequential ascending UTC iteration via DateTime.plus({days:1}); INTER_DAY_DELAY_MS=2000 between days only (not before first / not after last); runConsolidate(date) per-day with full discriminated ConsolidateResult handling — 'inserted'/'skipped'/'failed' branches counted into BackfillTotals; continue-on-error D-22 — single-day exception logged via logger.error and counted as errored, loop proceeds, exit 0 on completed sweep; structured logger.info per day with `{ date, result: 'inserted'|'skipped'|'error', reason?|id?|error? }`; ESM main() guard `import.meta.url === \`file://${process.argv[1]}\`` so import by tests does not auto-run; exports parseCliArgs, iterateDates, BackfillTotals, runBackfill(from, to, opts?) with delayMs option. Integration test src/episodic/__tests__/backfill.test.ts 359 lines / 3 it() blocks: first-run insert (3 inserts, importances 3/4/5); Phase 23 Success Criterion #2 idempotency (0 new inserts AND mockAnthropicParse.toHaveBeenCalledTimes(0) — proves CONS-03 pre-flight SELECT short-circuits before reaching messages.parse); zero-entry day CONS-02 (middle day skipped without errored, surrounding days insert). Mocks anthropic.messages.parse + bot.api.sendMessage. FIXTURE_CHAT_ID=BigInt(99924). Targeted vitest 3/3 / 732ms. Excluded-suite Docker 976/15/991 / 27.79s = +3 vs 973 Plan 23-01 baseline, zero regressions.)
 
 ### Test Coverage
 
@@ -128,7 +128,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RETR-05 | Phase 22 | ✅ Complete (Plan 04, 2026-04-19) |
 | RETR-06 | Phase 22 | ✅ Complete (Plan 04, 2026-04-19) |
 | CMD-01 | Phase 23 | Pending |
-| OPS-01 | Phase 23 | Pending |
+| OPS-01 | Phase 23 | ✅ Complete (Plan 02, 2026-04-19) |
 | TEST-15 | Phase 23 | ✅ Complete (Plan 01, 2026-04-19) |
 | TEST-16 | Phase 23 | ✅ Complete (Plan 01, 2026-04-19) |
 | TEST-17 | Phase 23 | ✅ Complete (Plan 01, 2026-04-19) |
