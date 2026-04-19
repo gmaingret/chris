@@ -208,6 +208,19 @@ export async function runBackfill(
           { date: dateStr, result: 'error', error: errMsg },
           'backfill.day',
         );
+      } else {
+        // WR-02: Defensive fall-through for Phase 21 ConsolidateResult drift.
+        // If runConsolidate ever returns a shape matching none of the three
+        // known discriminants (future schema variation, partial object,
+        // engine refactor), we must count it as errored so the aggregate
+        // total === inserted + skipped + errored invariant holds. Silent
+        // fall-through would otherwise let \`total > sum-of-outcomes\` go
+        // undetected by the operator.
+        totals.errored += 1;
+        logger.error(
+          { date: dateStr, result: 'unknown-shape', payload: result },
+          'backfill.day',
+        );
       }
     } catch (err) {
       // Defensive: runConsolidate's top-level try/catch should normally
