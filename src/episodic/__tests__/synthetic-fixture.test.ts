@@ -1020,3 +1020,117 @@ describe('TEST-20: Decision-day importance floor', () => {
     20_000,
   );
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// TEST-21 — Contradiction-day dual-position verbatim (CONS-07 + CONS-10).
+// ════════════════════════════════════════════════════════════════════════════
+//
+// CONS-07 contract: a fixture day with a flagged M002 contradiction must
+// produce an episodic_summaries row with importance >= 7 (runtime clamp at
+// consolidate.ts L257: `if (contradictions.length > 0) importance = max(.., 7)`).
+//
+// CONS-10 contract: the resulting summary must preserve BOTH contradicting
+// positions verbatim — assertion is exact-substring match against
+// summary or key_quotes (the prompt layer also forbids paraphrase, but
+// the test asserts the END-TO-END verbatim preservation against a
+// Sonnet-mock that already places both positions verbatim into the output).
+//
+// Schema reconciliation:
+//   - The plan describes "confidence >= 0.75" but the contradictions table
+//     (src/db/schema.ts L195-204) has NO `confidence` column. The M002
+//     confidence threshold is enforced at WRITE time — only contradictions
+//     with confidence >= 0.75 are inserted with status='DETECTED'. The
+//     getContradictionsForDay query filters status='DETECTED' to surface
+//     exactly these "flagged" contradictions. Seeding status='DETECTED'
+//     here is therefore the CORRECT proxy for the "confidence >= 0.75"
+//     claim — the column doesn't exist; the status discriminator does.
+//   - Contradictions reference pensieve entries via entryAId/entryBId FKs
+//     (no chatId). Cleanup by entry source ('synthetic-fixture').
+
+describe('TEST-21: Contradiction-day dual-position verbatim', () => {
+  it(
+    'day with a flagged M002 contradiction preserves both positions verbatim and floors importance >= 7',
+    async () => {
+      const date = '2026-04-12';
+      const morningPosition =
+        "I'm done with this project — I'm walking away today.";
+      const eveningPosition =
+        "I'm actually excited about the next steps on this project.";
+
+      // Seed the two contradicting Pensieve entries with explicit createdAt
+      // (morning vs evening) so getPensieveEntriesForDay returns them in
+      // chronological order. Both fall inside the day's Paris window.
+      const ids = await seedPensieveEntries({
+        chatId: FIXTURE_CHAT_ID,
+        date,
+        tz: FIXTURE_TZ,
+        entries: [
+          {
+            content: morningPosition,
+            epistemicTag: 'INTENTION',
+            createdAt: dateAtLocalHour(date, FIXTURE_TZ, 9, 0),
+          },
+          {
+            content: eveningPosition,
+            epistemicTag: 'INTENTION',
+            createdAt: dateAtLocalHour(date, FIXTURE_TZ, 19, 0),
+          },
+        ],
+      });
+      const [entryAId, entryBId] = ids;
+
+      // Seed a real `contradictions` row with status='DETECTED' (the
+      // structural marker that M002 used confidence >= 0.75 — see schema
+      // reconciliation in the describe-block comment above).
+      await db.insert(contradictions).values({
+        entryAId: entryAId!,
+        entryBId: entryBId!,
+        description: 'Walking-away vs excited-about-next-steps reversal within the same day',
+        status: 'DETECTED',
+        detectedAt: dateAtLocalHour(date, FIXTURE_TZ, 19, 5),
+      });
+
+      // Mock Sonnet to return a summary that places BOTH positions verbatim.
+      // CONS-10 forbids paraphrase; the mock simulates a correctly-behaving
+      // Sonnet response that the assertion then verifies.
+      mockAnthropicParse.mockResolvedValueOnce(
+        mockParseResponseFor({
+          summary: `Greg held contradictory positions on the project today. Earlier he said: "${morningPosition}". Later he said: "${eveningPosition}". The reversal was not reconciled.`,
+          // Mock importance=4 (notable). CONS-07 runtime clamp must lift to 7.
+          importance: 4,
+          topics: ['project', 'ambivalence', 'reversal'],
+          emotional_arc:
+            'frustrated to tentatively re-engaged — unresolved',
+          key_quotes: [morningPosition, eveningPosition],
+        }),
+      );
+
+      vi.setSystemTime(dateAtLocalHour(date, FIXTURE_TZ, 23, 0));
+      const result = await runConsolidate(tzDate(`${date}T12:00:00`, FIXTURE_TZ));
+      expect(result).toMatchObject({ inserted: true });
+
+      const rows = await db
+        .select()
+        .from(episodicSummaries)
+        .where(eq(episodicSummaries.summaryDate, date));
+      expect(rows).toHaveLength(1);
+      const row = rows[0]!;
+
+      // CONS-07 floor — importance >= 7 (clamped from mocked 4).
+      expect(row.importance).toBeGreaterThanOrEqual(7);
+
+      // CONS-10 verbatim — both positions appear as exact substrings in
+      // EITHER summary OR any key_quotes element. .includes() match per
+      // the must-haves invariant.
+      const hasVerbatimA =
+        row.summary.includes(morningPosition) ||
+        row.keyQuotes.some((q) => q.includes(morningPosition));
+      const hasVerbatimB =
+        row.summary.includes(eveningPosition) ||
+        row.keyQuotes.some((q) => q.includes(eveningPosition));
+      expect(hasVerbatimA).toBe(true);
+      expect(hasVerbatimB).toBe(true);
+    },
+    20_000,
+  );
+});
