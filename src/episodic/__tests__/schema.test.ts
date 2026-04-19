@@ -32,14 +32,34 @@ function mkSummary(prefix = 'A day of focused work'): string {
   return `${prefix} — with notes about conversations, tasks, and reflections from the evening.`;
 }
 
+/**
+ * Shape of the PostgresError surfaced by postgres.js — either directly on the
+ * thrown object, or wrapped on `.cause` when Drizzle re-throws as
+ * DrizzleQueryError. Hoisted to module scope so the UNIQUE and CHECK tests
+ * share one declaration (was duplicated 6-line blocks per review IN-03).
+ */
+type PgLikeError = {
+  code?: string;
+  message?: string;
+  constraint_name?: string;
+  cause?: { code?: string; message?: string; constraint_name?: string };
+};
+
 // ════════════════════════════════════════════════════════════════════════════
 
 describe('episodic_summaries schema integration', () => {
   beforeAll(async () => {
-    // Verify the table exists (proves migration 0005 applied).
-    const result = await sql`SELECT 1 as ok FROM episodic_summaries LIMIT 0`;
-    // Result may be [] (LIMIT 0) but the query must not throw — that's the proof.
-    expect(Array.isArray(result)).toBe(true);
+    // Verify the table exists (proves migration 0005 applied). Positive
+    // assertion via information_schema — stronger than the previous
+    // "LIMIT 0 array shape" probe (which would pass for any successful
+    // postgres.js query shape). Per review WR-01.
+    const rows = await sql<{ exists: boolean }[]>`
+      SELECT EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_name = 'episodic_summaries'
+      ) AS exists
+    `;
+    expect(rows[0]?.exists).toBe(true);
   });
 
   beforeEach(async () => {
@@ -113,12 +133,6 @@ describe('episodic_summaries schema integration', () => {
     // Drizzle wraps the PostgresError as `DrizzleQueryError`; the pg code + constraint_name
     // live on `.cause` (PostgresError). `.cause.message` contains the constraint name.
     expect(caughtErr).toBeDefined();
-    type PgLikeError = {
-      code?: string;
-      message?: string;
-      constraint_name?: string;
-      cause?: { code?: string; message?: string; constraint_name?: string };
-    };
     const e = caughtErr as PgLikeError;
     const pg = e.cause ?? e;
     expect(pg.code).toBe('23505'); // Postgres unique_violation
@@ -146,12 +160,6 @@ describe('episodic_summaries schema integration', () => {
     }
 
     expect(caughtErr).toBeDefined();
-    type PgLikeError = {
-      code?: string;
-      message?: string;
-      constraint_name?: string;
-      cause?: { code?: string; message?: string; constraint_name?: string };
-    };
     const e = caughtErr as PgLikeError;
     const pg = e.cause ?? e;
     expect(pg.code).toBe('23514'); // Postgres check_violation
