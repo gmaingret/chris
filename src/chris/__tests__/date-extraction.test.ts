@@ -110,6 +110,53 @@ describe('extractQueryDate — regex/keyword fast-path (no Haiku call)', () => {
     expect(mockCreate).not.toHaveBeenCalled();
   });
 
+  it('WR-03 regression: FR regex does not extract "21 décembre" from embedded "121 décembre"', async () => {
+    // Before the leading \b fix, "item 121 décembre something" silently
+    // matched "21 décembre" by dropping the leading "1" of "121".
+    // With \b the digit cluster must start on a word boundary, so only
+    // genuine day numbers match.
+    const result = await extractQueryDate(
+      'item 121 décembre something',
+      'French',
+      FIXED_NOW,
+    );
+    expect(result).toBeNull();
+    // "décembre" is a heuristic keyword, so Haiku would be called as
+    // a fallback — but our mock is not primed, so it returns undefined.
+    // The point of this test is the regex, not the Haiku path.
+  });
+
+  it('WR-03 regression: RU regex does not extract embedded digit-prefixed day', async () => {
+    const result = await extractQueryDate(
+      'товар 121 декабря что-то',
+      'Russian',
+      FIXED_NOW,
+    );
+    expect(result).toBeNull();
+  });
+
+  it('WR-04 regression: matchMonthDay rejects February 30 (calendar overflow)', async () => {
+    const result = await extractQueryDate(
+      'what happened on February 30, 2026',
+      'English',
+      FIXED_NOW,
+    );
+    // Date.UTC silently rolls Feb 30 → March 2, but the post-check in
+    // matchMonthDay must reject the invalid tuple. Since "february" is a
+    // heuristic keyword, Haiku is called next; our mock is not primed so
+    // extractQueryDate ultimately returns null.
+    expect(result).toBeNull();
+  });
+
+  it('WR-04 regression: matchMonthDay rejects April 31 (calendar overflow)', async () => {
+    const result = await extractQueryDate(
+      'what happened on April 31, 2026',
+      'English',
+      FIXED_NOW,
+    );
+    expect(result).toBeNull();
+  });
+
   it('matches English numeric "3 weeks ago" relative to fixed now (2026-04-22 → 2026-04-01)', async () => {
     const result = await extractQueryDate(
       'what happened 3 weeks ago',

@@ -173,12 +173,15 @@ function matchMonthDay(text: string, now: Date): Date | null {
     /\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})(?:\s*st|\s*nd|\s*rd|\s*th)?(?:\s*,\s*(\d{4}))?/,
   );
   // FR: "1 avril", "1er avril", "1 avril 2026"
+  // Leading \b prevents extracting "21 décembre" from "item 121 décembre"
+  // (the `1` of `121` would otherwise be dropped). Per review WR-03.
   const fr = q.match(
-    /(\d{1,2})(?:er)?\s+(janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre)(?:\s+(\d{4}))?/,
+    /\b(\d{1,2})(?:er)?\s+(janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre)(?:\s+(\d{4}))?/,
   );
   // RU: "1 апреля" (genitive). Prefix-match against the MONTHS keys.
+  // Leading \b — same WR-03 rationale as FR above.
   const ru = q.match(
-    /(\d{1,2})\s+(январ|феврал|март|апрел|мая|июн|июл|август|сентябр|октябр|ноябр|декабр)/,
+    /\b(\d{1,2})\s+(январ|феврал|март|апрел|мая|июн|июл|август|сентябр|октябр|ноябр|декабр)/,
   );
 
   let monthIdx: number | null = null;
