@@ -344,8 +344,13 @@ export async function getEpisodicSummary(
   date: Date,
 ): Promise<typeof episodicSummaries.$inferSelect | null> {
   const start = Date.now();
-  const localDate = formatLocalDate(date, config.proactiveTimezone);
+  // WR-01: formatLocalDate calls Intl.DateTimeFormat, which throws
+  // RangeError on a misconfigured IANA tz (e.g., a typo in
+  // PROACTIVE_TIMEZONE). Compute inside the try/catch so the documented
+  // never-throw contract holds even if the tz is invalid.
+  let localDate = '';
   try {
+    localDate = formatLocalDate(date, config.proactiveTimezone);
     const rows = await db
       .select()
       .from(episodicSummaries)
@@ -387,9 +392,13 @@ export async function getEpisodicSummariesRange(
   to: Date,
 ): Promise<(typeof episodicSummaries.$inferSelect)[]> {
   const start = Date.now();
-  const fromLocal = formatLocalDate(from, config.proactiveTimezone);
-  const toLocal = formatLocalDate(to, config.proactiveTimezone);
+  // WR-01: tz format can throw on invalid IANA tz — keep computation inside
+  // the try/catch so the never-throw contract holds.
+  let fromLocal = '';
+  let toLocal = '';
   try {
+    fromLocal = formatLocalDate(from, config.proactiveTimezone);
+    toLocal = formatLocalDate(to, config.proactiveTimezone);
     const rows = await db
       .select()
       .from(episodicSummaries)

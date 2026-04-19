@@ -90,17 +90,25 @@ function computeYesterday(now: Date, tz: string): Date {
 export async function runConsolidateYesterday(
   now: Date = new Date(),
 ): Promise<void> {
-  const yesterday = computeYesterday(now, config.proactiveTimezone);
-  const yesterdayIso = yesterday.toISOString().slice(0, 10);
-
-  // Info log BEFORE the runConsolidate call so operators can see the cron
-  // fired correctly even if runConsolidate skipped (no entries / existing row).
-  logger.info(
-    { yesterdayIso, timezone: config.proactiveTimezone },
-    'episodic.cron.invoked',
-  );
-
+  // WR-01: computeYesterday calls Intl.DateTimeFormat, which throws
+  // RangeError on a misconfigured IANA tz (e.g. typo in
+  // PROACTIVE_TIMEZONE). Previously this ran OUTSIDE the try/catch, so
+  // the tz-misconfig error bypassed the documented double-catch defence
+  // (CRON-01 / CONS-12) and the 'episodic.cron.invoked' info log never
+  // fired. Move both the computation and the info log inside the try so
+  // the first catch layer now handles all failure modes.
+  let yesterdayIso = '';
   try {
+    const yesterday = computeYesterday(now, config.proactiveTimezone);
+    yesterdayIso = yesterday.toISOString().slice(0, 10);
+
+    // Info log BEFORE the runConsolidate call so operators can see the cron
+    // fired correctly even if runConsolidate skipped (no entries / existing row).
+    logger.info(
+      { yesterdayIso, timezone: config.proactiveTimezone },
+      'episodic.cron.invoked',
+    );
+
     await runConsolidate(yesterday);
   } catch (error) {
     logger.warn(
