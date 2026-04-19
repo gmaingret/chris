@@ -21,13 +21,17 @@ progress:
 See: .planning/PROJECT.md (updated after v2.2 milestone, 2026-04-19)
 
 **Core value:** Greg can deposit any memory, thought, or feeling into Chris and later ask questions that Chris answers by searching everything Greg has ever told him — with full fidelity, no data loss, and genuine contextual understanding across English, French, and Russian. Memory is tiered: raw Pensieve for recent fidelity, episodic daily summaries for older context.
-**Current focus:** v2.2 shipped. Awaiting M009 planning (`/gsd-new-milestone`).
+**Current focus:** v2.2 deployed to Proxmox; episodic cron live. Awaiting real-summary accumulation (≥7 days) before M009.
 
 ## Current Position
 
-v2.2 shipped; next: `/gsd-new-milestone` for M009 Ritual Infrastructure + Daily Note + Weekly Review after ≥7 days of real episodic summaries accumulate in production.
-Status: v2.2 M008 Episodic Consolidation COMPLETE — 35/35 requirements satisfied, 5 phases (20, 21, 22, 22.1, 23), 17/17 plans, audit passed 2026-04-19. Milestone-completion ritual executed. Git tag v2.2 created locally (not pushed).
-Last activity: 2026-04-19 — milestone-completion ritual (archive + MILESTONES.md + PROJECT.md brownfield + ROADMAP.md compact + RETROSPECTIVE.md v2.2 section + REQUIREMENTS.md removed + git tag).
+v2.2 DEPLOYED to Proxmox 192.168.1.50:/root/chris at 2026-04-19T18:55Z. Next: accumulate ≥7 daily episodic summaries from the 23:00 Europe/Paris cron, then `/gsd-new-milestone` for M009 Ritual Infrastructure + Daily Note + Weekly Review.
+Status: v2.2 M008 Episodic Consolidation SHIPPED + DEPLOYED.
+- **D019 approval:** granted by Greg 2026-04-19 ("do all these steps from 1 to 5") — authorized Proxmox deploy.
+- **Deploy 2026-04-19T18:55Z:** git fetch + checkout v2.2 on prod; docker compose build chris + up -d; migration 0005 applied cleanly; `episodic.cron.scheduled cron=0 23 * * * timezone=Europe/Paris` + existing `proactive.cron.scheduled` both registered; health endpoint /health = ok (database + immich checks pass); backup taken to /root/chris-backups/chris-pre-v2.2-20260419-145108.dump (122 MB). Remote git tag v2.2 now on origin and prod.
+- **Backfill 2026-04-19T18:56Z** (`--from 2026-04-15 --to 2026-04-18`): 2 inserted (2026-04-17 imp=1, 2026-04-18 imp=7), 1 skipped (2026-04-16 no-entries), 1 **ERRORED** (2026-04-15 — prompt too long: 1,393,488 tokens > 1,000,000 max). Root cause: 2026-04-15 has 24,012 bulk-imported Pensieve entries (likely initial Gmail/Immich/Drive sync) totaling 2.5 MB of content — the consolidation engine was designed for user journaling volume, not bulk-sync-day volume.
+- **Pending tech debt — M008-residual (prompt-size overflow on bulk-sync days):** Plan 22/23 implicitly assumed daily entry volume matches user journaling density. First-deploy days (or any day with bulk source sync) can overflow 1M context. Options for a future M008.2 or M009 prerequisite phase: (a) cap entry count in prompt assembly, (b) filter entries by source type (exclude bulk_import source kinds from consolidation), (c) chunk-then-merge strategy, (d) two-pass Sonnet (bulk-summarize large groups → consolidate).
+Last activity: 2026-04-19 — v2.2 deployed to Proxmox; backfill completed with 1 overflow error documented as tech debt.
 
 ```
 Progress: [████████████████████] 100% (17/17 plans)
