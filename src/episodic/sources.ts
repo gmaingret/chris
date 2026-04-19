@@ -131,6 +131,14 @@ export async function getPensieveEntriesForDay(
  * `pensieveEntries` twice (aliased as `entry_a` and `entry_b`) to fetch
  * `entryAContent` and `entryBContent` verbatim — the prompt assembler
  * preserves both positions verbatim per D031 and PRD §12.
+ *
+ * NOTE (review IN-01): the contradictions table has no `confidence` column
+ * (confidence lives on `relational_memory`, a different table). The M002
+ * confidence ≥ 0.75 threshold referenced in the episodic prompt header is
+ * enforced at INSERT time by `src/pensieve/contradiction-detector.ts`: only
+ * rows meeting the threshold ever reach `status='DETECTED'`. Filtering by
+ * `status='DETECTED'` here is therefore the correct proxy for the confidence
+ * threshold — no explicit WHERE on confidence is required or possible.
  */
 export async function getContradictionsForDay(
   date: Date,
