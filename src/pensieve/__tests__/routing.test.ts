@@ -34,6 +34,7 @@ import {
   it,
   expect,
   beforeEach,
+  afterEach,
   afterAll,
   vi,
 } from 'vitest';
@@ -205,6 +206,15 @@ beforeEach(() => {
   mockLoadEntriesByIdsRows.current = [];
   // Pin Date.now so queryAge math is deterministic across tests.
   vi.useFakeTimers({ now: FIXED_NOW, toFake: ['Date'] });
+});
+
+afterEach(() => {
+  // WR-05: reset Date mocks between tests so a future describe block that
+  // forgets to re-install fake timers (or depends on real timers for latency
+  // assertions) doesn't inherit Date.now() pinned to FIXED_NOW. This is the
+  // flaky-boundary class of test bug the Phase 22-02 SUMMARY explicitly
+  // called out.
+  vi.useRealTimers();
 });
 
 // ════════════════════════════════════════════════════════════════════════════
