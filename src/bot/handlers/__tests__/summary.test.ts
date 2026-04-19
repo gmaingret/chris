@@ -233,4 +233,28 @@ describe('CMD-01: /summary handler', () => {
       /yyyy-mm-dd|utilisation|использование|use:/,
     );
   });
+
+  it(
+    'f) /summary WR-01 regression: calendar-invalid ISO date (2026-02-30) replies with usage help',
+    async () => {
+      // 2026-02-30 passes the ^\\d{4}-\\d{2}-\\d{2}$ regex but February has
+      // at most 28 days in 2026 (non-leap). Before the WR-01 fix the handler
+      // ran \`new Date('2026-02-30T00:00:00Z')\` which coerces to 2026-03-02,
+      // then called getEpisodicSummary for March 2 and replied "No summary
+      // for 2026-02-30" — misleading the user about what was actually
+      // queried. Post-fix: the Luxon isValid check rejects and the reply
+      // is usage help (same as non-ISO garbage).
+      const { captured, ctx } = buildCtx('/summary 2026-02-30');
+      await handleSummaryCommand(ctx);
+
+      expect(captured).toHaveLength(1);
+      // Usage help format — same as case (e).
+      expect(captured[0].toLowerCase()).toMatch(
+        /yyyy-mm-dd|utilisation|использование|use:/,
+      );
+      // The reply must NOT pretend the date was valid — no "no summary for
+      // 2026-02-30" / "2026-02-30 hasn't happened yet" / formatted row.
+      expect(captured[0].toLowerCase()).not.toMatch(/no summary|hasn't happened/);
+    },
+  );
 });

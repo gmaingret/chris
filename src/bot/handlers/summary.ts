@@ -32,6 +32,7 @@
  */
 
 import type { Context } from 'grammy';
+import { DateTime } from 'luxon';
 import { getEpisodicSummary } from '../../pensieve/retrieve.js';
 import { getLastUserLanguage } from '../../chris/language.js';
 import { config } from '../../config.js';
@@ -167,6 +168,19 @@ export async function handleSummaryCommand(ctx: Context): Promise<void> {
   if (after === '') {
     targetDate = yesterdayInTz(config.proactiveTimezone);
   } else if (ISO_DATE.test(after)) {
+    // WR-01: the regex only validates FORMAT, not calendar validity. Inputs
+    // like 2026-02-30 / 2026-13-01 / 2026-04-31 / 2026-02-29 (non-leap)
+    // pass the regex but silently coerce to a different day via new Date().
+    // Mirror the backfill script's validation (scripts/backfill-episodic.ts:98-102)
+    // by round-tripping through Luxon — DateTime.fromISO(...).isValid is
+    // strict about calendar correctness and returns false for all the
+    // overflow cases. On invalid calendar date, send the SAME usage help
+    // as the non-ISO garbage branch (per operator UX consistency).
+    const probe = DateTime.fromISO(after, { zone: 'utc' });
+    if (!probe.isValid) {
+      await ctx.reply(MSG.usage[lang]);
+      return;
+    }
     targetDate = after;
   } else {
     await ctx.reply(MSG.usage[lang]);
