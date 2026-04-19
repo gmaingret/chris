@@ -1,5 +1,7 @@
 import { anthropic, SONNET_MODEL } from '../../llm/client.js';
-import { hybridSearch, PRODUCE_SEARCH_OPTIONS } from '../../pensieve/retrieve.js';
+import { PRODUCE_SEARCH_OPTIONS } from '../../pensieve/retrieve.js';
+import { retrieveContext, summaryToSearchResult } from '../../pensieve/routing.js';
+import { extractQueryDate } from './date-extraction.js';
 import {
   buildPensieveContext,
   buildMessageHistory,
@@ -31,8 +33,28 @@ export async function handleProduce(
 ): Promise<string> {
   const start = Date.now();
 
-  // Hybrid search with produce-mode weighting for collaborative context
-  const searchResults = await hybridSearch(text, PRODUCE_SEARCH_OPTIONS);
+  // Phase 22.1 RETR-02/03: route through retrieveContext; old-dated queries
+  // escalate to the episodic-summary tier; PRODUCE_SEARCH_OPTIONS
+  // (recencyBias 0.3, limit 10) preserved end-to-end via hybridOptions.
+  const queryDate = await extractQueryDate(text, language);
+  const routing = await retrieveContext({
+    query: text,
+    queryDate,
+    rawLimit: PRODUCE_SEARCH_OPTIONS.limit,
+    hybridOptions: PRODUCE_SEARCH_OPTIONS,
+  });
+  const searchResults = routing.summary != null
+    ? [summaryToSearchResult(routing.summary), ...routing.raw]
+    : routing.raw;
+  logger.info(
+    {
+      chatId: chatId.toString(),
+      reason: routing.reason,
+      hasSummary: routing.summary != null,
+      rawCount: routing.raw.length,
+    },
+    'chris.produce.routing',
+  );
 
   // Build formatted Pensieve context with citations
   const pensieveContext = buildPensieveContext(searchResults);
