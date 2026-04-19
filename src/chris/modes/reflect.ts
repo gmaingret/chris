@@ -1,5 +1,7 @@
 import { anthropic, SONNET_MODEL } from '../../llm/client.js';
-import { hybridSearch, REFLECT_SEARCH_OPTIONS } from '../../pensieve/retrieve.js';
+import { REFLECT_SEARCH_OPTIONS } from '../../pensieve/retrieve.js';
+import { retrieveContext, summaryToSearchResult } from '../../pensieve/routing.js';
+import { extractQueryDate } from './date-extraction.js';
 import {
   buildPensieveContext,
   buildRelationalContext,
@@ -30,8 +32,28 @@ export async function handleReflect(
 ): Promise<string> {
   const start = Date.now();
 
-  // Hybrid search with temporal weighting for broad pattern coverage
-  const searchResults = await hybridSearch(text, REFLECT_SEARCH_OPTIONS);
+  // Phase 22.1 RETR-02/03: route through retrieveContext so old-dated queries
+  // escalate to the episodic-summary tier; REFLECT_SEARCH_OPTIONS round-trip
+  // through hybridOptions to preserve temporal weighting on raw branches.
+  const queryDate = await extractQueryDate(text, language);
+  const routing = await retrieveContext({
+    query: text,
+    queryDate,
+    rawLimit: REFLECT_SEARCH_OPTIONS.limit,
+    hybridOptions: REFLECT_SEARCH_OPTIONS,
+  });
+  const searchResults = routing.summary != null
+    ? [summaryToSearchResult(routing.summary), ...routing.raw]
+    : routing.raw;
+  logger.info(
+    {
+      chatId: chatId.toString(),
+      reason: routing.reason,
+      hasSummary: routing.summary != null,
+      rawCount: routing.raw.length,
+    },
+    'chris.reflect.routing',
+  );
 
   // Build formatted Pensieve context with citations
   const pensieveContext = buildPensieveContext(searchResults);
