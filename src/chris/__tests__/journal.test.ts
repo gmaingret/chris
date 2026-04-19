@@ -41,15 +41,26 @@ vi.mock('../../pensieve/embeddings.js', () => ({
   embedAndStore: vi.fn(),
 }));
 
-// ── Mock hybridSearch ──────────────────────────────────────────────────────
+// ── Mock hybridSearch + getEpisodicSummary ─────────────────────────────────
+// hybridSearch is still called transitively by retrieveContext on raw
+// branches; getEpisodicSummary is the routing decision driver for old-dated
+// queries (Phase 22.1 wiring).
 const mockHybridSearch = vi.fn();
+const mockGetEpisodicSummary = vi.fn();
 vi.mock('../../pensieve/retrieve.js', () => ({
   hybridSearch: (...args: unknown[]) => mockHybridSearch(...args),
+  getEpisodicSummary: (...args: unknown[]) => mockGetEpisodicSummary(...args),
   JOURNAL_SEARCH_OPTIONS: {
     tags: ['FACT', 'RELATIONSHIP', 'PREFERENCE', 'VALUE'],
     recencyBias: 0.3,
     limit: 10,
   },
+}));
+
+// ── Mock extractQueryDate (Phase 22.1) ─────────────────────────────────────
+const mockExtractQueryDate = vi.fn();
+vi.mock('../modes/date-extraction.js', () => ({
+  extractQueryDate: (...args: unknown[]) => mockExtractQueryDate(...args),
 }));
 
 // ── Mock context builder ───────────────────────────────────────────────────
@@ -77,14 +88,19 @@ describe('JOURNAL hybrid retrieval (RETR-01)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockHybridSearch.mockResolvedValue([]);
+    mockGetEpisodicSummary.mockResolvedValue(null);
+    mockExtractQueryDate.mockResolvedValue(null);
     mockBuildPensieveContext.mockReturnValue('');
     mockBuildMessageHistory.mockResolvedValue([]);
     mockCreate.mockResolvedValue(makeLLMResponse('Mocked journal response'));
   });
 
-  it('calls hybridSearch with user text and JOURNAL_SEARCH_OPTIONS', async () => {
+  it('calls hybridSearch with user text and JOURNAL_SEARCH_OPTIONS (via retrieveContext)', async () => {
     await handleJournal(CHAT_ID, 'I moved to Batumi');
-    expect(mockHybridSearch).toHaveBeenCalledWith('I moved to Batumi', JOURNAL_SEARCH_OPTIONS);
+    expect(mockHybridSearch).toHaveBeenCalledWith(
+      'I moved to Batumi',
+      expect.objectContaining(JOURNAL_SEARCH_OPTIONS),
+    );
   });
 
   it('calls buildPensieveContext with hybridSearch results', async () => {
@@ -117,10 +133,70 @@ describe('JOURNAL hybrid retrieval (RETR-01)', () => {
   });
 });
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Phase 22.1 — RETR-02/03 routing wiring regression coverage
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+describe('RETR-02/03 routing wiring', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockHybridSearch.mockResolvedValue([]);
+    mockGetEpisodicSummary.mockResolvedValue(null);
+    mockExtractQueryDate.mockResolvedValue(null);
+    // Pass-through: surface synthetic summary content into the system prompt
+    // so old-query test can assert on the [Episode Summary marker.
+    mockBuildPensieveContext.mockImplementation((results: { entry: { content: string } }[]) =>
+      results.map((r) => r.entry.content).join('\n'),
+    );
+    mockBuildMessageHistory.mockResolvedValue([]);
+    mockCreate.mockResolvedValue(makeLLMResponse('Mocked'));
+  });
+
+  it('recent query (queryDate 3d ago) routes to raw via hybridSearch — getEpisodicSummary NOT called', async () => {
+    mockExtractQueryDate.mockResolvedValue(new Date(Date.now() - 3 * 86_400_000));
+    await handleJournal(CHAT_ID, 'tell me about my recent thoughts');
+    expect(mockHybridSearch).toHaveBeenCalledWith(
+      'tell me about my recent thoughts',
+      expect.objectContaining(JOURNAL_SEARCH_OPTIONS),
+    );
+    expect(mockGetEpisodicSummary).not.toHaveBeenCalled();
+  });
+
+  it('old query (queryDate 30d ago) escalates to summary tier — system prompt contains [Episode Summary marker', async () => {
+    mockExtractQueryDate.mockResolvedValue(new Date(Date.now() - 30 * 86_400_000));
+    mockGetEpisodicSummary.mockResolvedValue({
+      id: '11111111-1111-1111-1111-111111111111',
+      summaryDate: '2026-03-15',
+      summary: 'Greg moved to Batumi and reflected on relocation',
+      importance: 5,
+      topics: ['relocation'],
+      emotionalArc: 'reflective',
+      keyQuotes: [],
+      sourceEntryIds: [],
+      createdAt: new Date(),
+    });
+    await handleJournal(CHAT_ID, 'what happened on March 15 last month');
+    const createCall = mockCreate.mock.calls[0]![0];
+    const systemText = createCall.system[0].text;
+    expect(systemText).toContain('[Episode Summary 2026-03-15');
+    expect(systemText).toContain('Greg moved to Batumi');
+    expect(mockGetEpisodicSummary).toHaveBeenCalled();
+  });
+
+  it('verbatim keyword query 30d ago overrides recency — getEpisodicSummary NOT called', async () => {
+    mockExtractQueryDate.mockResolvedValue(new Date(Date.now() - 30 * 86_400_000));
+    await handleJournal(CHAT_ID, 'what exactly did I say about Batumi');
+    expect(mockGetEpisodicSummary).not.toHaveBeenCalled();
+    expect(mockHybridSearch).toHaveBeenCalled();
+  });
+});
+
 describe('JOURNAL hallucination resistance (RETR-04)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockHybridSearch.mockResolvedValue([]);
+    mockGetEpisodicSummary.mockResolvedValue(null);
+    mockExtractQueryDate.mockResolvedValue(null);
     mockBuildPensieveContext.mockReturnValue('');
     mockBuildMessageHistory.mockResolvedValue([]);
     mockCreate.mockResolvedValue(makeLLMResponse('Mocked response'));
@@ -139,6 +215,8 @@ describe('end-to-end prompt assembly', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockHybridSearch.mockResolvedValue([]);
+    mockGetEpisodicSummary.mockResolvedValue(null);
+    mockExtractQueryDate.mockResolvedValue(null);
     mockBuildPensieveContext.mockReturnValue('');
     mockBuildMessageHistory.mockResolvedValue([]);
     mockCreate.mockResolvedValue(makeLLMResponse('Mocked response'));
