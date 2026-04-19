@@ -133,6 +133,7 @@ vi.mock('../../config.js', () => ({
 
 const {
   retrieveContext,
+  summaryToSearchResult,
   VERBATIM_KEYWORDS,
   HIGH_IMPORTANCE_THRESHOLD,
   RECENCY_BOUNDARY_DAYS,
@@ -479,5 +480,129 @@ describe('retrieveContext — no Anthropic SDK calls (RETR-02 fast-path is pure)
   it('runs at least one routing call so the afterAll cumulative assertion is meaningful', async () => {
     await retrieveContext({ query: 'sanity', queryDate: daysAgo(1) });
     expect(mockAnthropicCreate).not.toHaveBeenCalled();
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// Phase 22.1 WR-01 — direct unit tests for summaryToSearchResult and
+// hybridOptions passthrough. Previously covered only transitively via the 5
+// mode test files; these anchor the contract at the routing layer so future
+// drift fails fast here instead of breaking every mode suite.
+// ════════════════════════════════════════════════════════════════════════════
+
+describe('summaryToSearchResult (Phase 22.1 WR-01)', () => {
+  const baseSummary: typeof import('../../db/schema.js').episodicSummaries.$inferSelect = {
+    id: '11111111-1111-1111-1111-111111111111',
+    summaryDate: '2026-03-15',
+    summary: 'Greg reflected on relocation',
+    importance: 5,
+    topics: ['relocation', 'batumi'],
+    emotionalArc: 'reflective',
+    keyQuotes: [],
+    sourceEntryIds: [],
+    createdAt: new Date('2026-03-15T12:00:00Z'),
+  };
+
+  it('wraps the summary with score=1.0 sentinel (survives buildPensieveContext 0.3 threshold)', () => {
+    const result = summaryToSearchResult(baseSummary);
+    expect(result.score).toBe(1.0);
+  });
+
+  it('prepends labeled inline header to content', () => {
+    const result = summaryToSearchResult(baseSummary);
+    expect(result.entry.content).toContain(
+      '[Episode Summary 2026-03-15 | importance=5/10 | topics=relocation, batumi]',
+    );
+    expect(result.entry.content).toContain('Greg reflected on relocation');
+  });
+
+  it('renders topics=none when the summary has no topics', () => {
+    const result = summaryToSearchResult({ ...baseSummary, topics: [] });
+    expect(result.entry.content).toContain('topics=none');
+  });
+
+  it('namespaces the synthetic id with episodic- prefix (spoofing mitigation)', () => {
+    const result = summaryToSearchResult(baseSummary);
+    expect(result.entry.id).toBe('episodic-11111111-1111-1111-1111-111111111111');
+  });
+
+  it('sets createdAt to UTC midnight of summaryDate', () => {
+    const result = summaryToSearchResult(baseSummary);
+    expect(result.entry.createdAt?.toISOString()).toBe('2026-03-15T00:00:00.000Z');
+  });
+
+  it('marks source as episodic-summary (distinguishable from raw sources)', () => {
+    const result = summaryToSearchResult(baseSummary);
+    expect(result.entry.source).toBe('episodic-summary');
+  });
+});
+
+describe('retrieveContext hybridOptions passthrough (Phase 22.1 WR-01)', () => {
+  it('merges hybridOptions into hybridSearch call on the verbatim branch', async () => {
+    await retrieveContext({
+      query: 'what did I say exactly',
+      hybridOptions: { tags: ['BELIEF'], recencyBias: 0.5, limit: 7 },
+    });
+    expect(mockHybridSearch).toHaveBeenCalledWith(
+      'what did I say exactly',
+      expect.objectContaining({ tags: ['BELIEF'], recencyBias: 0.5, limit: 7 }),
+    );
+  });
+
+  it('merges hybridOptions into hybridSearch call on the recent branch', async () => {
+    await retrieveContext({
+      query: 'standard query',
+      queryDate: daysAgo(1),
+      hybridOptions: { tags: ['EMOTION'], recencyBias: 0.8, limit: 5 },
+    });
+    expect(mockHybridSearch).toHaveBeenCalledWith(
+      'standard query',
+      expect.objectContaining({ tags: ['EMOTION'], recencyBias: 0.8, limit: 5 }),
+    );
+  });
+
+  it('merges hybridOptions into hybridSearch call on the no-summary-fallback branch', async () => {
+    mockGetEpisodicSummary.mockResolvedValueOnce(null);
+    await retrieveContext({
+      query: 'old query',
+      queryDate: daysAgo(20),
+      hybridOptions: { tags: ['INTENTION'], limit: 9 },
+    });
+    expect(mockHybridSearch).toHaveBeenCalledWith(
+      'old query',
+      expect.objectContaining({ tags: ['INTENTION'], limit: 9 }),
+    );
+  });
+
+  it('uses rawLimit when hybridOptions.limit is absent', async () => {
+    await retrieveContext({
+      query: 'q',
+      rawLimit: 13,
+      hybridOptions: { recencyBias: 0.5 },
+    });
+    expect(mockHybridSearch).toHaveBeenCalledWith(
+      'q',
+      expect.objectContaining({ limit: 13, recencyBias: 0.5 }),
+    );
+  });
+
+  it('lets hybridOptions.limit override rawLimit when both are set', async () => {
+    await retrieveContext({
+      query: 'q',
+      rawLimit: 13,
+      hybridOptions: { limit: 7 },
+    });
+    expect(mockHybridSearch).toHaveBeenCalledWith(
+      'q',
+      expect.objectContaining({ limit: 7 }),
+    );
+  });
+
+  it('falls back to default rawLimit=10 when neither rawLimit nor hybridOptions.limit is set', async () => {
+    await retrieveContext({ query: 'q' });
+    expect(mockHybridSearch).toHaveBeenCalledWith(
+      'q',
+      expect.objectContaining({ limit: 10 }),
+    );
   });
 });
