@@ -1,7 +1,7 @@
 import { inArray, isNull, and } from 'drizzle-orm';
 import { db } from '../db/connection.js';
 import { episodicSummaries, pensieveEntries } from '../db/schema.js';
-import { getEpisodicSummary, hybridSearch, type SearchResult } from './retrieve.js';
+import { getEpisodicSummary, hybridSearch, type SearchResult, type SearchOptions } from './retrieve.js';
 import { logger } from '../utils/logger.js';
 
 // ── Constants ────────────────────────────────────────────────────────────
@@ -57,8 +57,16 @@ export interface RetrieveContextOptions {
   query: string;
   /** The date the query is ABOUT (not now). If null, routing treats as recent. */
   queryDate?: Date | null;
-  /** Cap on raw result count. Default 10. */
+  /** Cap on raw result count. Default 10. Overridden by hybridOptions.limit if both set. */
   rawLimit?: number;
+  /**
+   * Mode-specific SearchOptions (tags / recencyBias / minScore / limit) passed
+   * through to hybridSearch on raw branches. When `limit` is set here it overrides
+   * `rawLimit`. Preserves per-mode identity (e.g., JOURNAL's tag filter,
+   * PSYCHOLOGY's recencyBias) end-to-end through the routing decision so the
+   * orchestrator does not silently degrade mode quality.
+   */
+  hybridOptions?: SearchOptions;
 }
 
 export interface RoutingResult {
@@ -130,11 +138,17 @@ export async function retrieveContext(
   opts: RetrieveContextOptions,
 ): Promise<RoutingResult> {
   const rawLimit = opts.rawLimit ?? 10;
+  // Merge mode-specific hybridOptions (e.g., JOURNAL's tag filter) with the
+  // routing-level rawLimit. hybridOptions.limit wins when both are set.
+  const mergedHybridOptions: SearchOptions = {
+    ...opts.hybridOptions,
+    limit: opts.hybridOptions?.limit ?? rawLimit,
+  };
 
   try {
     // Dimension 2: verbatim-fidelity keyword fast-path (overrides recency)
     if (hasVerbatimKeyword(opts.query)) {
-      const raw = await hybridSearch(opts.query, { limit: rawLimit });
+      const raw = await hybridSearch(opts.query, mergedHybridOptions);
       logger.info(
         {
           reason: 'verbatim-keyword',
@@ -149,7 +163,7 @@ export async function retrieveContext(
     // Dimension 1: recency boundary
     const queryAge = computeQueryAgeDays(opts.queryDate);
     if (queryAge == null || queryAge <= RECENCY_BOUNDARY_DAYS) {
-      const raw = await hybridSearch(opts.query, { limit: rawLimit });
+      const raw = await hybridSearch(opts.query, mergedHybridOptions);
       logger.info(
         {
           reason: 'recent',
@@ -167,7 +181,7 @@ export async function retrieveContext(
 
     if (summary == null) {
       // No summary exists for that date — fall back to raw
-      const raw = await hybridSearch(opts.query, { limit: rawLimit });
+      const raw = await hybridSearch(opts.query, mergedHybridOptions);
       logger.info(
         {
           reason: 'no-summary-fallback',
@@ -215,10 +229,52 @@ export async function retrieveContext(
     );
     // Fallback: return raw via hybridSearch, mark as 'recent'
     try {
-      const raw = await hybridSearch(opts.query, { limit: rawLimit });
+      const raw = await hybridSearch(opts.query, mergedHybridOptions);
       return { raw, summary: null, reason: 'recent' };
     } catch {
       return { raw: [], summary: null, reason: 'recent' };
     }
   }
+}
+
+/**
+ * Wrap an episodic summary as a SearchResult so chat-mode handlers can render
+ * summary-only / high-importance-descent results via the same SearchResult[]
+ * → buildPensieveContext pipeline as raw entries — without each handler
+ * duplicating the synthesis logic (Phase 22.1 RETR-02/03 wiring).
+ *
+ * Score=1.0 sentinel matches loadEntriesByIds' convention (explicit lookup,
+ * not similarity match) AND survives buildPensieveContext's 0.3 threshold.
+ *
+ * The synthetic entry uses sentinel field values for id/source so it is
+ * type-compatible with pensieveEntries.$inferSelect — the only meaningful
+ * field for the downstream prompt is `content`, which carries a labeled
+ * inline block:
+ *   [Episode Summary YYYY-MM-DD | importance=N/10 | topics=...]
+ *   <summary text>
+ *
+ * Inline form (NOT the header form INTERROGATE uses) — chat modes embed this
+ * as a numbered citation in the same block as raw entries, while INTERROGATE
+ * keeps its purpose-built `## Recent Episode Context (interpretation, not
+ * fact)` header block via formatEpisodicBlock.
+ */
+export function summaryToSearchResult(
+  summary: typeof episodicSummaries.$inferSelect,
+): SearchResult {
+  const topics = summary.topics.length > 0 ? summary.topics.join(', ') : 'none';
+  const header = `[Episode Summary ${summary.summaryDate} | importance=${summary.importance}/10 | topics=${topics}]`;
+  // UTC midnight of the summary's local date — used by buildPensieveContext
+  // for the (YYYY-MM-DD | tag | score) prefix on the rendered citation.
+  const createdAt = new Date(`${summary.summaryDate}T00:00:00Z`);
+  return {
+    entry: {
+      id: `episodic-${summary.id}`,
+      content: `${header}\n${summary.summary}`,
+      source: 'episodic-summary',
+      createdAt,
+      deletedAt: null,
+      epistemicTag: null,
+    } as typeof pensieveEntries.$inferSelect,
+    score: 1.0,
+  };
 }
