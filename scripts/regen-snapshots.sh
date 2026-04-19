@@ -164,16 +164,30 @@ CFG
 
   # Run drizzle-kit introspect; redirect ALL output to stderr so this
   # function's stdout is reserved for the snapshot file path.
+  #
+  # Capture the introspect exit code explicitly — the previous pattern used
+  # `|| true` which swallowed non-zero exits, so any introspect failure
+  # (DB connection timeout, schema parse error, etc.) surfaced only as the
+  # generic "did not produce a snapshot" message on the next line. Keeping
+  # `set -e` live here but wrapping in a subshell means we have to capture
+  # the rc via the subshell's exit status.
+  set +e
   (
     cd "${work_dir}"
     # Pipe an empty stdin in case drizzle-kit prompts for anything.
-    yes '' 2>/dev/null | npx drizzle-kit introspect >&2 2>&1 || true
+    yes '' 2>/dev/null | npx drizzle-kit introspect >&2 2>&1
   ) >&2
+  local rc=$?
+  set -e
+  if [[ "${rc}" -ne 0 ]]; then
+    echo "❌ drizzle-kit introspect failed with exit ${rc} (working dir: ${work_dir})" >&2
+    return "${rc}"
+  fi
 
   # The emitted snapshot is out/meta/0000_snapshot.json
   local snap="${work_dir}/out/meta/0000_snapshot.json"
   if [[ ! -f "${snap}" ]]; then
-    echo "❌ introspect did not produce a snapshot at ${snap}" >&2
+    echo "❌ introspect exited 0 but did not produce a snapshot at ${snap}" >&2
     return 1
   fi
   printf '%s\n' "${snap}"
