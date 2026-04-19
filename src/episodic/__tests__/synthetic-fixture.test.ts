@@ -56,9 +56,23 @@ import type { EpisodicSummarySonnetOutput } from '../types.js';
 // in for `anthropic.messages.parse(...)` (the SDK surface Phase 21's
 // runConsolidate uses via `zodOutputFormat()` from @anthropic-ai/sdk/helpers/zod).
 
-const { mockAnthropicParse, mockSendMessage } = vi.hoisted(() => ({
+const {
+  mockAnthropicParse,
+  mockSendMessage,
+  mockHybridSearch,
+  mockGetEpisodicSummary,
+} = vi.hoisted(() => ({
   mockAnthropicParse: vi.fn(),
   mockSendMessage: vi.fn().mockResolvedValue(undefined as unknown as void),
+  // TEST-17 routing assertions exercise src/pensieve/routing.ts which imports
+  // hybridSearch + getEpisodicSummary from src/pensieve/retrieve.js. The
+  // hybridSearch path goes through @huggingface/transformers (bge-m3) which
+  // hits HuggingFace cache EACCES under the documented vitest fork-mode
+  // failure pattern (see Phase 22 SUMMARYs). Mocking these two surfaces keeps
+  // TEST-17 deterministic and avoids the embedText network/cache dependency.
+  // Same precedent: src/pensieve/__tests__/routing.test.ts.
+  mockHybridSearch: vi.fn(),
+  mockGetEpisodicSummary: vi.fn(),
 }));
 
 vi.mock('../../llm/client.js', async (importOriginal) => {
@@ -79,6 +93,19 @@ vi.mock('../../bot/bot.js', () => ({
     api: { sendMessage: mockSendMessage },
   },
 }));
+
+// Mock retrieve.js exports CONSUMED BY routing.ts (TEST-17 only). Phase 21's
+// runConsolidate does NOT import from retrieve.js so mocking these is safe.
+// Use importOriginal so getEpisodicSummariesRange and other unused exports
+// stay real (defensive — future tests in this file may need them).
+vi.mock('../../pensieve/retrieve.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../pensieve/retrieve.js')>();
+  return {
+    ...actual,
+    hybridSearch: mockHybridSearch,
+    getEpisodicSummary: mockGetEpisodicSummary,
+  };
+});
 
 // ── Module imports (AFTER all mocks) ────────────────────────────────────────
 
@@ -445,6 +472,8 @@ beforeEach(async () => {
   mockAnthropicParse.mockReset();
   mockSendMessage.mockReset();
   mockSendMessage.mockResolvedValue(undefined as unknown as void);
+  mockHybridSearch.mockReset();
+  mockGetEpisodicSummary.mockReset();
   await cleanupFixture();
 });
 
@@ -557,4 +586,163 @@ describe('TEST-15 + TEST-16: 14-day fixture + Pearson importance correlation', (
     },
     60_000,
   );
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// TEST-17 — Recency + verbatim + importance-8 routing.
+// ════════════════════════════════════════════════════════════════════════════
+//
+// Four sub-cases per CONTEXT.md §specifics (planner discretion to split into
+// 3 or 4 it() blocks; we use 4 to make each routing dimension a separate
+// assertion):
+//   a. ≤7-day query → 'recent' raw branch
+//   b. >7-day query with summary present → 'summary-only' branch
+//   c. verbatim-fidelity keyword query (regardless of age) → 'verbatim-keyword'
+//   d. importance >= 8 day → 'high-importance-descent' (BOTH summary AND raw)
+//
+// All sub-cases call retrieveContext from src/pensieve/routing.ts (the Phase
+// 22 RETR-02/03 entrypoint). hybridSearch + getEpisodicSummary are mocked at
+// module scope (see vi.mock above) — the routing logic itself is exercised
+// against real Phase 22 code.
+
+describe('TEST-17: Recency + verbatim + importance-8 routing', () => {
+  const RECENT_DATE = new Date('2026-04-15T10:00:00Z'); // arbitrary fixed "now"
+
+  beforeEach(() => {
+    // Pin "now" to a known instant so age computations are deterministic.
+    vi.setSystemTime(RECENT_DATE);
+  });
+
+  it('TEST-17a: <=7-day query routes to raw entries (reason="recent")', async () => {
+    // Seed: queryDate is 3 days before RECENT_DATE → ageDays=3 → recent branch.
+    // hybridSearch returns one synthetic SearchResult; routing surfaces it.
+    const queryDate = new Date(RECENT_DATE.getTime() - 3 * 86_400_000);
+    const fakeRaw = [
+      {
+        // Minimal SearchResult shape — routing only inspects .entry and .score
+        // for downstream consumption; the test asserts on the routing reason
+        // and the raw[] presence, not on entry content.
+        entry: { id: 'fake-uuid-recent', content: 'recent raw content' } as never,
+        score: 0.9,
+      },
+    ];
+    mockHybridSearch.mockResolvedValueOnce(fakeRaw);
+
+    const result = await retrieveContext({ query: 'How was my week?', queryDate });
+
+    expect(result.reason).toBe('recent');
+    expect(result.raw).toEqual(fakeRaw);
+    expect(result.summary).toBeNull();
+    // getEpisodicSummary must NOT be called on the recent branch.
+    expect(mockGetEpisodicSummary).not.toHaveBeenCalled();
+  });
+
+  it('TEST-17b: >7-day query with summary present routes to summary-only', async () => {
+    // queryDate is 30 days before RECENT_DATE → ageDays > 7 → summary tier.
+    const queryDate = new Date(RECENT_DATE.getTime() - 30 * 86_400_000);
+    const fakeSummary = {
+      id: 'sum-uuid-old',
+      summaryDate: '2026-03-16',
+      summary: 'Old day summary text from the episodic tier.',
+      importance: 5, // < HIGH_IMPORTANCE_THRESHOLD → no raw descent
+      topics: ['work'],
+      emotionalArc: 'steady',
+      keyQuotes: [],
+      sourceEntryIds: [],
+      createdAt: new Date(),
+    } as never;
+    mockGetEpisodicSummary.mockResolvedValueOnce(fakeSummary);
+
+    const result = await retrieveContext({
+      query: 'What was happening last month?',
+      queryDate,
+    });
+
+    expect(result.reason).toBe('summary-only');
+    expect(result.summary).toBe(fakeSummary);
+    expect(result.raw).toEqual([]);
+    // hybridSearch must NOT be called on the summary-only branch.
+    expect(mockHybridSearch).not.toHaveBeenCalled();
+  });
+
+  it('TEST-17c: verbatim-fidelity keyword query routes to raw regardless of age', async () => {
+    // queryDate is 45 days old — would normally route to summary tier.
+    // The verbatim keyword "what exactly did I say" overrides recency.
+    const queryDate = new Date(RECENT_DATE.getTime() - 45 * 86_400_000);
+    // Use one of the EN keywords from VERBATIM_KEYWORDS in src/pensieve/routing.ts.
+    // The exact phrase tested below contains "exact words" AND "what did i say"
+    // (both in the keyword list); routing's hasVerbatimKeyword does a single
+    // .includes() per keyword so either match suffices.
+    const verbatimQuery =
+      'I want to know what exactly did I say in my exact words about the move.';
+
+    const fakeRaw = [
+      {
+        entry: { id: 'fake-uuid-old-raw', content: 'verbatim raw content' } as never,
+        score: 0.85,
+      },
+    ];
+    mockHybridSearch.mockResolvedValueOnce(fakeRaw);
+
+    const result = await retrieveContext({ query: verbatimQuery, queryDate });
+
+    expect(result.reason).toBe('verbatim-keyword');
+    expect(result.raw).toEqual(fakeRaw);
+    expect(result.summary).toBeNull();
+    // The verbatim fast-path SHORT-CIRCUITS before the summary fetch — even
+    // though queryDate is 45 days old, getEpisodicSummary is never called.
+    expect(mockGetEpisodicSummary).not.toHaveBeenCalled();
+  });
+
+  it('TEST-17d: importance >= 8 day surfaces BOTH summary AND raw entries (high-importance-descent)', async () => {
+    // queryDate is 45 days old → summary tier, but importance=9 triggers
+    // raw descent via loadEntriesByIds (RETR-03). Real entries seeded into
+    // pensieve_entries; their IDs land in source_entry_ids. routing.ts
+    // calls db directly for loadEntriesByIds, NOT through the mocked
+    // hybridSearch — so no hybridSearch mock is queued for this case.
+    const queryDate = new Date(RECENT_DATE.getTime() - 45 * 86_400_000);
+
+    // Seed 2 real Pensieve entries the descent path will fetch.
+    const ids = await seedPensieveEntries({
+      chatId: FIXTURE_CHAT_ID,
+      date: '2026-03-01',
+      tz: FIXTURE_TZ,
+      entries: [
+        { content: 'Source raw entry A for high-importance day', epistemicTag: 'FACT' },
+        { content: 'Source raw entry B for high-importance day', epistemicTag: 'EMOTION' },
+      ],
+    });
+
+    const fakeSummary = {
+      id: 'sum-uuid-importance-9',
+      summaryDate: '2026-03-01',
+      summary: 'Important day summary text — life-event-adjacent.',
+      importance: 9, // >= HIGH_IMPORTANCE_THRESHOLD (8) → descent
+      topics: ['major event'],
+      emotionalArc: 'profound',
+      keyQuotes: [],
+      // Reference real Pensieve entry IDs so loadEntriesByIds returns them.
+      sourceEntryIds: ids,
+      createdAt: new Date(),
+    } as never;
+    mockGetEpisodicSummary.mockResolvedValueOnce(fakeSummary);
+
+    const result = await retrieveContext({
+      query: 'What was that big event in early March?',
+      queryDate,
+    });
+
+    expect(result.reason).toBe('high-importance-descent');
+    expect(result.summary).toBe(fakeSummary);
+    // Both source entries must be returned in input-array order with score=1.0.
+    expect(result.raw).toHaveLength(2);
+    expect(result.raw.map((r) => r.entry.id)).toEqual(ids);
+    expect(result.raw.every((r) => r.score === 1.0)).toBe(true);
+    // hybridSearch is NOT called on the descent path — loadEntriesByIds
+    // queries pensieve_entries directly via Drizzle.
+    expect(mockHybridSearch).not.toHaveBeenCalled();
+    // Sanity: verifies the importance threshold boundary is the documented
+    // value (8 inclusive) — guards against accidental tightening to e.g. 9.
+    expect(fakeSummary.importance).toBeGreaterThanOrEqual(HIGH_IMPORTANCE_THRESHOLD);
+  });
 });
