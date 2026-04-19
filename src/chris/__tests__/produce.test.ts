@@ -37,14 +37,24 @@ vi.mock('../../llm/client.js', () => ({
   SONNET_MODEL: 'claude-sonnet-4-6',
 }));
 
-// ── Mock hybridSearch + PRODUCE_SEARCH_OPTIONS ─────────────────────────────
+// ── Mock hybridSearch + getEpisodicSummary + PRODUCE_SEARCH_OPTIONS ───────
+// Phase 22.1: hybridSearch still called transitively via retrieveContext on
+// raw branches; getEpisodicSummary drives old-dated query routing.
 const mockHybridSearch = vi.fn();
+const mockGetEpisodicSummary = vi.fn();
 vi.mock('../../pensieve/retrieve.js', () => ({
   hybridSearch: mockHybridSearch,
+  getEpisodicSummary: mockGetEpisodicSummary,
   PRODUCE_SEARCH_OPTIONS: {
     recencyBias: 0.3,
     limit: 10,
   },
+}));
+
+// ── Mock extractQueryDate (Phase 22.1) ─────────────────────────────────────
+const mockExtractQueryDate = vi.fn();
+vi.mock('../modes/date-extraction.js', () => ({
+  extractQueryDate: mockExtractQueryDate,
 }));
 
 // ── Mock relational memories (for negative assertion) ──────────────────────
@@ -153,6 +163,8 @@ describe('handleProduce', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockHybridSearch.mockResolvedValue(MOCK_SEARCH_RESULTS);
+    mockGetEpisodicSummary.mockResolvedValue(null);
+    mockExtractQueryDate.mockResolvedValue(null);
     mockBuildPensieveContext.mockReturnValue(
       '[1] (2025-01-15 | VALUE | 0.85) "I value stability but also want career growth"\n' +
         '[2] (2025-02-10 | INTENTION | 0.71) "I intend to prioritize financial security this year"',
@@ -167,10 +179,13 @@ describe('handleProduce', () => {
     );
   });
 
-  it('calls hybridSearch with the user text and PRODUCE_SEARCH_OPTIONS', async () => {
+  it('calls hybridSearch with the user text and PRODUCE_SEARCH_OPTIONS (via retrieveContext)', async () => {
     await handleProduce(CHAT_ID, TEST_QUERY);
 
-    expect(mockHybridSearch).toHaveBeenCalledWith(TEST_QUERY, PRODUCE_SEARCH_OPTIONS);
+    expect(mockHybridSearch).toHaveBeenCalledWith(
+      TEST_QUERY,
+      expect.objectContaining(PRODUCE_SEARCH_OPTIONS),
+    );
   });
 
   it('passes search results to buildPensieveContext', async () => {
@@ -325,5 +340,62 @@ describe('handleProduce', () => {
       expect(error).toBeInstanceOf(LLMError);
       expect((error as Error).message).toBe('No text block in Sonnet response');
     }
+  });
+});
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Phase 22.1 — RETR-02/03 routing wiring regression coverage
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+describe('RETR-02/03 routing wiring', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockHybridSearch.mockResolvedValue([]);
+    mockGetEpisodicSummary.mockResolvedValue(null);
+    mockExtractQueryDate.mockResolvedValue(null);
+    mockBuildPensieveContext.mockImplementation((results: { entry: { content: string } }[]) =>
+      results.map((r) => r.entry.content).join('\n'),
+    );
+    mockBuildMessageHistory.mockResolvedValue([]);
+    mockBuildSystemPrompt.mockReturnValue('interpolated');
+    mockCreate.mockResolvedValue(makeLLMResponse('Mocked'));
+  });
+
+  it('recent query (queryDate 3d ago) routes to raw via hybridSearch — getEpisodicSummary NOT called', async () => {
+    mockExtractQueryDate.mockResolvedValue(new Date(Date.now() - 3 * 86_400_000));
+    await handleProduce(CHAT_ID, TEST_QUERY);
+    expect(mockHybridSearch).toHaveBeenCalledWith(
+      TEST_QUERY,
+      expect.objectContaining(PRODUCE_SEARCH_OPTIONS),
+    );
+    expect(mockGetEpisodicSummary).not.toHaveBeenCalled();
+  });
+
+  it('old query (queryDate 30d ago) escalates to summary tier — buildPensieveContext first arg carries synthetic summary result', async () => {
+    mockExtractQueryDate.mockResolvedValue(new Date(Date.now() - 30 * 86_400_000));
+    mockGetEpisodicSummary.mockResolvedValue({
+      id: '11111111-1111-1111-1111-111111111111',
+      summaryDate: '2026-03-15',
+      summary: 'produce summary content about trade-offs and decision framing',
+      importance: 5,
+      topics: ['decision'],
+      emotionalArc: 'thoughtful',
+      keyQuotes: [],
+      sourceEntryIds: [],
+      createdAt: new Date(),
+    });
+    await handleProduce(CHAT_ID, 'what did I decide on March 15');
+    const buildCall = mockBuildPensieveContext.mock.calls[0]![0];
+    expect(buildCall[0].entry.content).toContain('[Episode Summary 2026-03-15');
+    expect(buildCall[0].entry.content).toContain('produce summary content');
+    expect(buildCall[0].score).toBe(1.0);
+    expect(mockGetEpisodicSummary).toHaveBeenCalled();
+  });
+
+  it('verbatim keyword query 30d ago overrides recency — getEpisodicSummary NOT called', async () => {
+    mockExtractQueryDate.mockResolvedValue(new Date(Date.now() - 30 * 86_400_000));
+    await handleProduce(CHAT_ID, 'what exactly did I decide about the job');
+    expect(mockGetEpisodicSummary).not.toHaveBeenCalled();
+    expect(mockHybridSearch).toHaveBeenCalled();
   });
 });
