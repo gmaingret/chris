@@ -8,7 +8,7 @@ Chris is a personal AI entity for a single user (Greg), running as a self-hosted
 
 ## Core Value
 
-Greg can deposit any memory, thought, or feeling into Chris and later ask questions that Chris answers by searching everything Greg has ever told him — with full fidelity, no data loss, and genuine contextual understanding across English, French, and Russian.
+Greg can deposit any memory, thought, or feeling into Chris and later ask questions that Chris answers by searching everything Greg has ever told him — with full fidelity, no data loss, and genuine contextual understanding across English, French, and Russian. Memory is tiered: raw Pensieve entries for recent-fidelity answers, episodic daily summaries for older context, with retrieval routing by recency and query intent.
 
 Chris is a tool for authoring a more examined life, not a vessel for preserving a soul. This framing — from the design PRD — makes the methodology tractable instead of metaphysical and shapes every subsequent architectural choice.
 
@@ -83,7 +83,8 @@ Requirements are tracked **per milestone**, not aggregated here:
 
 - v2.0 M006: `.planning/milestones/v2.0-REQUIREMENTS.md` (26/26 satisfied)
 - v2.1 M007: `.planning/milestones/v2.1-REQUIREMENTS.md` (31/31 satisfied)
-- v2.2 M008+: created when the milestone is started via `/gsd-new-milestone`
+- v2.2 M008: `.planning/milestones/v2.2-REQUIREMENTS.md` (35/35 satisfied — v2.2)
+- v2.3 M009: `.planning/REQUIREMENTS.md` (active — Ritual Infrastructure + Daily Note + Weekly Review, pending requirement intake)
 
 See `## Current State` for the active milestone status and `## Implementation Phases` for the phase-level breakdown.
 
@@ -123,6 +124,13 @@ See `## Current State` for the active milestone status and `## Implementation Ph
 | **D031** | Memory retrieval injects structured facts, not prose dump | Real Telegram testing showed Chris confabulating facts (Cagnes-sur-Mer vs Golfe-Juan, wrong move direction) because memory was dumped as prose text into the context window. TRUST-11 refactors retrieval to emit a "Known Facts About Greg" block in key-value form, separate from the narrative context block. Structured facts are much harder for the LLM to misremix. |
 | **D032** | Hallucination resistance and performative apology detection are live integration tests, not unit tests | Both failure modes are prompt-level behaviors that only manifest against real Sonnet. TRUST-07 extends from 15 test cases to 24 (adding hallucination resistance, structured fact retrieval accuracy, performative apology detection). Mocked LLM tests cannot catch these failures because they depend on how the real model interprets the system prompt under adversarial conditions. |
 | **D033** | Contradiction detection gets an explicit false-positive audit | The existing M002 confidence threshold (≥0.75) minimizes false positives but doesn't test them. TRUST-12 adds a synthetic fixture of 20 adversarial non-contradictory pairs and requires 0 false positives. False positive contradiction notices are trust-breaking and must be actively tested, not assumed. |
+| **D034** | `episodic_summaries` ships as 8 columns with all three indexes in migration 0005 — not retrofitted | Locked in Phase 20 CONTEXT: `id` (uuid pk), `summary_date` (date NOT NULL UNIQUE), `summary` (text NOT NULL), `importance` (integer 1-10 CHECK), `topics` (text[] default '{}'), `emotional_arc` (text NOT NULL), `key_quotes` (text[] default '{}'), `source_entry_ids` (uuid[] default '{}'), `created_at` (timestamptz default now()). `UNIQUE(summary_date)` (idempotency + DST safety), `GIN(topics)` (M009 weekly aggregation), `btree(importance)` (M010 profile inference + M008 high-importance raw descent). Retrofitting indexes later would require migration plumbing; shipping them in 0005 is strictly cheaper. |
+| **D035** | Pensieve remains authoritative — episodic tier is a projection, not a replacement | RETR-05/06 boundary preservation: summary text NEVER enters the Known Facts block (`src/chris/personality.ts`) and NEVER embeds into `pensieve_embeddings`. Enforced structurally by `src/chris/__tests__/boundary-audit.test.ts` — fails if `\bepisodic_summaries\b\|\bepisodicSummaries\b` ever appears in personality.ts / ground-truth.ts / embeddings.ts. Summaries are interpretation (D031); raw entries are facts. Mixing them pollutes both. |
+| **D036** | `retrieveContext` is two-dimensional routing (recency + query intent), not one-dimensional age-based | `RECENCY_BOUNDARY_DAYS = 7` inclusive; `HIGH_IMPORTANCE_THRESHOLD = 8` inclusive. Five named `RoutingReason` literals (`verbatim-keyword`, `recent`, `no-summary-fallback`, `high-importance-descent`, `summary-only`) for diagnostic visibility. A query containing "exactly"/"verbatim"/"what did I say" etc. overrides recency and returns raw entries regardless of age (verbatim fidelity is a harder guarantee than freshness). |
+| **D037** | INTERROGATE has its own ad-hoc date routing, separate from general retrieveContext — intentional | `interrogate.ts:61-91` documents the rationale: different UX contract (citation-anchored Q&A) and different header form (`## Recent Episode Context (interpretation, not fact)` D031 boundary marker before Known Facts). INTERROGATE's `extractQueryDate` + `getEpisodicSummary` path is purpose-built for date-anchored questions; the general `retrieveContext` orchestrator is purpose-built for mode handlers that do not anchor on dates. |
+| **D038** | Live anti-flattery test (TEST-22) is the empirical proof M006 preamble works end-to-end in cron-invoked consolidation | The M006 constitutional preamble is the engine's only anti-sycophancy guarantee. In consolidation the preamble must be explicitly injected (the cron runs outside the engine context). TEST-22 asserts 3-of-3 atomic against real Sonnet on an adversarial fixture designed to bait flattery. 17 forbidden flattery markers surveyed from existing M006 conventions (NOT invented). Shipped passing with zero markers across 3 iterations. |
+| **D039** | No Haiku fallback in verbatim-keyword fast-path (M008 deferral) | 15-keyword EN/FR/RU `VERBATIM_KEYWORDS` list is the sole gate; afterAll cumulative assertion `expect(mockAnthropicCreate).not.toHaveBeenCalled()` enforces. M009+ may add a Haiku fallback when real-world miss rate is measurable. Adding a classifier call to every chat message has a latency cost that is only worth paying once we know the keyword list misses in practice. |
+| **D040** | Decimal phases (e.g., 22.1) are the mid-milestone gap-closure pattern | Pattern borrowed from v2.1 Phase 15.1/16.1 precedent. When a milestone audit reveals a wiring gap that is not a re-open of the originating phase's scope, insert a decimal phase with explicit `(INSERTED)` marker in the progress table and plan numbering `22.1-01` (not 22-06). Keeps the audit trail clean: each phase's plans stay bounded; decimal phases are always gap-closure. Used in v2.2 for Phase 22.1 to wire `retrieveContext` into 5 chat-mode handlers after Phase 22's implementation shipped orphaned. |
 
 ---
 
@@ -305,21 +313,40 @@ Execution runs inside GSD v1 (`get-shit-done-cc`), not v2. GSD v1 operates as Cl
 
 ## Current State
 
-**Shipped:** v1.0 (2026-04-13), v2.0 M006 Trustworthy Chris (2026-04-15), **v2.1 M007 Decision Archive (2026-04-18)**.
+**Shipped:** v1.0 (2026-04-13), v2.0 M006 Trustworthy Chris (2026-04-15), v2.1 M007 Decision Archive (2026-04-18), **v2.2 M008 Episodic Consolidation (2026-04-19)**.
 
-All 31 v2.1 requirements satisfied. The decision archive is live end-to-end: two-phase trigger detection (EN/FR/RU regex + Haiku stakes) opens a conversational 5-slot capture, `transitionDecision` enforces the lifecycle chokepoint with optimistic concurrency over an append-only `decision_events` log, the dual-channel proactive sweep fires `decision-deadline` prompts on its own `accountability_outreach` channel, resolution routes through a new ACCOUNTABILITY mode that bypasses the praise quarantine while forbidding The Hard Rule (D027), and `/decisions stats` exposes 2-axis accuracy with an N≥10 Wilson CI floor. The 152-test Docker Postgres gate (proactive + synthetic-fixture) runs clean in 4.19s.
+All 35 v2.2 requirements satisfied. Episodic consolidation is live end-to-end: the daily cron fires `runConsolidateYesterday` at 23:00 in `config.proactiveTimezone` as a peer to the proactive sweep; `runConsolidate(date)` pulls the day's Pensieve entries plus M002 contradictions plus M007 decisions, assembles a prompt that explicitly injects the M006 constitutional preamble, and writes a structured summary row via Sonnet `messages.parse()` with idempotency via `UNIQUE(summary_date)` + pre-flight SELECT. `retrieveContext()` routes chat-mode queries on recency (≤7d raw / >7d summary first) and verbatim-fidelity query intent (15-keyword EN/FR/RU fast-path overrides recency), with high-importance raw descent at `importance ≥ 8`. INTERROGATE has its own ad-hoc date routing injecting a labeled `## Recent Episode Context (interpretation, not fact)` header. `/summary [YYYY-MM-DD]` Telegram command + `scripts/backfill-episodic.ts` operator script. Boundary enforced: summary text never enters Known Facts or `pensieve_embeddings`. 14-day synthetic fixture + live anti-flattery 3-of-3 against real Sonnet both green. Docker gate 1014 passing (excluded-suite).
 
-Chris is deployed on self-hosted Proxmox (192.168.1.50) with both containers healthy. Constitutional anti-sycophancy (v2.0), structured Known Facts retrieval, Haiku praise quarantine, and identity grounding all hold. v2.1 layers decision accountability on top of v2.0 without regressing any prior behavior.
+Chris is deployed on self-hosted Proxmox (192.168.1.50) with both containers healthy through v2.1. v2.2 is built, tested, and awaiting explicit Greg approval for Proxmox deploy (D019). Operator action post-deploy: `tsx scripts/backfill-episodic.ts --from <M007-deploy-date> --to <yesterday>` to seed historical summaries.
 
-**Tech debt carried into v2.2+:**
-- **TECH-DEBT-19-01** — drizzle-kit meta snapshots for migrations 0001/0003 are missing. drizzle-kit does not backfill snapshots for already-applied entries; the runtime migrator (`scripts/test.sh`) applies `.sql` directly and does not consult them. Reactivation trigger: next phase that modifies `src/db/schema.ts`.
-- **12 human-UAT items** (live Telegram feel, ACCOUNTABILITY tone, `/decisions` dashboard format, FR/RU localization) and **TEST-13 / TEST-14** live-API runs gated on `ANTHROPIC_API_KEY`.
+**Tech debt carried into v2.3+:**
+- **Env-level vitest-4 fork-IPC hang under HuggingFace EACCES** — full `bash scripts/test.sh` runs hang under the root-owned `node_modules/@huggingface/transformers` cache + `live-integration.test.ts` 401-retry loop. 5-file excluded-suite mitigation reaches exit 0 in ~28s. Pre-existing; not a v2.2 regression. Worth a future fix-up phase.
+- **`getEpisodicSummariesRange` forward-only substrate** — exported and tested but zero production callers in v2.2. Acceptable as-is for M009 weekly review.
+- **Phase 21 WR-02 retry-on-all-errors policy** — documented design choice; M009+ may revisit if error patterns emerge.
+- **12 human-UAT items carried from v2.1** — live Telegram feel, ACCOUNTABILITY tone, `/decisions` dashboard format, FR/RU localization.
 
-Archived detail: `.planning/milestones/v2.0-*`, `.planning/milestones/v2.1-*`, `.planning/milestones/v2.1-phases/` (phase directories).
+Archived detail: `.planning/milestones/v2.0-*`, `.planning/milestones/v2.1-*`, `.planning/milestones/v2.2-*`, `.planning/milestones/v2.1-phases/` (phase directories).
 
-## Next Milestone
+## Next Milestone: M009 Ritual Infrastructure + Daily Note + Weekly Review
 
-Per the soul-system execution order, next up is **M008 Episodic Consolidation**. Start with `/gsd-new-milestone`. Per the between-phases pause discipline, M007 should run for **at least two weeks of real Telegram use** before M008 starts — validate decision capture triggers, ACCOUNTABILITY tone, and stats honesty in real conversation before layering episodic memory on top.
+**Status:** not yet started. Pause-gate in effect — ≥7 real episodic summaries must accumulate in `episodic_summaries` before M009 kicks off (M009 weekly review consumes daily summaries as substrate; running it before substrate exists produces empty output with no informational value). After deploy, operator runs `scripts/backfill-episodic.ts` to seed historical summaries and then waits ≥7 days.
+
+**Kickoff command:** `/gsd-new-milestone "M009 Ritual Infrastructure + Daily Note + Weekly Review"`.
+
+## Prior Milestone: v2.2 M008 Episodic Consolidation (Shipped 2026-04-19)
+
+**Goal:** Add a second memory tier above the Pensieve raw store — end-of-day episodic summaries that compress each day's entries into a structured narrative with importance scoring. Foundation for M009 weekly review (which needs daily summaries as substrate) and M010+ profile inference (which need consolidated episodes, not raw entries).
+
+**Delivered (35/35 requirements, 5 phases, 17 plans):**
+- `episodic_summaries` schema (migration 0005: 8 cols + `UNIQUE(summary_date)` + `GIN(topics)` + `btree(importance)`) + Zod 3-layer type chain + `config.episodicCron` (Phase 20, 3 plans)
+- `runConsolidate` end-to-end with preamble + 4-band rubric + runtime importance floors (≥6 for real decisions, ≥7 for contradictions) + verbatim-quote enforcement + sparse-entry guard + Telegram error notify (Phase 21, 4 plans, all 12 CONS requirements)
+- Independent DST-safe cron at 23:00 local + `retrieveContext` two-dim routing + INTERROGATE date-anchored injection + boundary audit RETR-05/06 (Phase 22, 5 plans, all 8 RETR/CRON requirements)
+- Gap-closure decimal Phase 22.1 wiring `retrieveContext` into 5 chat-mode handlers via `hybridOptions` passthrough + `summaryToSearchResult` adapter + 15 regression tests (Phase 22.1, 1 plan)
+- 14-day synthetic fixture (TEST-15..21: Pearson r > 0.7, routing branches a/b/c/d, DST 2026-03-08 PST→PDT, idempotency, decision floor, contradiction dual-position) + `scripts/backfill-episodic.ts` operator script (OPS-01) + `/summary [YYYY-MM-DD]` Telegram command (CMD-01) + TEST-22 live anti-flattery 3-of-3 atomic against real Sonnet — zero flattery markers (Phase 23, 4 plans)
+
+**New decisions logged during v2.2:** D034 (8-column schema locked + indexes in 0005 not retrofitted), D035 (Pensieve authoritative, episodic is projection), D036 (2D routing: recency + query intent), D037 (INTERROGATE bypass intentional), D038 (TEST-22 empirical proof preamble works in cron), D039 (no Haiku fallback in verbatim fast-path — M008 deferral), D040 (decimal phases are gap-closure pattern).
+
+Archived at `.planning/milestones/v2.2-ROADMAP.md`, `.planning/milestones/v2.2-REQUIREMENTS.md`, `.planning/milestones/v2.2-MILESTONE-AUDIT.md`, `.planning/milestones/v2.2-INTEGRATION-CHECK.md`.
 
 <details>
 <summary>v2.0 M006 Trustworthy Chris (shipped 2026-04-15 — historical)</summary>
@@ -380,4 +407,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-18 after v2.1 M007 Decision Archive milestone shipped*
+*Last updated: after v2.2 milestone, 2026-04-19*

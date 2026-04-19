@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: M008 Episodic Consolidation
-status: executing
-stopped_at: "Phase 22.1 Plan 01 COMPLETE — retrieveContext wiring closed (RETR-02/03 now reach chat modes end-to-end). PHASE 22.1 COMPLETE — all 4 success criteria + all 8 must-have truths verified TRUE. v2.2-MILESTONE-AUDIT.md tech_debt → passed (RETR-02/03 wiring resolved; env debt persists). M008 substrate shippable; D019 explicit Greg approval required for Proxmox deploy; ≥7-day pause-gate before M009 starts. Live anti-flattery integration test shipped: src/episodic/__tests__/live-anti-flattery.test.ts (347 lines) mirroring Phase 18 live-accountability.test.ts shape — describe.skipIf(!process.env.ANTHROPIC_API_KEY) gate (D023/D032), single it() with internal for (let i = 0; i < 3; i++) loop (D-15 atomic 3-of-3), 120-second vitest timeout, sql.end() in afterAll. Adversarial fixture day 2026-02-14 (pre-DST stable CET UTC+1) with 5 mundane / mildly self-deprecating Pensieve entries authored to bait flattering language. 17 forbidden flattery markers surveyed from M006 conventions per CONTEXT.md §specifics — sources: src/chris/__tests__/live-integration.test.ts VALIDATION_MARKERS ('great insight'), src/chris/praise-quarantine.ts REFLEXIVE_OPENER_FIRST_WORDS (Brilliant/Amazing/Wonderful/Incredible/Fantastic/Awesome), CONSTITUTIONAL_PREAMBLE 'Three Forbidden Behaviors' vocabulary (characteristic wisdom, demonstrating his/her, profound insight). Inter-run cleanupAdversarialSummary() INSIDE the for loop BEFORE each runConsolidate prevents CONS-03 idempotency short-circuit (the documented stealthy false-pass mode where iterations 2/3 would return { skipped: 'existing' } without exercising Sonnet). Distinct FIXTURE_SOURCE='live-anti-flattery-fixture' on pensieve_entries scopes cleanup so file is collision-safe with synthetic-fixture/backfill/summary handler tests. assertNoFlattery diagnostic throw names matched marker(s) + first 500 chars of summary + keyQuotes JSON for debuggability. ONE deviation Rule 1 fix: pensieve_entries has NO chatId/userId columns (verified src/db/schema.ts L98-114) — plan example would not compile; switched to source='live-anti-flattery-fixture' as cleanup discriminator (same precedent as Plan 23-01 source='synthetic-fixture'). Targeted live vitest with real ANTHROPIC_API_KEY from .env: 1/1 passed in 25.37s; all 3 iterations produced summaries on adversarial day with ZERO flattery markers — empirical proof M006 constitutional preamble (CONS-04) is end-to-end functional in consolidation pipeline. Two episodic.consolidate.complete log lines confirmed summaryDate: 2026-02-14, importance: 3, entryCount: 5 (Sonnet correctly scored mundane day mundane — rubric calibration held against bait content). Excluded-suite Docker run (5-file exclusion list extended from 4 to include live-anti-flattery.test.ts): 981 passed / 15 failed / 996 total / 28.31s = +0 vs Plan 23-03 baseline 981 (TEST-22 file excluded when no API key), zero regressions; 15 environmental failures match documented baseline exactly. ROADMAP §Phase 23 SC#4 (count > 152) cleared by 829. tsc --noEmit exits 0. Commit: 82f6d73 (Task 1 — test file). Task 2 verification-only (no commit) per plan precedent. M008 v2.2 milestone READY for /gsd-complete-milestone retrospective."
-last_updated: "2026-04-19T14:00:00.000Z"
+status: complete
+stopped_at: "v2.2 M008 shipped 2026-04-19; awaiting M009 planning. Milestone-completion ritual executed: v2.2-ROADMAP.md / v2.2-REQUIREMENTS.md / v2.2-MILESTONE-AUDIT.md / v2.2-INTEGRATION-CHECK.md archived to .planning/milestones/; MILESTONES.md prepended with v2.2 entry (35/35 reqs, 5 phases, 17 plans, +15815/-145 LOC, 94 commits, audit passed); PROJECT.md D034-D040 logged + Current State brownfield; ROADMAP.md collapsed into <details> milestone blocks + single Progress table; RETROSPECTIVE.md appended; REQUIREMENTS.md removed for v2.3 intake; git tag v2.2 created (not pushed). Next: /gsd-new-milestone for M009 Ritual Infrastructure + Daily Note + Weekly Review after ≥7 days of real episodic summaries accumulate in production."
+last_updated: "2026-04-19T16:00:00.000Z"
 last_activity: 2026-04-19
 progress:
   total_phases: 5
@@ -18,18 +18,16 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-18 — v2.2 M008 Episodic Consolidation milestone started)
+See: .planning/PROJECT.md (updated after v2.2 milestone, 2026-04-19)
 
-**Core value:** Greg can deposit any memory, thought, or feeling into Chris and later ask questions that Chris answers by searching everything Greg has ever told him — with full fidelity, no data loss, and genuine contextual understanding across English, French, and Russian.
-**Current focus:** Phase 23 — Test Suite + Backfill + /summary
+**Core value:** Greg can deposit any memory, thought, or feeling into Chris and later ask questions that Chris answers by searching everything Greg has ever told him — with full fidelity, no data loss, and genuine contextual understanding across English, French, and Russian. Memory is tiered: raw Pensieve for recent fidelity, episodic daily summaries for older context.
+**Current focus:** v2.2 shipped. Awaiting M009 planning (`/gsd-new-milestone`).
 
 ## Current Position
 
-Phase: 22.1 (Wire retrieveContext into chat-mode handlers) — **COMPLETE**
-Plan: 1 of 1 — **PHASE 22.1 COMPLETE**
-Next: M008 v2.2 milestone-completion ritual (`/gsd-complete-milestone`) → v2.2 retrospective → D019 explicit Greg approval for Proxmox deploy → backfill historical summaries (`scripts/backfill-episodic.ts --from <M007-deploy-date> --to <yesterday>`) → ≥7-day pause-gate before M009 starts.
-Status: Phase 22.1 Plan 01 COMPLETE — RETR-02/03 wiring gap closed; all 4 Phase 22.1 success criteria + all 8 must-have truths verified TRUE. v2.2-MILESTONE-AUDIT.md flipped `status: tech_debt` → `status: passed` (env-level vitest-fork-hang debt persists; RETR wiring debt resolved).
-Last activity: 2026-04-19 — Plan 22.1-01 complete (retrieveContext wiring into 5 chat modes + hybridOptions passthrough + summaryToSearchResult adapter + 15 regression tests; excluded-suite Docker gate 996/15/1011 = net +15 vs 981 baseline; INTERROGATE + /summary byte-identical)
+v2.2 shipped; next: `/gsd-new-milestone` for M009 Ritual Infrastructure + Daily Note + Weekly Review after ≥7 days of real episodic summaries accumulate in production.
+Status: v2.2 M008 Episodic Consolidation COMPLETE — 35/35 requirements satisfied, 5 phases (20, 21, 22, 22.1, 23), 17/17 plans, audit passed 2026-04-19. Milestone-completion ritual executed. Git tag v2.2 created locally (not pushed).
+Last activity: 2026-04-19 — milestone-completion ritual (archive + MILESTONES.md + PROJECT.md brownfield + ROADMAP.md compact + RETROSPECTIVE.md v2.2 section + REQUIREMENTS.md removed + git tag).
 
 ```
 Progress: [████████████████████] 100% (17/17 plans)
@@ -40,6 +38,7 @@ Progress: [████████████████████] 100% (1
 - **v1.0 Living Memory through Validation** — 2026-04-13 (Phases 1-5)
 - **v2.0 M006 Trustworthy Chris** — 2026-04-15 (Phases 6-12, 19 plans, 26/26 requirements)
 - **v2.1 M007 Decision Archive** — 2026-04-18 (Phases 13-19, 27 plans, 36 tasks, 31/31 requirements)
+- **v2.2 M008 Episodic Consolidation** — 2026-04-19 (Phases 20-23 + 22.1, 17 plans, 35/35 requirements)
 
 ## Phase Summary
 
