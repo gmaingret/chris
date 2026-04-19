@@ -1,5 +1,7 @@
 import { anthropic, OPUS_MODEL } from '../../llm/client.js';
-import { hybridSearch, COACH_SEARCH_OPTIONS } from '../../pensieve/retrieve.js';
+import { COACH_SEARCH_OPTIONS } from '../../pensieve/retrieve.js';
+import { retrieveContext, summaryToSearchResult } from '../../pensieve/routing.js';
+import { extractQueryDate } from './date-extraction.js';
 import {
   buildPensieveContext,
   buildRelationalContext,
@@ -30,8 +32,28 @@ export async function handleCoach(
 ): Promise<string> {
   const start = Date.now();
 
-  // Hybrid search with beliefs/intentions/values weighting for coaching context
-  const searchResults = await hybridSearch(text, COACH_SEARCH_OPTIONS);
+  // Phase 22.1 RETR-02/03: route through retrieveContext; old-dated queries
+  // escalate to the episodic-summary tier; COACH_SEARCH_OPTIONS (BELIEF/
+  // INTENTION/VALUE tag filter + recencyBias 0.5) preserved via hybridOptions.
+  const queryDate = await extractQueryDate(text, language);
+  const routing = await retrieveContext({
+    query: text,
+    queryDate,
+    rawLimit: COACH_SEARCH_OPTIONS.limit,
+    hybridOptions: COACH_SEARCH_OPTIONS,
+  });
+  const searchResults = routing.summary != null
+    ? [summaryToSearchResult(routing.summary), ...routing.raw]
+    : routing.raw;
+  logger.info(
+    {
+      chatId: chatId.toString(),
+      reason: routing.reason,
+      hasSummary: routing.summary != null,
+      rawCount: routing.raw.length,
+    },
+    'chris.coach.routing',
+  );
 
   // Build formatted Pensieve context with citations
   const pensieveContext = buildPensieveContext(searchResults);
