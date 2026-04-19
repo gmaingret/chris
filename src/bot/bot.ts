@@ -7,6 +7,7 @@ import { getLastUserLanguage } from '../chris/language.js';
 import { handleDocument } from './handlers/document.js';
 import { handleSyncCommand, isAwaitingOAuthCode, handleOAuthCode } from './handlers/sync.js';
 import { handleDecisionsCommand } from './handlers/decisions.js';
+import { handleSummaryCommand } from './handlers/summary.js';
 
 const ERROR_FALLBACK: Record<string, string> = {
   English: 'I got tangled up in my thoughts. Try again?',
@@ -25,6 +26,10 @@ bot.command('sync', handleSyncCommand as any);
 // /decisions command — must be registered before generic text handler
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 bot.command('decisions', handleDecisionsCommand as any);
+
+// /summary command — must be registered before generic text handler
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+bot.command('summary', handleSummaryCommand as any);
 
 /** Exported for testability — called by bot.on('message:text') */
 export async function handleTextMessage(ctx: {
