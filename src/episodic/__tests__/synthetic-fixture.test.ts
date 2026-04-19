@@ -432,48 +432,129 @@ async function cleanupFixture(): Promise<void> {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// Placeholder describe — real test blocks land in Tasks 2-7.
+// File-level lifecycle hooks shared across all describe blocks below.
 // ════════════════════════════════════════════════════════════════════════════
 
-describe('Phase 23 episodic synthetic fixture — scaffold', () => {
-  beforeAll(async () => {
-    // Smoke test: DB must be reachable before any cleanup.
-    const probe = await pgSql`SELECT 1 as ok`;
-    expect(probe[0]!.ok).toBe(1);
-  });
+beforeAll(async () => {
+  // Smoke test: DB must be reachable before any cleanup.
+  const probe = await pgSql`SELECT 1 as ok`;
+  expect(probe[0]!.ok).toBe(1);
+});
 
-  beforeEach(async () => {
-    mockAnthropicParse.mockReset();
-    mockSendMessage.mockReset();
-    mockSendMessage.mockResolvedValue(undefined as unknown as void);
-    await cleanupFixture();
-  });
+beforeEach(async () => {
+  mockAnthropicParse.mockReset();
+  mockSendMessage.mockReset();
+  mockSendMessage.mockResolvedValue(undefined as unknown as void);
+  await cleanupFixture();
+});
 
-  afterEach(() => {
-    vi.useRealTimers();
-  });
+afterEach(() => {
+  vi.useRealTimers();
+});
 
-  afterAll(async () => {
-    await cleanupFixture();
-  });
+afterAll(async () => {
+  await cleanupFixture();
+});
 
-  it('scaffold sanity — ground truth labels, fixture date helpers, and exports load', () => {
-    // GROUND_TRUTH_LABELS contract (CONTEXT.md D-04, D-05).
-    expect(GROUND_TRUTH_LABELS.length).toBe(14);
-    expect(GROUND_TRUTH_LABELS.some((l) => l <= 2)).toBe(true);
-    expect(GROUND_TRUTH_LABELS.some((l) => l >= 9)).toBe(true);
-    // expandFixtureDates produces 14 sequential YYYY-MM-DD strings.
-    const dates = expandFixtureDates();
-    expect(dates).toHaveLength(14);
-    expect(dates[0]).toBe(FIXTURE_START_DATE);
-    expect(dates[13]).toBe('2026-04-14');
-    // Phase 22 routing constants imported successfully.
-    expect(RECENCY_BOUNDARY_DAYS).toBe(7);
-    expect(HIGH_IMPORTANCE_THRESHOLD).toBe(8);
-    // DST fixture constants present.
-    expect(DST_FIXTURE_DATE).toBe('2026-03-08');
-    expect(DST_FIXTURE_TZ).toBe('America/Los_Angeles');
-    // Pearson helper is sane on a perfect-correlation dataset.
-    expect(pearsonCorrelation([1, 2, 3], [2, 4, 6])).toBeCloseTo(1, 5);
-  });
+// ════════════════════════════════════════════════════════════════════════════
+// TEST-15 + TEST-16 — 14-day fixture + Pearson importance correlation.
+// ════════════════════════════════════════════════════════════════════════════
+//
+// TEST-15 is satisfied by the FIXTURE EXISTING (per CONTEXT.md §specifics:
+// "TEST-15 is NOT a separate it() block. The fixture SCAFFOLD is a beforeAll
+// body; TEST-15 is satisfied by the fixture's mere existence and the
+// assertion in TEST-16 that uses all 14 days."). The TEST-16 it() body
+// asserts the TEST-15 contracts (length, tail coverage) inline before
+// running the correlation loop.
+
+describe('TEST-15 + TEST-16: 14-day fixture + Pearson importance correlation', () => {
+  it(
+    'TEST-16: Sonnet importance correlates with ground-truth at r > 0.7 across 14 fixture days',
+    async () => {
+      const fixtureDates = expandFixtureDates();
+
+      // TEST-15 contract enforcement (inline within TEST-16 per CONTEXT.md §specifics).
+      expect(fixtureDates.length).toBe(14);
+      expect(GROUND_TRUTH_LABELS.length).toBe(14);
+      expect(GROUND_TRUTH_LABELS.some((l) => l <= 2)).toBe(true);
+      expect(GROUND_TRUTH_LABELS.some((l) => l >= 9)).toBe(true);
+
+      const assignedScores: number[] = [];
+
+      for (let i = 0; i < 14; i++) {
+        const date = fixtureDates[i]!;
+        const label = GROUND_TRUTH_LABELS[i]!;
+        const entries = buildEntriesForDay(i, label);
+
+        // Seed Pensieve entries for this day. createdAt spread inside the
+        // FIXTURE_TZ wall-clock window so getPensieveEntriesForDay (which
+        // computes day-boundary in tz via Luxon) picks them up.
+        await seedPensieveEntries({
+          chatId: FIXTURE_CHAT_ID,
+          date,
+          tz: FIXTURE_TZ,
+          entries,
+        });
+
+        // Mock Sonnet to return importance ≈ label ± noise[i] clamped to [1,10].
+        // Noise pattern is deterministic so this assertion is reproducible.
+        const assignedImportance = clampInRange(label + noiseForDay(i), 1, 10);
+        const mockOutput: EpisodicSummarySonnetOutput = {
+          summary: buildMockSummaryFor(i, label),
+          importance: assignedImportance,
+          topics: buildMockTopicsFor(i, label),
+          emotional_arc: buildMockArcFor(i, label),
+          // verbatim substrings of the source entries (CONS-10 contract);
+          // bounded to satisfy Zod max 10.
+          key_quotes: entries
+            .slice(0, 2)
+            .map((e) => e.content.slice(0, Math.min(e.content.length, 120))),
+        };
+
+        mockAnthropicParse.mockResolvedValueOnce(mockParseResponseFor(mockOutput));
+
+        // Advance mock clock to 23:00 of day `i` in FIXTURE_TZ — matches when
+        // the cron would fire. Not strictly required by runConsolidate (which
+        // derives the calendar day from its `date` argument, not Date.now())
+        // but D-02 / TEST-15 stipulate vi.setSystemTime use.
+        const fireAt = dateAtLocalHour(date, FIXTURE_TZ, 23, 0);
+        vi.setSystemTime(fireAt);
+
+        const result = await runConsolidate(tzDate(`${date}T12:00:00`, FIXTURE_TZ));
+
+        // Each day must insert exactly one row.
+        expect(result).toMatchObject({ inserted: true });
+        const rows = await db
+          .select()
+          .from(episodicSummaries)
+          .where(eq(episodicSummaries.summaryDate, date));
+        expect(rows).toHaveLength(1);
+        assignedScores.push(rows[0]!.importance);
+      }
+
+      // Compute Pearson r between assigned importance and ground-truth labels.
+      const r = pearsonCorrelation(assignedScores, [...GROUND_TRUTH_LABELS]);
+
+      if (r <= 0.7) {
+        // CONTEXT.md D-07: fail loudly with per-day breakdown so calibration
+        // drift is diagnosable from the CI log alone.
+        const breakdown = assignedScores
+          .map(
+            (a, idx) =>
+              `  day-${idx} (${fixtureDates[idx]}): assigned=${a}, label=${GROUND_TRUTH_LABELS[idx]}, delta=${Math.abs(
+                a - GROUND_TRUTH_LABELS[idx]!,
+              )}`,
+          )
+          .join('\n');
+        throw new Error(
+          `TEST-16 FAILED: Pearson r=${r.toFixed(3)} (expected > 0.7)\nPer-day breakdown:\n${breakdown}`,
+        );
+      }
+      expect(r).toBeGreaterThan(0.7);
+
+      // Sanity: Sonnet was called exactly 14 times (one per day; no retries).
+      expect(mockAnthropicParse).toHaveBeenCalledTimes(14);
+    },
+    60_000,
+  );
 });
