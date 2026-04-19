@@ -24,6 +24,7 @@
  * The tests grep the output for specific anchor substrings — do NOT edit anchor
  * phrases below without updating the tests.
  */
+import { DateTime } from 'luxon';
 import { CONSTITUTIONAL_PREAMBLE } from '../chris/personality.js';
 
 // ── Public types ────────────────────────────────────────────────────────────
@@ -42,9 +43,17 @@ import { CONSTITUTIONAL_PREAMBLE } from '../chris/personality.js';
  * (lifecycle transition) fell within the day window — including resolved ones
  * (see CONS-08 / M007). The assembler does NOT re-query; it renders what it is
  * given.
+ *
+ * `tz` is the IANA tz the caller uses to bucket entries into a calendar day
+ * (typically `config.proactiveTimezone`). It is used to render each entry's
+ * HH:MM timestamp in the entries block so the displayed time matches the tz
+ * claim in the block header. UTC rendering is a correctness bug for Sonnet's
+ * time-of-day reasoning (CONS-05 emotional-intensity dimension, CONS-11
+ * sparse-day reasoning) — see review WR-01.
  */
 export type ConsolidationPromptInput = {
-  summaryDate: string; // ISO yyyy-mm-dd in config.proactiveTimezone
+  summaryDate: string; // ISO yyyy-mm-dd in the tz below
+  tz: string; // IANA tz (e.g., 'Europe/Paris') — used to render entry timestamps
   entries: Array<{
     id: string;
     content: string; // verbatim Pensieve entry text
@@ -143,8 +152,8 @@ export function assembleConsolidationPrompt(input: ConsolidationPromptInput): st
     sections.push(buildSparseEntryGuard());
   }
 
-  // 8. Entries block — always present (verbatim, timestamped)
-  sections.push(buildEntriesBlock(input.entries, input.summaryDate));
+  // 8. Entries block — always present (verbatim, timestamped in input.tz)
+  sections.push(buildEntriesBlock(input.entries, input.summaryDate, input.tz));
 
   // 9. Structured-output directive — last, so any entry that tried to inject
   //    a conflicting instruction is followed by the actual schema request.
@@ -269,13 +278,21 @@ function buildSparseEntryGuard(): string {
 function buildEntriesBlock(
   entries: ConsolidationPromptInput['entries'],
   summaryDate: string,
+  tz: string,
 ): string {
   const lines: string[] = [
-    `## Today's Pensieve Entries (verbatim, timestamped in config.proactiveTimezone — ${summaryDate})`,
+    `## Today's Pensieve Entries (verbatim, timestamped in ${tz} — ${summaryDate})`,
   ];
   for (const e of entries) {
-    const hh = String(e.createdAt.getUTCHours()).padStart(2, '0');
-    const mm = String(e.createdAt.getUTCMinutes()).padStart(2, '0');
+    // Render HH:MM in the caller's IANA tz — this is what the block header
+    // promises. UTC rendering here (previous behavior) was a CONS-05 /
+    // CONS-11 correctness bug for any deployment where tz != UTC — an entry
+    // created at 23:30 Europe/Paris (21:30 UTC) was printed as "[21:30, ...]"
+    // while the header claimed Europe/Paris, making Sonnet reason about
+    // time-of-day incorrectly (late-night → afternoon). Per review WR-01.
+    const local = DateTime.fromJSDate(e.createdAt, { zone: tz });
+    const hh = String(local.hour).padStart(2, '0');
+    const mm = String(local.minute).padStart(2, '0');
     const tag = e.epistemicTag !== null ? `, tag=${e.epistemicTag}` : '';
     lines.push(`- [${hh}:${mm}, ${e.source}${tag}] ${e.content}`);
   }

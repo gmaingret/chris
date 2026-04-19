@@ -35,6 +35,7 @@ function buildFixtureInput(
 ): ConsolidationPromptInput {
   return {
     summaryDate: '2026-04-18',
+    tz: 'UTC',
     entries: [
       {
         id: '00000000-0000-0000-0000-000000000001',
@@ -329,5 +330,36 @@ describe('assembleConsolidationPrompt — entries block fidelity', () => {
     for (const e of input.entries) {
       expect(out).toContain(e.content);
     }
+  });
+
+  it('Test 21 (WR-01): entry timestamps render in input.tz, not UTC', () => {
+    // An entry stored at 23:30 Europe/Paris (CEST, UTC+2) is stored as
+    // 21:30 UTC. Before the WR-01 fix, buildEntriesBlock rendered the
+    // UTC hh:mm while the header claimed Europe/Paris — a CONS-05 /
+    // CONS-11 correctness bug. After the fix the render matches the
+    // header's tz claim.
+    const input: ConsolidationPromptInput = {
+      summaryDate: '2026-04-18',
+      tz: 'Europe/Paris',
+      entries: [
+        {
+          id: '00000000-0000-0000-0000-0000000000aa',
+          // 2026-04-18T21:30:00Z = 23:30 local in Europe/Paris (CEST, UTC+2)
+          createdAt: new Date('2026-04-18T21:30:00Z'),
+          content: 'late-night reflection',
+          epistemicTag: 'EMOTION',
+          source: 'telegram',
+        },
+      ],
+      contradictions: [],
+      decisions: [],
+    };
+    const out = assembleConsolidationPrompt(input);
+    // The entry line must show Paris local time, not UTC.
+    expect(out).toContain('[23:30, telegram, tag=EMOTION] late-night reflection');
+    // Block header must reflect the tz, not the literal string "config.proactiveTimezone".
+    expect(out).toContain("timestamped in Europe/Paris — 2026-04-18");
+    // Must NOT print the UTC time as [21:30, ...].
+    expect(out).not.toMatch(/\[21:30,\s+telegram/);
   });
 });

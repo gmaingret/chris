@@ -245,6 +245,7 @@ export async function runConsolidate(date: Date): Promise<ConsolidateResult> {
     // Step 5 — assemble the prompt
     const prompt = assembleConsolidationPrompt({
       summaryDate: localDateStr,
+      tz,
       entries,
       contradictions,
       decisions,
