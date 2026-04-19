@@ -37,6 +37,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { eq } from 'drizzle-orm';
+import { DateTime } from 'luxon';
 import { db, sql } from '../../db/connection.js';
 import { episodicSummaries, pensieveEntries } from '../../db/schema.js';
 import { runConsolidate } from '../consolidate.js';
@@ -160,21 +161,26 @@ const ADVERSARIAL_ENTRIES: AdversarialEntry[] = [
 
 /**
  * Build a Date for `ADVERSARIAL_DATE` at `hourLocal` in `config.proactiveTimezone`.
- * Uses ISO string + UTC offset arithmetic via Luxon-equivalent semantics: for
- * Europe/Paris in February, the offset is +01:00 (CET, no DST in February).
  *
- * This is intentionally simple — Plan 23-01's synthetic fixture uses Luxon
- * `DateTime.fromISO` for the same purpose; we inline the arithmetic here to
- * avoid pulling Luxon into a test that doesn't otherwise need it. February
- * predates the 2026 spring-forward (2026-03-29 in Europe/Paris), so the offset
- * is stable at +01:00 across all five fixture entries.
+ * Previously this function hard-coded `utcHour = hourLocal - 1` based on the
+ * Europe/Paris CET+1 February offset. If an operator ran the suite with
+ * `PROACTIVE_TIMEZONE=America/New_York` or `Asia/Tokyo`, the fixture entries
+ * would land on different calendar days in the engine's bucketing tz and
+ * `runConsolidate(2026-02-14)` would miss them, producing a summary from
+ * fewer entries than expected — the flattery assertion would trivially pass
+ * with less material to flatter. A test that passes when it should fail is
+ * worse than the skipIf gate. Per review WR-03.
+ *
+ * Fix: use Luxon's zone-aware arithmetic so the instant is correct for
+ * whatever tz is configured. Plan 23-01's synthetic fixture uses the same
+ * pattern.
  */
 function adversarialInstant(hourLocal: number): Date {
-  // Europe/Paris in February = CET = UTC+1 (no DST until late March).
-  // hourLocal=9 Paris → 08:00 UTC.
-  const utcHour = hourLocal - 1;
-  const hh = String(utcHour).padStart(2, '0');
-  return new Date(`${ADVERSARIAL_DATE}T${hh}:00:00Z`);
+  const [year, month, day] = ADVERSARIAL_DATE.split('-').map(Number);
+  return DateTime.fromObject(
+    { year, month, day, hour: hourLocal },
+    { zone: config.proactiveTimezone },
+  ).toJSDate();
 }
 
 /**
@@ -255,13 +261,18 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)(
       // Sanity-check DB connection before burning API calls.
       const probe = await sql`SELECT 1 as ok`;
       expect(probe[0]!.ok).toBe(1);
-      // Sanity-check config — proactiveTimezone must be Europe/Paris for the
-      // adversarialInstant() arithmetic above (CET UTC+1 in February). If the
-      // env overrides this, the entries would still land in the same calendar
-      // date (Feb 14 wall-clock 9-21h Paris straddles ~08:00-20:00 UTC, all
-      // within 2026-02-14 in any reasonable Europe/* tz), but flag the
-      // assumption for future-readers.
+      // Sanity-check config — proactiveTimezone must be a truthy IANA tz.
+      // WR-03: adversarialInstant now uses Luxon zone-aware arithmetic, so
+      // any IANA tz that Luxon recognizes produces correct instants for the
+      // 2026-02-14 9-21h local-time window. No per-tz UTC-offset assumption
+      // any more.
       expect(config.proactiveTimezone).toBeTruthy();
+      // Extra diagnostic: Luxon must resolve the tz (typo-catching defence).
+      const tzProbe = DateTime.fromObject(
+        { year: 2026, month: 2, day: 14, hour: 12 },
+        { zone: config.proactiveTimezone },
+      );
+      expect(tzProbe.isValid).toBe(true);
 
       // Defensive: clean any pre-existing fixture rows from a prior interrupted
       // run. Cheap; no-op when clean.
