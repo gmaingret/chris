@@ -391,7 +391,7 @@ async function seedPensieveEntries(opts: {
         content: e.content,
         epistemicTag: e.epistemicTag,
         createdAt,
-        source: 'synthetic-fixture',
+        source: 'telegram',
       })
       .returning({ id: pensieveEntries.id });
     ids.push(row!.id);
@@ -429,7 +429,7 @@ function pearsonCorrelation(xs: number[], ys: number[]): number {
  * Purge any rows from prior fixture runs. Scoped to:
  *   - episodic_summaries: by FIXTURE_START_DATE..+14, plus DST boundary dates,
  *     plus the standalone TEST-19/20/21 dates.
- *   - pensieve_entries: by source='synthetic-fixture' (all fixture seeds use this).
+ *   - pensieve_entries: by source='telegram' (all fixture seeds use this).
  *   - decisions / decision_events / contradictions: by chatId or by
  *     entry-FK, see inline comments — `contradictions` has no chatId column.
  */
@@ -441,7 +441,7 @@ async function cleanupFixture(): Promise<void> {
   // Contradictions reference pensieveEntries via FK — purge them first.
   // Scope to fixture entries by joining on entry source.
   await db.execute(
-    sql`DELETE FROM contradictions WHERE entry_a_id IN (SELECT id FROM pensieve_entries WHERE source = 'synthetic-fixture') OR entry_b_id IN (SELECT id FROM pensieve_entries WHERE source = 'synthetic-fixture')`,
+    sql`DELETE FROM contradictions WHERE entry_a_id IN (SELECT id FROM pensieve_entries WHERE source = 'telegram') OR entry_b_id IN (SELECT id FROM pensieve_entries WHERE source = 'telegram')`,
   );
   // Decisions for our fixture chat ID: delete events first (FK), then projection.
   await db.delete(decisionEvents).where(
@@ -455,7 +455,7 @@ async function cleanupFixture(): Promise<void> {
   );
   await db.delete(decisions).where(eq(decisions.chatId, FIXTURE_CHAT_ID));
   // Pensieve entries by source.
-  await db.delete(pensieveEntries).where(eq(pensieveEntries.source, 'synthetic-fixture'));
+  await db.delete(pensieveEntries).where(eq(pensieveEntries.source, 'telegram'));
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -1051,7 +1051,7 @@ describe('TEST-20: Decision-day importance floor', () => {
 //     here is therefore the CORRECT proxy for the "confidence >= 0.75"
 //     claim — the column doesn't exist; the status discriminator does.
 //   - Contradictions reference pensieve entries via entryAId/entryBId FKs
-//     (no chatId). Cleanup by entry source ('synthetic-fixture').
+//     (no chatId). Cleanup by entry source ('telegram').
 
 describe('TEST-21: Contradiction-day dual-position verbatim', () => {
   it(

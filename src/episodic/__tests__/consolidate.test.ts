@@ -114,7 +114,7 @@ async function seedEntries(
       .values({
         content: `Entry ${i + 1} for ${localDate}`,
         createdAt: tzDate(`${localDate}T${hh}:00:00`, tz),
-        source: 'consolidate-test',
+        source: 'telegram',
       })
       .returning({ id: pensieveEntries.id });
     ids.push(row!.id);

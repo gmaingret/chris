@@ -82,7 +82,7 @@ async function insertEntry(opts: {
     .values({
       content: opts.content,
       createdAt: opts.createdAt,
-      source: opts.source ?? 'episodic-sources-test',
+      source: opts.source ?? 'telegram',
       deletedAt: opts.deletedAt ?? null,
       epistemicTag: opts.epistemicTag ?? null,
     })
@@ -289,6 +289,43 @@ describe('episodic/sources — day-bounded read helpers (CONS-08, CONS-09)', () 
       la,
     );
     expect(laDay16).toHaveLength(0);
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Test 4b — getPensieveEntriesForDay filters synced sources (M008.1)
+  // ──────────────────────────────────────────────────────────────────────────
+  it("Test 4b: getPensieveEntriesForDay excludes non-telegram sources (M008.1 bulk-sync filter)", async () => {
+    const tz = 'Europe/Paris';
+    const day = tzDate('2026-04-15T10:00:00', tz);
+
+    // One real user entry via Telegram.
+    await insertEntry({
+      content: 'morning thought',
+      createdAt: tzDate('2026-04-15T08:00:00', tz),
+      source: 'telegram',
+    });
+
+    // Three synced-source entries on the same day — must be excluded.
+    await insertEntry({
+      content: 'Immich photo caption',
+      createdAt: tzDate('2026-04-15T09:00:00', tz),
+      source: 'immich',
+    });
+    await insertEntry({
+      content: 'Gmail thread digest',
+      createdAt: tzDate('2026-04-15T10:30:00', tz),
+      source: 'gmail',
+    });
+    await insertEntry({
+      content: 'Google Drive file snippet',
+      createdAt: tzDate('2026-04-15T15:00:00', tz),
+      source: 'gdrive',
+    });
+
+    const rows = await getPensieveEntriesForDay(day, tz);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.content).toBe('morning thought');
+    expect(rows[0]!.source).toBe('telegram');
   });
 
   // ──────────────────────────────────────────────────────────────────────────

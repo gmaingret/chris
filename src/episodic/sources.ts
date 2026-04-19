@@ -85,8 +85,18 @@ export function dayBoundaryUtc(
 // ── Pensieve entries query ──────────────────────────────────────────────────
 
 /**
- * Returns all pensieve_entries with `createdAt` within the day window in `tz`,
- * ordered by `createdAt` ascending, with `deletedAt IS NULL`.
+ * Returns user-authored pensieve_entries with `createdAt` within the day window
+ * in `tz`, ordered by `createdAt` ascending, with `deletedAt IS NULL`.
+ *
+ * Only `source = 'telegram'` entries are included — this is the only
+ * user-authored journaling channel. Synced sources (`'immich'`, `'gmail'`,
+ * `'gdrive'`) are ambient retrieval context and must NEVER drive episodic
+ * consolidation: they overflow context on bulk-sync days (e.g. initial deploy
+ * dumped 23,977 Immich assets on 2026-04-15, blowing 1M-token Sonnet limit)
+ * and on sparse days produce meaningless summaries from image metadata alone.
+ * This is an allowlist rather than a denylist so a newly-added synced source
+ * (future file upload, voice, etc.) is excluded by default until explicitly
+ * added here. Any future user-authored channel must be added to this list.
  */
 export async function getPensieveEntriesForDay(
   date: Date,
@@ -107,6 +117,7 @@ export async function getPensieveEntriesForDay(
         gte(pensieveEntries.createdAt, start),
         lt(pensieveEntries.createdAt, end),
         isNull(pensieveEntries.deletedAt),
+        eq(pensieveEntries.source, 'telegram'),
       ),
     )
     .orderBy(asc(pensieveEntries.createdAt));

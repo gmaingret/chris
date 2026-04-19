@@ -48,7 +48,7 @@ import { config } from '../../config.js';
  * file cannot collide with synthetic-fixture (Plan 23-01: 'synthetic-fixture'),
  * backfill (Plan 23-02), or summary handler tests (Plan 23-03).
  */
-const FIXTURE_SOURCE = 'live-anti-flattery-fixture';
+const FIXTURE_SOURCE = 'telegram';
 
 /**
  * The adversarial day. A known-past calendar date (in config.proactiveTimezone =

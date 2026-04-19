@@ -117,7 +117,7 @@ async function seedPensieveEntries(opts: {
         content: e.content,
         epistemicTag: e.epistemicTag,
         createdAt,
-        source: 'backfill-test',
+        source: 'telegram',
       })
       .returning({ id: pensieveEntries.id });
     ids.push(row!.id);
@@ -160,7 +160,7 @@ function mockParseResponseFor(
  */
 async function cleanupBackfillFixture(): Promise<void> {
   await db.execute(sql`TRUNCATE TABLE episodic_summaries CASCADE`);
-  await db.delete(pensieveEntries).where(eq(pensieveEntries.source, 'backfill-test'));
+  await db.delete(pensieveEntries).where(eq(pensieveEntries.source, 'telegram'));
 }
 
 // ════════════════════════════════════════════════════════════════════════════
