@@ -860,3 +860,76 @@ describe('TEST-18: DST spring-forward — exactly one row per calendar date', ()
     30_000,
   );
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// TEST-19 — Idempotency retry: second call is a silent no-op.
+// ════════════════════════════════════════════════════════════════════════════
+//
+// CONS-03 contract per src/episodic/consolidate.ts L94-98 is the discriminated
+// shape `{ skipped: 'existing' | 'no-entries' }`, NOT `{ skipped: true }` as
+// the plan's example pseudocode suggested. This test asserts the actual
+// runtime shape — the second invocation returns `{ skipped: 'existing' }`
+// and Sonnet is called EXACTLY ONCE across both invocations (the pre-flight
+// SELECT short-circuits the second call before any LLM work).
+
+describe('TEST-19: Idempotency retry', () => {
+  it(
+    're-running runConsolidate for an already-summarized date is a silent no-op',
+    async () => {
+      const date = '2026-04-15';
+      await seedPensieveEntries({
+        chatId: FIXTURE_CHAT_ID,
+        date,
+        tz: FIXTURE_TZ,
+        entries: [
+          { content: 'First entry for retry day', epistemicTag: 'FACT' },
+          { content: 'Second entry for retry day', epistemicTag: 'EMOTION' },
+        ],
+      });
+
+      // Mock Sonnet to respond ONCE. If the engine calls Sonnet a second time,
+      // the second call returns undefined (mockResolvedValueOnce queue empty)
+      // and the engine throws — the test would fail loudly.
+      mockAnthropicParse.mockResolvedValueOnce(
+        mockParseResponseFor({
+          summary:
+            'Summary text for the retry day, long enough to satisfy the Zod min-50 length constraint.',
+          importance: 4,
+          topics: ['routine'],
+          emotional_arc: 'stable',
+          key_quotes: [],
+        }),
+      );
+
+      vi.setSystemTime(dateAtLocalHour(date, FIXTURE_TZ, 23, 0));
+      const dateInstant = tzDate(`${date}T12:00:00`, FIXTURE_TZ);
+
+      // First call — inserts the row.
+      const firstResult = await runConsolidate(dateInstant);
+      expect(firstResult).toMatchObject({ inserted: true });
+      const rowsAfterFirst = await db
+        .select()
+        .from(episodicSummaries)
+        .where(eq(episodicSummaries.summaryDate, date));
+      expect(rowsAfterFirst).toHaveLength(1);
+      expect(mockAnthropicParse).toHaveBeenCalledTimes(1);
+
+      // Second call — pre-flight SELECT detects the existing row and
+      // short-circuits before any Sonnet call. CONS-03 contract per
+      // consolidate.ts L209-218: returns `{ skipped: 'existing' }`.
+      const secondResult = await runConsolidate(dateInstant);
+      expect(secondResult).toEqual({ skipped: 'existing' });
+
+      // Still exactly one row in the DB.
+      const rowsAfterSecond = await db
+        .select()
+        .from(episodicSummaries)
+        .where(eq(episodicSummaries.summaryDate, date));
+      expect(rowsAfterSecond).toHaveLength(1);
+
+      // Sonnet was NOT re-called by the second invocation (CONS-03 cost-saver).
+      expect(mockAnthropicParse).toHaveBeenCalledTimes(1);
+    },
+    20_000,
+  );
+});
