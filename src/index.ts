@@ -8,6 +8,7 @@ import { config } from './config.js';
 import { logger } from './utils/logger.js';
 import { startScheduler, stopScheduler } from './sync/scheduler.js';
 import { runSweep } from './proactive/sweep.js';
+import { runConsolidateYesterday } from './episodic/cron.js';
 
 function createApp(): express.Express {
   const app = express();
@@ -77,6 +78,22 @@ async function main() {
     }
   }, { timezone: config.proactiveTimezone });
   logger.info({ cron: config.proactiveSweepCron, timezone: config.proactiveTimezone }, 'proactive.cron.scheduled');
+
+  // CRON-01/CRON-02: Daily episodic consolidation — independent cron, DST-safe
+  // via node-cron's timezone option combined with Phase 21's CONS-03 idempotency
+  // (UNIQUE(summary_date) + pre-flight SELECT + ON CONFLICT DO NOTHING). Fires
+  // at config.episodicCron in config.proactiveTimezone; consolidates the PRIOR
+  // calendar day so the day's entries are complete. PEER to the proactive
+  // sweep registration above — NOT nested inside runSweep, runConsolidate, or
+  // any other handler.
+  cron.schedule(config.episodicCron, async () => {
+    try {
+      await runConsolidateYesterday();
+    } catch (err) {
+      logger.error({ err }, 'episodic.cron.error');
+    }
+  }, { timezone: config.proactiveTimezone });
+  logger.info({ cron: config.episodicCron, timezone: config.proactiveTimezone }, 'episodic.cron.scheduled');
 
   const port = parseInt(process.env.PORT || '3000', 10);
 
