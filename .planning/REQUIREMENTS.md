@@ -46,8 +46,8 @@ Requirements for M008 Episodic Consolidation. Each maps to roadmap phases.
 - [ ] **RETR-02**: Two-dimensional retrieval routing in `retrieveContext` — recency boundary (≤7 days from today → raw entries always; >7 days → summary first) AND query-intent escape (verbatim-fidelity queries detected via keyword fast-path: "exactly", "verbatim", "what did I say", "exact words" + EN/FR/RU equivalents → raw always regardless of age). Routing decision logged for diagnostic visibility.
 - [ ] **RETR-03**: High-importance raw descent — when a >7-day-old summary with `importance >= 8` matches the query, the source raw entries (via `source_entry_ids`) are also retrieved and surfaced alongside the summary. Asserted by fixture test on an importance-9 day.
 - [ ] **RETR-04**: INTERROGATE mode date-anchored summary injection — when the user asks about a period >7 days ago (e.g., "what was happening 3 weeks ago", "April 1st"), `src/chris/modes/interrogate.ts` injects matching episodic summaries into the context block. Date extraction uses regex/keyword fast-path first, Haiku classifier only as fallback if regex fails.
-- [ ] **RETR-05**: Summary text NEVER enters the Known Facts block — D031 separates structured facts from interpretation; episodic summaries are interpretation. Audit during this requirement: grep `src/pensieve/known-facts.ts` (or equivalent) for any JOIN to `episodic_summaries`; assert none exist.
-- [ ] **RETR-06**: Summary text NEVER embedded into `pensieve_embeddings` — preserves raw-entry semantic search fidelity. Asserted by inspection: no INSERT into `pensieve_embeddings` references `episodic_summaries`.
+- [x] **RETR-05**: Summary text NEVER enters the Known Facts block — D031 separates structured facts from interpretation; episodic summaries are interpretation. Audit during this requirement: grep `src/pensieve/known-facts.ts` (or equivalent) for any JOIN to `episodic_summaries`; assert none exist. (Phase 22 Plan 04, 2026-04-19 — `src/chris/__tests__/boundary-audit.test.ts` ships 2 RETR-05 assertions: zero matches for `/\bepisodic_summaries\b|\bepisodicSummaries\b/` in `src/chris/personality.ts` (which contains `buildKnownFactsBlock`) and `src/pensieve/ground-truth.ts` (the Known Facts data source). Failure messages name the offending file:line. Negative-case sanity-checked: injecting `// stray test marker: episodicSummaries` triggers a loud failure with exact line number; file restored. Test runs through the regular vitest gate; no production code modified.)
+- [x] **RETR-06**: Summary text NEVER embedded into `pensieve_embeddings` — preserves raw-entry semantic search fidelity. Asserted by inspection: no INSERT into `pensieve_embeddings` references `episodic_summaries`. (Phase 22 Plan 04, 2026-04-19 — `src/chris/__tests__/boundary-audit.test.ts` ships 2 RETR-06 assertions: zero matches for `/\bepisodic_summaries\b|\bepisodicSummaries\b/` in `src/pensieve/embeddings.ts` (the only `db.insert(pensieveEmbeddings).values(...)` path), plus a redundant fourth assertion that every matched `db.insert(pensieveEmbeddings).values(...)` block in that file is free of `/episodic/i`. Word-boundary regex catches both SQL identifier (snake_case) and Drizzle export (camelCase). 4 tests total / 4 passing / 130ms via test.sh; Docker gate ≈+4 vs Plan 22-01 baseline, zero regressions.)
 
 ### User-Facing Commands
 
@@ -125,8 +125,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RETR-02 | Phase 22 | Pending |
 | RETR-03 | Phase 22 | Pending |
 | RETR-04 | Phase 22 | Pending |
-| RETR-05 | Phase 22 | Pending |
-| RETR-06 | Phase 22 | Pending |
+| RETR-05 | Phase 22 | ✅ Complete (Plan 04, 2026-04-19) |
+| RETR-06 | Phase 22 | ✅ Complete (Plan 04, 2026-04-19) |
 | CMD-01 | Phase 23 | Pending |
 | OPS-01 | Phase 23 | Pending |
 | TEST-15 | Phase 23 | Pending |
