@@ -75,6 +75,21 @@ services:
 OVR
 
 # ── Cleanup on exit ───────────────────────────────────────────────────────
+#
+# WARNING: historically this trap unconditionally deleted
+# ${META_DIR}/0005_snapshot.json on EVERY exit (success or failure). That was
+# safe at Plan 20-01 land-time (no 0005 snapshot existed yet) but became
+# destructive once Plan 20-02 landed a real 0005 snapshot chained to the
+# 0004 snapshot. Any re-run of this script after Plan 20-02 would silently
+# nuke the committed 0005 snapshot and force operators to regenerate from
+# scratch.
+#
+# The fix: only delete the 0005 snapshot when THIS run produced it. We set
+# REGEN_PRODUCED_0005=1 just before invoking the acceptance-gate generate
+# that may emit the acceptance-check artifacts. If the script exits before
+# that point, or if the acceptance-check SQL does not exist at exit time,
+# the snapshot is a real committed file and must be preserved.
+REGEN_PRODUCED_0005=0
 cleanup() {
   local rc=$?
   echo ""
@@ -82,9 +97,14 @@ cleanup() {
   docker compose -p "${COMPOSE_PROJECT}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" \
     down --volumes --timeout 5 >/dev/null 2>&1 || true
   rm -rf "${TMP_DIR}/drizzle-regen-"* "${OUT_DIR}" "${OVERRIDE_FILE}" || true
-  # Clean up any accidentally generated acceptance-check artifacts
+  # Clean up any accidentally generated acceptance-check SQL (distinctive name
+  # — drizzle-kit only produces it when this script passes --name acceptance_check).
   find "${MIGRATIONS_DIR}" -maxdepth 1 -name "0005_acceptance_check*.sql" -delete 2>/dev/null || true
-  find "${META_DIR}" -name "0005_snapshot.json" -delete 2>/dev/null || true
+  # Only delete the 0005 snapshot if THIS run produced it — otherwise it is a
+  # legitimate committed snapshot from Plan 20-02+ and must be preserved.
+  if [[ "${REGEN_PRODUCED_0005}" -eq 1 ]]; then
+    find "${META_DIR}" -name "0005_snapshot.json" -delete 2>/dev/null || true
+  fi
   exit "${rc}"
 }
 trap cleanup EXIT INT TERM
@@ -282,6 +302,12 @@ apply_sql "${MIGRATION_4}"
 
 # Run generate from repo root. Use a distinctive name so any accidentally-
 # produced migration is easy to spot and cleanup.
+#
+# Mark that THIS run is responsible for any 0005_snapshot.json that appears
+# from here onward. The EXIT trap consults this flag before deleting the
+# snapshot so it never blows away a legitimate committed snapshot on a
+# script re-run after Plan 20-02+ landed.
+REGEN_PRODUCED_0005=1
 set +e
 GEN_OUT=$(DATABASE_URL="${DB_URL}" npx drizzle-kit generate --name acceptance_check 2>&1)
 GEN_RC=$?
