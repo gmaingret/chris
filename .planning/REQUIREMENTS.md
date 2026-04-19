@@ -37,8 +37,8 @@ Requirements for M008 Episodic Consolidation. Each maps to roadmap phases.
 
 ### Cron / Scheduling
 
-- [ ] **CRON-01**: Independent `cron.schedule(config.episodicCron, runConsolidateYesterday, { timezone: config.proactiveTimezone })` registered in `src/index.ts` alongside the existing proactive sweep and source sync crons. NOT nested inside `runSweep`. Default fires at 23:00 same-day in Greg's configured timezone.
-- [ ] **CRON-02**: DST safety — cron uses `node-cron`'s built-in timezone option (UTC-internal arithmetic). Spring-forward (23:00 occurs once) and fall-back (23:00 occurs once) both produce exactly one consolidation per calendar date. Asserted by fixture test simulating the DST transition.
+- [x] **CRON-01**: Independent `cron.schedule(config.episodicCron, runConsolidateYesterday, { timezone: config.proactiveTimezone })` registered in `src/index.ts` alongside the existing proactive sweep and source sync crons. NOT nested inside `runSweep`. Default fires at 23:00 same-day in Greg's configured timezone. (Phase 22 Plan 05, 2026-04-19 — `cron.schedule(config.episodicCron, async () => { try { await runConsolidateYesterday(); } catch (err) { logger.error({ err }, 'episodic.cron.error'); } }, { timezone: config.proactiveTimezone })` registered at module-level inside `main()` in `src/index.ts` as a sibling peer to the existing proactive-sweep cron — same indentation level, same `{ timezone }` options pattern, same belt-and-suspenders try/catch shape. Verified non-nesting: `grep -nE "runConsolidate" src/proactive/sweep.ts` returns 0 matches. Wrapper at `src/episodic/cron.ts` (114 lines) computes yesterday in `config.proactiveTimezone` via `Intl.DateTimeFormat('en-CA')` + UTC-millisecond 1-day subtraction; double-catches errors as 'episodic.cron.error' (warn at wrapper, error at outer cron body). Logs 'episodic.cron.scheduled' (startup) and 'episodic.cron.invoked' (each fire, BEFORE runConsolidate) for operator monitoring.)
+- [x] **CRON-02**: DST safety — cron uses `node-cron`'s built-in timezone option (UTC-internal arithmetic). Spring-forward (23:00 occurs once) and fall-back (23:00 occurs once) both produce exactly one consolidation per calendar date. Asserted by fixture test simulating the DST transition. (Phase 22 Plan 05, 2026-04-19 — `{ timezone: config.proactiveTimezone }` passed to `cron.schedule` per node-cron 4.x option semantics. DST safety proven deterministically by `src/episodic/__tests__/cron.test.ts`: spring-forward test passes UTC instants `2026-03-28T22:00:00Z` (= 23:00 Paris CET pre-switch) and `2026-03-29T21:00:00Z` (= 23:00 Paris CEST post-switch), asserts `runConsolidate` called with two distinct yesterday calendar dates (2026-03-27 + 2026-03-28); fall-back test mirrors the pattern with `2026-10-24T21:00:00Z` and `2026-10-25T22:00:00Z`, asserts yesterdays 2026-10-23 + 2026-10-24. Belt-and-suspenders: even if node-cron misbehaves, Phase 21 CONS-03 `UNIQUE(summary_date)` + pre-flight SELECT + `ON CONFLICT DO NOTHING` collapses any duplicate firing to a no-op.)
 
 ### Retrieval Routing
 
@@ -119,8 +119,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CONS-10 | Phase 21 | ✅ Complete (Plan 02, 2026-04-18) |
 | CONS-11 | Phase 21 | ✅ Complete (Plan 02, 2026-04-18) |
 | CONS-12 | Phase 21 | ✅ Complete (Plan 04, 2026-04-18) |
-| CRON-01 | Phase 22 | Pending |
-| CRON-02 | Phase 22 | Pending |
+| CRON-01 | Phase 22 | ✅ Complete (Plan 05, 2026-04-19) |
+| CRON-02 | Phase 22 | ✅ Complete (Plan 05, 2026-04-19) |
 | RETR-01 | Phase 22 | ✅ Complete (Plan 01, 2026-04-18) |
 | RETR-02 | Phase 22 | ✅ Complete (Plan 02, 2026-04-19) |
 | RETR-03 | Phase 22 | ✅ Complete (Plan 02, 2026-04-19) |
