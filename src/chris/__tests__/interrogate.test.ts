@@ -38,10 +38,18 @@ vi.mock('../../llm/client.js', () => ({
   SONNET_MODEL: 'claude-sonnet-4-6',
 }));
 
-// ── Mock searchPensieve ────────────────────────────────────────────────────
+// ── Mock searchPensieve + getEpisodicSummary ───────────────────────────────
 const mockSearchPensieve = vi.fn();
+const mockGetEpisodicSummary = vi.fn();
 vi.mock('../../pensieve/retrieve.js', () => ({
   searchPensieve: mockSearchPensieve,
+  getEpisodicSummary: mockGetEpisodicSummary,
+}));
+
+// ── Mock date-extraction (Plan 22-03 RETR-04) ──────────────────────────────
+const mockExtractQueryDate = vi.fn();
+vi.mock('../modes/date-extraction.js', () => ({
+  extractQueryDate: mockExtractQueryDate,
 }));
 
 // ── Mock context builder ───────────────────────────────────────────────────
@@ -144,6 +152,11 @@ describe('handleInterrogate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSearchPensieve.mockResolvedValue(MOCK_SEARCH_RESULTS);
+    // Plan 22-03 RETR-04: default extractor returns null so existing tests
+    // exercise the no-injection path. The new describe block below
+    // overrides this per-test for the injection branches.
+    mockExtractQueryDate.mockResolvedValue(null);
+    mockGetEpisodicSummary.mockResolvedValue(null);
     mockBuildPensieveContext.mockReturnValue(
       '[1] (2025-01-15 | EXPERIENCE | 0.87) "I grew up in a small town near the coast"\n' +
         '[2] (2025-02-10 | REFLECTION | 0.72) "My parents always encouraged me to read"',
@@ -309,5 +322,187 @@ describe('handleInterrogate', () => {
       expect(error).toBeInstanceOf(LLMError);
       expect((error as Error).message).toBe('No text block in Sonnet response');
     }
+  });
+});
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Plan 22-03 RETR-04: Date-anchored episodic summary injection
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+describe('handleInterrogate — date-anchored summary injection (RETR-04)', () => {
+  // Helper: build a complete episodic_summaries row fixture. The real
+  // schema row has many fields — only those consumed by formatEpisodicBlock
+  // matter to the assertion, but we populate everything for type safety.
+  function makeSummary(overrides: Partial<{
+    summaryDate: string;
+    summary: string;
+    importance: number;
+    topics: string[];
+    emotionalArc: string;
+    keyQuotes: string[];
+    sourceEntryIds: string[];
+  }> = {}) {
+    return {
+      id: 'summary-fixture',
+      summaryDate: '2026-03-30',
+      summary: 'Greg spent the day reflecting on a tense conversation about work boundaries.',
+      importance: 6,
+      topics: ['work', 'boundaries'],
+      emotionalArc: 'tense → resolved',
+      keyQuotes: [],
+      sourceEntryIds: [],
+      createdAt: new Date('2026-03-30T23:00:00Z'),
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSearchPensieve.mockResolvedValue([]);
+    mockBuildPensieveContext.mockReturnValue('No relevant memories found.');
+    mockBuildMessageHistory.mockResolvedValue([]);
+    // Identity passthrough: the real prompt assembly happens inside this
+    // mock so we can grep the systemPrompt text the engine builds. The
+    // ordering test below replaces this with a more realistic build.
+    mockBuildSystemPrompt.mockImplementation(
+      (_mode: string, pensieveContext?: string) => pensieveContext ?? '',
+    );
+    mockCreate.mockResolvedValue({
+      content: [{ type: 'text', text: 'response' }],
+    });
+  });
+
+  it('injects summary block when queryDate is >7 days old AND summary exists', async () => {
+    const oldDate = new Date(Date.now() - 20 * 86_400_000);
+    mockExtractQueryDate.mockResolvedValue(oldDate);
+    mockGetEpisodicSummary.mockResolvedValue(makeSummary());
+
+    await handleInterrogate(CHAT_ID, 'what was going on three weeks ago');
+
+    // Verify the prompt-context string built by the engine contains the
+    // labeled block, importance line, and date — this is what flows into
+    // buildSystemPrompt → Sonnet.
+    const ctx = mockBuildSystemPrompt.mock.calls[0][1] as string;
+    expect(ctx).toContain('## Recent Episode Context (interpretation, not fact)');
+    expect(ctx).toContain('Date: 2026-03-30');
+    expect(ctx).toContain('Importance: 6/10');
+    expect(ctx).toContain('Emotional arc: tense → resolved');
+    expect(ctx).toContain('Topics: work, boundaries');
+  });
+
+  it('logs chris.interrogate.summary.injected with date + importance when injection occurs', async () => {
+    const oldDate = new Date(Date.now() - 20 * 86_400_000);
+    mockExtractQueryDate.mockResolvedValue(oldDate);
+    mockGetEpisodicSummary.mockResolvedValue(makeSummary({ importance: 9 }));
+
+    await handleInterrogate(CHAT_ID, 'what happened on 2026-03-30');
+
+    expect(mockLogInfo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chatId: CHAT_ID.toString(),
+        date: '2026-03-30',
+        importance: 9,
+      }),
+      'chris.interrogate.summary.injected',
+    );
+  });
+
+  it('skips injection AND skips getEpisodicSummary lookup when queryDate is <=7 days old', async () => {
+    const recentDate = new Date(Date.now() - 3 * 86_400_000);
+    mockExtractQueryDate.mockResolvedValue(recentDate);
+
+    await handleInterrogate(CHAT_ID, 'what happened three days ago');
+
+    expect(mockGetEpisodicSummary).not.toHaveBeenCalled();
+    const ctx = mockBuildSystemPrompt.mock.calls[0][1] as string;
+    expect(ctx).not.toContain('Recent Episode Context');
+  });
+
+  it('skips injection AND skips getEpisodicSummary lookup when queryDate is null', async () => {
+    mockExtractQueryDate.mockResolvedValue(null);
+
+    await handleInterrogate(CHAT_ID, 'what is my name');
+
+    expect(mockGetEpisodicSummary).not.toHaveBeenCalled();
+    const ctx = mockBuildSystemPrompt.mock.calls[0][1] as string;
+    expect(ctx).not.toContain('Recent Episode Context');
+  });
+
+  it('skips injection silently when summary row missing for an old date', async () => {
+    const oldDate = new Date(Date.now() - 20 * 86_400_000);
+    mockExtractQueryDate.mockResolvedValue(oldDate);
+    mockGetEpisodicSummary.mockResolvedValue(null);
+
+    await handleInterrogate(CHAT_ID, 'what happened on 2026-01-01');
+
+    // getEpisodicSummary WAS called (date qualified), but no block injected.
+    expect(mockGetEpisodicSummary).toHaveBeenCalledWith(oldDate);
+    const ctx = mockBuildSystemPrompt.mock.calls[0][1] as string;
+    expect(ctx).not.toContain('Recent Episode Context');
+    // No injected log either
+    expect(mockLogInfo).not.toHaveBeenCalledWith(
+      expect.anything(),
+      'chris.interrogate.summary.injected',
+    );
+  });
+
+  it('boundary: queryDate exactly 7 days old → NO injection (>7 strict, inclusive recent)', async () => {
+    // Math.floor((now - oldDate) / 86_400_000) === 7 → ageDays > 7 is false → no injection
+    const sevenDaysAgo = new Date(Date.now() - 7 * 86_400_000);
+    mockExtractQueryDate.mockResolvedValue(sevenDaysAgo);
+
+    await handleInterrogate(CHAT_ID, 'what happened a week ago');
+
+    expect(mockGetEpisodicSummary).not.toHaveBeenCalled();
+  });
+
+  it('prepends episodic block before raw search context in the assembled string (D031 boundary order)', async () => {
+    const oldDate = new Date(Date.now() - 20 * 86_400_000);
+    mockExtractQueryDate.mockResolvedValue(oldDate);
+    mockGetEpisodicSummary.mockResolvedValue(makeSummary());
+    // Override the buildPensieveContext stub to emit a recognizable
+    // sentinel string so we can grep the order of the two blocks.
+    mockBuildPensieveContext.mockReturnValue('RAW_SEARCH_RESULTS_SENTINEL');
+
+    await handleInterrogate(CHAT_ID, 'what was going on three weeks ago');
+
+    const ctx = mockBuildSystemPrompt.mock.calls[0][1] as string;
+    const interpretationIdx = ctx.indexOf('Recent Episode Context');
+    const rawIdx = ctx.indexOf('RAW_SEARCH_RESULTS_SENTINEL');
+    expect(interpretationIdx).toBeGreaterThanOrEqual(0);
+    expect(rawIdx).toBeGreaterThan(interpretationIdx);
+  });
+
+  it('episodic block appears BEFORE Known Facts in the final system prompt (real buildSystemPrompt)', async () => {
+    // Use the real buildSystemPrompt so the Known Facts block from
+    // personality.ts is appended for INTERROGATE — then assert
+    // ordering. The constitutional preamble + INTERROGATE template
+    // contains the {pensieveContext} placeholder; Known Facts is
+    // appended AFTER the mode body for INTERROGATE/JOURNAL modes.
+    const realPersonality = await vi.importActual<typeof import('../personality.js')>(
+      '../personality.js',
+    );
+    mockBuildSystemPrompt.mockImplementation(realPersonality.buildSystemPrompt);
+
+    const oldDate = new Date(Date.now() - 20 * 86_400_000);
+    mockExtractQueryDate.mockResolvedValue(oldDate);
+    mockGetEpisodicSummary.mockResolvedValue(makeSummary());
+
+    await handleInterrogate(CHAT_ID, 'what was going on three weeks ago');
+
+    // The real buildSystemPrompt return-value is what gets passed as
+    // `system[0].text` to anthropic.messages.create — pull it from there.
+    const sentSystem = mockCreate.mock.calls[0][0].system as Array<{
+      type: string;
+      text: string;
+    }>;
+    const fullPrompt = sentSystem[0].text;
+
+    const interpretationIdx = fullPrompt.indexOf('Recent Episode Context');
+    const knownFactsIdx = fullPrompt.indexOf('Facts about you (Greg)');
+
+    expect(interpretationIdx).toBeGreaterThanOrEqual(0);
+    expect(knownFactsIdx).toBeGreaterThanOrEqual(0);
+    expect(interpretationIdx).toBeLessThan(knownFactsIdx);
   });
 });

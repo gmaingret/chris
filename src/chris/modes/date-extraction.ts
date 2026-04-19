@@ -96,15 +96,18 @@ function matchRelativeAgo(text: string, now: Date): Date | null {
   let n: number | null = null;
   let unit: RelativeUnit | null = null;
 
+  // Each match arm: groups [1] and [2] are required by the regex shape, so
+  // when the outer match is truthy the indexed values are guaranteed
+  // strings. The non-null assertions keep noUncheckedIndexedAccess happy.
   if (enNum) {
-    n = parseInt(enNum[1], 10);
-    unit = enNum[2] as RelativeUnit;
+    n = parseInt(enNum[1]!, 10);
+    unit = enNum[2]! as RelativeUnit;
   } else if (enWord) {
-    n = NUMBER_WORDS[enWord[1]] ?? null;
-    unit = enWord[2] as RelativeUnit;
+    n = NUMBER_WORDS[enWord[1]!] ?? null;
+    unit = enWord[2]! as RelativeUnit;
   } else if (frNum) {
-    n = parseInt(frNum[1], 10);
-    const u = frNum[2];
+    n = parseInt(frNum[1]!, 10);
+    const u = frNum[2]!;
     unit = u.startsWith('jour')
       ? 'day'
       : u.startsWith('semaine')
@@ -113,8 +116,8 @@ function matchRelativeAgo(text: string, now: Date): Date | null {
           ? 'month'
           : 'year';
   } else if (ruNum) {
-    n = parseInt(ruNum[1], 10);
-    const u = ruNum[2];
+    n = parseInt(ruNum[1]!, 10);
+    const u = ruNum[2]!;
     unit = u.startsWith('дн')
       ? 'day'
       : u.startsWith('недел')
@@ -173,16 +176,16 @@ function matchMonthDay(text: string, now: Date): Date | null {
   let year: number | null = null;
 
   if (en) {
-    monthIdx = MONTHS[en[1]] ?? null;
-    day = parseInt(en[2], 10);
+    monthIdx = MONTHS[en[1]!] ?? null;
+    day = parseInt(en[2]!, 10);
     year = en[3] ? parseInt(en[3], 10) : null;
   } else if (fr) {
-    day = parseInt(fr[1], 10);
-    monthIdx = MONTHS[fr[2]] ?? null;
+    day = parseInt(fr[1]!, 10);
+    monthIdx = MONTHS[fr[2]!] ?? null;
     year = fr[3] ? parseInt(fr[3], 10) : null;
   } else if (ru) {
-    day = parseInt(ru[1], 10);
-    monthIdx = MONTHS[ru[2]] ?? null;
+    day = parseInt(ru[1]!, 10);
+    monthIdx = MONTHS[ru[2]!] ?? null;
   }
 
   if (monthIdx == null || day == null) return null;
