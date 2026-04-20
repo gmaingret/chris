@@ -1,0 +1,266 @@
+{
+  "_meta": {
+    "updated_at": "2026-04-20T05:11:08.925Z",
+    "version": 2
+  },
+  "entries": {
+    "@anthropic-ai/sdk": {
+      "version": "^0.90.0",
+      "type": "production",
+      "invocation": "require",
+      "used_by": [
+        "src/llm/client.ts",
+        "src/episodic/consolidate.ts"
+      ]
+    },
+    "@huggingface/transformers": {
+      "version": "^3.3.0",
+      "type": "production",
+      "invocation": "require",
+      "used_by": [
+        "src/pensieve/embeddings.ts",
+        "Dockerfile (pre-download bge-m3 at build)"
+      ]
+    },
+    "dotenv": {
+      "version": "^16.4.0",
+      "type": "production",
+      "invocation": "require",
+      "used_by": [
+        "src/config.ts"
+      ]
+    },
+    "drizzle-orm": {
+      "version": "^0.45.2",
+      "type": "production",
+      "invocation": "require",
+      "used_by": [
+        "src/db/schema.ts",
+        "src/db/connection.ts",
+        "src/pensieve/*",
+        "src/memory/*",
+        "src/decisions/*",
+        "src/proactive/*",
+        "src/sync/*",
+        "src/episodic/*"
+      ]
+    },
+    "express": {
+      "version": "^4.21.0",
+      "type": "production",
+      "invocation": "require",
+      "used_by": [
+        "src/index.ts (health endpoint + grammy webhook host)"
+      ]
+    },
+    "franc": {
+      "version": "^6.2.0",
+      "type": "production",
+      "invocation": "require",
+      "used_by": [
+        "src/chris/language.ts (EN/FR/RU detection)"
+      ]
+    },
+    "googleapis": {
+      "version": "^171.4.0",
+      "type": "production",
+      "invocation": "require",
+      "used_by": [
+        "src/gmail/client.ts",
+        "src/gmail/oauth.ts",
+        "src/drive/client.ts"
+      ]
+    },
+    "grammy": {
+      "version": "^1.31.0",
+      "type": "production",
+      "invocation": "require",
+      "used_by": [
+        "src/bot/bot.ts",
+        "src/index.ts (webhookCallback)",
+        "src/bot/handlers/*"
+      ]
+    },
+    "html-to-text": {
+      "version": "^9.0.5",
+      "type": "production",
+      "invocation": "require",
+      "used_by": [
+        "src/gmail/client.ts",
+        "src/utils/file-extract.ts"
+      ]
+    },
+    "luxon": {
+      "version": "^3.7.2",
+      "type": "production",
+      "invocation": "require",
+      "used_by": [
+        "src/episodic/consolidate.ts",
+        "src/episodic/sources.ts",
+        "src/episodic/cron.ts",
+        "src/pensieve/retrieve.ts",
+        "src/pensieve/routing.ts",
+        "src/proactive/state.ts",
+        "src/chris/modes/date-extraction.ts",
+        "src/decisions/resolve-by.ts",
+        "scripts/backfill-episodic.ts"
+      ]
+    },
+    "node-cron": {
+      "version": "^4.2.1",
+      "type": "production",
+      "invocation": "require",
+      "used_by": [
+        "src/index.ts (proactive + episodic crons)",
+        "src/sync/scheduler.ts (sync cron)"
+      ]
+    },
+    "pdf-parse": {
+      "version": "^2.4.5",
+      "type": "production",
+      "invocation": "require",
+      "used_by": [
+        "src/utils/file-extract.ts"
+      ]
+    },
+    "pino": {
+      "version": "^9.0.0",
+      "type": "production",
+      "invocation": "require",
+      "used_by": [
+        "src/utils/logger.ts"
+      ]
+    },
+    "pino-pretty": {
+      "version": "^13.0.0",
+      "type": "production",
+      "invocation": "implicit",
+      "used_by": [
+        "pino transport (dev-only pretty print)"
+      ]
+    },
+    "postgres": {
+      "version": "^3.4.5",
+      "type": "production",
+      "invocation": "require",
+      "used_by": [
+        "src/db/connection.ts (drizzle-orm/postgres-js driver)"
+      ]
+    },
+    "uuid": {
+      "version": "^11.0.0",
+      "type": "production",
+      "invocation": "require",
+      "used_by": [
+        "declared but not directly imported in src/ — Drizzle uuid() column default uses gen_random_uuid(); package may be transitive usage"
+      ]
+    },
+    "zod": {
+      "version": "^3.24.0",
+      "type": "production",
+      "invocation": "require",
+      "used_by": [
+        "src/episodic/types.ts (via zod/v4 sub-path) — structured-output validation for Sonnet consolidation, three-layer schema chain"
+      ]
+    },
+    "@types/express": {
+      "version": "^5.0.0",
+      "type": "development",
+      "invocation": "implicit",
+      "used_by": [
+        "tsc"
+      ]
+    },
+    "@types/html-to-text": {
+      "version": "^9.0.4",
+      "type": "development",
+      "invocation": "implicit",
+      "used_by": [
+        "tsc"
+      ]
+    },
+    "@types/luxon": {
+      "version": "^3.7.1",
+      "type": "development",
+      "invocation": "implicit",
+      "used_by": [
+        "tsc"
+      ]
+    },
+    "@types/node": {
+      "version": "^22.0.0",
+      "type": "development",
+      "invocation": "implicit",
+      "used_by": [
+        "tsc"
+      ]
+    },
+    "@types/node-cron": {
+      "version": "^3.0.11",
+      "type": "development",
+      "invocation": "implicit",
+      "used_by": [
+        "tsc"
+      ]
+    },
+    "@types/pdf-parse": {
+      "version": "^1.1.5",
+      "type": "development",
+      "invocation": "implicit",
+      "used_by": [
+        "tsc"
+      ]
+    },
+    "@types/uuid": {
+      "version": "^10.0.0",
+      "type": "development",
+      "invocation": "implicit",
+      "used_by": [
+        "tsc"
+      ]
+    },
+    "@vitest/coverage-v8": {
+      "version": "^4.1.2",
+      "type": "development",
+      "invocation": "npm run test:unit",
+      "used_by": [
+        "vitest coverage backend"
+      ]
+    },
+    "drizzle-kit": {
+      "version": "^0.31.10",
+      "type": "development",
+      "invocation": "npm run db:generate / db:migrate / db:push",
+      "used_by": [
+        "drizzle.config.ts",
+        "SQL migrations in src/db/migrations/"
+      ]
+    },
+    "tsx": {
+      "version": "^4.19.0",
+      "type": "development",
+      "invocation": "npm run dev",
+      "used_by": [
+        "src/index.ts (dev hot-reload)",
+        "scripts/backfill-episodic.ts (ops script)"
+      ]
+    },
+    "typescript": {
+      "version": "^5.7.0",
+      "type": "development",
+      "invocation": "npm run build",
+      "used_by": [
+        "tsc compile to dist/"
+      ]
+    },
+    "vitest": {
+      "version": "^4.1.2",
+      "type": "development",
+      "invocation": "npm test / npm run test:unit",
+      "used_by": [
+        "scripts/test.sh (full suite with real Postgres)",
+        "src/**/__tests__/*.test.ts"
+      ]
+    }
+  }
+}

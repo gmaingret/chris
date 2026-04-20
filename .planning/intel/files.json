@@ -1,0 +1,1302 @@
+{
+  "_meta": {
+    "updated_at": "2026-04-20T05:11:08.677Z",
+    "version": 2
+  },
+  "entries": {
+    "src/index.ts": {
+      "exports": [],
+      "imports": [
+        "express",
+        "node-cron",
+        "grammy",
+        "./bot/bot.js",
+        "./db/connection.js",
+        "./db/migrate.js",
+        "./config.js",
+        "./utils/logger.js",
+        "./sync/scheduler.js",
+        "./proactive/sweep.js",
+        "./episodic/cron.js"
+      ],
+      "type": "entry-point"
+    },
+    "src/config.ts": {
+      "exports": [
+        "config"
+      ],
+      "imports": [
+        "dotenv/config"
+      ],
+      "type": "config"
+    },
+    "src/bot/bot.ts": {
+      "exports": [
+        "handleTextMessage",
+        "bot"
+      ],
+      "imports": [
+        "grammy",
+        "../config.js",
+        "../utils/logger.js",
+        "./middleware/auth.js",
+        "../chris/engine.js",
+        "../chris/language.js",
+        "./handlers/document.js",
+        "./handlers/sync.js",
+        "./handlers/decisions.js",
+        "./handlers/summary.js"
+      ],
+      "type": "module"
+    },
+    "src/bot/middleware/auth.ts": {
+      "exports": [
+        "auth"
+      ],
+      "imports": [
+        "../../config.js",
+        "../../utils/logger.js"
+      ],
+      "type": "module"
+    },
+    "src/bot/handlers/sync.ts": {
+      "exports": [
+        "formatRelativeTime",
+        "formatSyncStatus",
+        "isAwaitingOAuthCode",
+        "handleOAuthCode",
+        "handleSyncCommand"
+      ],
+      "imports": [
+        "../../utils/logger.js",
+        "../../utils/errors.js",
+        "../../gmail/oauth.js",
+        "../../gmail/sync.js",
+        "../../drive/sync.js",
+        "../../immich/sync.js",
+        "../../config.js",
+        "../../db/connection.js",
+        "../../db/schema.js"
+      ],
+      "type": "module"
+    },
+    "src/bot/handlers/decisions.ts": {
+      "exports": [
+        "handleDecisionsCommand"
+      ],
+      "imports": [
+        "grammy",
+        "../../decisions/suppressions.js",
+        "../../decisions/stats.js",
+        "../../decisions/classify-accuracy.js",
+        "../../decisions/regenerate.js"
+      ],
+      "type": "module"
+    },
+    "src/bot/handlers/summary.ts": {
+      "exports": [
+        "handleSummaryCommand"
+      ],
+      "imports": [
+        "grammy",
+        "../../pensieve/retrieve.js",
+        "../../config.js",
+        "../../utils/logger.js"
+      ],
+      "type": "module"
+    },
+    "src/bot/handlers/document.ts": {
+      "exports": [
+        "handleDocument"
+      ],
+      "imports": [
+        "grammy",
+        "../../utils/file-extract.js",
+        "../../pensieve/store.js",
+        "../../pensieve/embeddings.js",
+        "../../utils/logger.js"
+      ],
+      "type": "module"
+    },
+    "src/chris/engine.ts": {
+      "exports": [
+        "__resetSurfacedContradictionsForTests",
+        "detectMode",
+        "processMessage",
+        "VALID_MODES"
+      ],
+      "imports": [
+        "../llm/client.js",
+        "../llm/prompts.js",
+        "../memory/conversation.js",
+        "./modes/journal.js",
+        "./modes/interrogate.js",
+        "./modes/photos.js",
+        "./modes/reflect.js",
+        "./modes/coach.js",
+        "./modes/psychology.js",
+        "./modes/produce.js",
+        "../memory/relational.js",
+        "./contradiction.js",
+        "./personality.js",
+        "../decisions/capture-state.js",
+        "../decisions/capture.js",
+        "../decisions/resolution.js",
+        "../decisions/triggers.js",
+        "../decisions/suppressions.js"
+      ],
+      "type": "module"
+    },
+    "src/chris/personality.ts": {
+      "exports": [
+        "buildSystemPrompt",
+        "formatContradictionNotice",
+        "CONSTITUTIONAL_PREAMBLE"
+      ],
+      "imports": [],
+      "type": "module"
+    },
+    "src/chris/contradiction.ts": {
+      "exports": [
+        "detectContradictions",
+        "getUnresolvedContradictions",
+        "resolveContradiction",
+        "CONFIDENCE_THRESHOLD"
+      ],
+      "imports": [
+        "../llm/client.js",
+        "../db/connection.js",
+        "../db/schema.js"
+      ],
+      "type": "module"
+    },
+    "src/chris/refusal.ts": {
+      "exports": [
+        "detectRefusal",
+        "addDeclinedTopic",
+        "getDeclinedTopics",
+        "clearDeclinedTopics",
+        "generateRefusalAcknowledgment"
+      ],
+      "imports": [],
+      "type": "module"
+    },
+    "src/chris/language.ts": {
+      "exports": [
+        "detectLanguage",
+        "getLastUserLanguage",
+        "setLastUserLanguage",
+        "clearLanguageState"
+      ],
+      "imports": [
+        "franc"
+      ],
+      "type": "module"
+    },
+    "src/chris/praise-quarantine.ts": {
+      "exports": [
+        "quarantinePraise"
+      ],
+      "imports": [],
+      "type": "module"
+    },
+    "src/chris/modes/journal.ts": {
+      "exports": [
+        "handleJournal"
+      ],
+      "imports": [
+        "../../llm/client.js",
+        "../../llm/prompts.js",
+        "../../pensieve/store.js",
+        "../../pensieve/embeddings.js",
+        "../../pensieve/tagger.js"
+      ],
+      "type": "module"
+    },
+    "src/chris/modes/interrogate.ts": {
+      "exports": [
+        "handleInterrogate"
+      ],
+      "imports": [
+        "../../llm/client.js",
+        "../../pensieve/routing.js",
+        "../../memory/context-builder.js"
+      ],
+      "type": "module"
+    },
+    "src/chris/modes/photos.ts": {
+      "exports": [
+        "parsePhotoQuery",
+        "handlePhotos"
+      ],
+      "imports": [
+        "../../immich/client.js",
+        "../../llm/client.js",
+        "./date-extraction.js"
+      ],
+      "type": "module"
+    },
+    "src/chris/modes/reflect.ts": {
+      "exports": [
+        "handleReflect"
+      ],
+      "imports": [
+        "../../llm/client.js",
+        "../../memory/context-builder.js",
+        "../../pensieve/routing.js"
+      ],
+      "type": "module"
+    },
+    "src/chris/modes/coach.ts": {
+      "exports": [
+        "handleCoach"
+      ],
+      "imports": [
+        "../../llm/client.js",
+        "../../memory/context-builder.js"
+      ],
+      "type": "module"
+    },
+    "src/chris/modes/psychology.ts": {
+      "exports": [
+        "handlePsychology"
+      ],
+      "imports": [
+        "../../llm/client.js",
+        "../../memory/context-builder.js"
+      ],
+      "type": "module"
+    },
+    "src/chris/modes/produce.ts": {
+      "exports": [
+        "handleProduce"
+      ],
+      "imports": [
+        "../../llm/client.js",
+        "../../memory/context-builder.js"
+      ],
+      "type": "module"
+    },
+    "src/chris/modes/date-extraction.ts": {
+      "exports": [
+        "extractQueryDate"
+      ],
+      "imports": [
+        "luxon",
+        "../../llm/client.js"
+      ],
+      "type": "module"
+    },
+    "src/db/schema.ts": {
+      "exports": [
+        "epistemicTagEnum",
+        "relationalMemoryTypeEnum",
+        "conversationRoleEnum",
+        "conversationModeEnum",
+        "contradictionStatusEnum",
+        "decisionStatusEnum",
+        "decisionCaptureStageEnum",
+        "decisionEventTypeEnum",
+        "pensieveEntries",
+        "pensieveEmbeddings",
+        "relationalMemory",
+        "conversations",
+        "oauthTokens",
+        "syncStatus",
+        "contradictions",
+        "proactiveState",
+        "decisions",
+        "decisionEvents",
+        "decisionCaptureState",
+        "decisionTriggerSuppressions",
+        "episodicSummaries"
+      ],
+      "imports": [
+        "drizzle-orm/pg-core",
+        "drizzle-orm"
+      ],
+      "type": "module"
+    },
+    "src/db/connection.ts": {
+      "exports": [
+        "sql",
+        "db"
+      ],
+      "imports": [
+        "postgres",
+        "drizzle-orm/postgres-js",
+        "../config.js",
+        "./schema.js"
+      ],
+      "type": "module"
+    },
+    "src/db/migrate.ts": {
+      "exports": [
+        "runMigrations"
+      ],
+      "imports": [
+        "drizzle-orm/postgres-js/migrator",
+        "./connection.js",
+        "../utils/logger.js"
+      ],
+      "type": "module"
+    },
+    "src/db/migrations/0000_curved_colonel_america.sql": {
+      "exports": [],
+      "imports": [],
+      "type": "data"
+    },
+    "src/db/migrations/0001_add_photos_psychology_mode.sql": {
+      "exports": [],
+      "imports": [],
+      "type": "data"
+    },
+    "src/db/migrations/0002_decision_archive.sql": {
+      "exports": [],
+      "imports": [],
+      "type": "data"
+    },
+    "src/db/migrations/0003_add_decision_epistemic_tag.sql": {
+      "exports": [],
+      "imports": [],
+      "type": "data"
+    },
+    "src/db/migrations/0004_decision_trigger_suppressions.sql": {
+      "exports": [],
+      "imports": [],
+      "type": "data"
+    },
+    "src/db/migrations/0005_episodic_summaries.sql": {
+      "exports": [],
+      "imports": [],
+      "type": "data"
+    },
+    "src/llm/client.ts": {
+      "exports": [
+        "callLLM",
+        "HAIKU_MODEL",
+        "SONNET_MODEL",
+        "OPUS_MODEL",
+        "anthropic"
+      ],
+      "imports": [
+        "@anthropic-ai/sdk",
+        "../config.js"
+      ],
+      "type": "module"
+    },
+    "src/llm/prompts.ts": {
+      "exports": [
+        "JOURNAL_SYSTEM_PROMPT",
+        "INTERROGATE_SYSTEM_PROMPT",
+        "MODE_DETECTION_PROMPT",
+        "REFLECT_SYSTEM_PROMPT",
+        "COACH_SYSTEM_PROMPT",
+        "PSYCHOLOGY_SYSTEM_PROMPT",
+        "PRODUCE_SYSTEM_PROMPT",
+        "CONTRADICTION_DETECTION_PROMPT",
+        "RELATIONAL_MEMORY_PROMPT",
+        "MUTE_DETECTION_PROMPT",
+        "STAKES_CLASSIFICATION_PROMPT",
+        "CAPTURE_EXTRACTION_PROMPT",
+        "RESOLVE_BY_PARSER_PROMPT",
+        "VAGUE_VALIDATOR_PROMPT",
+        "ACCOUNTABILITY_RESOLUTION_SYSTEM_PROMPT"
+      ],
+      "imports": [],
+      "type": "module"
+    },
+    "src/pensieve/store.ts": {
+      "exports": [
+        "storePensieveEntry",
+        "storePensieveEntryDedup",
+        "storePensieveEntryUpsert"
+      ],
+      "imports": [
+        "drizzle-orm",
+        "../db/connection.js",
+        "../db/schema.js",
+        "../utils/errors.js",
+        "../utils/content-hash.js",
+        "../utils/logger.js"
+      ],
+      "type": "module"
+    },
+    "src/pensieve/embeddings.ts": {
+      "exports": [
+        "getEmbeddingPipeline",
+        "resetPipeline",
+        "chunkText",
+        "embedText",
+        "embedAndStore",
+        "embedAndStoreChunked"
+      ],
+      "imports": [
+        "@huggingface/transformers",
+        "../db/connection.js",
+        "../db/schema.js",
+        "../utils/logger.js",
+        "../config.js"
+      ],
+      "type": "module"
+    },
+    "src/pensieve/retrieve.ts": {
+      "exports": [
+        "searchPensieve",
+        "getTemporalPensieve",
+        "hybridSearch",
+        "getEpisodicSummary",
+        "getEpisodicSummariesRange"
+      ],
+      "imports": [
+        "drizzle-orm",
+        "../db/connection.js",
+        "../db/schema.js",
+        "./embeddings.js",
+        "luxon",
+        "../config.js"
+      ],
+      "type": "module"
+    },
+    "src/pensieve/routing.ts": {
+      "exports": [
+        "retrieveContext",
+        "summaryToSearchResult",
+        "RECENCY_BOUNDARY_DAYS",
+        "HIGH_IMPORTANCE_THRESHOLD"
+      ],
+      "imports": [
+        "./retrieve.js",
+        "luxon",
+        "../utils/logger.js"
+      ],
+      "type": "module"
+    },
+    "src/pensieve/tagger.ts": {
+      "exports": [
+        "tagEntry",
+        "VALID_TAGS"
+      ],
+      "imports": [
+        "../llm/client.js",
+        "../db/connection.js",
+        "../db/schema.js",
+        "../utils/logger.js"
+      ],
+      "type": "module"
+    },
+    "src/pensieve/ground-truth.ts": {
+      "exports": [],
+      "imports": [],
+      "type": "data"
+    },
+    "src/memory/conversation.ts": {
+      "exports": [
+        "saveMessage",
+        "getRecentHistory"
+      ],
+      "imports": [
+        "drizzle-orm",
+        "../db/connection.js",
+        "../db/schema.js"
+      ],
+      "type": "module"
+    },
+    "src/memory/relational.ts": {
+      "exports": [
+        "writeRelationalMemory",
+        "getRelationalMemories"
+      ],
+      "imports": [
+        "../llm/client.js",
+        "../llm/prompts.js",
+        "../db/connection.js",
+        "../db/schema.js",
+        "../utils/logger.js"
+      ],
+      "type": "module"
+    },
+    "src/memory/context-builder.ts": {
+      "exports": [
+        "buildMessageHistory",
+        "buildRelationalContext",
+        "buildPensieveContext"
+      ],
+      "imports": [
+        "./conversation.js",
+        "./relational.js",
+        "../pensieve/routing.js"
+      ],
+      "type": "module"
+    },
+    "src/decisions/index.ts": {
+      "exports": [
+        "transitionDecision",
+        "LEGAL_TRANSITIONS",
+        "InvalidTransitionError",
+        "OptimisticConcurrencyError",
+        "DecisionNotFoundError",
+        "regenerateDecisionFromEvents",
+        "getActiveDecisionCapture",
+        "createCaptureDraft",
+        "updateCaptureDraft",
+        "clearCapture",
+        "isAbortPhrase",
+        "upsertAwaitingResolution",
+        "updateToAwaitingPostmortem",
+        "detectTriggerPhrase",
+        "detectTriggerPhraseDetailed",
+        "classifyStakes",
+        "addSuppression",
+        "isSuppressed",
+        "listSuppressions",
+        "parseResolveBy",
+        "daysFromNow",
+        "matchClarifierReply",
+        "buildResolveByClarifierQuestion",
+        "buildResolveByDefaultAnnouncement",
+        "CLARIFIER_LADDER_DAYS",
+        "validateVagueness",
+        "buildVaguePushback",
+        "HEDGE_WORDS",
+        "handleCapture",
+        "openCapture",
+        "handleResolution",
+        "handlePostmortem",
+        "classifyOutcome"
+      ],
+      "imports": [
+        "./lifecycle.js",
+        "./errors.js",
+        "./regenerate.js",
+        "./capture-state.js",
+        "./triggers.js",
+        "./suppressions.js",
+        "./resolve-by.js",
+        "./vague-validator.js",
+        "./capture.js",
+        "./resolution.js"
+      ],
+      "type": "module"
+    },
+    "src/decisions/capture.ts": {
+      "exports": [
+        "openCapture",
+        "handleCapture"
+      ],
+      "imports": [
+        "../llm/client.js",
+        "../llm/prompts.js",
+        "./capture-state.js",
+        "./triggers.js",
+        "./vague-validator.js",
+        "./resolve-by.js",
+        "../db/connection.js",
+        "../db/schema.js",
+        "../utils/logger.js"
+      ],
+      "type": "module"
+    },
+    "src/decisions/capture-state.ts": {
+      "exports": [
+        "getActiveDecisionCapture",
+        "coerceValidDraft",
+        "createCaptureDraft",
+        "updateCaptureDraft",
+        "clearCapture",
+        "upsertAwaitingResolution",
+        "updateToAwaitingPostmortem",
+        "isAbortPhrase"
+      ],
+      "imports": [
+        "drizzle-orm",
+        "../db/connection.js",
+        "../db/schema.js",
+        "./triggers-fixtures.js"
+      ],
+      "type": "module"
+    },
+    "src/decisions/lifecycle.ts": {
+      "exports": [
+        "transitionDecision",
+        "LEGAL_TRANSITIONS"
+      ],
+      "imports": [
+        "drizzle-orm",
+        "../db/connection.js",
+        "../db/schema.js",
+        "./errors.js"
+      ],
+      "type": "module"
+    },
+    "src/decisions/triggers.ts": {
+      "exports": [
+        "detectTriggerPhrase",
+        "detectTriggerPhraseDetailed",
+        "classifyStakes"
+      ],
+      "imports": [
+        "../llm/client.js",
+        "../llm/prompts.js"
+      ],
+      "type": "module"
+    },
+    "src/decisions/stats.ts": {
+      "exports": [
+        "wilsonCI",
+        "fetchStatsData",
+        "fetchStatusCounts",
+        "fetchOpenDecisions",
+        "fetchRecentDecisions",
+        "computeAccuracy",
+        "formatDashboard",
+        "formatOpenList",
+        "formatRecentList",
+        "formatStatsBlock"
+      ],
+      "imports": [
+        "drizzle-orm",
+        "../db/connection.js",
+        "../db/schema.js"
+      ],
+      "type": "module"
+    },
+    "src/decisions/resolution.ts": {
+      "exports": [
+        "classifyOutcome",
+        "handleResolution",
+        "handlePostmortem"
+      ],
+      "imports": [
+        "../llm/client.js",
+        "./capture-state.js",
+        "./lifecycle.js",
+        "../db/connection.js",
+        "../db/schema.js"
+      ],
+      "type": "module"
+    },
+    "src/decisions/errors.ts": {
+      "exports": [
+        "InvalidTransitionError",
+        "OptimisticConcurrencyError",
+        "DecisionNotFoundError"
+      ],
+      "imports": [],
+      "type": "module"
+    },
+    "src/decisions/suppressions.ts": {
+      "exports": [
+        "addSuppression",
+        "isSuppressed",
+        "removeSuppression",
+        "listSuppressions"
+      ],
+      "imports": [
+        "drizzle-orm",
+        "../db/connection.js",
+        "../db/schema.js"
+      ],
+      "type": "module"
+    },
+    "src/decisions/resolve-by.ts": {
+      "exports": [
+        "parseResolveBy",
+        "daysFromNow",
+        "matchClarifierReply",
+        "buildResolveByClarifierQuestion",
+        "buildResolveByDefaultAnnouncement",
+        "CLARIFIER_LADDER_DAYS"
+      ],
+      "imports": [
+        "../llm/client.js",
+        "../llm/prompts.js",
+        "luxon"
+      ],
+      "type": "module"
+    },
+    "src/decisions/vague-validator.ts": {
+      "exports": [
+        "validateVagueness",
+        "buildVaguePushback",
+        "HEDGE_WORDS"
+      ],
+      "imports": [
+        "../llm/client.js",
+        "../llm/prompts.js"
+      ],
+      "type": "module"
+    },
+    "src/decisions/triggers-fixtures.ts": {
+      "exports": [
+        "ABORT_PHRASES_EN",
+        "ABORT_PHRASES_FR",
+        "ABORT_PHRASES_RU"
+      ],
+      "imports": [],
+      "type": "module"
+    },
+    "src/decisions/classify-accuracy.ts": {
+      "exports": [
+        "classifyAccuracy"
+      ],
+      "imports": [],
+      "type": "module"
+    },
+    "src/decisions/regenerate.ts": {
+      "exports": [
+        "regenerateDecisionFromEvents"
+      ],
+      "imports": [
+        "drizzle-orm",
+        "../db/connection.js",
+        "../db/schema.js"
+      ],
+      "type": "module"
+    },
+    "src/proactive/sweep.ts": {
+      "exports": [
+        "runSweep"
+      ],
+      "imports": [
+        "../bot/bot.js",
+        "../config.js",
+        "../llm/client.js",
+        "../memory/conversation.js",
+        "../utils/logger.js",
+        "./state.js",
+        "./context-builder.js",
+        "./prompts.js",
+        "./triggers/deadline.js",
+        "./triggers/silence.js",
+        "./triggers/commitment.js",
+        "./triggers/pattern.js",
+        "./triggers/thread.js",
+        "./triggers/opus-analysis.js"
+      ],
+      "type": "module"
+    },
+    "src/proactive/state.ts": {
+      "exports": [
+        "getLastSent",
+        "setLastSent",
+        "hasSentToday",
+        "getMuteUntil",
+        "setMuteUntil",
+        "isMuted",
+        "hasSentTodayReflective",
+        "setLastSentReflective",
+        "hasSentTodayAccountability",
+        "setLastSentAccountability",
+        "getEscalationSentAt",
+        "setEscalationSentAt",
+        "getEscalationCount",
+        "setEscalationCount",
+        "setEscalationState",
+        "clearEscalationKeys"
+      ],
+      "imports": [
+        "drizzle-orm",
+        "../db/connection.js",
+        "../db/schema.js",
+        "luxon",
+        "../config.js"
+      ],
+      "type": "module"
+    },
+    "src/proactive/mute.ts": {
+      "exports": [
+        "parseMuteDuration",
+        "detectMuteIntent",
+        "generateMuteAcknowledgment"
+      ],
+      "imports": [
+        "../llm/client.js",
+        "../llm/prompts.js"
+      ],
+      "type": "module"
+    },
+    "src/proactive/prompts.ts": {
+      "exports": [
+        "PROACTIVE_SYSTEM_PROMPT",
+        "ACCOUNTABILITY_SYSTEM_PROMPT",
+        "ACCOUNTABILITY_FOLLOWUP_PROMPT"
+      ],
+      "imports": [],
+      "type": "module"
+    },
+    "src/proactive/context-builder.ts": {
+      "exports": [
+        "buildSweepContext"
+      ],
+      "imports": [
+        "drizzle-orm",
+        "../db/connection.js",
+        "../db/schema.js"
+      ],
+      "type": "module"
+    },
+    "src/proactive/triggers/deadline.ts": {
+      "exports": [
+        "createDeadlineTrigger",
+        "STALE_CONTEXT_THRESHOLD_MS"
+      ],
+      "imports": [
+        "drizzle-orm",
+        "../../db/connection.js",
+        "../../db/schema.js",
+        "../../config.js",
+        "./types.js"
+      ],
+      "type": "module"
+    },
+    "src/proactive/triggers/silence.ts": {
+      "exports": [
+        "createSilenceTrigger"
+      ],
+      "imports": [
+        "drizzle-orm",
+        "../../db/connection.js",
+        "../../db/schema.js",
+        "../../config.js",
+        "./types.js"
+      ],
+      "type": "module"
+    },
+    "src/proactive/triggers/commitment.ts": {
+      "exports": [
+        "createCommitmentTrigger"
+      ],
+      "imports": [
+        "drizzle-orm",
+        "../../db/connection.js",
+        "../../db/schema.js",
+        "../../config.js",
+        "./types.js"
+      ],
+      "type": "module"
+    },
+    "src/proactive/triggers/pattern.ts": {
+      "exports": [
+        "createPatternTrigger"
+      ],
+      "imports": [
+        "./types.js"
+      ],
+      "type": "module"
+    },
+    "src/proactive/triggers/thread.ts": {
+      "exports": [
+        "createThreadTrigger"
+      ],
+      "imports": [
+        "./types.js"
+      ],
+      "type": "module"
+    },
+    "src/proactive/triggers/opus-analysis.ts": {
+      "exports": [
+        "runOpusAnalysis"
+      ],
+      "imports": [
+        "../../llm/client.js",
+        "../../utils/logger.js"
+      ],
+      "type": "module"
+    },
+    "src/proactive/triggers/types.ts": {
+      "exports": [],
+      "imports": [],
+      "type": "type-def"
+    },
+    "src/sync/scheduler.ts": {
+      "exports": [
+        "runAllSyncs",
+        "startScheduler",
+        "stopScheduler"
+      ],
+      "imports": [
+        "node-cron",
+        "../gmail/sync.js",
+        "../drive/sync.js",
+        "../immich/sync.js",
+        "../gmail/oauth.js",
+        "../bot/bot.js",
+        "../config.js",
+        "../utils/logger.js",
+        "../utils/errors.js"
+      ],
+      "type": "module"
+    },
+    "src/gmail/sync.ts": {
+      "exports": [
+        "syncGmail"
+      ],
+      "imports": [
+        "./client.js",
+        "./collapse.js",
+        "../pensieve/store.js",
+        "../pensieve/embeddings.js",
+        "../pensieve/tagger.js",
+        "../db/connection.js",
+        "../db/schema.js",
+        "../utils/logger.js"
+      ],
+      "type": "module"
+    },
+    "src/gmail/client.ts": {
+      "exports": [
+        "listThreads",
+        "getThread",
+        "getMessageHeader",
+        "extractMessageBody"
+      ],
+      "imports": [
+        "googleapis",
+        "html-to-text"
+      ],
+      "type": "module"
+    },
+    "src/gmail/oauth.ts": {
+      "exports": [
+        "createOAuth2Client",
+        "generateAuthUrl",
+        "exchangeCode",
+        "storeTokens",
+        "loadTokens",
+        "getAuthenticatedClient",
+        "hasRequiredScopes",
+        "DRIVE_READONLY_SCOPE",
+        "GOOGLE_SCOPES"
+      ],
+      "imports": [
+        "googleapis",
+        "../db/connection.js",
+        "../db/schema.js",
+        "../config.js",
+        "../utils/errors.js"
+      ],
+      "type": "module"
+    },
+    "src/gmail/collapse.ts": {
+      "exports": [
+        "stripQuotedReplies",
+        "collapseThread"
+      ],
+      "imports": [],
+      "type": "module"
+    },
+    "src/drive/sync.ts": {
+      "exports": [
+        "syncDrive"
+      ],
+      "imports": [
+        "./client.js",
+        "../pensieve/store.js",
+        "../pensieve/embeddings.js",
+        "../pensieve/tagger.js",
+        "../utils/file-extract.js",
+        "../db/connection.js",
+        "../db/schema.js"
+      ],
+      "type": "module"
+    },
+    "src/drive/client.ts": {
+      "exports": [
+        "listFiles",
+        "exportFileAsText",
+        "getStartPageToken",
+        "getChanges"
+      ],
+      "imports": [
+        "googleapis"
+      ],
+      "type": "module"
+    },
+    "src/immich/sync.ts": {
+      "exports": [
+        "loadSyncStatus",
+        "upsertSyncStatus",
+        "syncImmich"
+      ],
+      "imports": [
+        "./client.js",
+        "./metadata.js",
+        "../pensieve/store.js",
+        "../pensieve/embeddings.js",
+        "../pensieve/tagger.js",
+        "../db/connection.js",
+        "../db/schema.js",
+        "../utils/logger.js"
+      ],
+      "type": "module"
+    },
+    "src/immich/client.ts": {
+      "exports": [
+        "fetchAssets",
+        "fetchRecentPhotos",
+        "fetchAssetThumbnail"
+      ],
+      "imports": [
+        "../config.js",
+        "../utils/http.js"
+      ],
+      "type": "module"
+    },
+    "src/immich/metadata.ts": {
+      "exports": [
+        "assetToText"
+      ],
+      "imports": [],
+      "type": "module"
+    },
+    "src/episodic/consolidate.ts": {
+      "exports": [
+        "runConsolidate"
+      ],
+      "imports": [
+        "drizzle-orm",
+        "luxon",
+        "@anthropic-ai/sdk/helpers/zod",
+        "zod/v4",
+        "../llm/client.js",
+        "../config.js",
+        "../db/connection.js",
+        "../db/schema.js",
+        "../utils/logger.js",
+        "./prompts.js",
+        "./sources.js",
+        "./notify.js",
+        "./types.js"
+      ],
+      "type": "module"
+    },
+    "src/episodic/cron.ts": {
+      "exports": [
+        "runConsolidateYesterday"
+      ],
+      "imports": [
+        "luxon",
+        "../config.js",
+        "./consolidate.js"
+      ],
+      "type": "module"
+    },
+    "src/episodic/sources.ts": {
+      "exports": [
+        "dayBoundaryUtc",
+        "getPensieveEntriesForDay",
+        "getContradictionsForDay",
+        "getDecisionsForDay"
+      ],
+      "imports": [
+        "drizzle-orm",
+        "luxon",
+        "../db/connection.js",
+        "../db/schema.js"
+      ],
+      "type": "module"
+    },
+    "src/episodic/prompts.ts": {
+      "exports": [
+        "assembleConsolidationPrompt"
+      ],
+      "imports": [],
+      "type": "module"
+    },
+    "src/episodic/notify.ts": {
+      "exports": [
+        "notifyConsolidationError"
+      ],
+      "imports": [
+        "../bot/bot.js",
+        "../config.js",
+        "../utils/logger.js"
+      ],
+      "type": "module"
+    },
+    "src/episodic/types.ts": {
+      "exports": [
+        "parseEpisodicSummary",
+        "EpisodicSummarySonnetOutputSchema",
+        "EpisodicSummaryInsertSchema",
+        "EpisodicSummarySchema"
+      ],
+      "imports": [
+        "zod/v4"
+      ],
+      "type": "type-def"
+    },
+    "src/utils/logger.ts": {
+      "exports": [
+        "logger"
+      ],
+      "imports": [
+        "pino"
+      ],
+      "type": "module"
+    },
+    "src/utils/errors.ts": {
+      "exports": [
+        "ChrisError",
+        "RetrievalError",
+        "StorageError",
+        "LLMError",
+        "FileExtractionError",
+        "OAuthError",
+        "GmailSyncError",
+        "ImmichSyncError",
+        "DriveSyncError"
+      ],
+      "imports": [],
+      "type": "module"
+    },
+    "src/utils/http.ts": {
+      "exports": [
+        "fetchWithTimeout",
+        "RetryableHttpError",
+        "withRetry",
+        "fetchWithRetry"
+      ],
+      "imports": [],
+      "type": "module"
+    },
+    "src/utils/text.ts": {
+      "exports": [
+        "stripFences"
+      ],
+      "imports": [],
+      "type": "module"
+    },
+    "src/utils/content-hash.ts": {
+      "exports": [
+        "computeContentHash"
+      ],
+      "imports": [
+        "node:crypto"
+      ],
+      "type": "module"
+    },
+    "src/utils/file-extract.ts": {
+      "exports": [
+        "extractText"
+      ],
+      "imports": [
+        "pdf-parse",
+        "html-to-text"
+      ],
+      "type": "module"
+    },
+    "src/scripts/audit-pensieve.ts": {
+      "exports": [
+        "matchEntryToGroundTruth",
+        "generateCorrectedContent",
+        "formatAuditReport",
+        "auditPensieve"
+      ],
+      "imports": [
+        "../db/connection.js",
+        "../db/schema.js",
+        "../llm/client.js",
+        "../pensieve/ground-truth.js"
+      ],
+      "type": "script"
+    },
+    "src/scripts/audit-pensieve-production.ts": {
+      "exports": [],
+      "imports": [
+        "./audit-pensieve.js"
+      ],
+      "type": "script"
+    },
+    "src/scripts/backfill-tags.ts": {
+      "exports": [],
+      "imports": [
+        "../db/connection.js",
+        "../db/schema.js",
+        "../pensieve/tagger.js"
+      ],
+      "type": "script"
+    },
+    "src/scripts/seed-audit-data.ts": {
+      "exports": [],
+      "imports": [
+        "../db/connection.js",
+        "../db/schema.js"
+      ],
+      "type": "script"
+    },
+    "scripts/backfill-episodic.ts": {
+      "exports": [],
+      "imports": [
+        "luxon",
+        "../src/episodic/consolidate.js"
+      ],
+      "type": "script"
+    },
+    "scripts/test.sh": {
+      "exports": [],
+      "imports": [],
+      "type": "script"
+    },
+    "scripts/adversarial-100.ts": {
+      "exports": [],
+      "imports": [],
+      "type": "script"
+    },
+    "scripts/adversarial-test.ts": {
+      "exports": [],
+      "imports": [],
+      "type": "script"
+    },
+    "scripts/test-photo-memory.ts": {
+      "exports": [],
+      "imports": [],
+      "type": "script"
+    },
+    "package.json": {
+      "exports": [],
+      "imports": [],
+      "type": "config"
+    },
+    "tsconfig.json": {
+      "exports": [],
+      "imports": [],
+      "type": "config"
+    },
+    "drizzle.config.ts": {
+      "exports": [],
+      "imports": [
+        "drizzle-kit"
+      ],
+      "type": "config"
+    },
+    "vitest.config.ts": {
+      "exports": [],
+      "imports": [
+        "vitest/config"
+      ],
+      "type": "config"
+    },
+    "docker-compose.yml": {
+      "exports": [],
+      "imports": [],
+      "type": "config"
+    },
+    "docker-compose.local.yml": {
+      "exports": [],
+      "imports": [],
+      "type": "config"
+    },
+    "docker-compose.test.yml": {
+      "exports": [],
+      "imports": [],
+      "type": "config"
+    },
+    "Dockerfile": {
+      "exports": [],
+      "imports": [],
+      "type": "config"
+    }
+  }
+}

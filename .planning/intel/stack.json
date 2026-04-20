@@ -1,0 +1,50 @@
+{
+  "_meta": {
+    "updated_at": "2026-04-20T05:11:08.560Z",
+    "version": 2
+  },
+  "languages": [
+    "TypeScript",
+    "JavaScript"
+  ],
+  "frameworks": [
+    "Grammy (Telegram bot)",
+    "Express",
+    "Drizzle ORM"
+  ],
+  "tools": [
+    "Docker Compose",
+    "drizzle-kit",
+    "tsx",
+    "Vitest",
+    "pino",
+    "node-cron",
+    "luxon",
+    "zod",
+    "@huggingface/transformers",
+    "@anthropic-ai/sdk",
+    "googleapis",
+    "postgres (pg driver)",
+    "pgvector",
+    "pdf-parse",
+    "html-to-text",
+    "franc"
+  ],
+  "build_system": "npm scripts (tsc build; tsx dev)",
+  "test_framework": "Vitest (fileParallelism disabled; real Docker Postgres via scripts/test.sh)",
+  "package_manager": "npm",
+  "content_formats": [
+    "TypeScript source (ESM, NodeNext bundler resolution)",
+    "SQL migrations (drizzle-kit generated)",
+    "Markdown (planning docs, PRD, PLAN)",
+    "YAML (docker-compose)"
+  ],
+  "runtime": "Node.js 22 (ESM)",
+  "database": "PostgreSQL 16 + pgvector (1024-dim bge-m3 embeddings)",
+  "llm_tiers": {
+    "haiku": "claude-haiku-4-5-20251001 — classify/tag/mode-detect",
+    "sonnet": "claude-sonnet-4-6 — converse + episodic consolidation",
+    "opus": "claude-opus-4-6 — deep proactive analysis (pattern/thread triggers)"
+  },
+  "deployment": "Docker Compose on self-hosted Proxmox (192.168.1.50); single-host; persistent pgdata volume"
+}

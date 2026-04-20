@@ -1,0 +1,99 @@
+{
+  "_meta": {
+    "updated_at": "2026-04-20T05:11:08.801Z",
+    "version": 2
+  },
+  "entries": {
+    "GET /health": {
+      "method": "GET",
+      "path": "/health",
+      "params": [],
+      "file": "src/index.ts",
+      "description": "Health probe — 200/503 with per-component status (database, immich optional). Used by docker-compose healthcheck curl."
+    },
+    "POST /:botToken": {
+      "method": "POST",
+      "path": "/:telegramBotToken",
+      "params": [
+        "telegram webhook payload (body)"
+      ],
+      "file": "src/index.ts",
+      "description": "Grammy webhookCallback mount (webhook mode only) — dispatches Telegram updates to bot handlers when config.webhookUrl is set. Path is bot.token to prevent spoofing."
+    },
+    "GET /oauth2callback": {
+      "method": "GET",
+      "path": "/oauth2callback",
+      "params": [
+        "code"
+      ],
+      "file": "src/gmail/oauth.ts",
+      "description": "Google OAuth redirect URI (config.googleRedirectUri default). OAuth code flow is completed manually via /sync command — user pastes the code into Telegram; no dedicated HTTP route is registered to accept it server-side."
+    },
+    "TELEGRAM /sync": {
+      "method": "TELEGRAM_COMMAND",
+      "path": "/sync",
+      "params": [
+        "subcommand: (none|status|gmail|drive|photos|oauth <code>)"
+      ],
+      "file": "src/bot/handlers/sync.ts",
+      "description": "Trigger/interrogate background sync. Without args shows formatted sync_status per source. With source name triggers that sync. Handles OAuth code exchange when bot is awaiting one."
+    },
+    "TELEGRAM /decisions": {
+      "method": "TELEGRAM_COMMAND",
+      "path": "/decisions",
+      "params": [
+        "subcommand: (none|open|recent|stats <30|90|365>|suppress <phrase>|suppressions|unsuppress <phrase>|reclassify)"
+      ],
+      "file": "src/bot/handlers/decisions.ts",
+      "description": "Decision archive dashboard + management. No-args renders dashboard; stats shows Wilson CI accuracy; suppress/unsuppress manages trigger phrase denylist; reclassify re-runs 2-axis classification sequentially."
+    },
+    "TELEGRAM /summary": {
+      "method": "TELEGRAM_COMMAND",
+      "path": "/summary",
+      "params": [
+        "YYYY-MM-DD (optional, defaults to yesterday)"
+      ],
+      "file": "src/bot/handlers/summary.ts",
+      "description": "Returns an episodic daily summary. Date in future → short-circuit message; no row → friendly 'no summary' text; DB error → generic localized error. Plain text (no Markdown)."
+    },
+    "TELEGRAM message:text": {
+      "method": "TELEGRAM_EVENT",
+      "path": "message:text",
+      "params": [
+        "ctx.message.text"
+      ],
+      "file": "src/bot/bot.ts",
+      "description": "Generic text handler routed through chris/engine.processMessage — OAuth-code interception > decision capture flow > mode detection (journal/interrogate/reflect/coach/psychology/produce/photos) > reply."
+    },
+    "TELEGRAM message:document": {
+      "method": "TELEGRAM_EVENT",
+      "path": "message:document",
+      "params": [
+        "ctx.message.document"
+      ],
+      "file": "src/bot/handlers/document.ts",
+      "description": "Extracts text from uploaded documents (PDF via pdf-parse, HTML via html-to-text, plain text) and stores verbatim in pensieve_entries with embeddings."
+    },
+    "CRON sync.all": {
+      "method": "CRON",
+      "path": "SYNC_INTERVAL_CRON (default '0 */6 * * *')",
+      "params": [],
+      "file": "src/sync/scheduler.ts",
+      "description": "Every 6 hours: Gmail → Drive → Immich sequentially. OAuthError = skip (not error); other failures notify user via bot.api.sendMessage. Toggled by SYNC_ENABLED."
+    },
+    "CRON proactive.sweep": {
+      "method": "CRON",
+      "path": "PROACTIVE_SWEEP_CRON (default '0 10 * * *' Europe/Paris)",
+      "params": [],
+      "file": "src/proactive/sweep.ts",
+      "description": "Dual-channel proactive messaging. Accountability channel (deadline → AWAITING_RESOLUTION) fires first; reflective channel Phase 1 (silence+commitment SQL) then Phase 2 (Opus pattern+thread) with priority-based winner. Global mute gates both."
+    },
+    "CRON episodic.consolidate": {
+      "method": "CRON",
+      "path": "EPISODIC_CRON (default '0 23 * * *' Europe/Paris)",
+      "params": [],
+      "file": "src/episodic/cron.ts",
+      "description": "Daily episodic summary for the PRIOR calendar day. Sonnet consolidates pensieve entries + contradictions + decisions. Idempotent via UNIQUE(summary_date) + pre-flight SELECT + ON CONFLICT DO NOTHING. Entry-count gate short-circuits empty days."
+    }
+  }
+}
