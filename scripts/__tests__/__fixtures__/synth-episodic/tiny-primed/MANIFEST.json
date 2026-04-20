@@ -1,0 +1,9 @@
+{
+  "organic_stamp": "test-organic-stamp",
+  "seed": 42,
+  "target_days": 2,
+  "milestone": "synth-episodic-test",
+  "synthetic_date_range": ["2026-04-19", "2026-04-20"],
+  "generated_at": "2026-04-20T00:00:00.000Z",
+  "schema_note": "relational_memory is the v2.2 long-term-memory table; REQ-ID alias \"memories\" refers to this table"
+}
