@@ -65,14 +65,27 @@
 
 ## Traceability
 
-(Filled by ROADMAP.md after roadmap is generated.)
-
 | REQ-ID | Phase | Plan | Status |
 |--------|-------|------|--------|
-| FETCH-01..05 | 24 | TBD | pending |
-| SYNTH-01..07 | 24 | TBD | pending |
-| HARN-01..03 | 24 | TBD | pending |
-| FRESH-01..03 | 24 | TBD | pending |
-| DOC-01..02 | 24 | TBD | pending |
+| FETCH-01 | 24 | 24-01 | pending |
+| FETCH-02 | 24 | 24-01 | pending |
+| FETCH-03 | 24 | 24-01 | pending |
+| FETCH-04 | 24 | 24-01 | pending |
+| FETCH-05 | 24 | 24-01 | pending |
+| SYNTH-01 | 24 | 24-02 | pending |
+| SYNTH-02 | 24 | 24-02 | pending |
+| SYNTH-03 | 24 | 24-03 | pending |
+| SYNTH-04 | 24 | 24-02 | pending |
+| SYNTH-05 | 24 | 24-02 | pending |
+| SYNTH-06 | 24 | 24-02 | pending |
+| SYNTH-07 | 24 | 24-02 | pending |
+| HARN-01 | 24 | 24-04 | pending |
+| HARN-02 | 24 | 24-04 | pending |
+| HARN-03 | 24 | 24-04 | pending |
+| FRESH-01 | 24 | 24-01 | pending |
+| FRESH-02 | 24 | 24-02 | pending |
+| FRESH-03 | 24 | 24-04 | pending |
+| DOC-01 | 24 | 24-04 | pending |
+| DOC-02 | 24 | 24-04 | pending |
 
-**Total:** 20 requirements across 5 categories. All mapped to Phase 24 (single-phase milestone).
+**Total:** 20 requirements across 5 categories. All mapped to Phase 24 (single-phase milestone), distributed across 4 plans (24-01: 6 reqs, 24-02: 7 reqs, 24-03: 1 req, 24-04: 6 reqs).

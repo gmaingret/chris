@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v2.3
 milestone_name: Test Data Infrastructure
-status: active-requirements
-stopped_at: "v2.3 Test Data Infrastructure milestone kicked off 2026-04-20. Spec in M008.5_Test_Data_Infrastructure.md. Single phase (Phase 24) enabling primed-fixture pipeline (organic from Proxmox prod + synthetic delta via Haiku style-transfer + real runConsolidate for episodic summaries) so every downstream milestone (M009–M014) can be validated immediately without waiting real calendar time for data to accumulate. Four locked design decisions: (1) standalone milestone, not folded into M009; (2) Anthropic spend ~$0.28 per fixture refresh acceptable; (3) 24h freshness with silent auto-refresh; (4) source='telegram' pensieve only (no Immich/Gmail/Gdrive). Currently defining REQUIREMENTS.md."
+status: active-roadmap
+stopped_at: "v2.3 Test Data Infrastructure roadmap written 2026-04-20. Single-phase milestone (Phase 24 — Primed-Fixture Pipeline) with 4 plans: 24-01 fetch-prod-data + snapshot schema + gitignore + FRESH-01 hook, 24-02 synthesize-delta (Haiku style-transfer + deterministic generators + VCR), 24-03 real-engine episodic synthesis via runConsolidate, 24-04 loadPrimedFixture harness + regenerate-primed + TESTING.md + convention. All 20 REQ-IDs (FETCH-01..05, SYNTH-01..07, HARN-01..03, FRESH-01..03, DOC-01..02) mapped to exactly one plan. 5 observable success criteria for Phase 24 locked. Ready for /gsd-plan-phase 24."
 last_updated: "2026-04-20T00:00:00.000Z"
 last_activity: 2026-04-20
 progress:
   total_phases: 1
   completed_phases: 0
-  total_plans: 0
+  total_plans: 4
   completed_plans: 0
   percent: 0
 ---
@@ -26,15 +26,15 @@ See: .planning/PROJECT.md (updated 2026-04-20 for v2.3 kickoff).
 
 ## Current Position
 
-Phase: Phase 24 (Test Data Infrastructure) — **not yet planned**
+Phase: Phase 24 (Primed-Fixture Pipeline) — **roadmap written, plans pending**
 Plan: —
-Status: Defining requirements
-Last activity: 2026-04-20 — v2.3 milestone started, spec approved, kickoff via `/gsd-new-milestone`
+Status: Awaiting plan decomposition (`/gsd-plan-phase 24`)
+Last activity: 2026-04-20 — roadmapper wrote ROADMAP.md, REQUIREMENTS.md traceability, STATE.md update; 5 success criteria locked; 4 plans scoped
 
 Prior deploy state unchanged: v2.2 + M008.1 fix live on Proxmox (192.168.1.50, HEAD = 2cfcecd). Daily 23:00 Europe/Paris episodic cron + 6h sync cron + 10:00 proactive sweep cron all healthy. 2 substantive summaries on prod (2026-04-15 imp=8, 2026-04-18 imp=7).
 
 ```
-Progress: [                    ] 0% (0/0 plans — roadmap pending)
+Progress: [                    ] 0% (0/4 plans — roadmap approved, awaiting plan decomposition)
 ```
 
 ## Shipped Milestones
@@ -48,7 +48,7 @@ Progress: [                    ] 0% (0/0 plans — roadmap pending)
 
 | Phase | Name | Requirements | Status |
 |-------|------|--------------|--------|
-| 24 | Test Data Infrastructure | (TBD — defining) | **PENDING** — awaiting REQUIREMENTS.md + ROADMAP.md |
+| 24 | Primed-Fixture Pipeline | 20 (FETCH-01..05, SYNTH-01..07, HARN-01..03, FRESH-01..03, DOC-01..02) | **NOT STARTED** — roadmap written, 4 plans scoped (24-01 fetch; 24-02 synth-delta; 24-03 episodic pass; 24-04 harness + docs); awaiting `/gsd-plan-phase 24` |
 
 ## Accumulated Context
 
@@ -59,6 +59,11 @@ Progress: [                    ] 0% (0/0 plans — roadmap pending)
 - **Freshness policy = 24h auto-refresh** — snapshot older than one day triggers silent `fetch-prod-data.ts` invocation before proceeding. `--no-refresh` flag for sandbox/air-gap. No warnings, no half-stale runs.
 - **Anthropic spend acceptable** — ~$0.02/day × 14 days = ~$0.28 per fixture refresh. Paid once per fixture-design-change via VCR cache, not per test run.
 
+### v2.3 roadmap decisions (locked 2026-04-20)
+
+- **Single phase, four plans.** Phase 24 "Primed-Fixture Pipeline" covers all 20 v2.3 requirements. Plan shape follows the spec: (1) fetch-prod-data script + FRESH-01 hook, (2) synthesize-delta for non-episodic content + VCR cache, (3) real-engine episodic synthesis pass (split from 24-02 per spec guidance — runConsolidate integration has distinct complexity), (4) test-harness loader + regenerate-primed + documentation + convention codification.
+- **FRESH requirements are split across plans by locality.** FRESH-01 (24h auto-refresh hook) lives in 24-01 since the fetch script owns the snapshot lifecycle; FRESH-02 (`--no-refresh` flag) lives in 24-02 where the flag is consumed; FRESH-03 (regenerate-primed script) lives in 24-04 where the wrapper script is built.
+
 ### Decisions in force for v2.3
 
 Full log in PROJECT.md Key Decisions table. Most relevant going into test-data infrastructure:
@@ -68,22 +73,22 @@ Full log in PROJECT.md Key Decisions table. Most relevant going into test-data i
 - **D018 no skipped tests** — primed fixtures are the replacement for waiting real calendar days to gate tests.
 - **D019 explicit prod approval** — `fetch-prod-data.ts` is read-only pg_dump; no write path to prod.
 - **M008.1 filter** — `source='telegram'` is the consolidation contract; fixtures must match.
-- **Convention (new, pending requirement-definition)** — *no milestone may gate on real calendar time for data accumulation; use the primed-fixture pipeline instead.*
+- **Convention (new, pending Plan 24-04 codification)** — *no milestone may gate on real calendar time for data accumulation; use the primed-fixture pipeline instead.*
 
 ### Pending Todos (carried from v2.1/v2.2)
 
 - Human UAT pass on 12 deferred items from v2.1 (live Telegram feel, ACCOUNTABILITY tone quality, `/decisions` dashboard format, FR/RU localization).
 - Run TEST-13 + TEST-14 locally with `ANTHROPIC_API_KEY` set to verify live Sonnet ACCOUNTABILITY + Haiku vague-prediction resistance.
-- Env-level vitest-4 fork-IPC hang under HuggingFace EACCES — 5-file excluded-suite mitigation in place; worth a future fix-up phase (may intersect with v2.3 test-harness work).
+- Env-level vitest-4 fork-IPC hang under HuggingFace EACCES — 5-file excluded-suite mitigation in place; worth a future fix-up phase (may intersect with v2.3 test-harness work in 24-04).
 
 ### Blockers/Concerns
 
-None. Spec is complete and approved.
+None. Spec is complete, requirements locked, roadmap written with 5 observable success criteria. Ready for plan decomposition.
 
 ## Session Continuity
 
-Last session: 2026-04-20 — v2.3 milestone kickoff.
-Stopped at: spec written (M008.5_Test_Data_Infrastructure.md), 4 design decisions locked, PROJECT.md updated. Next: write REQUIREMENTS.md with FETCH/SYNTH/HARN/FRESH/DOC categories, then spawn roadmapper for Phase 24 single-phase ~4-plan decomposition.
+Last session: 2026-04-20 — v2.3 milestone kickoff + roadmap.
+Stopped at: ROADMAP.md written (single phase, 4 plans), REQUIREMENTS.md traceability filled (20/20 mapped). Next: `/gsd-plan-phase 24` to decompose Phase 24 into 4 plans with tasks + verification per plan.
 
 ## Known Tech Debt
 
