@@ -26,3 +26,8 @@ vendor/
 coverage/
 .cache/
 tmp/
+
+# ── Phase 24 primed-fixture pipeline (v2.3) ──
+tests/fixtures/prod-snapshot/
+tests/fixtures/primed/
+tests/fixtures/.vcr/
