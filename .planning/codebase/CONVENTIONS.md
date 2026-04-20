@@ -232,6 +232,16 @@ Prefer this over `null`/`undefined` for "nothing happened" cases.
 
 **"Why", not "what".** Inline comments explain non-obvious decisions (dual zod v3/v4 mirror, runtime importance clamping, inter-run cleanup to defeat idempotency in tests). Do not narrate trivial code.
 
+## Test Data
+
+**No calendar-time data-accumulation gates (v2.3, DOC-02).** As of v2.3, **no milestone may gate on real calendar time for data accumulation** — e.g., "wait 7 days to accumulate real episodic summaries before M009 can be tested." Use the primed-fixture pipeline instead.
+
+The pipeline (Phase 24) generates deterministic fused organic+synthetic fixtures on demand via `scripts/regenerate-primed.ts`. Tests consume them via `loadPrimedFixture(name)` in a `beforeAll`. Full details in `.planning/codebase/TESTING.md §Primed-Fixture Pipeline`.
+
+This convention closes a real-world footgun from v2.2: M008 episodic-consolidation testing needed ≥ 7 days of summaries, which previously meant waiting 7 real calendar days of Greg's active use before M009 planning could start. Phase 24 replaces that wait with a seed-reproducible pipeline that ships the same fixture in minutes.
+
+Cross-referenced from `PLAN.md §Key Decisions` as **D041 — Test data via primed-fixture pipeline (v2.3)**.
+
 ---
 
 *Convention analysis: 2026-04-20*
