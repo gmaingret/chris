@@ -84,7 +84,8 @@ Requirements are tracked **per milestone**, not aggregated here:
 - v2.0 M006: `.planning/milestones/v2.0-REQUIREMENTS.md` (26/26 satisfied)
 - v2.1 M007: `.planning/milestones/v2.1-REQUIREMENTS.md` (31/31 satisfied)
 - v2.2 M008: `.planning/milestones/v2.2-REQUIREMENTS.md` (35/35 satisfied — v2.2)
-- v2.3 M009: `.planning/REQUIREMENTS.md` (active — Ritual Infrastructure + Daily Note + Weekly Review, pending requirement intake)
+- **v2.3 Test Data Infrastructure** (active): `.planning/REQUIREMENTS.md` — pre-M009 enabler, single-phase, organic+synthetic primed-fixture pipeline. Spec: `M008.5_Test_Data_Infrastructure.md`.
+- v2.4+ M009 and beyond: spec files in repo root (`M009_*.md` … `M014_*.md`)
 
 See `## Current State` for the active milestone status and `## Implementation Phases` for the phase-level breakdown.
 
@@ -206,17 +207,18 @@ Milestones M006–M014 implement the "soul system" described in `PRD_Project_Chr
 
 **Execution order (strictly sequential except M012 which can run in parallel with M011):**
 
-| # | ID | Name | Depends on |
-|---|----|------|------------|
-| 1 | M006 | Trustworthy Chris ⚠️ URGENT | M005 |
-| 2 | M007 | Decision Archive | M006 |
-| 3 | M008 | Episodic Consolidation | M007 |
-| 4 | **M009** | **Ritual Infrastructure + Daily Note + Weekly Review** *(MVP shipping point)* | M008 |
-| 5 | M010 | Operational Profiles | M009 |
-| 6 | M011 | Psychological Profiles | M010 |
-| 7 | M012 | Mental Model Inventory | M010 (parallel with M011) |
-| 8 | M013 | Monthly + Quarterly Rituals + Anti-Sycophancy Monitoring | M011 and M012 |
-| 9 | M014 | Narrative Identity | M013 |
+| # | Version | ID | Name | Depends on |
+|---|---------|----|------|------------|
+| 1 | v2.0 | M006 | Trustworthy Chris ⚠️ URGENT | M005 |
+| 2 | v2.1 | M007 | Decision Archive | M006 |
+| 3 | v2.2 | M008 | Episodic Consolidation | M007 |
+| 3.5 | **v2.3** | **—** | **Test Data Infrastructure** *(pre-M009 enabler, single-phase; primed-fixture pipeline, organic from prod + synthetic delta)* | M008 |
+| 4 | v2.4 | **M009** | **Ritual Infrastructure + Daily Note + Weekly Review** *(MVP shipping point)* | v2.3 Test Data Infra + M008 |
+| 5 | v2.5 | M010 | Operational Profiles | M009 |
+| 6 | v2.6 | M011 | Psychological Profiles | M010 |
+| 7 | v2.7 | M012 | Mental Model Inventory | M010 (parallel with M011) |
+| 8 | v2.8 | M013 | Monthly + Quarterly Rituals + Anti-Sycophancy Monitoring | M011 and M012 |
+| 9 | v2.9 | M014 | Narrative Identity | M013 |
 
 **M009 is the MVP shipping point.** After M006→M007→M008→M009, Greg has refusal-respecting Chris with constitutional anti-sycophancy, decision capture with forecasts, episodic summaries, daily voice note, daily wellbeing snapshot, and weekly review. Profile layer (M010–M012) consumes the real data M009 produces — running it earlier produces empty profiles with no inference to make.
 
@@ -327,11 +329,26 @@ Chris is deployed on self-hosted Proxmox (192.168.1.50) with both containers hea
 
 Archived detail: `.planning/milestones/v2.0-*`, `.planning/milestones/v2.1-*`, `.planning/milestones/v2.2-*`, `.planning/milestones/v2.1-phases/` (phase directories).
 
-## Next Milestone: M009 Ritual Infrastructure + Daily Note + Weekly Review
+## Current Milestone: v2.3 Test Data Infrastructure
 
-**Status:** not yet started. Pause-gate in effect — ≥7 real episodic summaries must accumulate in `episodic_summaries` before M009 kicks off (M009 weekly review consumes daily summaries as substrate; running it before substrate exists produces empty output with no informational value). After deploy, operator runs `scripts/backfill-episodic.ts` to seed historical summaries and then waits ≥7 days.
+**Goal:** Build the primed-fixture pipeline (organic base fetched from prod + synthetic delta generated on demand) so every downstream milestone can be validated **immediately** — no real-calendar-time waits for cron-generated data to accumulate.
 
-**Kickoff command:** `/gsd-new-milestone "M009 Ritual Infrastructure + Daily Note + Weekly Review"`.
+**Target features:**
+- `scripts/fetch-prod-data.ts` — SSH to Proxmox (192.168.1.50), dump `pensieve_entries` (`source='telegram'` only), `pensieve_embeddings`, `episodic_summaries`, `decisions`/`decision_events`/`decision_capture_state`, `contradictions`, `proactive_state`, `memories` → JSONL under `tests/fixtures/prod-snapshot/<stamp>/` (gitignored).
+- `scripts/synthesize-delta.ts` — extend organic base to target-days volume via Haiku style-transfer (pensieve) + real `runConsolidate()` (episodic summaries) + deterministic generators (decisions/contradictions/wellbeing). Seed-reproducible; Anthropic outputs VCR-cached.
+- `loadPrimedFixture(name)` test-harness loader — seeds Docker Postgres from a primed fixture in FK-safe order.
+- Freshness policy: if snapshot is > 24h old, auto-refresh before proceeding (no warnings, silent replacement). `--no-refresh` opt-out for offline/sandbox.
+- TESTING.md update + new project convention: *no milestone may gate on real calendar time for data accumulation.*
+
+**Spec:** `M008.5_Test_Data_Infrastructure.md` (repo root) — full deliverable list, out-of-scope notes, and phase shape.
+
+**Rationale for inserting before M009:** M009 requires "≥7 accumulated episodic summaries" + "2 weeks of real use" + "1 month of real daily use before M010". Without the primed-fixture pipeline, the remaining 6 milestones (M009–M014) take ~6 months of wall-clock time — not 6 months of engineering. v2.3 eliminates that gate class universally.
+
+## Next Milestone (after v2.3): M009 Ritual Infrastructure + Daily Note + Weekly Review
+
+**Status:** unblocked by v2.3. Previously blocked by pause-gate (≥7 real episodic summaries); now the primed fixture provides 7+ summaries on demand so M009 planning can begin the moment v2.3 ships.
+
+**Kickoff command (after v2.3):** `/gsd-new-milestone "M009 Ritual Infrastructure + Daily Note + Weekly Review"`.
 
 ## Prior Milestone: v2.2 M008 Episodic Consolidation (Shipped 2026-04-19)
 
@@ -407,4 +424,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: after v2.2 milestone, 2026-04-19*
+*Last updated: v2.3 milestone kickoff, 2026-04-20*
