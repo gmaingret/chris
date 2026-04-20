@@ -316,19 +316,33 @@ describe('loadPrimedFixture — Phase 24 Plan 04 (HARN-01, HARN-02)', () => {
 
     // Wrap the real pgSql as a Proxy. Only the template-tag (function-call)
     // path needs interception; preserve all other properties by forwarding.
+    //
+    // Template-tag invocation shape: sql`SELECT to_regclass(${x}) AS reg`
+    // → argArray = [TemplateStringsArray, ...interpolated values]
+    // `raw.join('')` joins the literal parts only; interpolated values
+    // (e.g. the table-name string passed to to_regclass) are in
+    // argArray[1], argArray[2], .... We inspect BOTH to classify calls.
     const wrapped = new Proxy(pgSql, {
       apply(target, thisArg, argArray: unknown[]) {
         const strings = argArray[0] as TemplateStringsArray | string[];
-        // postgres.js accepts template literal OR .unsafe(string). We only
-        // care about the template-literal cleanup path.
-        if (strings && typeof (strings as TemplateStringsArray).raw !== 'undefined') {
-          const raw = (strings as TemplateStringsArray).raw.join('');
+        if (
+          strings &&
+          typeof (strings as TemplateStringsArray).raw !== 'undefined'
+        ) {
+          const raw = (strings as TemplateStringsArray).raw.join(' ');
+          const interp = argArray.slice(1);
           const match = raw.match(/DELETE\s+FROM\s+(\w+)/i);
           if (match?.[1]) recorded.push(`DELETE:${match[1].toLowerCase()}`);
-          // Also surface to_regclass calls for visibility
-          if (/to_regclass/.test(raw)) {
-            const name = raw.match(/public\.(\w+)/);
-            if (name?.[1]) recorded.push(`PROBE:${name[1]}`);
+          // Feature-detect probes: to_regclass is in the SQL literal; the
+          // qualified table name (`public.<tbl>`) is in the interpolation.
+          if (/to_regclass/i.test(raw)) {
+            const qualified = interp.find(
+              (v): v is string =>
+                typeof v === 'string' && v.startsWith('public.'),
+            );
+            if (qualified) {
+              recorded.push(`PROBE:${qualified.slice('public.'.length)}`);
+            }
           }
         }
         // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any
