@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: M008 Episodic Consolidation
 status: complete
-stopped_at: "v2.2 M008 shipped 2026-04-19; awaiting M009 planning. Milestone-completion ritual executed: v2.2-ROADMAP.md / v2.2-REQUIREMENTS.md / v2.2-MILESTONE-AUDIT.md / v2.2-INTEGRATION-CHECK.md archived to .planning/milestones/; MILESTONES.md prepended with v2.2 entry (35/35 reqs, 5 phases, 17 plans, +15815/-145 LOC, 94 commits, audit passed); PROJECT.md D034-D040 logged + Current State brownfield; ROADMAP.md collapsed into <details> milestone blocks + single Progress table; RETROSPECTIVE.md appended; REQUIREMENTS.md removed for v2.3 intake; git tag v2.2 created (not pushed). Next: /gsd-new-milestone for M009 Ritual Infrastructure + Daily Note + Weekly Review after ≥7 days of real episodic summaries accumulate in production."
-last_updated: "2026-04-19T16:00:00.000Z"
-last_activity: 2026-04-19
+stopped_at: "v2.2 M008 shipped + deployed + M008.1 inline fix shipped + redeployed 2026-04-19; 2 substantive episodic summaries on prod (2026-04-15 imp=8, 2026-04-18 imp=7); awaiting pause-gate accumulation (≥7 summaries) before M009 planning. Daily 23:00 Europe/Paris cron live on Proxmox. M008.1 fix (commit 2cfcecd) added source='telegram' allowlist filter to getPensieveEntriesForDay() — discovered post-deploy that Immich-synced entries were polluting consolidation (24k photos on 2026-04-15 caused 1.4M-token overflow; 3 photos on 2026-04-17 produced garbage 'three screenshots' summary). Fix shipped, redeployed, garbage row deleted, re-backfill succeeded cleanly. Test gate 1018 passed / 62 environmental-failed / 1080 total post-fix; 4 episodic test files updated to use source='telegram' for seeds (vitest.config.ts already enforces fileParallelism: false so cleanup-by-source is safe)."
+last_updated: "2026-04-20T00:00:00.000Z"
+last_activity: 2026-04-20
 progress:
   total_phases: 5
   completed_phases: 5
@@ -25,13 +25,19 @@ See: .planning/PROJECT.md (updated after v2.2 milestone, 2026-04-19)
 
 ## Current Position
 
-v2.2 DEPLOYED to Proxmox 192.168.1.50:/root/chris at 2026-04-19T18:55Z. Next: accumulate ≥7 daily episodic summaries from the 23:00 Europe/Paris cron, then `/gsd-new-milestone` for M009 Ritual Infrastructure + Daily Note + Weekly Review.
-Status: v2.2 M008 Episodic Consolidation SHIPPED + DEPLOYED.
-- **D019 approval:** granted by Greg 2026-04-19 ("do all these steps from 1 to 5") — authorized Proxmox deploy.
-- **Deploy 2026-04-19T18:55Z:** git fetch + checkout v2.2 on prod; docker compose build chris + up -d; migration 0005 applied cleanly; `episodic.cron.scheduled cron=0 23 * * * timezone=Europe/Paris` + existing `proactive.cron.scheduled` both registered; health endpoint /health = ok (database + immich checks pass); backup taken to /root/chris-backups/chris-pre-v2.2-20260419-145108.dump (122 MB). Remote git tag v2.2 now on origin and prod.
-- **Backfill 2026-04-19T18:56Z** (`--from 2026-04-15 --to 2026-04-18`): 2 inserted (2026-04-17 imp=1, 2026-04-18 imp=7), 1 skipped (2026-04-16 no-entries), 1 **ERRORED** (2026-04-15 — prompt too long: 1,393,488 tokens > 1,000,000 max). Root cause: 2026-04-15 has 24,012 bulk-imported Pensieve entries (likely initial Gmail/Immich/Drive sync) totaling 2.5 MB of content — the consolidation engine was designed for user journaling volume, not bulk-sync-day volume.
-- **Pending tech debt — M008-residual (prompt-size overflow on bulk-sync days):** Plan 22/23 implicitly assumed daily entry volume matches user journaling density. First-deploy days (or any day with bulk source sync) can overflow 1M context. Options for a future M008.2 or M009 prerequisite phase: (a) cap entry count in prompt assembly, (b) filter entries by source type (exclude bulk_import source kinds from consolidation), (c) chunk-then-merge strategy, (d) two-pass Sonnet (bulk-summarize large groups → consolidate).
-Last activity: 2026-04-19 — v2.2 deployed to Proxmox; backfill completed with 1 overflow error documented as tech debt.
+v2.2 + M008.1 fix DEPLOYED to Proxmox 192.168.1.50:/root/chris (HEAD = 2cfcecd). Production is healthy and serving the daily 23:00 Europe/Paris episodic cron + 6h sync cron + 10:00 proactive sweep cron. 2 substantive summaries on prod. Next: accumulate ≥5 more daily summaries naturally (cron will add today's 2026-04-20 tonight at 23:00 Paris), then `/gsd-new-milestone` for M009 Ritual Infrastructure + Daily Note + Weekly Review.
+
+**M008 deploy + M008.1 inline fix timeline (2026-04-19):**
+- **D019 approval** (~14:30Z): granted by Greg ("do all these steps from 1 to 5") — authorized Proxmox deploy.
+- **Initial v2.2 deploy** (18:55Z): git fetch + checkout v2.2 on prod; docker compose build chris + up -d; migration 0005 applied cleanly; `episodic.cron.scheduled cron=0 23 * * * timezone=Europe/Paris` + existing `proactive.cron.scheduled` both registered; health endpoint /health = ok; backup taken to /root/chris-backups/chris-pre-v2.2-20260419-145108.dump (122 MB); v2.2 tag pushed to origin.
+- **Initial backfill** (18:56Z) `--from 2026-04-15 --to 2026-04-18`: 2 inserted, 1 skipped, **1 errored** (2026-04-15 — 1.4M-token overflow). Greg flagged "look at live server logs. there are problems." Root cause investigation revealed the consolidation engine was ingesting Immich photo metadata as if it were journal content: 23,977 Immich photos vs 35 real Telegram entries on 2026-04-15; 3 Immich-only entries on 2026-04-17 produced a meaningless "three screenshots were captured on Greg's phone" summary at importance=1.
+- **2026-04-17 garbage row deleted** (18:58Z) from prod episodic_summaries table (1 row).
+- **M008.1 source-filter fix shipped** (~19:50Z, commit 2cfcecd): `getPensieveEntriesForDay()` in src/episodic/sources.ts now restricts to `source = 'telegram'` (allowlist). Synced sources (immich/gmail/gdrive) remain available for ambient retrieval but never drive consolidation. Test gate: 1018 passed / 62 environmental-failed / 1080 total. 4 episodic test files updated to use `source: 'telegram'` for seeds. Test added: `Test 4b: getPensieveEntriesForDay excludes non-telegram sources (M008.1 bulk-sync filter)`.
+- **Redeploy on Proxmox** (~19:54Z): docker compose build + up -d; cron re-registered cleanly; container healthy.
+- **Re-backfill** (~19:55Z) `--from 2026-04-15 --to 2026-04-18`: **0 errors**. 2026-04-15 inserted with importance=8 from 35 telegram entries (was previously errored). 2026-04-17 correctly skipped (no telegram entries). 2026-04-18 skipped existing (idempotency preserved).
+- **Episodic tier final state**: 2026-04-15 imp=8 (35 entries — extended autobiographical reflection on relationships/expatriation/financial strategy), 2026-04-18 imp=7 (60 entries — depression/recovery/breakup-intention conversation). Both substantive, no Immich pollution.
+
+Last activity: 2026-04-20 — STATE.md refreshed to record M008.1 fix cycle. Pause-gate at 2/7 summaries; ETA ~2026-04-24 if cron fires daily.
 
 ```
 Progress: [████████████████████] 100% (17/17 plans)
