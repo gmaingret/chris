@@ -2,16 +2,18 @@
 gsd_state_version: 1.0
 milestone: v2.3
 milestone_name: Test Data Infrastructure
-status: active-roadmap
-stopped_at: "v2.3 Test Data Infrastructure roadmap written 2026-04-20. Single-phase milestone (Phase 24 — Primed-Fixture Pipeline) with 4 plans: 24-01 fetch-prod-data + snapshot schema + gitignore + FRESH-01 hook, 24-02 synthesize-delta (Haiku style-transfer + deterministic generators + VCR), 24-03 real-engine episodic synthesis via runConsolidate, 24-04 loadPrimedFixture harness + regenerate-primed + TESTING.md + convention. All 20 REQ-IDs (FETCH-01..05, SYNTH-01..07, HARN-01..03, FRESH-01..03, DOC-01..02) mapped to exactly one plan. 5 observable success criteria for Phase 24 locked. Ready for /gsd-plan-phase 24."
-last_updated: "2026-04-20T00:00:00.000Z"
-last_activity: 2026-04-20
+status: In progress — Plan 24-02 complete (2/4)
+stopped_at: "Plan 24-02 shipped (2026-04-20, 80m): VCR cache wrapper + scripts/synthesize-delta.ts with per-day Haiku style-transfer + deterministic decisions/contradictions/wellbeing generators. 7 new requirements complete (SYNTH-01/02/04/05/06/07, FRESH-02). Next plan: 24-03 (real-engine episodic synthesis via runConsolidate sibling-module composition, SYNTH-03)."
+last_updated: "2026-04-20T12:52:48Z"
+last_activity: "2026-04-20 — Plan 24-02 shipped: VCR cache (vcr.ts) + synthesize-delta CLI; 34/34 unit tests + Docker gate green; 5 atomic commits (f9c2def test / c3c36d9 feat / 305a211 chore / fdd2d5f test / 13cd846 feat)"
+current_plan: 3
+total_plans: 4
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 4
-  completed_plans: 0
-  percent: 0
+  completed_plans: 2
+  percent: 50
 ---
 
 # Project State
@@ -26,15 +28,15 @@ See: .planning/PROJECT.md (updated 2026-04-20 for v2.3 kickoff).
 
 ## Current Position
 
-Phase: Phase 24 (Primed-Fixture Pipeline) — **roadmap written, plans pending**
-Plan: —
-Status: Awaiting plan decomposition (`/gsd-plan-phase 24`)
-Last activity: 2026-04-20 — roadmapper wrote ROADMAP.md, REQUIREMENTS.md traceability, STATE.md update; 5 success criteria locked; 4 plans scoped
+Phase: Phase 24 (Primed-Fixture Pipeline) — **in progress, 2/4 plans complete**
+Plan: 24-03 (next; depends on 24-01 + 24-02)
+Status: Plan 24-02 shipped. Plan 24-03 unblocked.
+Last activity: 2026-04-20 — Plan 24-02 shipped (~80m): vcr.ts wrapper + synthesize-delta.ts CLI + 34/34 unit tests pass + Docker gate green.
 
 Prior deploy state unchanged: v2.2 + M008.1 fix live on Proxmox (192.168.1.50, HEAD = 2cfcecd). Daily 23:00 Europe/Paris episodic cron + 6h sync cron + 10:00 proactive sweep cron all healthy. 2 substantive summaries on prod (2026-04-15 imp=8, 2026-04-18 imp=7).
 
 ```
-Progress: [                    ] 0% (0/4 plans — roadmap approved, awaiting plan decomposition)
+Progress: [##########          ] 50% (2/4 plans — 24-01 fetch + 24-02 synth-delta shipped; 24-03 episodic pass + 24-04 harness/docs pending)
 ```
 
 ## Shipped Milestones
@@ -48,7 +50,7 @@ Progress: [                    ] 0% (0/4 plans — roadmap approved, awaiting pl
 
 | Phase | Name | Requirements | Status |
 |-------|------|--------------|--------|
-| 24 | Primed-Fixture Pipeline | 20 (FETCH-01..05, SYNTH-01..07, HARN-01..03, FRESH-01..03, DOC-01..02) | **NOT STARTED** — roadmap written, 4 plans scoped (24-01 fetch; 24-02 synth-delta; 24-03 episodic pass; 24-04 harness + docs); awaiting `/gsd-plan-phase 24` |
+| 24 | Primed-Fixture Pipeline | 20 (FETCH-01..05, SYNTH-01..07, HARN-01..03, FRESH-01..03, DOC-01..02) | **IN PROGRESS (2/4 plans)** — 24-01 fetch shipped 2026-04-20 (a8181fa, 6 REQs); 24-02 synth-delta shipped 2026-04-20 (13cd846, 7 REQs); 24-03 episodic pass + 24-04 harness/docs pending. 13/20 REQs complete. |
 
 ## Accumulated Context
 
@@ -63,6 +65,15 @@ Progress: [                    ] 0% (0/4 plans — roadmap approved, awaiting pl
 
 - **Single phase, four plans.** Phase 24 "Primed-Fixture Pipeline" covers all 20 v2.3 requirements. Plan shape follows the spec: (1) fetch-prod-data script + FRESH-01 hook, (2) synthesize-delta for non-episodic content + VCR cache, (3) real-engine episodic synthesis pass (split from 24-02 per spec guidance — runConsolidate integration has distinct complexity), (4) test-harness loader + regenerate-primed + documentation + convention codification.
 - **FRESH requirements are split across plans by locality.** FRESH-01 (24h auto-refresh hook) lives in 24-01 since the fetch script owns the snapshot lifecycle; FRESH-02 (`--no-refresh` flag) lives in 24-02 where the flag is consumed; FRESH-03 (regenerate-primed script) lives in 24-04 where the wrapper script is built.
+
+### Plan 24-02 decisions (locked 2026-04-20)
+
+- **VCR hash key = SHA-256 over canonical-stringified request (keys sorted at every nesting level).** Any prompt/model/schema change auto-invalidates without manual bookkeeping. Sort-at-every-level is load-bearing — the Anthropic SDK's nested `output_config.format` JSON-schema emitter does not preserve key order, so a top-level-only sort would false-miss on every run.
+- **Lazy-import pattern reused from Plan 24-01.** `scripts/synthesize-delta.ts` lazy-imports logger/freshness/vcr/llm-client inside `synthesize()` (not at top level) so `--help` exits without DATABASE_URL. The seeded-RNG module (no config deps) stays top-level. Vitest `vi.mock()` hoisting means this is invisible to unit tests.
+- **Deterministic UUID generator.** 4 × Mulberry32 draws → 16 bytes → UUIDv4 layout. Replaces `crypto.randomUUID()` at every synthesis site to close the SYNTH-07 determinism gap.
+- **Test fixture committed to repo.** `scripts/__tests__/__fixtures__/synth-delta/organic-tiny/` (5 telegram entries across 2 days) is NOT gitignored — keeps the unit-test gate hermetic and independent of the gitignored `tests/fixtures/prod-snapshot/` tree.
+- **vitest config widened.** `root='src'` → `root='.'` with explicit includes for both `src/**/__tests__/` and `scripts/**/__tests__/`. Plan 24-02's frontmatter prescribes `scripts/__tests__/synthesize-delta.test.ts` as the test path; prior config scoped discovery to `src/**` only.
+- **Empty `episodic_summaries.jsonl` placeholder.** synthesize-delta writes an empty file; Plan 24-03 overwrites with real `runConsolidate` output. Documented in MANIFEST.json `schema_note` and in the plan summary's Known Stubs section.
 
 ### Decisions in force for v2.3
 
@@ -83,12 +94,12 @@ Full log in PROJECT.md Key Decisions table. Most relevant going into test-data i
 
 ### Blockers/Concerns
 
-None. Spec is complete, requirements locked, roadmap written with 5 observable success criteria. Ready for plan decomposition.
+None. Phase 24 is on schedule: 2 plans shipped, 2 plans pending. Plan 24-03 unblocked (depends on 24-01 + 24-02 both shipped). Plan 24-04 depends on 24-03 via the primed-fixture directory consumer contract.
 
 ## Session Continuity
 
-Last session: 2026-04-20 — v2.3 milestone kickoff + roadmap.
-Stopped at: ROADMAP.md written (single phase, 4 plans), REQUIREMENTS.md traceability filled (20/20 mapped). Next: `/gsd-plan-phase 24` to decompose Phase 24 into 4 plans with tasks + verification per plan.
+Last session: 2026-04-20 — Plan 24-02 shipped.
+Stopped at: 5 commits landed on main (f9c2def test vcr / c3c36d9 feat vcr / 305a211 chore vitest / fdd2d5f test synth-delta / 13cd846 feat synth-delta). 34 new unit tests all green. Docker gate re-run with 5-file exclude mitigation: 74 files passed / 3 failed (models-smoke, API-key-gated, pre-existing). 13/20 v2.3 requirements complete. Next: `/gsd-execute-phase 24 24-03-PLAN.md` to run Wave 3 (real-engine episodic synthesis via runConsolidate sibling-module composition for SYNTH-03).
 
 ## Known Tech Debt
 
