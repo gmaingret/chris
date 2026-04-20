@@ -35,21 +35,25 @@
 
 ### Test harness integration (HARN)
 
-- [ ] **HARN-01**: `src/__tests__/fixtures/load-primed.ts` exports `loadPrimedFixture(name)` that seeds the Docker Postgres test DB from a primed fixture directory.
-- [ ] **HARN-02**: `loadPrimedFixture` clears target tables in FK-safe order before load; repeated calls within a test suite are idempotent and collision-safe.
-- [ ] **HARN-03**: A sanity-check Vitest integration test under `fileParallelism: false` loads an `m008-14days` primed fixture and asserts ≥ 7 days of summaries exist, ≥ 200 pensieve entries, and the episodic-tier contract holds (UNIQUE(summary_date), no Immich source leakage).
+- [x] **HARN-01**: `src/__tests__/fixtures/load-primed.ts` exports `loadPrimedFixture(name)` that seeds the Docker Postgres test DB from a primed fixture directory.
+- [x] **HARN-02**: `loadPrimedFixture` clears target tables in FK-safe order before load; repeated calls within a test suite are idempotent and collision-safe.
+- [x] **HARN-03**: A sanity-check Vitest integration test under `fileParallelism: false` loads an `m008-14days` primed fixture and asserts ≥ 7 days of summaries exist, ≥ 200 pensieve entries, and the episodic-tier contract holds (UNIQUE(summary_date), no Immich source leakage).
 
 ### Freshness + reproducibility (FRESH)
 
-- [ ] **FRESH-01**: When `tests/fixtures/prod-snapshot/LATEST` is older than 24 hours, `synthesize-delta.ts` and `regenerate-primed.ts` silently invoke `fetch-prod-data.ts` before proceeding; no warning prompts, no half-stale runs.
+- [x] **FRESH-01
+**: When `tests/fixtures/prod-snapshot/LATEST` is older than 24 hours, `synthesize-delta.ts` and `regenerate-primed.ts` silently invoke `fetch-prod-data.ts` before proceeding; no warning prompts, no half-stale runs.
 - [x] **FRESH-02
 **: A `--no-refresh` flag on `synthesize-delta.ts` / `regenerate-primed.ts` skips the auto-fetch and uses whatever `LATEST` points to (for offline / sandbox / air-gapped workflows only).
-- [ ] **FRESH-03**: `npx tsx scripts/regenerate-primed.ts --milestone <name> --force` refreshes everything from scratch: fetch → synthesize → VCR cache rebuild, independent of any stamp age.
+- [x] **FRESH-03
+**: `npx tsx scripts/regenerate-primed.ts --milestone <name> --force` refreshes everything from scratch: fetch → synthesize → VCR cache rebuild, independent of any stamp age.
 
 ### Documentation (DOC)
 
-- [ ] **DOC-01**: `.planning/codebase/TESTING.md` is updated with a new section explaining the organic+synthetic primed-fixture pattern, `loadPrimedFixture(name)` usage, and the 24h freshness policy.
-- [ ] **DOC-02**: A new project convention is added to `PROJECT.md` and/or `.planning/codebase/CONVENTIONS.md`: *"no milestone may gate on real calendar time for data accumulation — use the primed-fixture pipeline instead."*
+- [x] **DOC-01
+**: `.planning/codebase/TESTING.md` is updated with a new section explaining the organic+synthetic primed-fixture pattern, `loadPrimedFixture(name)` usage, and the 24h freshness policy.
+- [x] **DOC-02
+**: A new project convention is added to `PROJECT.md` and/or `.planning/codebase/CONVENTIONS.md`: *"no milestone may gate on real calendar time for data accumulation — use the primed-fixture pipeline instead."*
 
 ---
 
@@ -87,13 +91,13 @@
 | SYNTH-05 | 24 | 24-02 | complete |
 | SYNTH-06 | 24 | 24-02 | complete |
 | SYNTH-07 | 24 | 24-02 | complete |
-| HARN-01 | 24 | 24-04 | pending |
-| HARN-02 | 24 | 24-04 | pending |
-| HARN-03 | 24 | 24-04 | pending |
+| HARN-01 | 24 | 24-04 | complete |
+| HARN-02 | 24 | 24-04 | complete |
+| HARN-03 | 24 | 24-04 | complete |
 | FRESH-01 | 24 | 24-01 | complete |
 | FRESH-02 | 24 | 24-02 | complete |
-| FRESH-03 | 24 | 24-04 | pending |
-| DOC-01 | 24 | 24-04 | pending |
-| DOC-02 | 24 | 24-04 | pending |
+| FRESH-03 | 24 | 24-04 | complete |
+| DOC-01 | 24 | 24-04 | complete |
+| DOC-02 | 24 | 24-04 | complete |
 
-**Total:** 20 requirements across 5 categories. All mapped to Phase 24 (single-phase milestone), distributed across 4 plans (24-01: 6 reqs, 24-02: 7 reqs, 24-03: 1 req, 24-04: 6 reqs).
+**Total:** 20 requirements across 5 categories. All mapped to Phase 24 (single-phase milestone), distributed across 4 plans (24-01: 6 reqs, 24-02: 7 reqs, 24-03: 1 req, 24-04: 6 reqs). **20/20 complete as of 2026-04-20 — v2.3 milestone SHIPPED.**

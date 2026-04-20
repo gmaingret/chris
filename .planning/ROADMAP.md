@@ -6,9 +6,9 @@
 - ✅ **v2.0 M006 Trustworthy Chris** — Phases 6-12 (shipped 2026-04-15) — see [milestones/v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md)
 - ✅ **v2.1 M007 Decision Archive** — Phases 13-19 (shipped 2026-04-18) — see [milestones/v2.1-ROADMAP.md](milestones/v2.1-ROADMAP.md)
 - ✅ **v2.2 M008 Episodic Consolidation** — Phases 20-23 + 22.1 (shipped 2026-04-19) — see [milestones/v2.2-ROADMAP.md](milestones/v2.2-ROADMAP.md)
-- 🚧 **v2.3 Test Data Infrastructure** *(pre-M009 enabler, single-phase)* — Phase 24 (active, roadmap written 2026-04-20) — see `M008.5_Test_Data_Infrastructure.md` spec + `.planning/REQUIREMENTS.md`
+- ✅ **v2.3 Test Data Infrastructure** *(pre-M009 enabler, single-phase)* — Phase 24 (shipped 2026-04-20, 20/20 requirements) — see `M008.5_Test_Data_Infrastructure.md` spec + `.planning/REQUIREMENTS.md`
 
-**Pause Gate — M009 Prerequisite:** v2.3 removes the "wait for 7 real episodic summaries" gate by providing the primed-fixture pipeline. After v2.3 ships, M009 planning can start immediately (primed fixture supplies ≥ 7 summaries on demand).
+**Pause Gate — M009 Prerequisite:** v2.3 removes the "wait for 7 real episodic summaries" gate by providing the primed-fixture pipeline. **v2.3 SHIPPED 2026-04-20** — M009 planning is now unblocked (primed fixture supplies ≥ 7 summaries on demand via `loadPrimedFixture('m008-14days')`).
 
 ## Phases
 
@@ -66,9 +66,9 @@ See [milestones/v2.2-ROADMAP.md](milestones/v2.2-ROADMAP.md) for full phase deta
 
 </details>
 
-### v2.3 Test Data Infrastructure — ACTIVE
+### v2.3 Test Data Infrastructure — SHIPPED 2026-04-20
 
-- [ ] **Phase 24: Primed-Fixture Pipeline** — Build the organic+synthetic test-data pipeline (fetch from prod → synthesize delta → load into Docker Postgres) so every downstream milestone (M009–M014) can be validated on demand, without real-calendar-time data-accumulation gates.
+- [x] **Phase 24: Primed-Fixture Pipeline** — SHIPPED 2026-04-20. 4/4 plans complete, 20/20 requirements delivered. The organic+synthetic test-data pipeline (fetch from prod → synthesize delta → real-engine episodic synthesis → load into Docker Postgres via `loadPrimedFixture`) unblocks every downstream milestone (M009–M014). D041 convention codified in PLAN.md + CONVENTIONS.md + TESTING.md.
 
 ## Phase Details
 
@@ -148,4 +148,4 @@ See [milestones/v2.2-ROADMAP.md](milestones/v2.2-ROADMAP.md) for full phase deta
 | 22. Cron + Retrieval Routing       | v2.2      | 5/5   | Complete    | 2026-04-19 |
 | 22.1. Wire retrieveContext (INSERTED) | v2.2   | 1/1   | Complete    | 2026-04-19 |
 | 23. Test Suite + Backfill + /summary | v2.2    | 4/4   | Complete    | 2026-04-19 |
-| 24. Primed-Fixture Pipeline        | v2.3      | 3/4   | In progress | —          |
+| 24. Primed-Fixture Pipeline        | v2.3      | 4/4   | Complete    | 2026-04-20 |
