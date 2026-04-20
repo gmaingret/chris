@@ -42,7 +42,7 @@ Progress: [██████████] 100%
 - **v1.0 Living Memory through Validation** — 2026-04-13 (Phases 1-5)
 - **v2.0 M006 Trustworthy Chris** — 2026-04-15 (Phases 6-12, 19 plans, 26/26 requirements)
 - **v2.1 M007 Decision Archive** — 2026-04-18 (Phases 13-19, 27 plans, 36 tasks, 31/31 requirements)
-- **v2.2 M008 Episodic Consolidation** — 2026-04-19 (Phases 20-23 + 22.1, 17 plans, 35/35 requirements) + M008.1 inline fix 2026-04-19
+- **v2.2 M008 Episodic Consolidation** — 2026-04-19 (5 phases, 17 plans, 35/35 requirements — archived at `.planning/milestones/v2.2-phases/`) + M008.1 inline fix 2026-04-19
 - **v2.3 Test Data Infrastructure** — 2026-04-20 (Phase 24, 4 plans, 20/20 requirements) — primed-fixture pipeline shipped; D041 convention codified
 
 ## Phase Summary
@@ -125,6 +125,6 @@ Stopped at: Completed 24-04-PLAN.md — v2.3 Test Data Infrastructure SHIPPED (P
 
 ## Known Tech Debt
 
-- **TECH-DEBT-19-01** — RESOLVED in Phase 20 Plan 01 (2026-04-18). drizzle-kit meta snapshots for 0001/0003 backfilled via `scripts/regen-snapshots.sh` clean-slate iterative replay.
+- **TECH-DEBT-19-01** — RESOLVED in v2.2 Plan 20-01 (2026-04-18, archived at `.planning/milestones/v2.2-phases/20-schema-tech-debt/`). drizzle-kit meta snapshots for 0001/0003 backfilled via `scripts/regen-snapshots.sh` clean-slate iterative replay.
 - **Vitest-4 fork-IPC hang under HuggingFace EACCES** — pre-existing env issue, operational mitigation is 5-file excluded-suite in `scripts/test.sh`. Non-blocking for v2.3; worth addressing in a future fix-up phase.
-- **Phase 21 WR-02 retry-on-all-errors policy** — documented design choice; M009+ may revisit if error patterns emerge.
+- **v2.2 Plan 21 WR-02 retry-on-all-errors policy** — documented design choice (archived at `.planning/milestones/v2.2-phases/21-consolidation-engine/`); M009+ may revisit if error patterns emerge.
