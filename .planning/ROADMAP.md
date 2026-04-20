@@ -148,4 +148,4 @@ See [milestones/v2.2-ROADMAP.md](milestones/v2.2-ROADMAP.md) for full phase deta
 | 22. Cron + Retrieval Routing       | v2.2      | 5/5   | Complete    | 2026-04-19 |
 | 22.1. Wire retrieveContext (INSERTED) | v2.2   | 1/1   | Complete    | 2026-04-19 |
 | 23. Test Suite + Backfill + /summary | v2.2    | 4/4   | Complete    | 2026-04-19 |
-| 24. Primed-Fixture Pipeline        | v2.3      | 2/4   | In progress | —          |
+| 24. Primed-Fixture Pipeline        | v2.3      | 3/4   | In progress | —          |

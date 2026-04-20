@@ -2,18 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.3
 milestone_name: Test Data Infrastructure
-status: In progress — Plan 24-02 complete (2/4)
-stopped_at: "Plan 24-02 shipped (2026-04-20, 80m): VCR cache wrapper + scripts/synthesize-delta.ts with per-day Haiku style-transfer + deterministic decisions/contradictions/wellbeing generators. 7 new requirements complete (SYNTH-01/02/04/05/06/07, FRESH-02). Next plan: 24-03 (real-engine episodic synthesis via runConsolidate sibling-module composition, SYNTH-03)."
-last_updated: "2026-04-20T12:52:48Z"
-last_activity: "2026-04-20 — Plan 24-02 shipped: VCR cache (vcr.ts) + synthesize-delta CLI; 34/34 unit tests + Docker gate green; 5 atomic commits (f9c2def test / c3c36d9 feat / 305a211 chore / fdd2d5f test / 13cd846 feat)"
-current_plan: 3
-total_plans: 4
+status: In progress — Plan 24-03 complete (3/4); 24-04 next
+stopped_at: "Plan 24-03 shipped (2026-04-20, ~8m): scripts/synthesize-episodic.ts sibling-composition runConsolidate loop + throwaway PG5435 + integration test. SYNTH-03 complete. 14/20 requirements done. Next: 24-04 (test-harness loader + regenerate-primed composer + docs)."
+last_updated: "2026-04-20T15:36:25.929Z"
+last_activity: "2026-04-20 — Plan 24-03 shipped (~8m): scripts/synthesize-episodic.ts sibling-composition runConsolidate loop; 6/6 integration tests pass; 2 atomic commits (460ba97 test / d0b2ca8 feat); git diff src/ empty (sibling-composition contract holds)."
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 4
-  completed_plans: 2
-  percent: 50
+  completed_plans: 3
+  percent: 75
 ---
 
 # Project State
@@ -28,15 +26,15 @@ See: .planning/PROJECT.md (updated 2026-04-20 for v2.3 kickoff).
 
 ## Current Position
 
-Phase: Phase 24 (Primed-Fixture Pipeline) — **in progress, 2/4 plans complete**
-Plan: 24-03 (next; depends on 24-01 + 24-02)
-Status: Plan 24-02 shipped. Plan 24-03 unblocked.
-Last activity: 2026-04-20 — Plan 24-02 shipped (~80m): vcr.ts wrapper + synthesize-delta.ts CLI + 34/34 unit tests pass + Docker gate green.
+Phase: Phase 24 (Primed-Fixture Pipeline) — **in progress, 3/4 plans complete**
+Plan: 24-04 (next; depends on 24-01 + 24-02 + 24-03)
+Status: Plan 24-03 shipped. Plan 24-04 unblocked.
+Last activity: 2026-04-20 — Plan 24-03 shipped (~8m): sibling-composition runConsolidate engine against throwaway PG5435 + VCR; 6/6 integration tests pass; git diff src/ empty.
 
 Prior deploy state unchanged: v2.2 + M008.1 fix live on Proxmox (192.168.1.50, HEAD = 2cfcecd). Daily 23:00 Europe/Paris episodic cron + 6h sync cron + 10:00 proactive sweep cron all healthy. 2 substantive summaries on prod (2026-04-15 imp=8, 2026-04-18 imp=7).
 
 ```
-Progress: [##########          ] 50% (2/4 plans — 24-01 fetch + 24-02 synth-delta shipped; 24-03 episodic pass + 24-04 harness/docs pending)
+Progress: [###############     ] 75% (3/4 plans — 24-01 fetch + 24-02 synth-delta + 24-03 episodic-synth shipped; 24-04 harness/docs pending)
 ```
 
 ## Shipped Milestones
@@ -50,7 +48,7 @@ Progress: [##########          ] 50% (2/4 plans — 24-01 fetch + 24-02 synth-de
 
 | Phase | Name | Requirements | Status |
 |-------|------|--------------|--------|
-| 24 | Primed-Fixture Pipeline | 20 (FETCH-01..05, SYNTH-01..07, HARN-01..03, FRESH-01..03, DOC-01..02) | **IN PROGRESS (2/4 plans)** — 24-01 fetch shipped 2026-04-20 (a8181fa, 6 REQs); 24-02 synth-delta shipped 2026-04-20 (13cd846, 7 REQs); 24-03 episodic pass + 24-04 harness/docs pending. 13/20 REQs complete. |
+| 24 | Primed-Fixture Pipeline | 20 (FETCH-01..05, SYNTH-01..07, HARN-01..03, FRESH-01..03, DOC-01..02) | **IN PROGRESS (3/4 plans)** — 24-01 fetch shipped 2026-04-20 (a8181fa, 6 REQs); 24-02 synth-delta shipped 2026-04-20 (13cd846, 7 REQs); 24-03 episodic-synth shipped 2026-04-20 (d0b2ca8, 1 REQ — SYNTH-03); 24-04 harness/docs pending. 14/20 REQs complete. |
 
 ## Accumulated Context
 
@@ -75,6 +73,14 @@ Progress: [##########          ] 50% (2/4 plans — 24-01 fetch + 24-02 synth-de
 - **vitest config widened.** `root='src'` → `root='.'` with explicit includes for both `src/**/__tests__/` and `scripts/**/__tests__/`. Plan 24-02's frontmatter prescribes `scripts/__tests__/synthesize-delta.test.ts` as the test path; prior config scoped discovery to `src/**` only.
 - **Empty `episodic_summaries.jsonl` placeholder.** synthesize-delta writes an empty file; Plan 24-03 overwrites with real `runConsolidate` output. Documented in MANIFEST.json `schema_note` and in the plan summary's Known Stubs section.
 
+### Plan 24-03 decisions (locked 2026-04-20)
+
+- **Port 5435 locks the operator invocation lane.** Corrects D-04's original port-5434 per RESEARCH §Pitfall 5 — `scripts/regen-snapshots.sh` already owns 5434 for snapshot regeneration, so picking a disjoint port avoids concurrent-run collisions. `grep 5434 scripts/synthesize-episodic.ts` returns 0 (plan acceptance criterion); `grep 5435` returns 6.
+- **Sibling-module composition (Pattern 2 Option 3) is the entire no-production-code-mod contract.** The dynamic-import order in `main()` is load-bearing: env-vars → `import '../src/llm/client.js'` → `import vcr.js` → property-swap `anthropic.messages.parse = cachedMessagesParse` → `import '../src/episodic/consolidate.js'`. Consolidate.ts sees the already-swapped singleton on first read. `git diff src/` returns empty after commit.
+- **dbOverride param convention on exported helpers.** Integration test reuses scripts/test.sh's port-5433 container via `{ dbOverride: pgSql }` rather than spawning nested Docker inside vitest. Plan 24-04's `loadPrimedFixture` will adopt the same convention.
+- **VITEST=1 short-circuits the 2s inter-day delay.** `runSiblingConsolidation` mirrors `backfill-episodic.ts`'s 2s inter-day rate-limit; under vitest (which sets `VITEST=true` automatically), the delay is skipped so the integration suite runs in sub-second time. Operator invocation still delays.
+- **jsonb_populate_recordset with ON CONFLICT DO NOTHING for bulk load.** Chosen over Drizzle insert-many because JSONL keys are already snake_case (from Plan 24-01 fetch-prod-data.ts convention) and ON CONFLICT keeps the loader idempotent under beforeEach cleanup.
+
 ### Decisions in force for v2.3
 
 Full log in PROJECT.md Key Decisions table. Most relevant going into test-data infrastructure:
@@ -94,12 +100,12 @@ Full log in PROJECT.md Key Decisions table. Most relevant going into test-data i
 
 ### Blockers/Concerns
 
-None. Phase 24 is on schedule: 2 plans shipped, 2 plans pending. Plan 24-03 unblocked (depends on 24-01 + 24-02 both shipped). Plan 24-04 depends on 24-03 via the primed-fixture directory consumer contract.
+None. Phase 24 is on schedule: 3 plans shipped, 1 plan pending. Plan 24-04 unblocked (depends on 24-01/24-02/24-03, all shipped). 24-04 will add the test-harness loader (`loadPrimedFixture`), the `regenerate-primed.ts` composer that chains fetch→synth-delta→synth-episodic, and the convention-codification docs.
 
 ## Session Continuity
 
-Last session: 2026-04-20 — Plan 24-02 shipped.
-Stopped at: 5 commits landed on main (f9c2def test vcr / c3c36d9 feat vcr / 305a211 chore vitest / fdd2d5f test synth-delta / 13cd846 feat synth-delta). 34 new unit tests all green. Docker gate re-run with 5-file exclude mitigation: 74 files passed / 3 failed (models-smoke, API-key-gated, pre-existing). 13/20 v2.3 requirements complete. Next: `/gsd-execute-phase 24 24-03-PLAN.md` to run Wave 3 (real-engine episodic synthesis via runConsolidate sibling-module composition for SYNTH-03).
+Last session: 2026-04-20T15:36:25.676Z
+Stopped at: Completed 24-03-PLAN.md
 
 ## Known Tech Debt
 
