@@ -8,6 +8,7 @@ import {
   ACCOUNTABILITY_RESOLUTION_SYSTEM_PROMPT,
 } from '../llm/prompts.js';
 import { GROUND_TRUTH, type FactCategory } from '../pensieve/ground-truth.js';
+import { formatTodayLine } from '../utils/today.js';
 import type { DetectedContradiction } from './contradiction.js';
 
 export type ChrisMode = 'JOURNAL' | 'INTERROGATE' | 'REFLECT' | 'COACH' | 'PSYCHOLOGY' | 'PRODUCE' | 'PHOTOS' | 'ACCOUNTABILITY';
@@ -142,7 +143,10 @@ export function buildSystemPrompt(
       break;
   }
 
-  let prompt = CONSTITUTIONAL_PREAMBLE + modeBody;
+  // Inject today's date so every mode has an absolute anchor. Without this,
+  // the LLM has no current-date signal and guesses (e.g. hallucinating that
+  // "le 28 avril" has already passed when it's still four days away).
+  let prompt = CONSTITUTIONAL_PREAMBLE + formatTodayLine() + '\n\n' + modeBody;
 
   // Inject static Known Facts block for modes that need factual grounding (D-04, D-05)
   if (mode === 'JOURNAL' || mode === 'INTERROGATE') {

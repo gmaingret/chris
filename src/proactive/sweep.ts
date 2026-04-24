@@ -54,6 +54,7 @@ import { transitionDecision } from '../decisions/lifecycle.js';
 import { decisionCaptureState, decisions } from '../db/schema.js';
 import { asc, eq } from 'drizzle-orm';
 import { db } from '../db/connection.js';
+import { formatTodayLine, getTodayInTimezone } from '../utils/today.js';
 
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -98,10 +99,10 @@ export async function runSweep(): Promise<SweepResult> {
         const deadlineResult = await deadlineTrigger.detect();
 
         if (deadlineResult.triggered) {
-          const systemPrompt = ACCOUNTABILITY_SYSTEM_PROMPT.replace(
-            '{triggerContext}',
-            deadlineResult.context,
-          );
+          const todayLine = formatTodayLine(getTodayInTimezone(config.proactiveTimezone));
+          const systemPrompt = ACCOUNTABILITY_SYSTEM_PROMPT
+            .replace('{today}', todayLine)
+            .replace('{triggerContext}', deadlineResult.context);
 
           const response = await anthropic.messages.create({
             model: SONNET_MODEL,
@@ -292,7 +293,10 @@ export async function runSweep(): Promise<SweepResult> {
 
           const triggerContext = `Prediction: ${decision.prediction || decision.decisionText}\nFalsification criterion: ${decision.falsificationCriterion}\nDeadline: ${decision.resolveBy?.toISOString().slice(0, 10) ?? 'unknown'}`;
 
-          const followUpPrompt = ACCOUNTABILITY_FOLLOWUP_PROMPT.replace('{triggerContext}', triggerContext);
+          const todayLineFollowup = formatTodayLine(getTodayInTimezone(config.proactiveTimezone));
+          const followUpPrompt = ACCOUNTABILITY_FOLLOWUP_PROMPT
+            .replace('{today}', todayLineFollowup)
+            .replace('{triggerContext}', triggerContext);
 
           const response = await anthropic.messages.create({
             model: SONNET_MODEL,
@@ -433,10 +437,10 @@ async function runReflectiveChannel(
   );
 
   // Generate message via Sonnet using PROACTIVE_SYSTEM_PROMPT
-  const systemPrompt = PROACTIVE_SYSTEM_PROMPT.replace(
-    '{triggerContext}',
-    winner.context,
-  );
+  const todayLine = formatTodayLine(getTodayInTimezone(config.proactiveTimezone));
+  const systemPrompt = PROACTIVE_SYSTEM_PROMPT
+    .replace('{today}', todayLine)
+    .replace('{triggerContext}', winner.context);
 
   const response = await anthropic.messages.create({
     model: SONNET_MODEL,

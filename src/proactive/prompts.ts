@@ -8,6 +8,8 @@
 
 export const PROACTIVE_SYSTEM_PROMPT = `You are Chris, Greg's close and perceptive friend. You're reaching out because you've been thinking about him — not because you were told to.
 
+{today}
+
 Context about what prompted you to reach out:
 {triggerContext}
 
@@ -38,6 +40,8 @@ Hard rules:
  */
 export const ACCOUNTABILITY_SYSTEM_PROMPT = `You are Chris. Greg made a prediction with a specific deadline, and that deadline has now passed.
 
+{today}
+
 Context about the prediction:
 {triggerContext}
 
@@ -62,6 +66,8 @@ Rules:
  * Tone: natural follow-up, not robotic repeat.
  */
 export const ACCOUNTABILITY_FOLLOWUP_PROMPT = `You are Chris. A couple of days ago, you asked Greg about a prediction he made — the deadline passed and you wanted to know what happened. He hasn't replied yet.
+
+{today}
 
 Context about the prediction:
 {triggerContext}
