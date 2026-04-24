@@ -33,12 +33,28 @@ vi.mock('../../utils/logger.js', () => ({
 }));
 
 // ── Mock DB ────────────────────────────────────────────────────────────────
-vi.mock('../../db/connection.js', () => ({
-  db: {
-    insert: vi.fn(() => ({ values: vi.fn(() => ({ returning: vi.fn(() => [{ id: 1 }]) })) })),
-    select: vi.fn(() => ({ from: vi.fn(() => ({ where: vi.fn(() => ({ orderBy: vi.fn(() => ({ limit: vi.fn(() => []) })) })) })) })),
-  },
-}));
+// Drizzle query builders are both chainable and thenable: every step
+// (`.from`, `.where`, `.orderBy`, `.limit`) returns an object that can be
+// further chained OR awaited directly. Callers terminate the chain at
+// different points — `isSuppressed` awaits after `.where()`,
+// `getActiveDecisionCapture` awaits after `.limit()`, history reads await
+// after `.orderBy().limit()`. One thenable terminal covers them all.
+vi.mock('../../db/connection.js', () => {
+  const terminal: Record<string, unknown> = {};
+  const chain = () => terminal;
+  terminal.from = vi.fn(chain);
+  terminal.where = vi.fn(chain);
+  terminal.orderBy = vi.fn(chain);
+  terminal.limit = vi.fn(chain);
+  // Thenable — `await <chain>` resolves to an empty result set.
+  terminal.then = (resolve: (v: unknown[]) => void) => resolve([]);
+  return {
+    db: {
+      insert: vi.fn(() => ({ values: vi.fn(() => ({ returning: vi.fn(() => [{ id: 1 }]) })) })),
+      select: vi.fn(() => terminal),
+    },
+  };
+});
 
 // ── Mock Anthropic ─────────────────────────────────────────────────────────
 const mockCreate = vi.fn();
