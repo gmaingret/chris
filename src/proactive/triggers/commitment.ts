@@ -2,7 +2,7 @@
  * Commitment staleness trigger for proactive messaging.
  *
  * Queries pensieveEntries for INTENTION entries older than `staleDays`
- * and fires when John has made commitments he hasn't followed up on.
+ * and fires when Greg has made commitments he hasn't followed up on.
  *
  * Priority: 3 (silence=1, deadline=2, commitment=3, pattern=4, thread=5)
  *
@@ -79,7 +79,7 @@ export function createCommitmentTrigger(staleDays: number): TriggerDetector {
         triggered: true,
         triggerType: 'commitment',
         priority: COMMITMENT_PRIORITY,
-        context: `John made a commitment ${ageDays} days ago: "${truncate(oldest.content, MAX_CONTEXT_LENGTH)}". There's been no follow-up.`,
+        context: `Greg made a commitment ${ageDays} days ago: "${truncate(oldest.content, MAX_CONTEXT_LENGTH)}". There's been no follow-up.`,
         evidence,
       };
     },
