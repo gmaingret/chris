@@ -10,11 +10,11 @@
 
 ### Organic data fetch (FETCH)
 
-- [ ] **FETCH-01**: Operator can run `npx tsx scripts/fetch-prod-data.ts` to dump live prod data into a timestamped snapshot directory under `tests/fixtures/prod-snapshot/<ISO8601>/` and exit 0 on success.
-- [ ] **FETCH-02**: The snapshot contains JSONL exports of: `pensieve_entries` (restricted to `source='telegram'`), `pensieve_embeddings` (scoped to those telegram-source ids), `episodic_summaries`, `decisions`, `decision_events`, `decision_capture_state`, `contradictions`, `proactive_state`, `memories`. Each file has stable row ordering for diffability.
-- [ ] **FETCH-03**: Fetch script uses SSH to Proxmox (192.168.1.50) with the existing operator auth — no new credentials introduced, no read-write operations on prod.
-- [ ] **FETCH-04**: `tests/fixtures/prod-snapshot/LATEST` symlink points to the newest snapshot directory after each fetch run.
-- [ ] **FETCH-05**: `tests/fixtures/prod-snapshot/` is gitignored (added to `.gitignore` if not already excluded) — snapshots stay local per developer.
+- [x] **FETCH-01**: Operator can run `npx tsx scripts/fetch-prod-data.ts` to dump live prod data into a timestamped snapshot directory under `tests/fixtures/prod-snapshot/<ISO8601>/` and exit 0 on success.
+- [x] **FETCH-02**: The snapshot contains JSONL exports of: `pensieve_entries` (restricted to `source='telegram'`), `pensieve_embeddings` (scoped to those telegram-source ids), `episodic_summaries`, `decisions`, `decision_events`, `decision_capture_state`, `contradictions`, `proactive_state`, `memories`. Each file has stable row ordering for diffability.
+- [x] **FETCH-03**: Fetch script uses SSH to Proxmox (192.168.1.50) with the existing operator auth — no new credentials introduced, no read-write operations on prod.
+- [x] **FETCH-04**: `tests/fixtures/prod-snapshot/LATEST` symlink points to the newest snapshot directory after each fetch run.
+- [x] **FETCH-05**: `tests/fixtures/prod-snapshot/` is gitignored (added to `.gitignore` if not already excluded) — snapshots stay local per developer.
 
 ### Synthetic delta (SYNTH)
 
