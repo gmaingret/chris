@@ -6,9 +6,9 @@
 - ✅ **v2.0 M006 Trustworthy Chris** — Phases 6-12 (shipped 2026-04-15) — see [milestones/v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md)
 - ✅ **v2.1 M007 Decision Archive** — Phases 13-19 (shipped 2026-04-18) — see [milestones/v2.1-ROADMAP.md](milestones/v2.1-ROADMAP.md)
 - ✅ **v2.2 M008 Episodic Consolidation** — Phases 20-23 + 22.1 (shipped 2026-04-19) — see [milestones/v2.2-ROADMAP.md](milestones/v2.2-ROADMAP.md)
-- ✅ **v2.3 Test Data Infrastructure** *(pre-M009 enabler, single-phase)* — Phase 24 (shipped 2026-04-20, 20/20 requirements) — see `M008.5_Test_Data_Infrastructure.md` spec + `.planning/REQUIREMENTS.md`
+- ✅ **v2.3 Test Data Infrastructure** — Phase 24 (shipped 2026-04-20, archived 2026-04-25, 20/20 requirements) — see [milestones/v2.3-ROADMAP.md](milestones/v2.3-ROADMAP.md)
 
-**Pause Gate — M009 Prerequisite:** v2.3 removes the "wait for 7 real episodic summaries" gate by providing the primed-fixture pipeline. **v2.3 SHIPPED 2026-04-20** — M009 planning is now unblocked (primed fixture supplies ≥ 7 summaries on demand via `loadPrimedFixture('m008-14days')`).
+**M009 unblocked.** v2.3 removed the "wait 7 real calendar days" gate by providing the primed-fixture pipeline. Run `loadPrimedFixture('m008-14days')` to seed ≥ 7 summaries on demand.
 
 ## Phases
 
@@ -66,57 +66,14 @@ See [milestones/v2.2-ROADMAP.md](milestones/v2.2-ROADMAP.md) for full phase deta
 
 </details>
 
-### v2.3 Test Data Infrastructure — SHIPPED 2026-04-20
+<details>
+<summary>✅ v2.3 Phase 24 — SHIPPED 2026-04-20</summary>
 
-- [x] **Phase 24: Primed-Fixture Pipeline** — SHIPPED 2026-04-20. 4/4 plans complete, 20/20 requirements delivered. The organic+synthetic test-data pipeline (fetch from prod → synthesize delta → real-engine episodic synthesis → load into Docker Postgres via `loadPrimedFixture`) unblocks every downstream milestone (M009–M014). D041 convention codified in PLAN.md + CONVENTIONS.md + TESTING.md.
+- [x] **Phase 24: Primed-Fixture Pipeline** — SHIPPED 2026-04-20 (4/4 plans, 20/20 requirements). Organic+synthetic test-data pipeline (fetch from prod → synthesize delta → real-engine episodic synthesis → load into Docker Postgres via `loadPrimedFixture`) unblocks every downstream milestone (M009–M014). D041 convention codified in PLAN.md + CONVENTIONS.md + TESTING.md.
 
-## Phase Details
+See [milestones/v2.3-ROADMAP.md](milestones/v2.3-ROADMAP.md) for full phase detail.
 
-### Phase 24: Primed-Fixture Pipeline
-
-**Goal:** An operator can produce a fused organic+synthetic test fixture — anchored in real prod data pulled from Proxmox (192.168.1.50), extended with deterministic synthetic days via Haiku style-transfer + real `runConsolidate()` episodic synthesis — and load it into the Docker Postgres test DB through `loadPrimedFixture(name)`. The pipeline auto-refreshes stale snapshots (> 24h) silently, is seed-reproducible (VCR-cached Anthropic outputs), and is documented in `TESTING.md` with a new project convention banning calendar-time data-accumulation gates in subsequent milestones.
-
-**Depends on:** v2.2 M008 (shipped) — relies on `src/episodic/consolidate.ts` `runConsolidate()`, `src/decisions/resolution.ts` `handleResolution`, and migration 0005 `episodic_summaries` as the integration substrate.
-
-**Requirements:** FETCH-01..05, SYNTH-01..07, HARN-01..03, FRESH-01..03, DOC-01..02 (20 total).
-
-**Success Criteria** (what must be TRUE when phase completes):
-
-1. **Operator can run `npx tsx scripts/fetch-prod-data.ts` and produce a valid snapshot in under 60s.** The script SSHes to Proxmox (192.168.1.50) using existing operator auth, dumps 9 tables (`pensieve_entries` filtered to `source='telegram'` only, `pensieve_embeddings` scoped to those IDs, `episodic_summaries`, `decisions`, `decision_events`, `decision_capture_state`, `contradictions`, `proactive_state`, `memories`) as JSONL with stable ordering under `tests/fixtures/prod-snapshot/<ISO8601>/`, updates the `LATEST` symlink, and exits 0.
-
-2. **Operator can run `npx tsx scripts/synthesize-delta.ts --organic <stamp> --target-days 14 --seed 42 --milestone m009` and produce a primed fixture with ≥ 7 episodic summaries and ≥ 200 pensieve entries.** Pensieve deltas are generated via Haiku style-transfer per synthetic day (few-shot from organic base); episodic summaries are produced by running the real `runConsolidate(date)` against each synthetic day; deterministic generators produce decisions, contradictions, and wellbeing snapshots. Fixture written under `tests/fixtures/primed/<milestone>-<N>days/`.
-
-3. **Re-running `synthesize-delta.ts` with the same `--seed` against the same organic base produces byte-identical non-LLM output** (diff-clean), with Anthropic outputs captured VCR-style on first run and replayed on subsequent runs. `regenerate-primed.ts --force` rebuilds everything from scratch (fetch + synthesize + VCR rebuild) independent of stamp age.
-
-4. **When `tests/fixtures/prod-snapshot/LATEST` is older than 24 hours, `synthesize-delta.ts` and `regenerate-primed.ts` silently auto-refresh the snapshot by invoking `fetch-prod-data.ts` before proceeding** — no warnings, no half-stale runs. `--no-refresh` opt-out is honored for offline/sandbox workflows.
-
-5. **A sanity-check Vitest integration test (`fileParallelism: false`, Docker Postgres) loads an `m008-14days` primed fixture via `loadPrimedFixture(name)` and passes assertions:** ≥ 7 days of summaries exist, ≥ 200 pensieve entries loaded, `UNIQUE(summary_date)` holds, no `source='immich'`/`source='gmail'`/`source='drive'` leakage, and `loadPrimedFixture` clears target tables in FK-safe order before load (idempotent + collision-safe across repeated calls). `TESTING.md` is updated with the primed-fixture pattern and the new convention (*"no milestone may gate on real calendar time for data accumulation"*) is codified in `PROJECT.md` and/or `.planning/codebase/CONVENTIONS.md`.
-
-**Plans:**
-
-- **24-01 — Fetch script + snapshot schema + gitignore + freshness hook**
-  - Build `scripts/fetch-prod-data.ts`: SSH to Proxmox, dump 9 tables (`source='telegram'` filter on pensieve_entries, scoped embeddings, episodic, decisions trio, contradictions, proactive_state, memories), emit JSONL with stable sort order to `tests/fixtures/prod-snapshot/<ISO8601>/`, update `LATEST` symlink, exit 0.
-  - Add `tests/fixtures/prod-snapshot/` to `.gitignore`.
-  - Build the freshness-check helper (`isSnapshotStale(path, ttlHours)`) used by FRESH-01 consumers in plans 24-02 and 24-04.
-  - **Requirements covered:** FETCH-01, FETCH-02, FETCH-03, FETCH-04, FETCH-05, FRESH-01.
-
-- **24-02 — Synthetic delta generator (pensieve + decisions + contradictions + wellbeing + VCR)**
-  - Build `scripts/synthesize-delta.ts --organic <stamp> --target-days N --seed NN --milestone <name>`: CLI parsing + freshness auto-refresh invocation + per-day Haiku style-transfer (few-shot from randomly sampled organic telegram entries, seed-controlled) producing synthetic pensieve entries with realistic UTC+1/+2 timestamps and `source='telegram'`.
-  - Deterministic generators for N synthetic decisions (realistic `resolve_by` spread; optional resolution replies + real `handleResolution` invocation when milestone needs resolved decisions), N pre-written adversarial contradiction pairs (`status='DETECTED'`, `confidence >= 0.75`), and N wellbeing snapshots (1–5 distribution; codes against whatever table exists — M009 may add the schema).
-  - VCR-style cache for Anthropic outputs (first run records, subsequent runs replay). `--no-refresh` flag honored.
-  - **Requirements covered:** SYNTH-01, SYNTH-02, SYNTH-04, SYNTH-05, SYNTH-06, SYNTH-07, FRESH-02.
-
-- **24-03 — Real-engine episodic synthesis pass**
-  - Extend `synthesize-delta.ts` (or introduce a sibling module it calls) to run the real `runConsolidate(date)` from `src/episodic/consolidate.ts` against each synthetic day, writing authentic Sonnet-generated episodic summaries into the fixture output. Costs ~$0.02/day of real Anthropic spend; outputs captured under the VCR cache from plan 24-02 so subsequent runs are free.
-  - Verify UNIQUE(summary_date) + `source='telegram'` filter contract hold end-to-end on synthetic input (the engine under test produces the fixture's summaries, not a mock).
-  - **Requirements covered:** SYNTH-03.
-
-- **24-04 — Test-harness loader + regenerate script + docs + convention**
-  - Build `src/__tests__/fixtures/load-primed.ts` exporting `loadPrimedFixture(name)`: reads a primed fixture directory, clears target tables in FK-safe order (conversations → contradictions → pensieve_embeddings → episodic_summaries → decision_events → decision_capture_state → decisions → pensieve_entries → proactive_state → memories), bulk-inserts in dependency order, idempotent + collision-safe across repeated calls in one suite.
-  - Write the sanity-check Vitest integration test under `fileParallelism: false` that loads `m008-14days` and asserts ≥ 7 summaries, ≥ 200 pensieve entries, `UNIQUE(summary_date)` holds, no non-telegram source leakage.
-  - Build `scripts/regenerate-primed.ts --milestone <name> --force`: fetch → synthesize → VCR cache rebuild, independent of stamp age. `--no-refresh` honored for the synth step only.
-  - Update `.planning/codebase/TESTING.md` with the organic+synthetic primed-fixture pattern, `loadPrimedFixture(name)` usage, and the 24h freshness policy. Add new convention to `PROJECT.md` and/or `.planning/codebase/CONVENTIONS.md`: *"no milestone may gate on real calendar time for data accumulation — use the primed-fixture pipeline instead."*
-  - **Requirements covered:** HARN-01, HARN-02, HARN-03, FRESH-03, DOC-01, DOC-02.
+</details>
 
 ---
 

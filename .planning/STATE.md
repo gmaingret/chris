@@ -1,41 +1,36 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.3
-milestone_name: Test Data Infrastructure
-status: v2.3 Test Data Infrastructure SHIPPED — Phase 24 complete (4/4 plans, 20/20 REQs)
-stopped_at: Completed 24-04-PLAN.md — v2.3 ships; M009 planning unblocked
-last_updated: "2026-04-20T15:53:00Z"
-last_activity: "2026-04-20 — Plan 24-04 shipped (~15m): loadPrimedFixture test-harness loader + HARN-03 primed-sanity gate + scripts/regenerate-primed.ts composer + DOC-01 TESTING.md + DOC-02 CONVENTIONS.md + PLAN.md D041. 8/8 load-primed integration tests green under Docker. 5 atomic commits. Zero production src/ modifications. Full excluded-suite gate: 0 new regressions."
+milestone: between
+milestone_name: between v2.3 and v2.4
+status: v2.3 Test Data Infrastructure ARCHIVED 2026-04-25 — ready to plan v2.4 M009 Ritual Infrastructure
+stopped_at: Completed /gsd-complete-milestone for v2.3
+last_updated: "2026-04-25T05:30:00Z"
+last_activity: "2026-04-25 — v2.3 milestone closed: archives written to milestones/v2.3-{ROADMAP,REQUIREMENTS,MILESTONE-AUDIT}.md, ROADMAP.md collapsed, PROJECT.md evolved (D041 added, v2.3 moved to historical), MILESTONES.md entry appended, RETROSPECTIVE.md milestone section + cross-milestone trends updated, REQUIREMENTS.md removed via git rm, tagged v2.3."
 progress:
-  total_phases: 1
-  completed_phases: 1
-  total_plans: 4
-  completed_plans: 4
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: null
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-20 for v2.3 kickoff).
+See: .planning/PROJECT.md (updated 2026-04-25 at v2.3 milestone close).
 
 **Core value:** Greg can deposit any memory, thought, or feeling into Chris and later ask questions that Chris answers by searching everything Greg has ever told him — with full fidelity, no data loss, and genuine contextual understanding across English, French, and Russian. Memory is tiered: raw Pensieve for recent fidelity, episodic daily summaries for older context.
 
-**Current focus:** v2.3 Test Data Infrastructure — build the organic+synthetic primed-fixture pipeline so M009 and every downstream milestone can be validated on demand, without calendar-time waits.
+**Current focus:** Between milestones. v2.4 M009 (Ritual Infrastructure + Daily Note + Weekly Review) is the next planned milestone — primed-fixture pipeline (v2.3) supplies ≥7 episodic summaries on demand via `loadPrimedFixture('m008-14days')`, removing the prior 7-real-calendar-day data-accumulation gate.
 
 ## Current Position
 
-Phase: Phase 24 (Primed-Fixture Pipeline) — **SHIPPED, 4/4 plans complete**
-Plan: — (Phase 24 complete; v2.3 milestone done; M009 planning unblocked)
-Status: v2.3 Test Data Infrastructure SHIPPED. M009 Ritual Infrastructure is next (pause gate per PLAN.md).
-Last activity: 2026-04-20 — Plan 24-04 shipped (~15m): loadPrimedFixture + HARN-03 sanity + regenerate-primed composer + DOC-01 + DOC-02. 8/8 integration tests green. 0 new regressions.
+**Between milestones.** v2.3 archived 2026-04-25. v2.4 M009 not yet started.
 
-Prior deploy state unchanged: v2.2 + M008.1 fix live on Proxmox (192.168.1.50, HEAD = 2cfcecd). Daily 23:00 Europe/Paris episodic cron + 6h sync cron + 10:00 proactive sweep cron all healthy. 2 substantive summaries on prod (2026-04-15 imp=8, 2026-04-18 imp=7). v2.3 is a test-infra milestone — no prod deploy expected.
+**Kickoff command:** `/gsd-new-milestone "M009 Ritual Infrastructure + Daily Note + Weekly Review"`.
 
-```
-Progress: [██████████] 100%
-```
+Prior deploy state unchanged: v2.2 + M008.1 fix live on Proxmox (192.168.1.50, HEAD = 2cfcecd). Daily 23:00 Europe/Paris episodic cron + 6h sync cron + 10:00 proactive sweep cron all healthy. v2.3 was test-infrastructure only — no prod deploy expected.
 
 ## Shipped Milestones
 
@@ -43,88 +38,45 @@ Progress: [██████████] 100%
 - **v2.0 M006 Trustworthy Chris** — 2026-04-15 (Phases 6-12, 19 plans, 26/26 requirements)
 - **v2.1 M007 Decision Archive** — 2026-04-18 (Phases 13-19, 27 plans, 36 tasks, 31/31 requirements)
 - **v2.2 M008 Episodic Consolidation** — 2026-04-19 (5 phases, 17 plans, 35/35 requirements — archived at `.planning/milestones/v2.2-phases/`) + M008.1 inline fix 2026-04-19
-- **v2.3 Test Data Infrastructure** — 2026-04-20 (Phase 24, 4 plans, 20/20 requirements) — primed-fixture pipeline shipped; D041 convention codified
-
-## Phase Summary
-
-| Phase | Name | Requirements | Status |
-|-------|------|--------------|--------|
-| 24 | Primed-Fixture Pipeline | 20 (FETCH-01..05, SYNTH-01..07, HARN-01..03, FRESH-01..03, DOC-01..02) | **SHIPPED (4/4 plans)** — 24-01 fetch 2026-04-20 (a8181fa, 6 REQs); 24-02 synth-delta 2026-04-20 (13cd846, 7 REQs); 24-03 episodic-synth 2026-04-20 (d0b2ca8, 1 REQ); 24-04 harness/docs 2026-04-20 (6b1a3f1/67fc1bd/e54144a/7258ca0, 6 REQs). **20/20 REQs complete.** |
+- **v2.3 Test Data Infrastructure** — 2026-04-20 / archived 2026-04-25 (Phase 24, 4 plans, 20/20 requirements). Primed-fixture pipeline shipped; D041 convention codified. Phase 24 directory pending archival to `.planning/milestones/v2.3-phases/` (deferred at close — see Open Items).
 
 ## Accumulated Context
 
-### v2.3 design decisions (locked 2026-04-20)
+### Decisions in force going into v2.4
 
-- **v2.3 is standalone, not folded into M009** — reusable infrastructure across M009–M014 avoids per-milestone re-derivation of synthesis code.
-- **Organic data scope = `source='telegram'` only** — matches M008.1 consolidation contract; synced sources (immich/gmail/gdrive) bloat fixtures without adding test signal. Revisit if a milestone specifically exercises ambient retrieval.
-- **Freshness policy = 24h auto-refresh** — snapshot older than one day triggers silent `fetch-prod-data.ts` invocation before proceeding. `--no-refresh` flag for sandbox/air-gap. No warnings, no half-stale runs.
-- **Anthropic spend acceptable** — ~$0.02/day × 14 days = ~$0.28 per fixture refresh. Paid once per fixture-design-change via VCR cache, not per test run.
+Full log in PROJECT.md Key Decisions table. Most relevant for M009:
 
-### v2.3 roadmap decisions (locked 2026-04-20)
+- **D004 append-only Pensieve** — episodic_summaries is a projection, not authoritative.
+- **D018 no skipped tests** — primed-fixture pipeline (D041) is the replacement for waiting real calendar days.
+- **D029 execution order** — M009 (rituals + daily note + weekly review) ships before profile layer.
+- **D030 weekly review ships in M009 not M013** — only depends on M008 episodic summaries + M007 decisions.
+- **D034 episodic_summaries 8 columns + 3 indexes locked** — no schema changes expected for M009 weekly review.
+- **D035 Pensieve authoritative** — boundary preservation enforced by `boundary-audit.test.ts`.
+- **D036 retrieveContext two-dim routing** — recency + query intent, M009 read-paths must use it.
+- **D041 (shipped 2026-04-20) — primed-fixture pipeline** — *no milestone may gate on real calendar time for data accumulation; use the primed-fixture pipeline instead.* Codified in PLAN.md §Key Decisions D041 + CONVENTIONS.md §Test Data + TESTING.md §Primed-Fixture Pipeline.
 
-- **Single phase, four plans.** Phase 24 "Primed-Fixture Pipeline" covers all 20 v2.3 requirements. Plan shape follows the spec: (1) fetch-prod-data script + FRESH-01 hook, (2) synthesize-delta for non-episodic content + VCR cache, (3) real-engine episodic synthesis pass (split from 24-02 per spec guidance — runConsolidate integration has distinct complexity), (4) test-harness loader + regenerate-primed + documentation + convention codification.
-- **FRESH requirements are split across plans by locality.** FRESH-01 (24h auto-refresh hook) lives in 24-01 since the fetch script owns the snapshot lifecycle; FRESH-02 (`--no-refresh` flag) lives in 24-02 where the flag is consumed; FRESH-03 (regenerate-primed script) lives in 24-04 where the wrapper script is built.
+### Open Items (carried into v2.4)
 
-### Plan 24-02 decisions (locked 2026-04-20)
-
-- **VCR hash key = SHA-256 over canonical-stringified request (keys sorted at every nesting level).** Any prompt/model/schema change auto-invalidates without manual bookkeeping. Sort-at-every-level is load-bearing — the Anthropic SDK's nested `output_config.format` JSON-schema emitter does not preserve key order, so a top-level-only sort would false-miss on every run.
-- **Lazy-import pattern reused from Plan 24-01.** `scripts/synthesize-delta.ts` lazy-imports logger/freshness/vcr/llm-client inside `synthesize()` (not at top level) so `--help` exits without DATABASE_URL. The seeded-RNG module (no config deps) stays top-level. Vitest `vi.mock()` hoisting means this is invisible to unit tests.
-- **Deterministic UUID generator.** 4 × Mulberry32 draws → 16 bytes → UUIDv4 layout. Replaces `crypto.randomUUID()` at every synthesis site to close the SYNTH-07 determinism gap.
-- **Test fixture committed to repo.** `scripts/__tests__/__fixtures__/synth-delta/organic-tiny/` (5 telegram entries across 2 days) is NOT gitignored — keeps the unit-test gate hermetic and independent of the gitignored `tests/fixtures/prod-snapshot/` tree.
-- **vitest config widened.** `root='src'` → `root='.'` with explicit includes for both `src/**/__tests__/` and `scripts/**/__tests__/`. Plan 24-02's frontmatter prescribes `scripts/__tests__/synthesize-delta.test.ts` as the test path; prior config scoped discovery to `src/**` only.
-- **Empty `episodic_summaries.jsonl` placeholder.** synthesize-delta writes an empty file; Plan 24-03 overwrites with real `runConsolidate` output. Documented in MANIFEST.json `schema_note` and in the plan summary's Known Stubs section.
-
-### Plan 24-03 decisions (locked 2026-04-20)
-
-- **Port 5435 locks the operator invocation lane.** Corrects D-04's original port-5434 per RESEARCH §Pitfall 5 — `scripts/regen-snapshots.sh` already owns 5434 for snapshot regeneration, so picking a disjoint port avoids concurrent-run collisions. `grep 5434 scripts/synthesize-episodic.ts` returns 0 (plan acceptance criterion); `grep 5435` returns 6.
-- **Sibling-module composition (Pattern 2 Option 3) is the entire no-production-code-mod contract.** The dynamic-import order in `main()` is load-bearing: env-vars → `import '../src/llm/client.js'` → `import vcr.js` → property-swap `anthropic.messages.parse = cachedMessagesParse` → `import '../src/episodic/consolidate.js'`. Consolidate.ts sees the already-swapped singleton on first read. `git diff src/` returns empty after commit.
-- **dbOverride param convention on exported helpers.** Integration test reuses scripts/test.sh's port-5433 container via `{ dbOverride: pgSql }` rather than spawning nested Docker inside vitest. Plan 24-04's `loadPrimedFixture` will adopt the same convention.
-- **VITEST=1 short-circuits the 2s inter-day delay.** `runSiblingConsolidation` mirrors `backfill-episodic.ts`'s 2s inter-day rate-limit; under vitest (which sets `VITEST=true` automatically), the delay is skipped so the integration suite runs in sub-second time. Operator invocation still delays.
-- **jsonb_populate_recordset with ON CONFLICT DO NOTHING for bulk load.** Chosen over Drizzle insert-many because JSONL keys are already snake_case (from Plan 24-01 fetch-prod-data.ts convention) and ON CONFLICT keeps the loader idempotent under beforeEach cleanup.
-
-### Plan 24-04 decisions (locked 2026-04-20)
-
-- **D-11 FK-cleanup order CORRECTED** — uses `relational_memory` (actual Drizzle table, schema.ts:134), NOT the REQ-alias "memories". Alias rationale codified in TESTING.md §Primed-Fixture Pipeline. `grep -c "from '.*schema\.js'.*memories\b" src/__tests__/fixtures/load-primed.ts` = 0.
-- **D-05 wellbeing feature-detect extended to D-11 conversations.** Both use the same `SELECT to_regclass('public.<tbl>')` short-circuit. `conversations` is present (migration 0000); `wellbeing_snapshots` is absent (pre-M009). Pattern generalizes for future optional tables.
-- **D-09 soft-fail default ships; strictFreshness option shipped for future use.** `loadPrimedFixture` warns on stale organic and proceeds; `{ strictFreshness: true }` turns the warn into `ChrisError('LOAD_PRIMED_STALE_STRICT')`. No in-tree consumer of the strict option today — future hook.
-- **Test 8 cleanup-ORDER uses Proxy-wrapped dbOverride.** Drizzle's `db.delete()` routes through the module singleton, not the caller's override, so only feature-detected DELETEs (conversations, wellbeing_snapshots) + to_regclass probes are observable via the Proxy. Drizzle ORDER is guaranteed structurally by sequential await statements; plan-level acceptance inspects source at review time.
-- **regenerate-primed.ts is a pure composer.** Zero in-process synthesis logic — each step spawns the producer script with stdio:'inherit'. Keeps the composer thin (256 LOC) and producer scripts authoritative for their own contracts. Extensible to M009+.
-- **D041 codified in PLAN.md.** D040 was already allocated to decimal-phases gap-closure; D041 is the next free number. Cross-referenced from TESTING.md + CONVENTIONS.md. Exact convention phrasing: *"no milestone may gate on real calendar time for data accumulation — use the primed-fixture pipeline instead."*
-- **primed-sanity.test.ts skip-guard.** `describe.skip` when `tests/fixtures/primed/m008-14days/MANIFEST.json` is absent → `bash scripts/test.sh` stays green in sandbox / CI environments. Operator runs `scripts/regenerate-primed.ts` once → test flips from skipped → running → 4 HARN-03 invariants asserted. NOT in excluded-suite list.
-
-### Decisions in force for v2.3
-
-Full log in PROJECT.md Key Decisions table. Most relevant going into test-data infrastructure:
-
-- **D004 append-only Pensieve** — fetch scripts must dump pensieve_entries read-only; synthetic layer writes to a separate fixture directory, never back to prod.
-- **D016 build+test locally then deploy** — primed fixtures enable the "test locally" side of this at M009+ scale.
-- **D018 no skipped tests** — primed fixtures are the replacement for waiting real calendar days to gate tests.
-- **D019 explicit prod approval** — `fetch-prod-data.ts` is read-only pg_dump; no write path to prod.
-- **M008.1 filter** — `source='telegram'` is the consolidation contract; fixtures must match.
-- **D041 (shipped 2026-04-20)** — *no milestone may gate on real calendar time for data accumulation; use the primed-fixture pipeline instead.* Codified in PLAN.md §Key Decisions table + CONVENTIONS.md §Test Data + TESTING.md §Primed-Fixture Pipeline.
-
-### Pending Todos (carried from v2.1/v2.2)
-
-- Human UAT pass on 12 deferred items from v2.1 (live Telegram feel, ACCOUNTABILITY tone quality, `/decisions` dashboard format, FR/RU localization).
-- Run TEST-13 + TEST-14 locally with `ANTHROPIC_API_KEY` set to verify live Sonnet ACCOUNTABILITY + Haiku vague-prediction resistance.
-- Env-level vitest-4 fork-IPC hang under HuggingFace EACCES — 5-file excluded-suite mitigation in place; worth a future fix-up phase (may intersect with v2.3 test-harness work in 24-04).
+- **Phase 24 directory archival pending.** `/gsd-cleanup` later to move `.planning/phases/24-primed-fixture-pipeline/` → `.planning/milestones/v2.3-phases/24-primed-fixture-pipeline/`. Skipped at close to keep v2.4 planning able to read the phase artifacts in place if needed.
+- **Process gap: `gsd-verifier` not wired into `/gsd-execute-phase`.** Phase 24 shipped without a live VERIFICATION.md. Investigate before v2.4 starts; add a regression test or hard workflow gate.
+- **Process gap: SUMMARY.md frontmatter missing `requirements-completed`.** All 4 v2.3 plans omit the field. Update template/planner-agent prompt before v2.4.
+- **Upstream bug: `gsd-sdk milestone.complete` calls `phasesArchive([], projectDir)` without forwarding the version arg** — always throws. v2.3 close was performed manually. File upstream issue against `get-shit-done-cc`.
+- **Manual operator UAT pending for v2.3 live prod path.** `PROD_PG_PASSWORD=<…> npx tsx scripts/regenerate-primed.ts --milestone m008 --target-days 14 --seed 42 --force` against real Proxmox to materialize `tests/fixtures/primed/m008-14days/MANIFEST.json`; HARN-03 4 sanity assertions then flip from skipped to running.
+- **12 human-UAT items carried from v2.1/v2.2** (live Telegram feel, ACCOUNTABILITY tone, `/decisions` dashboard format, FR/RU localization).
+- **Env-level vitest-4 fork-IPC hang under HuggingFace EACCES.** 5-file excluded-suite mitigation in `scripts/test.sh` keeps Docker gate green. Worth a future fix-up phase; may intersect with v2.4 if M009 adds new test suites.
 
 ### Blockers/Concerns
 
-None. **Phase 24 SHIPPED**: 4/4 plans complete, 20/20 requirements delivered. v2.3 Test Data Infrastructure is done.
-
-**Next milestone unblocked:** M009 Ritual Infrastructure (v2.4). The primed-fixture pipeline now supplies fused organic+synthetic test data on demand — M009's planning can start immediately without waiting 7 real calendar days for episodic summaries to accumulate. Per PLAN.md pause-between-milestones directive, allow a natural pause before /gsd:new-milestone "M009 Ritual Infrastructure + Daily Note + Weekly Review".
-
-**Manual operator UAT still pending** (per VALIDATION.md §Manual-Only):
-- `PROD_PG_PASSWORD=<…> npx tsx scripts/regenerate-primed.ts --milestone m008 --target-days 14 --seed 42 --force` to generate the real `m008-14days` fixture from live prod; after generation, `bash scripts/test.sh src/__tests__/fixtures/primed-sanity.test.ts` should show 4/4 HARN-03 assertions passing instead of 4 skipped.
+None. Ready to plan v2.4 M009.
 
 ## Session Continuity
 
-Last session: 2026-04-20T15:53:00Z
-Stopped at: Completed 24-04-PLAN.md — v2.3 Test Data Infrastructure SHIPPED (Phase 24 complete, 4/4 plans, 20/20 REQs)
+Last session: 2026-04-25T05:30:00Z
+Stopped at: v2.3 milestone fully archived; tag `v2.3` created; ready to kick off v2.4 M009.
 
 ## Known Tech Debt
 
-- **TECH-DEBT-19-01** — RESOLVED in v2.2 Plan 20-01 (2026-04-18, archived at `.planning/milestones/v2.2-phases/20-schema-tech-debt/`). drizzle-kit meta snapshots for 0001/0003 backfilled via `scripts/regen-snapshots.sh` clean-slate iterative replay.
-- **Vitest-4 fork-IPC hang under HuggingFace EACCES** — pre-existing env issue, operational mitigation is 5-file excluded-suite in `scripts/test.sh`. Non-blocking for v2.3; worth addressing in a future fix-up phase.
-- **v2.2 Plan 21 WR-02 retry-on-all-errors policy** — documented design choice (archived at `.planning/milestones/v2.2-phases/21-consolidation-engine/`); M009+ may revisit if error patterns emerge.
+- **TECH-DEBT-19-01** — RESOLVED in v2.2 Plan 20-01 (2026-04-18, archived).
+- **Vitest-4 fork-IPC hang under HuggingFace EACCES** — pre-existing env issue, operational mitigation 5-file excluded-suite in `scripts/test.sh`. Non-blocking; worth addressing in a future fix-up phase.
+- **v2.2 Plan 21 WR-02 retry-on-all-errors policy** — documented design choice; M009+ may revisit if error patterns emerge.
+- **v2.3 process gaps** — gsd-verifier not wired into execute-phase + SUMMARY frontmatter `requirements-completed` field omitted + upstream `gsd-sdk milestone.complete` broken (see Open Items).

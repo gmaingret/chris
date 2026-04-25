@@ -124,6 +124,61 @@ After the milestone was archived and tagged, a fresh code-review pass on the v2.
 
 ---
 
+## Milestone: v2.3 — Test Data Infrastructure
+
+**Shipped:** 2026-04-20 (engineering); **archived:** 2026-04-25 (after retroactive audit-trail remediation)
+**Phases:** 1 | **Plans:** 4
+
+### What Was Built
+
+Pre-M009 enabler. Single phase, four plans, 20/20 requirements:
+
+- `scripts/fetch-prod-data.ts` — SSH-tunneled read-only pg_dump of 9 prod tables into JSONL with atomic `LATEST` symlink + 24h auto-refresh helper. Verified live against Proxmox (192.168.1.50): 338 rows in ~600ms.
+- `scripts/synthesize-delta.ts` (700 LOC) + `vcr.ts` content-addressable SHA-256 Anthropic SDK wrapper — extends organic base via per-day Haiku style-transfer (temperature=0, 8-example seeded few-shot) + deterministic decisions/contradictions/wellbeing generators. Byte-identical reruns under same seed.
+- `scripts/synthesize-episodic.ts` (536 LOC) — sibling-module composition (property-swaps `anthropic.messages.parse` to `cachedMessagesParse` then dynamic-imports `consolidate.ts`) against throwaway PG5435 to invoke real `runConsolidate()` for authentic Sonnet-generated summaries. Zero `src/` modifications.
+- `loadPrimedFixture(name)` FK-safe + idempotent test-harness loader + HARN-03 4-invariant sanity gate + `regenerate-primed.ts` 256-LOC pure composer.
+- D041 convention codified in 3 places: *no milestone may gate on real calendar time for data accumulation.*
+
+### What Worked
+
+- **Sibling-module composition (Plan 24-03)** as a pattern for invoking the real production engine from a test fixture without modifying the engine. Dynamic-import order is load-bearing — env-vars → llm/client → vcr property-swap → consolidate. `git diff src/` empty after commit.
+- **Content-addressable VCR cache** auto-invalidates on prompt/model/schema change with no manual bookkeeping. Sort-keys-at-every-nesting-level was load-bearing — Anthropic SDK's nested `output_config.format` schema emitter doesn't preserve order.
+- **`describe.skip` skip-guard pattern** for tests that need a generated fixture. Sandbox/CI runs stay green; once operator generates fixture once, test flips to running. No env vars, no test-list maintenance.
+- **`grep -c "from '.*schema\.js'.*memories\b" load-primed.ts == 0`** as an enforced naming check at plan acceptance time. Caught the "memories" alias / `relational_memory` real-table-name confusion.
+- **Single-day execution burst.** 4 plans landed in ~15 hours on 2026-04-20. Tight focus, lean scope, narrow blast radius.
+- **D041 convention codification.** Locking the rule in PLAN.md + CONVENTIONS.md + TESTING.md *before* M009 planning starts means M009 can't accidentally re-introduce a calendar-time gate.
+
+### What Was Inefficient
+
+- **Phase shipped without `gsd-verifier` invocation.** Process regression vs v2.0/v2.1/v2.2 — every prior phase had a live VERIFICATION.md. Required a 2026-04-24 retroactive `/gsd-audit-milestone` + `gsd-verifier` agent run + manual REQUIREMENTS.md checkbox correction at milestone close. ~30 min of avoidable rework.
+- **`24-VALIDATION.md` left in `draft` status.** Nyquist sign-off never happened during execution — frontmatter `nyquist_compliant: false`, `wave_0_complete: false`, all 5 task-row statuses `⬜ pending`. Same root cause as VERIFICATION.md gap: workflow gates not enforced at execute-phase exit.
+- **SUMMARY.md frontmatter missing `requirements-completed` field** in all 4 plans. Inline REQ-ID mentions provided coverage evidence, but the structured field would let `gsd-sdk query summary-extract --pick requirements_completed` automate cross-reference. Template/planner-prompt regression.
+- **`gsd-sdk milestone.complete` query handler is broken.** Calls `phasesArchive([], projectDir)` without forwarding the version arg — always throws "version required for phases archive". v2.3 close performed manually as workaround. Upstream issue to file.
+
+### Patterns Established
+
+- **Sibling-module composition (Pattern 2 Option 3)** as the canonical no-production-code-mod pattern for invoking production engines from test fixtures. Dynamic-import order is load-bearing.
+- **Port-collision discipline.** When spinning operator-script Postgres containers (e.g., synthesize-episodic on 5435), pick a port disjoint from existing operator scripts (regen-snapshots on 5434). Document the choice in PITFALLS-style RESEARCH.md and grep-enforce at plan acceptance.
+- **`describe.skip` with `MANIFEST.json existsSync`** for tests that need a generated fixture — cheaper than env-var gating and self-documenting.
+- **VCR cache wraps SDK at module-singleton level**, not at function call sites. Property-swap `anthropic.messages.parse = cachedMessagesParse` once at composition time; downstream code is unmodified.
+- **Pre-M009-style enabler milestones** (decimal version like v2.3 between v2.2 and v2.4) when work is genuinely standalone infrastructure that unblocks multiple downstream milestones. Avoids per-milestone re-derivation.
+
+### Key Lessons
+
+1. **Workflow gates must be enforced at exit, not at start.** Phase 24 shipped without VERIFICATION.md / VALIDATION.md sign-off because nothing in `/gsd-execute-phase` blocks the phase from being marked complete without them. Need a regression test or hard gate before next milestone. The cost was visible at milestone close (~30 min of remediation), but the deeper risk is process drift — every milestone that ships without enforcement makes the next one slightly more likely to skip more.
+2. **Audit-trail debt is real debt, but it's qualitatively different from engineering debt.** v2.3 had four bookkeeping gaps and zero engineering gaps. Strict 3-source matrix (VERIFICATION + SUMMARY frontmatter + REQUIREMENTS checkbox) flipped all 20 reqs to "unsatisfied" by rule, while the work was actually 100% done. The audit doc should distinguish bookkeeping-missing from work-missing — proceeding to close on bookkeeping-only gaps after retroactive remediation is correct; proceeding on work-missing gaps is not.
+3. **Retroactive `gsd-verifier` works.** When SUMMARY.md is exhaustive, the verifier can produce VERIFICATION.md from on-disk state + commit history + live test re-run. 11/11 must-haves verified, 20/20 REQs scored, 63 tests re-run live. Not a substitute for live verification, but a viable remediation when the live run was missed.
+4. **Single-phase milestones don't need cross-phase integration checks.** N/A is a valid audit outcome and the workflow's integration-checker spawn can be skipped with a clear note. Don't burn agent time on a check that's structurally impossible to fail.
+5. **Sandbox-friendly test gating beats env-var gating.** `describe.skip` based on file existence is self-documenting and reversible by an operator action (run the script). Env-var gating creates "did you set ANTHROPIC_API_KEY?" tribal knowledge.
+
+### Cost Observations
+
+- **Model mix (approximate):** Executor agents Sonnet for Plan 24 implementation; gsd-verifier Sonnet for retroactive verification (1 invocation, ~158k tokens, 35 tool calls); orchestrator Opus throughout. Real Anthropic spend: ~$0.02/day × N synthetic days for `synthesize-episodic.ts` real-engine calls (paid once per fixture-design-change via VCR cache, not per test run).
+- **Sessions:** Highly compressed — single ~15-hour engineering burst on 2026-04-20, then 5-day pause, then ~30 min of audit remediation + ~15 min of milestone close on 2026-04-24/25.
+- **Notable:** Retroactive `gsd-verifier` cost ~30 min and produced a credible 203-line VERIFICATION.md. Catching the audit-trail gap before closing the milestone (vs. discovering it post-archive when fixing would mean editing archived files) was correct workflow discipline, but the underlying process gap shouldn't have existed in the first place.
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -134,6 +189,7 @@ After the milestone was archived and tagged, a fresh code-review pass on the v2.
 | v2.0 | 7 | 19 | Introduced live-Sonnet integration suite + PITFALLS guards; live-suite precedent (D023/D032) |
 | v2.1 | 7 | 27 | First milestone with full code-review pipeline (68 findings, 65 fixed); first milestone with gap-closure phase (Phase 19); first milestone caught by structural audit (26→31 reqs) |
 | v2.2 | 5 (incl. decimal 22.1) | 17 | First milestone with wave-based parallel plan execution (halved calendar time); first milestone where post-completion code-review-fix cycle caught 14 real Warning bugs (tz drift, Feb 30 rollover, EXIT-trap destruction); first decimal phase used as mid-milestone gap-closure pattern (22.1); orphan-export integration check formalized as audit gate |
+| v2.3 | 1 | 4 | First single-phase milestone (pre-M009 enabler — primed-fixture pipeline); first milestone shipped without live VERIFICATION.md (regression — VERIFICATION.md produced retroactively at close, ~30 min remediation); first milestone closed via manual archival workflow due to broken `gsd-sdk milestone.complete` upstream; D041 convention codified as forward-looking process discipline (no calendar-time data-accumulation gates in any subsequent milestone) |
 
 ### Cumulative Quality
 
@@ -143,6 +199,7 @@ After the milestone was archived and tagged, a fresh code-review pass on the v2.
 | v2.0 | ~200 (+ 24 live + 20 FP audit) | 26 / 26 | Zero |
 | v2.1 | 152 proactive + synthetic-fixture (+ TEST-13/14 API-gated) | 31 / 31 | TECH-DEBT-19-01 (drizzle snapshots) + 12 human-UAT items |
 | v2.2 | 1014 excluded-suite (+ TEST-22 live API-gated) | 35 / 35 | env-level vitest-fork-IPC hang (pre-existing) + `getEpisodicSummariesRange` unconsumed (forward M009) + Phase 21 WR-02 retry-on-all-errors (design choice) |
+| v2.3 | +44 fixture-module unit (freshness/seed/vcr) + 19 synthesize-delta + 8 load-primed integration + HARN-03 4-invariant gate (skip-guarded) | 20 / 20 | process: gsd-verifier not wired into execute-phase + SUMMARY frontmatter `requirements-completed` field omitted + upstream `gsd-sdk milestone.complete` broken + manual operator UAT pending for live prod path |
 
 ### Top Lessons (Verified Across Milestones)
 
