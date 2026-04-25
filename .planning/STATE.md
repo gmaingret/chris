@@ -38,7 +38,7 @@ Prior deploy state unchanged: v2.2 + M008.1 fix live on Proxmox (192.168.1.50, H
 - **v2.0 M006 Trustworthy Chris** — 2026-04-15 (Phases 6-12, 19 plans, 26/26 requirements)
 - **v2.1 M007 Decision Archive** — 2026-04-18 (Phases 13-19, 27 plans, 36 tasks, 31/31 requirements)
 - **v2.2 M008 Episodic Consolidation** — 2026-04-19 (5 phases, 17 plans, 35/35 requirements — archived at `.planning/milestones/v2.2-phases/`) + M008.1 inline fix 2026-04-19
-- **v2.3 Test Data Infrastructure** — 2026-04-20 / archived 2026-04-25 (Phase 24, 4 plans, 20/20 requirements). Primed-fixture pipeline shipped; D041 convention codified. Phase 24 directory pending archival to `.planning/milestones/v2.3-phases/` (deferred at close — see Open Items).
+- **v2.3 Test Data Infrastructure** — 2026-04-20 / archived 2026-04-25 (Phase 24, 4 plans, 20/20 requirements). Primed-fixture pipeline shipped; D041 convention codified. Phase 24 directory archived to `.planning/milestones/v2.3-phases/24-primed-fixture-pipeline/` at close.
 
 ## Accumulated Context
 
@@ -57,7 +57,6 @@ Full log in PROJECT.md Key Decisions table. Most relevant for M009:
 
 ### Open Items (carried into v2.4)
 
-- **Phase 24 directory archival pending.** `/gsd-cleanup` later to move `.planning/phases/24-primed-fixture-pipeline/` → `.planning/milestones/v2.3-phases/24-primed-fixture-pipeline/`. Skipped at close to keep v2.4 planning able to read the phase artifacts in place if needed.
 - **Process gap: `gsd-verifier` not wired into `/gsd-execute-phase`.** Phase 24 shipped without a live VERIFICATION.md. Investigate before v2.4 starts; add a regression test or hard workflow gate.
 - **Process gap: SUMMARY.md frontmatter missing `requirements-completed`.** All 4 v2.3 plans omit the field. Update template/planner-agent prompt before v2.4.
 - **Upstream bug: `gsd-sdk milestone.complete` calls `phasesArchive([], projectDir)` without forwarding the version arg** — always throws. v2.3 close was performed manually. File upstream issue against `get-shit-done-cc`.
