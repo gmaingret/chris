@@ -309,3 +309,68 @@ describe('atomic-write safety (Pitfall #8)', () => {
     await expect(cachedMessagesParse(request)).rejects.toThrow();
   });
 });
+
+// Regression for prod operator UAT 2026-04-25:
+// `scripts/synthesize-episodic.ts` does `anthropic.messages.parse =
+// cachedMessagesParse` (sibling-composition swap pattern) so that the real
+// `runConsolidate()` engine reads through VCR. Before the fix, vcr.ts called
+// `anthropic.messages.parse(request)` on miss — which AFTER the swap resolved
+// back to `cachedMessagesParse` itself, causing infinite recursion (observed:
+// 6.1M identical `vcr.miss hash:2a2d5b47` log events in ~3 min, zero cache
+// files materialized). The fix: vcr.ts captures `ORIGINAL_PARSE` /
+// `ORIGINAL_CREATE` at module-load time and uses those on miss.
+describe('property-swap recursion guard (v2.3 post-close prod regression)', () => {
+  it('cachedMessagesParse is safe to swap onto anthropic.messages.parse without infinite recursion', async () => {
+    const realParseImpl = vi.fn().mockResolvedValue({ ok: 'parsed-real' });
+    vi.mocked(anthropic.messages.parse).mockImplementation(realParseImpl);
+
+    // The dangerous swap (mirrors synthesize-episodic.ts:514).
+    const before = anthropic.messages.parse;
+    anthropic.messages.parse = cachedMessagesParse as typeof anthropic.messages.parse;
+    try {
+      const request = {
+        model: 'sonnet',
+        system: 'recursion-guard-test',
+        messages: [{ role: 'user', content: 'one' }],
+      } as unknown as Parameters<typeof anthropic.messages.parse>[0];
+
+      // If recursion bug returns, this either hangs or stack-overflows.
+      // The test framework's per-test timeout would catch a hang.
+      const response = await cachedMessagesParse(request);
+
+      // Real impl invoked exactly once — recursion would invoke 0 times
+      // (re-entering cachedMessagesParse, never reaching the original).
+      expect(realParseImpl).toHaveBeenCalledTimes(1);
+      expect(response).toEqual({ ok: 'parsed-real' });
+
+      // Cache file landed (would be absent under recursion since the call
+      // never reaches the post-await writeJSON step).
+      const files = await readdir(sandbox);
+      expect(files).toHaveLength(1);
+    } finally {
+      anthropic.messages.parse = before;
+    }
+  });
+
+  it('cachedMessagesCreate is safe to swap onto anthropic.messages.create without infinite recursion', async () => {
+    const realCreateImpl = vi.fn().mockResolvedValue({ ok: 'created-real' });
+    vi.mocked(anthropic.messages.create).mockImplementation(realCreateImpl);
+
+    const before = anthropic.messages.create;
+    anthropic.messages.create = cachedMessagesCreate as typeof anthropic.messages.create;
+    try {
+      const request = {
+        model: 'haiku',
+        system: 'recursion-guard-test-create',
+        messages: [{ role: 'user', content: 'one' }],
+      } as unknown as Parameters<typeof anthropic.messages.create>[0];
+
+      const response = await cachedMessagesCreate(request);
+
+      expect(realCreateImpl).toHaveBeenCalledTimes(1);
+      expect(response).toEqual({ ok: 'created-real' });
+    } finally {
+      anthropic.messages.create = before;
+    }
+  });
+});

@@ -30,6 +30,23 @@ import { anthropic } from '../../llm/client.js';
 import { logger } from '../../utils/logger.js';
 
 /**
+ * ORIGINAL SDK references captured at module-load time. Required because
+ * `scripts/synthesize-episodic.ts` does the singleton property-swap
+ * `anthropic.messages.parse = cachedMessagesParse` to wire VCR transparently
+ * into the production `runConsolidate()` engine. Without these snapshots,
+ * the on-miss real-API call inside `cachedMessagesParse` would resolve back
+ * to itself (the swapped reference) → infinite recursion → 6M+ identical
+ * `vcr.miss` events / sec without any actual SDK call landing. Discovered
+ * via prod operator UAT 2026-04-25 — see RETROSPECTIVE §v2.3 post-close.
+ *
+ * INVARIANT: vcr.ts MUST be imported BEFORE any caller swaps the SDK
+ * reference. synthesize-episodic.ts respects this (imports vcr at L512,
+ * swaps at L514). Future callers must follow the same order.
+ */
+const ORIGINAL_PARSE = anthropic.messages.parse.bind(anthropic.messages);
+const ORIGINAL_CREATE = anthropic.messages.create.bind(anthropic.messages);
+
+/**
  * Cache directory. `let` (not `const`) so test suites can override via
  * `setVcrDirForTest(tmpDir)` without patching fs internals.
  */
@@ -116,7 +133,11 @@ export async function cachedMessagesParse(
     return cached as Awaited<ReturnType<typeof anthropic.messages.parse>>;
   }
   logger.info({ hash: hash.slice(0, 8), kind: 'parse' }, 'vcr.miss');
-  const response = await anthropic.messages.parse(request);
+  // Use ORIGINAL_PARSE (snapshotted at module load) — NOT
+  // `anthropic.messages.parse`, which may have been property-swapped to
+  // `cachedMessagesParse` by callers like synthesize-episodic.ts. Calling
+  // the swapped reference would recurse infinitely on every miss.
+  const response = await ORIGINAL_PARSE(request);
   await atomicWriteJSON(cachePath, response);
   return response;
 }
@@ -136,7 +157,9 @@ export async function cachedMessagesCreate(
     return cached as Awaited<ReturnType<typeof anthropic.messages.create>>;
   }
   logger.info({ hash: hash.slice(0, 8), kind: 'create' }, 'vcr.miss');
-  const response = await anthropic.messages.create(request);
+  // Same ORIGINAL_CREATE rationale as ORIGINAL_PARSE above — guards against
+  // recursive swap-loops introduced by sibling-composition patterns.
+  const response = await ORIGINAL_CREATE(request);
   await atomicWriteJSON(cachePath, response);
   return response;
 }

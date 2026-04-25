@@ -181,9 +181,15 @@ async function upDocker(dbPort: number): Promise<DockerState> {
   const projectName = `chris-synth-${process.pid}`;
   const overridePath = `.tmp/docker-compose.synth-episodic.${process.pid}.override.yml`;
   await mkdir('.tmp', { recursive: true });
+  // Compose-spec note: list-typed fields like `ports` merge ADDITIVELY
+  // across overlaid compose files unless the override uses the `!override`
+  // modifier (compose-spec 1.28+). Without it, the throwaway container
+  // exposes BOTH the base file's "5433:5432" AND this override's port,
+  // colliding with chris-postgres-1 on 5433. Found via prod operator UAT
+  // 2026-04-25 — see RETROSPECTIVE §v2.3 post-close.
   await writeFile(
     overridePath,
-    `services:\n  postgres:\n    ports:\n      - "${dbPort}:5432"\n`,
+    `services:\n  postgres:\n    ports: !override\n      - "${dbPort}:5432"\n`,
     'utf8',
   );
   try {

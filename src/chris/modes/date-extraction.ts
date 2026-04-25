@@ -225,6 +225,26 @@ function matchMonthDay(text: string, now: Date): Date | null {
   return d;
 }
 
+/**
+ * Strip Markdown code fences from Haiku output so JSON.parse succeeds.
+ * Haiku sometimes wraps `{ "date": "..." }` in ```` ```json ... ``` ```` despite
+ * the system prompt's "Respond with ONLY the JSON object" instruction. The
+ * regex matches an optional opening fence (with or without `json` language
+ * tag), captures everything up to an optional closing fence, and trims.
+ *
+ * Without this, every fenced response throws SyntaxError → caught at the
+ * call site and logged as 'chris.date-extraction.haiku-error', silently
+ * dropping the date signal and falling INTERROGATE back to general routing.
+ */
+function stripJsonFences(text: string): string {
+  const trimmed = text.trim();
+  // Match: optional ```[lang]\n at start, content, optional \n``` at end.
+  // Greedy capture of content so embedded code-fence chars don't truncate
+  // (Haiku JSON for dates won't contain backticks, but be safe).
+  const fenced = trimmed.match(/^```(?:json|JSON)?\s*\n?([\s\S]*?)\n?```$/);
+  return fenced ? fenced[1]!.trim() : trimmed;
+}
+
 function hasDateHeuristic(text: string): boolean {
   const q = text.toLowerCase();
   return DATE_HEURISTIC_KEYWORDS.some((kw) => q.includes(kw));
@@ -282,13 +302,20 @@ Respond with ONLY the JSON object, no prose.`,
     );
     if (!block || block.type !== 'text') return null;
 
-    const parsed = JSON.parse(
-      (block as { type: 'text'; text: string }).text.trim(),
-    );
+    const raw = (block as { type: 'text'; text: string }).text;
+    const jsonText = stripJsonFences(raw);
+    const parsed = JSON.parse(jsonText);
     if (typeof parsed.date !== 'string') return null;
     // Noon UTC (WR-02) — consistent with regex fast-paths. See matchIsoDate.
     const d = new Date(parsed.date + 'T12:00:00Z');
     if (isNaN(d.getTime())) return null;
+    // Sanity bound: Haiku occasionally hallucinates dates from training-data
+    // years (e.g. 2025-05-01 when "now" is 2026-04). Reject anything more
+    // than 730 days from `now` in either direction — Chris's data history
+    // does not predate late 2025, and queries about 2+ years in the future
+    // are not a real use case. Outside the band → treat as hallucination.
+    const dayDelta = Math.abs(d.getTime() - now.getTime()) / 86_400_000;
+    if (dayDelta > 730) return null;
     return d;
   } catch (error) {
     logger.warn(

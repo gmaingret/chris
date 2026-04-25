@@ -313,4 +313,85 @@ describe('extractQueryDate — Haiku fallback error handling', () => {
     );
     expect(result).toBeNull();
   });
+
+  // Regression for prod bug 2026-04-25: Haiku was returning JSON wrapped
+  // in ```json ... ``` Markdown code fences despite the system prompt
+  // instructing "Respond with ONLY the JSON object". The raw JSON.parse
+  // call threw SyntaxError and INTERROGATE silently fell back to general
+  // routing — losing date-anchored summary injection for every query.
+  it('strips ```json ... ``` Markdown fences before parsing (prod regression)', async () => {
+    mockCreate.mockResolvedValue({
+      content: [
+        {
+          type: 'text',
+          text: '```json\n{"date": "2026-04-21"}\n```',
+        },
+      ],
+    });
+    const result = await extractQueryDate(
+      'what did I say last Tuesday',
+      'English',
+      FIXED_NOW,
+    );
+    expect(result).not.toBeNull();
+    expect(result!.toISOString().slice(0, 10)).toBe('2026-04-21');
+    // No warn — fence was stripped, parse succeeded
+    expect(mockLogWarn).not.toHaveBeenCalled();
+  });
+
+  it('strips bare ``` ... ``` fences (no language tag)', async () => {
+    mockCreate.mockResolvedValue({
+      content: [{ type: 'text', text: '```\n{"date":"2026-04-15"}\n```' }],
+    });
+    const result = await extractQueryDate(
+      'what did I say last week',
+      'English',
+      FIXED_NOW,
+    );
+    expect(result).not.toBeNull();
+    expect(result!.toISOString().slice(0, 10)).toBe('2026-04-15');
+  });
+
+  // Regression for prod bug 2026-04-25: a single 'pensieve.episodic.retrieve
+  // date:"2025-05-01" found:false' log line (year 2025 when "now" is 2026-04)
+  // suggested Haiku is hallucinating dates from training-data years. The
+  // ±730-day sanity bound rejects anything outside Chris's plausible data
+  // history without unduly restricting legitimate "what about December 2024"
+  // queries.
+  it('rejects hallucinated date >730 days in the past (prod regression)', async () => {
+    mockCreate.mockResolvedValue({
+      content: [{ type: 'text', text: '{"date":"2023-01-01"}' }],
+    });
+    const result = await extractQueryDate(
+      'last week',
+      'English',
+      FIXED_NOW,
+    );
+    expect(result).toBeNull();
+  });
+
+  it('rejects hallucinated date >730 days in the future', async () => {
+    mockCreate.mockResolvedValue({
+      content: [{ type: 'text', text: '{"date":"2029-12-31"}' }],
+    });
+    const result = await extractQueryDate(
+      'last week',
+      'English',
+      FIXED_NOW,
+    );
+    expect(result).toBeNull();
+  });
+
+  it('accepts dates exactly at the 730-day boundary (within band)', async () => {
+    // FIXED_NOW = 2026-04-22; 730 days back = 2024-04-23 (not rejected)
+    mockCreate.mockResolvedValue({
+      content: [{ type: 'text', text: '{"date":"2024-04-25"}' }],
+    });
+    const result = await extractQueryDate(
+      'two years ago this week',
+      'English',
+      FIXED_NOW,
+    );
+    expect(result).not.toBeNull();
+  });
 });
