@@ -135,7 +135,65 @@ After M009 ships, Greg has the full reflection loop: M006 trust + M007 decision 
 
 ## Traceability
 
-*To be filled by the roadmapper agent (Phase 25–30 → REQ-ID mapping).*
+| REQ-ID | Phase | Notes |
+|--------|-------|-------|
+| RIT-01 | 25 | `rituals` table in migration 0006 |
+| RIT-02 | 25 | `wellbeing_snapshots` table in migration 0006 |
+| RIT-03 | 25 | 4 supporting event tables in migration 0006 (D004 append-only) |
+| RIT-04 | 25 | `RITUAL_RESPONSE` 14th enum value via `ALTER TYPE epistemic_tag ADD VALUE` |
+| RIT-05 | 25 | All 3 indexes shipped in migration 0006 (D034 precedent — no retrofitting) |
+| RIT-06 | 25 | `regen-snapshots.sh` lineage clean + scripts/test.sh psql line (HARD CO-LOCATION #7) |
+| RIT-07 | 25 | `RitualConfig` Zod schema (8 named fields + schema_version) at every read boundary |
+| RIT-08 | 25 | `src/rituals/cadence.ts` Luxon-based `computeNextRunAt`; DST-safe |
+| RIT-09 | 25 | Ritual channel slot in `runSweep` between accountability and reflective |
+| RIT-10 | 25 | Atomic `UPDATE rituals ... RETURNING *` idempotency (mirrors M007 D-28) |
+| RIT-11 | 25 | Second cron tick at 21:00 Europe/Paris in `src/index.ts` |
+| RIT-12 | 25 | `ritualSweepCron` env var + `cron.validate` + `/health` reports `ritual_cron_registered` |
+| PROC-01 | 25 | Carry-in #1 — wire `gsd-verifier` into `/gsd-execute-phase` |
+| PROC-02 | 25 | Carry-in #1 — SUMMARY.md template emits `requirements-completed` frontmatter |
+| VOICE-01 | 26 | PP#5 ritual-response detector at engine position 0 (HARD CO-LOCATION #1 + #5) |
+| VOICE-02 | 26 | 6 rotating prompts in spec order; `PROMPT_SET_VERSION = 'v1'` |
+| VOICE-03 | 26 | Shuffled-bag rotation via `rituals.config.prompt_bag` |
+| VOICE-04 | 26 | 21:00 Europe/Paris default + pre-fire suppression on ≥5 telegram entries already today |
+| VOICE-05 | 26 | `bot.on('message:voice')` polite-decline EN/FR/RU per `franc` |
+| VOICE-06 | 26 | STT filler tagging: `metadata.source_subtype = 'ritual_voice_note'` |
+| WELL-01 | 27 | 3-row × 5-button InlineKeyboard + skip button (first use of inline keyboards) |
+| WELL-02 | 27 | `bot.on('callback_query:data')` + per-dim `INSERT ... ON CONFLICT ... DO UPDATE SET` |
+| WELL-03 | 27 | Partial state in `ritual_responses.metadata` jsonb; hide-previous anchor-bias defeat |
+| WELL-04 | 27 | Skip button (`adjustment_eligible: false`) — distinct from `fired_no_response` |
+| WELL-05 | 27 | 09:00 Europe/Paris fire — separate from voice note (D026 + Pitfall 13) |
+| SKIP-01 | 28 | Discriminated `RitualFireOutcome` union; only `fired_no_response` increments skip_count |
+| SKIP-02 | 28 | Append-only `ritual_fire_events`; `skip_count` is rebuildable projection |
+| SKIP-03 | 28 | Cadence-aware thresholds: daily=3, weekly=2; per-cadence default at row creation |
+| SKIP-04 | 28 | Adjustment dialogue + Haiku 3-class parse (`change_requested`/`no_change`/`evasive`) |
+| SKIP-05 | 28 | 60s confirmation window for `change_requested`; auto-apply on yes / no-reply |
+| SKIP-06 | 28 | Self-protective 30-day pause after 2 evasive responses in 14 days |
+| SKIP-07 | 28 | `ritual_config_events` audit trail + M006 refusal honored inside dialogue |
+| WEEK-01 | 29 | Sunday 20:00 Europe/Paris; reads `getEpisodicSummariesRange` (M008 first consumer) + `decisions` |
+| WEEK-02 | 29 | `assembleWeeklyReviewPrompt()` explicit CONSTITUTIONAL_PREAMBLE injection (HARD CO-LOCATION #3) |
+| WEEK-03 | 29 | Sonnet structured output `{observation, question}` via `messages.parse` + `zodOutputFormat` |
+| WEEK-04 | 29 | D031 boundary marker on user-facing header — "Observation (interpretation, not fact):" |
+| WEEK-05 | 29 | Two-stage single-question enforcement: Zod refine + Haiku judge (HARD CO-LOCATION #2) |
+| WEEK-06 | 29 | Retry cap = 2; templated single-question fallback on cap; `chris.weekly-review.fallback-fired` log |
+| WEEK-07 | 29 | Pattern-only observations; DIFF-5 forecast-resolved style deferred to v2.5 |
+| WEEK-08 | 29 | Pensieve persist as `RITUAL_RESPONSE` with `metadata.kind = 'weekly_review'` |
+| WEEK-09 | 29 | Wellbeing variance gate: stddev < 0.4 → don't cite wellbeing in observation |
+| TEST-23 | 30 | 14-day fixture in `src/rituals/__tests__/synthetic-fixture.test.ts` via `vi.setSystemTime` + `loadPrimedFixture('m009-21days')`; full `processMessage` pipeline |
+| TEST-24 | 30 | Assertion 1 — daily prompt rotation (no consecutive dupes; no-repeat-in-last-6 property test) |
+| TEST-25 | 30 | Assertion 2 — voice note Pensieve persistence + cumulative `mockAnthropicCreate.not.toHaveBeenCalled()` (Pitfall 6 regression test) |
+| TEST-26 | 30 | Assertion 3 — skip increments only on `fired_no_response`; not on `system_suppressed` / `window_missed` |
+| TEST-27 | 30 | Assertion 4 — adjustment dialogue at cadence-aware threshold (daily=3, weekly=2) |
+| TEST-28 | 30 | Assertion 5 — wellbeing via `simulateCallbackQuery` test helper (first use of inline keyboards in tests) |
+| TEST-29 | 30 | Assertion 6 — weekly review exactly 1 obs + 1 Q; Stage-1 + Stage-2 invoked; templated fallback exercised |
+| TEST-30 | 30 | Assertion 7 — weekly review references specific summaries + decisions; date-grounding post-check |
+| TEST-31 | 30 | Live anti-flattery 3-of-3 atomic against real Sonnet (HARD CO-LOCATION #6 — own plan) |
+| TEST-32 | 30 | Cron registration regression in separate file (HARD CO-LOCATION #4 — distinct from TEST-23) |
+| HARN-04 | 30 | Carry-in #2 — `regenerate-primed.ts --milestone m009 --target-days 21 --force` against fresh prod |
+| HARN-05 | 30 | Carry-in #2 — VCR cost model docs + `--reseed-vcr` flag |
+| HARN-06 | 30 | Carry-in #2 — HARN-03 5th invariant (≥14 days `wellbeing_snapshots`) |
+
+**Coverage:** 54 / 54 v1 requirements mapped to exactly one phase. No orphans, no duplicates.
 
 ---
 *Document created: 2026-04-26 by /gsd-new-milestone "M009 Ritual Infrastructure + Daily Note + Weekly Review"*
+*Traceability filled: 2026-04-26 by gsd-roadmapper (6 phases, 54 REQ-IDs, all 7 hard co-location constraints honored)*
