@@ -9,6 +9,8 @@ const LAST_SENT_KEY = 'last_sent';
 const LAST_SENT_REFLECTIVE_KEY = 'last_sent_reflective';
 const LAST_SENT_ACCOUNTABILITY_KEY = 'last_sent_accountability';
 const MUTE_UNTIL_KEY = 'mute_until';
+const RITUAL_DAILY_COUNT_KEY = 'ritual_daily_count';
+const RITUAL_DAILY_CAP = 3; // Per CONTEXT.md D-04 (REFINED 2026-04-26): 3/day channel ceiling
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -136,6 +138,69 @@ export async function hasSentTodayAccountability(timezone: string): Promise<bool
 /** Record that an accountability outreach was sent. */
 export async function setLastSentAccountability(timestamp: Date): Promise<void> {
   await setValue(LAST_SENT_ACCOUNTABILITY_KEY, timestamp.toISOString());
+}
+
+// ── Ritual channel daily counter (D-04 refinement) ────────────────────────
+
+/**
+ * Local-date key formatter — matches hasSentTodayReflective shape exactly.
+ * Returns YYYY-MM-DD in the given timezone for the given date (default: now).
+ */
+function localDateKeyFor(timezone: string, date: Date = new Date()): string {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return formatter.format(date);
+}
+
+/**
+ * Check whether the ritual channel has reached its daily ceiling (D-04
+ * refinement: 3/day). Mirrors hasSentTodayReflective/hasSentTodayAccountability
+ * shape (lines 102-148 of this file) — same KV table, same date-keying.
+ *
+ * Returns true if a counter exists keyed to TODAY (local timezone) AND the
+ * count is >= RITUAL_DAILY_CAP. Stale yesterday-keyed counters are treated
+ * as 0/3 (counter resets at local midnight by the date-key strategy, no
+ * explicit cron-based reset needed).
+ */
+export async function hasReachedRitualDailyCap(timezone: string): Promise<boolean> {
+  const val = await getValue(RITUAL_DAILY_COUNT_KEY);
+  if (val == null) return false;
+  const { date, count } = val as { date: string; count: number };
+  const todayKey = localDateKeyFor(timezone);
+  if (date !== todayKey) return false; // stale yesterday counter — today is fresh
+  return count >= RITUAL_DAILY_CAP;
+}
+
+/**
+ * Increment the ritual channel daily counter (D-04 refinement). Called by
+ * runRitualSweep AFTER a successful tryFireRitualAtomic returns fired=true.
+ *
+ * Rolls over at local midnight: if the persisted counter is keyed to a
+ * different local date (yesterday or older), this call resets it to
+ * { date: today, count: 1 } rather than incrementing the stale value.
+ *
+ * Race window note: TOCTOU between getValue and setValue. Acceptable for
+ * Phase 25 — the ritual cron fires once per day at 21:00 Paris and per-tick
+ * max-1 ensures only 1 ritual processes per tick, so realistic concurrency
+ * is bounded. If a future phase adds higher-frequency sweeps, replace with
+ * an atomic JSONB INCR via ON CONFLICT UPDATE SET value = jsonb_set(...).
+ */
+export async function incrementRitualDailyCount(timezone: string): Promise<void> {
+  const val = await getValue(RITUAL_DAILY_COUNT_KEY);
+  const todayKey = localDateKeyFor(timezone);
+  let nextCount = 1;
+  if (val != null) {
+    const { date, count } = val as { date: string; count: number };
+    if (date === todayKey) {
+      nextCount = count + 1;
+    }
+    // else: stale yesterday counter — discard and start fresh at 1
+  }
+  await setValue(RITUAL_DAILY_COUNT_KEY, { date: todayKey, count: nextCount });
 }
 
 // ── Per-decision escalation tracking (RES-06) ────────────────────────────
