@@ -9,6 +9,8 @@ import {
   real,
   bigint,
   integer,
+  smallint,
+  boolean,
   index,
   unique,
   check,
@@ -33,6 +35,14 @@ export const epistemicTagEnum = pgEnum('epistemic_tag', [
   'CONTRADICTION',
   'OTHER',
   'DECISION',
+  'RITUAL_RESPONSE', // ← Phase 25 RIT-04
+]);
+
+export const ritualCadenceEnum = pgEnum('ritual_cadence', [
+  'daily',
+  'weekly',
+  'monthly',
+  'quarterly',
 ]);
 
 export const relationalMemoryTypeEnum = pgEnum('relational_memory_type', [
@@ -338,3 +348,141 @@ export const episodicSummaries = pgTable(
     check('episodic_summaries_importance_bounds', sql`${table.importance} BETWEEN 1 AND 10`),
   ],
 );
+
+// ── Rituals (M009 Phase 25) ────────────────────────────────────────────────
+
+/**
+ * RIT-01: rituals table — scheduled recurring prompts.
+ *
+ * `type` is the cadence (ritualCadenceEnum). `next_run_at` is recomputed by
+ * scripts/scheduler.ts after each fire/skip via Luxon DST-correct math. The
+ * partial index `rituals_next_run_at_enabled_idx` (WHERE enabled=true) is the
+ * sweep hot-path lookup — only enabled rituals participate in scheduling.
+ *
+ * NOTE: FK constraints from event tables → rituals.id are declared in the
+ * migration SQL (DO-block idempotency pattern) rather than via Drizzle's
+ * `references()`. This matches how decision_events.decision_id references
+ * decisions.id without schema.ts using `.references()`.
+ */
+export const rituals = pgTable(
+  'rituals',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    name: text('name').notNull(),
+    type: ritualCadenceEnum('type').notNull(),
+    lastRunAt: timestamp('last_run_at', { withTimezone: true }),
+    nextRunAt: timestamp('next_run_at', { withTimezone: true }).notNull(),
+    enabled: boolean('enabled').notNull().default(true),
+    config: jsonb('config').notNull().default(sql`'{}'::jsonb`),
+    skipCount: integer('skip_count').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('rituals_name_unique').on(table.name),
+    // RIT-05: partial index on enabled rituals only (sweep hot path).
+    // FIRST USE of `.where(sql\`...\`)` partial index in this codebase
+    // (verified via node_modules/drizzle-orm/pg-core/indexes.d.ts:67).
+    index('rituals_next_run_at_enabled_idx')
+      .on(table.nextRunAt)
+      .where(sql`${table.enabled} = true`),
+  ],
+);
+
+/**
+ * RIT-02: wellbeing_snapshots — daily energy/mood/anxiety captures (1-5 scale).
+ *
+ * UNIQUE(snapshot_date) enforces one snapshot per day (single-user system).
+ * Three CHECK constraints (energy/mood/anxiety BETWEEN 1 AND 5) are DB-level
+ * per CONTEXT.md D-07 precedent — covers operator paths (direct psql) not
+ * just the Phase 27 capture handler.
+ */
+export const wellbeingSnapshots = pgTable(
+  'wellbeing_snapshots',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    snapshotDate: date('snapshot_date').notNull(),
+    energy: smallint('energy').notNull(),
+    mood: smallint('mood').notNull(),
+    anxiety: smallint('anxiety').notNull(),
+    notes: text('notes'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('wellbeing_snapshots_snapshot_date_unique').on(table.snapshotDate),
+    index('wellbeing_snapshots_snapshot_date_idx').on(table.snapshotDate),
+    check('wellbeing_snapshots_energy_bounds', sql`${table.energy} BETWEEN 1 AND 5`),
+    check('wellbeing_snapshots_mood_bounds', sql`${table.mood} BETWEEN 1 AND 5`),
+    check('wellbeing_snapshots_anxiety_bounds', sql`${table.anxiety} BETWEEN 1 AND 5`),
+  ],
+);
+
+/**
+ * RIT-03: ritual_responses — append-only log of ritual prompt fires + replies.
+ *
+ * `pensieve_entry_id` links to the resulting Pensieve entry (epistemic_tag
+ * = 'RITUAL_RESPONSE') if the user replied. `responded_at` NULL = no reply yet.
+ * Composite index (ritual_id, fired_at DESC) supports "last N responses for
+ * ritual X" lookups (Phase 26 PP#5 detector).
+ */
+export const ritualResponses = pgTable(
+  'ritual_responses',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    ritualId: uuid('ritual_id').notNull(),
+    firedAt: timestamp('fired_at', { withTimezone: true }).notNull(),
+    respondedAt: timestamp('responded_at', { withTimezone: true }),
+    promptText: text('prompt_text').notNull(),
+    pensieveEntryId: uuid('pensieve_entry_id'),
+    metadata: jsonb('metadata'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('ritual_responses_ritual_id_fired_at_idx').on(
+      table.ritualId,
+      table.firedAt.desc(),
+    ),
+  ],
+);
+
+/**
+ * RIT-03: ritual_fire_events — append-only log of every fire attempt
+ * (success/skip/fail). Outcome string is one of 'fired'|'skipped'|'failed'
+ * (or future values); kept as text for forward-compat without enum churn.
+ */
+export const ritualFireEvents = pgTable('ritual_fire_events', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  ritualId: uuid('ritual_id').notNull(),
+  firedAt: timestamp('fired_at', { withTimezone: true }).notNull(),
+  outcome: text('outcome').notNull(),
+  metadata: jsonb('metadata'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * RIT-03: ritual_config_events — append-only log of config patches
+ * (cadence changes, fire_at changes, enable/disable). `actor` is the source
+ * (e.g. 'user'|'admin'|'system'). `patch` is the JSON patch applied.
+ */
+export const ritualConfigEvents = pgTable('ritual_config_events', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  ritualId: uuid('ritual_id').notNull(),
+  actor: varchar('actor', { length: 32 }).notNull(),
+  patch: jsonb('patch').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * RIT-03: ritual_pending_responses — open-prompt registry. A row exists
+ * while a fired ritual prompt is awaiting user reply. `expires_at` enables
+ * TTL sweep (Phase 27). `consumed_at` is set when a reply is bound to the
+ * pending entry (mutual exclusion via UPDATE ... WHERE consumed_at IS NULL).
+ */
+export const ritualPendingResponses = pgTable('ritual_pending_responses', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  ritualId: uuid('ritual_id').notNull(),
+  chatId: bigint('chat_id', { mode: 'bigint' }).notNull(),
+  firedAt: timestamp('fired_at', { withTimezone: true }).notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  consumedAt: timestamp('consumed_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
