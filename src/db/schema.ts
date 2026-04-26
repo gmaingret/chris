@@ -423,16 +423,21 @@ export const wellbeingSnapshots = pgTable(
  * = 'RITUAL_RESPONSE') if the user replied. `responded_at` NULL = no reply yet.
  * Composite index (ritual_id, fired_at DESC) supports "last N responses for
  * ritual X" lookups (Phase 26 PP#5 detector).
+ *
+ * FK pattern follows decision_events precedent: `.references()` declared in
+ * schema.ts so drizzle-kit's snapshot tracks the FK; the hand-written
+ * migration SQL wraps the actual ALTER TABLE in DO-block idempotency guards
+ * (per MD-02 / 0002.sql lines 71-77).
  */
 export const ritualResponses = pgTable(
   'ritual_responses',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-    ritualId: uuid('ritual_id').notNull(),
+    ritualId: uuid('ritual_id').notNull().references(() => rituals.id),
     firedAt: timestamp('fired_at', { withTimezone: true }).notNull(),
     respondedAt: timestamp('responded_at', { withTimezone: true }),
     promptText: text('prompt_text').notNull(),
-    pensieveEntryId: uuid('pensieve_entry_id'),
+    pensieveEntryId: uuid('pensieve_entry_id').references(() => pensieveEntries.id),
     metadata: jsonb('metadata'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -451,7 +456,7 @@ export const ritualResponses = pgTable(
  */
 export const ritualFireEvents = pgTable('ritual_fire_events', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  ritualId: uuid('ritual_id').notNull(),
+  ritualId: uuid('ritual_id').notNull().references(() => rituals.id),
   firedAt: timestamp('fired_at', { withTimezone: true }).notNull(),
   outcome: text('outcome').notNull(),
   metadata: jsonb('metadata'),
@@ -465,7 +470,7 @@ export const ritualFireEvents = pgTable('ritual_fire_events', {
  */
 export const ritualConfigEvents = pgTable('ritual_config_events', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  ritualId: uuid('ritual_id').notNull(),
+  ritualId: uuid('ritual_id').notNull().references(() => rituals.id),
   actor: varchar('actor', { length: 32 }).notNull(),
   patch: jsonb('patch').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -479,7 +484,7 @@ export const ritualConfigEvents = pgTable('ritual_config_events', {
  */
 export const ritualPendingResponses = pgTable('ritual_pending_responses', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  ritualId: uuid('ritual_id').notNull(),
+  ritualId: uuid('ritual_id').notNull().references(() => rituals.id),
   chatId: bigint('chat_id', { mode: 'bigint' }).notNull(),
   firedAt: timestamp('fired_at', { withTimezone: true }).notNull(),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),

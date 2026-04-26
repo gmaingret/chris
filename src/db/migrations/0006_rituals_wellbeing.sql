@@ -11,7 +11,10 @@
 -- no `IF NOT EXISTS` form, so each is wrapped in a DO block.
 --
 -- Phase 25 (M009 v2.4) — Ritual scheduling foundation. Hand-authored per
--- CONTEXT.md D-08 (drizzle-kit cannot auto-gen ALTER TYPE).
+-- CONTEXT.md D-08 (drizzle-kit cannot auto-gen ALTER TYPE ... IF NOT EXISTS).
+-- The drizzle-kit-generated meta/0006_snapshot.json + _journal.json entry
+-- match this file's net schema effect; idempotency guards are SQL-only and
+-- do not change the resulting DB shape (so the snapshot remains byte-stable).
 DO $$ BEGIN
 	CREATE TYPE "public"."ritual_cadence" AS ENUM('daily', 'weekly', 'monthly', 'quarterly');
 EXCEPTION WHEN duplicate_object THEN NULL;
@@ -27,7 +30,7 @@ CREATE TABLE IF NOT EXISTS "rituals" (
 	"config" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"skip_count" integer DEFAULT 0 NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "rituals_name_unique" UNIQUE ("name")
+	CONSTRAINT "rituals_name_unique" UNIQUE("name")
 );
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "wellbeing_snapshots" (
@@ -38,7 +41,7 @@ CREATE TABLE IF NOT EXISTS "wellbeing_snapshots" (
 	"anxiety" smallint NOT NULL,
 	"notes" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "wellbeing_snapshots_snapshot_date_unique" UNIQUE ("snapshot_date"),
+	CONSTRAINT "wellbeing_snapshots_snapshot_date_unique" UNIQUE("snapshot_date"),
 	CONSTRAINT "wellbeing_snapshots_energy_bounds" CHECK ("wellbeing_snapshots"."energy" BETWEEN 1 AND 5),
 	CONSTRAINT "wellbeing_snapshots_mood_bounds" CHECK ("wellbeing_snapshots"."mood" BETWEEN 1 AND 5),
 	CONSTRAINT "wellbeing_snapshots_anxiety_bounds" CHECK ("wellbeing_snapshots"."anxiety" BETWEEN 1 AND 5)
@@ -102,6 +105,6 @@ DO $$ BEGIN
 	ALTER TABLE "ritual_responses" ADD CONSTRAINT "ritual_responses_pensieve_entry_id_pensieve_entries_id_fk" FOREIGN KEY ("pensieve_entry_id") REFERENCES "public"."pensieve_entries"("id") ON DELETE no action ON UPDATE no action;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "rituals_next_run_at_enabled_idx" ON "rituals" USING btree ("next_run_at") WHERE "enabled" = true;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "rituals_next_run_at_enabled_idx" ON "rituals" USING btree ("next_run_at") WHERE "rituals"."enabled" = true;--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "wellbeing_snapshots_snapshot_date_idx" ON "wellbeing_snapshots" USING btree ("snapshot_date");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "ritual_responses_ritual_id_fired_at_idx" ON "ritual_responses" USING btree ("ritual_id","fired_at" DESC);
+CREATE INDEX IF NOT EXISTS "ritual_responses_ritual_id_fired_at_idx" ON "ritual_responses" USING btree ("ritual_id","fired_at" DESC NULLS LAST);
