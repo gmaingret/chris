@@ -33,7 +33,7 @@
   2. `/health` endpoint reports `ritual_cron_registered: true`; container logs at startup show `cron.schedule` registered for both 10:00 morning sweep and 21:00 evening tick (Europe/Paris); `cron.validate` rejects `RITUAL_SWEEP_CRON=garbage` at config load with a fail-fast error.
   3. `runRitualSweep()` invocable via `npx tsx scripts/manual-sweep.ts` (or REPL) returns `[]` against a clean DB without throwing; atomic `UPDATE rituals ... RETURNING *` idempotency proven by 2 concurrent invocations producing exactly 1 fired-row return.
 **Plans:** 3 plans
-- [ ] 25-01-PLAN.md — Migration substrate (HARD CO-LOC #7 atomic): migration 0006 SQL + drizzle meta-snapshot + scripts/test.sh psql smoke gate (RIT-01..06)
+- [x] 25-01-PLAN.md — Migration substrate (HARD CO-LOC #7 atomic): migration 0006 SQL + drizzle meta-snapshot + scripts/test.sh psql smoke gate (RIT-01..06)
 - [ ] 25-02-PLAN.md — Pure-function helpers: RitualConfig Zod schema, Luxon DST-safe computeNextRunAt, atomic UPDATE...RETURNING idempotency helper (RIT-07, 08, 10)
 - [ ] 25-03-PLAN.md — Process boundaries: runRitualSweep orchestrator, ritual channel slot in runSweep, registerCrons(deps) helper, 21:00 cron tick, cron.validate fail-fast in config, /health field, scripts/manual-sweep.ts (RIT-09, 11, 12)
 
@@ -201,7 +201,7 @@ See [milestones/v2.3-ROADMAP.md](milestones/v2.3-ROADMAP.md) for full phase deta
 | 22.1. Wire retrieveContext (INSERTED) | v2.2   | 1/1   | Complete    | 2026-04-19 |
 | 23. Test Suite + Backfill + /summary | v2.2    | 4/4   | Complete    | 2026-04-19 |
 | 24. Primed-Fixture Pipeline        | v2.3      | 4/4   | Complete    | 2026-04-20 |
-| 25. Ritual Scheduling Foundation   | v2.4      | 0/3   | Not started | -          |
+| 25. Ritual Scheduling Foundation   | v2.4      | 1/3 | In Progress|  |
 | 26. Daily Voice Note Ritual        | v2.4      | 0/4   | Not started | -          |
 | 27. Daily Wellbeing Snapshot       | v2.4      | 0/3   | Not started | -          |
 | 28. Skip-Tracking + Adjustment Dialogue | v2.4 | 0/4   | Not started | -          |

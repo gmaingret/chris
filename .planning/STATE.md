@@ -4,14 +4,14 @@ milestone: v2.4
 milestone_name: M009 Ritual Infrastructure + Daily Note + Weekly Review
 status: executing
 stopped_at: Phase 25 context gathered (--auto)
-last_updated: "2026-04-26T15:15:12.883Z"
+last_updated: "2026-04-26T15:32:36.359Z"
 last_activity: 2026-04-26 -- Phase 25 planning complete
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 3
-  completed_plans: 0
-  percent: 0
+  completed_plans: 1
+  percent: 33
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (symlink to /home/claude/chris/PLAN.md, updated 2026-0
 
 ## Current Position
 
-Phase: **25** ready to plan
-Plan: —
-Status: Ready to execute
-Progress: 0 / 22 plans (0%)
-Last activity: 2026-04-26 -- Phase 25 planning complete
+Phase: **25** Wave 1 complete (Plan 01 of 03)
+Plan: **02** ready to execute (Wave 2)
+Status: Plan 25-01 shipped (RIT-01..06)
+Progress: [███░░░░░░░] 33%
+Last activity: 2026-04-26 -- Plan 25-01 complete (migration 0006 + drizzle meta lineage 0..6 + scripts/test.sh substrate smoke gate green)
 
 Prior deploy state: v2.3 + date-extraction Haiku JSON-fences fix (eedce33, deployed 42a7eed 2026-04-25) live on Proxmox (192.168.1.50). Daily 23:00 Europe/Paris episodic cron + 6h sync cron + 10:00 proactive sweep cron all healthy. M009 will ADD a second 21:00 evening cron tick (RIT-11) for ritual firing.
 
@@ -131,8 +131,9 @@ None. Ready to plan Phase 25 — pending todo resolved (verdict above).
 
 ## Session Continuity
 
-Last session: 2026-04-26T13:32:44.887Z
-Stopped at: Phase 25 context gathered (--auto)
+Last session: 2026-04-26T15:42:00Z
+Stopped at: Plan 25-01 complete (4 commits: dc5fd34, 9f883af, 2aa96e2, 889da4c) — Wave 1 done; Wave 2 (Plan 25-02) ready
+Resume file: .planning/phases/25-ritual-scheduling-foundation-process-gate/25-02-PLAN.md
 
 ## Known Tech Debt
 

@@ -20,12 +20,12 @@ After M009 ships, Greg has the full reflection loop: M006 trust + M007 decision 
 
 ### Ritual Infrastructure
 
-- [ ] **RIT-01**: Migration 0006 ships `rituals` table — id (uuid pk), name (text NOT NULL UNIQUE), type (enum daily/weekly/monthly/quarterly NOT NULL), last_run_at (timestamptz nullable), next_run_at (timestamptz NOT NULL), enabled (boolean NOT NULL default true), config (jsonb NOT NULL default `{}`), skip_count (integer NOT NULL default 0), created_at (timestamptz default now()).
-- [ ] **RIT-02**: Migration 0006 ships `wellbeing_snapshots` table — id (uuid pk), snapshot_date (date NOT NULL UNIQUE), energy (smallint CHECK 1–5), mood (smallint CHECK 1–5), anxiety (smallint CHECK 1–5), notes (text nullable), created_at (timestamptz default now()).
-- [ ] **RIT-03**: Migration 0006 ships supporting tables — `ritual_responses`, `ritual_fire_events`, `ritual_config_events`, `ritual_pending_responses` (Append-only event tables for skip-tracking + adjustment audit per D004).
-- [ ] **RIT-04**: Migration 0006 adds `RITUAL_RESPONSE` to `epistemic_tag` enum (14th value).
-- [ ] **RIT-05**: Migration 0006 ships all indexes from day one (D034 precedent) — partial `btree(next_run_at) WHERE enabled = true`; `btree(snapshot_date)`; `(ritual_id, fired_at DESC)` on `ritual_responses`.
-- [ ] **RIT-06**: Migration 0006 lineage cleaned via `scripts/regen-snapshots.sh` clean-slate iterative replay (TECH-DEBT-19-01 pattern); `scripts/test.sh` extended with the new psql line.
+- [x] **RIT-01**: Migration 0006 ships `rituals` table — id (uuid pk), name (text NOT NULL UNIQUE), type (enum daily/weekly/monthly/quarterly NOT NULL), last_run_at (timestamptz nullable), next_run_at (timestamptz NOT NULL), enabled (boolean NOT NULL default true), config (jsonb NOT NULL default `{}`), skip_count (integer NOT NULL default 0), created_at (timestamptz default now()).
+- [x] **RIT-02**: Migration 0006 ships `wellbeing_snapshots` table — id (uuid pk), snapshot_date (date NOT NULL UNIQUE), energy (smallint CHECK 1–5), mood (smallint CHECK 1–5), anxiety (smallint CHECK 1–5), notes (text nullable), created_at (timestamptz default now()).
+- [x] **RIT-03**: Migration 0006 ships supporting tables — `ritual_responses`, `ritual_fire_events`, `ritual_config_events`, `ritual_pending_responses` (Append-only event tables for skip-tracking + adjustment audit per D004).
+- [x] **RIT-04**: Migration 0006 adds `RITUAL_RESPONSE` to `epistemic_tag` enum (14th value).
+- [x] **RIT-05**: Migration 0006 ships all indexes from day one (D034 precedent) — partial `btree(next_run_at) WHERE enabled = true`; `btree(snapshot_date)`; `(ritual_id, fired_at DESC)` on `ritual_responses`.
+- [x] **RIT-06**: Migration 0006 lineage cleaned via `scripts/regen-snapshots.sh` clean-slate iterative replay (TECH-DEBT-19-01 pattern); `scripts/test.sh` extended with the new psql line.
 - [ ] **RIT-07**: `RitualConfig` Zod schema (8 named fields + `schema_version`) at every read boundary; rejects unknown fields. Fields: `fire_at`, `fire_dow` (weekly only), `prompt_bag` (voice note only), `skip_threshold`, `mute_until`, `time_zone`, `prompt_set_version`, `schema_version`.
 - [ ] **RIT-08**: `src/rituals/cadence.ts` exports `computeNextRunAt(now, config)` using Luxon (`DateTime.plus({ days/weeks/months })` + `setZone(tz)`). Wall-clock advancement, NEVER `last_run_at + 24h`. DST-safe across 2026-03-29 + 2026-10-25.
 - [ ] **RIT-09**: Ritual firing as a **third channel** (not 6th trigger) inside `runSweep` between accountability and reflective. Per-tick max-1-ritual cap; catch-up ceiling; window-bound firing; shares global mute (`isMuted()`); independent daily counter from reflective/accountability.
