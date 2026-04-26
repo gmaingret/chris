@@ -9,7 +9,7 @@ last_activity: "2026-04-26 — v2.4 ROADMAP.md written. 6 phases (25-30), 54/54 
 progress:
   total_phases: 6
   completed_phases: 0
-  total_plans: 22
+  total_plans: 21
   completed_plans: 0
   percent: 0
 ---
@@ -46,13 +46,13 @@ Prior deploy state: v2.3 + date-extraction Haiku JSON-fences fix (eedce33, deplo
 
 | Phase | Name | Plans (est) | Requirements |
 |-------|------|-------------|--------------|
-| 25 | Ritual Scheduling Foundation + Process Gate | 4 | RIT-01..12, PROC-01/02 (14) |
+| 25 | Ritual Scheduling Foundation | 3 | RIT-01..12 (12) *(PROC-01/02 dropped 2026-04-26 — verified upstream)* |
 | 26 | Daily Voice Note Ritual | 4 | VOICE-01..06 (6) |
 | 27 | Daily Wellbeing Snapshot | 3 | WELL-01..05 (5) |
 | 28 | Skip-Tracking + Adjustment Dialogue | 4 | SKIP-01..07 (7) |
 | 29 | Weekly Review | 4 | WEEK-01..09 (9) |
 | 30 | Test Infrastructure + HARN-03 Refresh | 3 | TEST-23..32, HARN-04..06 (13) |
-| **Total** | | **22** | **54** |
+| **Total** | | **21** | **52** |
 
 **Phase ordering rationale:**
 

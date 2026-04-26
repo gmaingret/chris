@@ -72,10 +72,12 @@ After M009 ships, Greg has the full reflection loop: M006 trust + M007 decision 
 - [ ] **SKIP-06**: Self-protective 30-day pause — after 2 evasive responses within 14 days, ritual disabled for 30 days then auto-re-enables. Prevents adjustment dialogue itself becoming nagging.
 - [ ] **SKIP-07**: Append-only `ritual_config_events` audit trail — every config mutation captured (who changed what, when, in response to which dialogue). M006 refusal handling honored INSIDE the dialogue (Greg can refuse the adjustment conversation without it counting as evasive).
 
-### Process Gate (Carry-In #1)
+### Process Gate (Carry-In #1) — RESOLVED UPSTREAM (2026-04-26)
 
-- [ ] **PROC-01**: Wire `gsd-verifier` agent into `/gsd-execute-phase` workflow. Hard gate prevents phase completion without `<phase>-VERIFICATION.md` existing + non-empty + status `passed`. Regression test in `gsd-sdk` test suite asserts the gate fires.
-- [ ] **PROC-02**: Update SUMMARY.md template (used by gsd-planner agent) to emit `requirements-completed` frontmatter field. `gsd-sdk query summary-extract --pick requirements_completed` automates cross-reference. Validated against all M009 plan SUMMARY.md outputs.
+> **Both items shipped upstream in GSD 1.38.4 / 1.38.5; verified REDUNDANT during v2.4 kickoff (verdict block in `STATE.md` Open Items, evidence in `~/.claude/get-shit-done/workflows/execute-phase.md:1338-1376` and `~/.claude/get-shit-done/templates/summary.md:41`). Removed from Phase 25 active scope. Kept here as historical context for the v2.4 carry-in record.**
+
+- [x] **PROC-01** (upstream: GSD 1.38.4): Wire `gsd-verifier` agent into `/gsd-execute-phase` workflow. Hard gate prevents phase completion without `<phase>-VERIFICATION.md` existing + non-empty + status `passed`. Regression test in `gsd-sdk` test suite asserts the gate fires.
+- [x] **PROC-02** (upstream: GSD 1.38.5): Update SUMMARY.md template (used by gsd-planner agent) to emit `requirements-completed` frontmatter field. `gsd-sdk query summary-extract --pick requirements_completed` automates cross-reference. Validated against all M009 plan SUMMARY.md outputs.
 
 ### HARN-03 Fixture Refresh (Carry-In #2)
 
@@ -149,8 +151,8 @@ After M009 ships, Greg has the full reflection loop: M006 trust + M007 decision 
 | RIT-10 | 25 | Atomic `UPDATE rituals ... RETURNING *` idempotency (mirrors M007 D-28) |
 | RIT-11 | 25 | Second cron tick at 21:00 Europe/Paris in `src/index.ts` |
 | RIT-12 | 25 | `ritualSweepCron` env var + `cron.validate` + `/health` reports `ritual_cron_registered` |
-| PROC-01 | 25 | Carry-in #1 — wire `gsd-verifier` into `/gsd-execute-phase` |
-| PROC-02 | 25 | Carry-in #1 — SUMMARY.md template emits `requirements-completed` frontmatter |
+| ~~PROC-01~~ | — | RESOLVED UPSTREAM in GSD 1.38.4 (2026-04-26 verdict; not in Phase 25 active scope) |
+| ~~PROC-02~~ | — | RESOLVED UPSTREAM in GSD 1.38.5 (2026-04-26 verdict; not in Phase 25 active scope) |
 | VOICE-01 | 26 | PP#5 ritual-response detector at engine position 0 (HARD CO-LOCATION #1 + #5) |
 | VOICE-02 | 26 | 6 rotating prompts in spec order; `PROMPT_SET_VERSION = 'v1'` |
 | VOICE-03 | 26 | Shuffled-bag rotation via `rituals.config.prompt_bag` |
@@ -192,8 +194,9 @@ After M009 ships, Greg has the full reflection loop: M006 trust + M007 decision 
 | HARN-05 | 30 | Carry-in #2 — VCR cost model docs + `--reseed-vcr` flag |
 | HARN-06 | 30 | Carry-in #2 — HARN-03 5th invariant (≥14 days `wellbeing_snapshots`) |
 
-**Coverage:** 54 / 54 v1 requirements mapped to exactly one phase. No orphans, no duplicates.
+**Coverage:** 52 / 52 active v1 requirements mapped to exactly one phase. No orphans, no duplicates. *(Originally 54; PROC-01 + PROC-02 resolved upstream in GSD 1.38.4/1.38.5 on 2026-04-26 and removed from active scope — see Process Gate section above.)*
 
 ---
 *Document created: 2026-04-26 by /gsd-new-milestone "M009 Ritual Infrastructure + Daily Note + Weekly Review"*
 *Traceability filled: 2026-04-26 by gsd-roadmapper (6 phases, 54 REQ-IDs, all 7 hard co-location constraints honored)*
+*Scope reduced: 2026-04-26 — PROC-01/02 verified REDUNDANT post-GSD 1.38.4/1.38.5; 54 → 52 active requirements.*

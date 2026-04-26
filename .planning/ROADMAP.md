@@ -11,7 +11,7 @@
 
 ## Phases (active milestone)
 
-- [ ] **Phase 25: Ritual Scheduling Foundation + Process Gate** — Migration 0006 (rituals + wellbeing_snapshots + 4 event tables + RITUAL_RESPONSE enum), Luxon cadence helper, ritual channel slot in proactive sweep, second 21:00 cron tick, RitualConfig Zod schema, atomic UPDATE...RETURNING idempotency, gsd-verifier process-gate wiring (carry-in)
+- [ ] **Phase 25: Ritual Scheduling Foundation** — Migration 0006 (rituals + wellbeing_snapshots + 4 event tables + RITUAL_RESPONSE enum), Luxon cadence helper, ritual channel slot in proactive sweep, second 21:00 cron tick, RitualConfig Zod schema, atomic UPDATE...RETURNING idempotency *(process-gate carry-in PROC-01/02 verified REDUNDANT post-GSD 1.38.4/1.38.5 on 2026-04-26 and dropped from scope)*
 - [ ] **Phase 26: Daily Voice Note Ritual** — PP#5 ritual-response detector (deposit-only contract), 6-prompt shuffled-bag rotation, 21:00 Paris fire with pre-fire suppression, STT filler tagging, polite-decline voice handler
 - [ ] **Phase 27: Daily Wellbeing Snapshot** — Inline keyboard 3-row × 5-button (first use in codebase) + callback_query handler with per-dim upsert, partial-state persistence with hide-previous-values, optional skip without adjustment dialogue, 09:00 Paris fire (separate from voice note per D026)
 - [ ] **Phase 28: Skip-Tracking + Adjustment Dialogue** — Discriminated RitualFireOutcome union, append-only ritual_fire_events, cadence-aware thresholds (daily=3, weekly=2), Haiku 3-class adjustment parser, 60s confirmation window, self-protective 30-day pause on 2 evasive, ritual_config_events audit
@@ -20,17 +20,19 @@
 
 ## Phase Details (active milestone)
 
-### Phase 25: Ritual Scheduling Foundation + Process Gate
-**Goal**: Substrate for everything else — migration 0006 lands first, cadence helper before any handler, cron registration with safe defaults before any cron-fired test, and the gsd-verifier process gate wired into `/gsd-execute-phase` so no subsequent v2.4 phase can ship without a live VERIFICATION.md.
+### Phase 25: Ritual Scheduling Foundation
+**Goal**: Substrate for everything else — migration 0006 lands first, cadence helper before any handler, cron registration with safe defaults before any cron-fired test.
+
+> **Scope reduction (2026-04-26):** PROC-01 + PROC-02 carry-in (gsd-verifier wiring + SUMMARY.md `requirements-completed` frontmatter) verified REDUNDANT post-GSD 1.38.4/1.38.5 and dropped from active scope. Verdict block in `STATE.md` Open Items; evidence in `~/.claude/get-shit-done/workflows/execute-phase.md:1338-1376` and `~/.claude/get-shit-done/templates/summary.md:41`. Phase 25 active scope: 12 requirements / ~3 plans.
+
 **Depends on**: v2.3 Phase 24 (primed-fixture pipeline shipped) + v2.2 Phase 22 (episodic_summaries + retrieveContext)
-**Requirements**: RIT-01, RIT-02, RIT-03, RIT-04, RIT-05, RIT-06, RIT-07, RIT-08, RIT-09, RIT-10, RIT-11, RIT-12, PROC-01, PROC-02
+**Requirements**: RIT-01, RIT-02, RIT-03, RIT-04, RIT-05, RIT-06, RIT-07, RIT-08, RIT-09, RIT-10, RIT-11, RIT-12
 **HARD CO-LOCATION CONSTRAINT #7**: Migration 0006 + drizzle meta-snapshot + scripts/test.sh psql line ship as ONE atomic plan. Splitting any of the three creates lineage breakage (TECH-DEBT-19-01 precedent).
 **Success Criteria** (what must be TRUE):
   1. `npx drizzle-kit generate` against fresh schema produces a clean diff (zero rows); `bash scripts/test.sh` runs migration 0006 from clean Docker Postgres and reports `rituals`, `wellbeing_snapshots`, `ritual_responses`, `ritual_fire_events`, `ritual_config_events`, `ritual_pending_responses` tables present + `RITUAL_RESPONSE` epistemic_tag enum value present + 3 indexes (partial `next_run_at WHERE enabled`, `snapshot_date`, `(ritual_id, fired_at DESC)`) present.
   2. `/health` endpoint reports `ritual_cron_registered: true`; container logs at startup show `cron.schedule` registered for both 10:00 morning sweep and 21:00 evening tick (Europe/Paris); `cron.validate` rejects `RITUAL_SWEEP_CRON=garbage` at config load with a fail-fast error.
   3. `runRitualSweep()` invocable via `npx tsx scripts/manual-sweep.ts` (or REPL) returns `[]` against a clean DB without throwing; atomic `UPDATE rituals ... RETURNING *` idempotency proven by 2 concurrent invocations producing exactly 1 fired-row return.
-  4. `/gsd-execute-phase` cannot complete a phase whose `<phase>-VERIFICATION.md` is missing or empty or has status ≠ `passed`; `gsd-sdk` regression test asserts the gate fires; SUMMARY.md template emits `requirements-completed` frontmatter field; `gsd-sdk query summary-extract --pick requirements_completed` returns the array on a sample SUMMARY.
-**Plans**: TBD (~4 plans expected)
+**Plans**: TBD (~3 plans expected)
 
 ### Phase 26: Daily Voice Note Ritual
 **Goal**: First real ritual; exercises the highest-risk integration point in M009 (PP#5 ritual-response detector at engine position 0). After this phase, Greg gets a 21:00 Paris evening prompt with one of 6 rotating prompts, dictates an answer via Android STT keyboard, his text reply lands as a Pensieve entry tagged `RITUAL_RESPONSE`, and Chris generates ZERO chat response.
@@ -190,7 +192,7 @@ See [milestones/v2.3-ROADMAP.md](milestones/v2.3-ROADMAP.md) for full phase deta
 | 22.1. Wire retrieveContext (INSERTED) | v2.2   | 1/1   | Complete    | 2026-04-19 |
 | 23. Test Suite + Backfill + /summary | v2.2    | 4/4   | Complete    | 2026-04-19 |
 | 24. Primed-Fixture Pipeline        | v2.3      | 4/4   | Complete    | 2026-04-20 |
-| 25. Ritual Scheduling Foundation + Process Gate | v2.4 | 0/4 | Not started | -          |
+| 25. Ritual Scheduling Foundation   | v2.4      | 0/3   | Not started | -          |
 | 26. Daily Voice Note Ritual        | v2.4      | 0/4   | Not started | -          |
 | 27. Daily Wellbeing Snapshot       | v2.4      | 0/3   | Not started | -          |
 | 28. Skip-Tracking + Adjustment Dialogue | v2.4 | 0/4   | Not started | -          |
