@@ -107,9 +107,13 @@ Full log in PROJECT.md Key Decisions table. Most relevant for M009:
 - **Env-level vitest-4 fork-IPC hang under HuggingFace EACCES.** 5-file excluded-suite mitigation in `scripts/test.sh` keeps Docker gate green. M009 adds new `src/rituals/__tests__/` suites — confirm they don't trigger the hang during Phase 30.
 - **process.exit() in scripts** — same pattern present in `backfill-episodic.ts:264/269/272`, `synthesize-delta.ts:639/642`, `adversarial-test.ts`, `test-photo-memory.ts` — none have try/finally cleanup so safe as-is, but worth a future audit (post-M009).
 
+### Pending Todos
+
+- `2026-04-26-verify-proc-01-proc-02-still-needed-post-gsd-1-38-5.md` (planning) — Verify PROC-01/PROC-02 still needed post-GSD 1.38.5 before `/gsd-discuss-phase 25` or `/gsd-plan-phase 25`.
+
 ### Blockers/Concerns
 
-None. Ready to plan Phase 25.
+None. Ready to plan Phase 25 — but resolve the pending todo first to avoid over-budgeting Phase 25.
 
 ## Session Continuity
 
