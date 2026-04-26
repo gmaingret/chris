@@ -11,7 +11,7 @@
 
 ## Phases (active milestone)
 
-- [ ] **Phase 25: Ritual Scheduling Foundation** — Migration 0006 (rituals + wellbeing_snapshots + 4 event tables + RITUAL_RESPONSE enum), Luxon cadence helper, ritual channel slot in proactive sweep, second 21:00 cron tick, RitualConfig Zod schema, atomic UPDATE...RETURNING idempotency *(process-gate carry-in PROC-01/02 verified REDUNDANT post-GSD 1.38.4/1.38.5 on 2026-04-26 and dropped from scope)*
+- [x] **Phase 25: Ritual Scheduling Foundation** — Migration 0006 (rituals + wellbeing_snapshots + 4 event tables + RITUAL_RESPONSE enum), Luxon cadence helper, ritual channel slot in proactive sweep, second 21:00 cron tick, RitualConfig Zod schema, atomic UPDATE...RETURNING idempotency *(process-gate carry-in PROC-01/02 verified REDUNDANT post-GSD 1.38.4/1.38.5 on 2026-04-26 and dropped from scope)* — completed 2026-04-26 (3 plans, RIT-01..12 all shipped)
 - [ ] **Phase 26: Daily Voice Note Ritual** — PP#5 ritual-response detector (deposit-only contract), 6-prompt shuffled-bag rotation, 21:00 Paris fire with pre-fire suppression, STT filler tagging, polite-decline voice handler
 - [ ] **Phase 27: Daily Wellbeing Snapshot** — Inline keyboard 3-row × 5-button (first use in codebase) + callback_query handler with per-dim upsert, partial-state persistence with hide-previous-values, optional skip without adjustment dialogue, 09:00 Paris fire (separate from voice note per D026)
 - [ ] **Phase 28: Skip-Tracking + Adjustment Dialogue** — Discriminated RitualFireOutcome union, append-only ritual_fire_events, cadence-aware thresholds (daily=3, weekly=2), Haiku 3-class adjustment parser, 60s confirmation window, self-protective 30-day pause on 2 evasive, ritual_config_events audit
@@ -35,7 +35,7 @@
 **Plans:** 3 plans
 - [x] 25-01-PLAN.md — Migration substrate (HARD CO-LOC #7 atomic): migration 0006 SQL + drizzle meta-snapshot + scripts/test.sh psql smoke gate (RIT-01..06)
 - [x] 25-02-PLAN.md — Pure-function helpers: RitualConfig Zod schema, Luxon DST-safe computeNextRunAt, atomic UPDATE...RETURNING idempotency helper (RIT-07, 08, 10)
-- [ ] 25-03-PLAN.md — Process boundaries: runRitualSweep orchestrator, ritual channel slot in runSweep, registerCrons(deps) helper, 21:00 cron tick, cron.validate fail-fast in config, /health field, scripts/manual-sweep.ts (RIT-09, 11, 12)
+- [x] 25-03-PLAN.md — Process boundaries: runRitualSweep orchestrator, ritual channel slot in runSweep, registerCrons(deps) helper, 21:00 cron tick, cron.validate fail-fast in config, /health field, scripts/manual-sweep.ts (RIT-09, 11, 12)
 
 ### Phase 26: Daily Voice Note Ritual
 **Goal**: First real ritual; exercises the highest-risk integration point in M009 (PP#5 ritual-response detector at engine position 0). After this phase, Greg gets a 21:00 Paris evening prompt with one of 6 rotating prompts, dictates an answer via Android STT keyboard, his text reply lands as a Pensieve entry tagged `RITUAL_RESPONSE`, and Chris generates ZERO chat response.

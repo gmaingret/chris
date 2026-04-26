@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.4
 milestone_name: M009 Ritual Infrastructure + Daily Note + Weekly Review
-status: Plan 25-02 shipped (RIT-07, RIT-08, RIT-10)
-stopped_at: "Plan 25-02 complete (3 commits: 153aa2d, c7763bf, 2c7a60d) — Wave 2 done; Wave 3 (Plan 25-03) ready"
-last_updated: "2026-04-26T16:25:00.000Z"
-last_activity: 2026-04-26 -- Plan 25-02 complete (RitualConfig Zod + Luxon DST-safe computeNextRunAt + atomic UPDATE...RETURNING idempotency; 24/24 tests green)
+status: Phase 25 complete (Plans 01-03 of 03; RIT-01..12 all shipped)
+stopped_at: "Plan 25-03 complete (7 commits: 226bd48, e0d8162, 40fc35d, 9bcadf9, abe4515, eb1572f, e494946) — Wave 3 done; Phase 25 substrate fully wired"
+last_updated: "2026-04-26T17:18:30.000Z"
+last_activity: 2026-04-26 -- Plan 25-03 complete (runRitualSweep orchestrator + ritual channel slot in runSweep + registerCrons(deps) + 21:00 Paris cron tick + cron.validate fail-fast + /health ritual_cron_registered + scripts/manual-sweep.ts + D-04 channel-cap helpers; 108/108 Phase 25-affected tests green)
 progress:
   total_phases: 6
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
-  completed_plans: 2
-  percent: 67
+  completed_plans: 3
+  percent: 17
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (symlink to /home/claude/chris/PLAN.md, updated 2026-0
 
 ## Current Position
 
-Phase: **25** Waves 1+2 complete (Plans 01-02 of 03)
-Plan: **03** ready to execute (Wave 3)
-Status: Plan 25-02 shipped (RIT-07, RIT-08, RIT-10)
-Progress: [███████░░░] 67%
-Last activity: 2026-04-26 -- Plan 25-02 complete (RitualConfig Zod schema + Luxon DST-safe computeNextRunAt + atomic UPDATE...RETURNING idempotency; 24/24 ritual tests green under bash scripts/test.sh)
+Phase: **25** COMPLETE (Plans 01-03 of 03 all shipped — substrate fully wired)
+Plan: **next phase 26 (Daily Voice Note Ritual)** ready to plan
+Status: Phase 25 complete — RIT-01..12 (12 of 12) all verifiably satisfied; Wave 1 + Wave 2 + Wave 3 shipped
+Progress: [██████████] 100% (Phase 25 of Phase 25 internal); milestone v2.4 ~17% (1 of 6 phases done)
+Last activity: 2026-04-26 -- Plan 25-03 complete (runRitualSweep orchestrator + ritual channel slot in runSweep + registerCrons(deps) + 21:00 Paris cron tick + cron.validate fail-fast + /health ritual_cron_registered + scripts/manual-sweep.ts + D-04 channel-cap helpers; 108/108 Phase 25-affected tests green)
 
 Prior deploy state: v2.3 + date-extraction Haiku JSON-fences fix (eedce33, deployed 42a7eed 2026-04-25) live on Proxmox (192.168.1.50). Daily 23:00 Europe/Paris episodic cron + 6h sync cron + 10:00 proactive sweep cron all healthy. M009 will ADD a second 21:00 evening cron tick (RIT-11) for ritual firing.
 
@@ -137,9 +137,9 @@ None. Ready to plan Phase 25 — pending todo resolved (verdict above).
 
 ## Session Continuity
 
-Last session: 2026-04-26T16:25:00Z
-Stopped at: Plan 25-02 complete (3 commits: 153aa2d, c7763bf, 2c7a60d) — Wave 2 done; Wave 3 (Plan 25-03) ready
-Resume file: .planning/phases/25-ritual-scheduling-foundation-process-gate/25-03-PLAN.md
+Last session: 2026-04-26T17:18:30Z
+Stopped at: Plan 25-03 complete (7 commits: 226bd48, e0d8162, 40fc35d, 9bcadf9, abe4515, eb1572f, e494946) — Phase 25 substrate fully wired; ready to plan Phase 26 (Daily Voice Note Ritual)
+Resume file: .planning/ROADMAP.md (next phase to plan: Phase 26)
 
 ## Known Tech Debt
 
