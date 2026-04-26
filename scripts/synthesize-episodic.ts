@@ -527,11 +527,17 @@ export async function main(): Promise<void> {
     console.log(
       `synthesize-episodic: consolidated ${out.length} days; wrote ${out.length} episodic summaries to tests/fixtures/primed/${args.primed}/episodic_summaries.jsonl (seed=${args.seed}, db-port=${args.dbPort})`,
     );
-    process.exit(0);
+    // NOTE: do NOT call process.exit() inside try/catch — it terminates
+    // Node synchronously and skips the `finally` block, so downDocker()
+    // never runs and the throwaway container is leaked. Set exitCode
+    // instead and let the event loop drain naturally; finally fires first,
+    // then Node exits with the set code. Found via prod operator UAT
+    // 2026-04-26 — see RETROSPECTIVE §v2.3 post-close.
+    process.exitCode = 0;
   } catch (err) {
     if (err instanceof ChrisError) console.error(err.message);
     else console.error('synthesize-episodic: unexpected error:', err);
-    process.exit(1);
+    process.exitCode = 1;
   } finally {
     await downDocker(state);
   }

@@ -311,14 +311,18 @@ export async function main(): Promise<void> {
     console.log(
       `fetch-prod-data: wrote ${total} rows across ${TABLES.length} tables to ${stampDir}/`,
     );
-    process.exit(0);
+    // Same fix as synthesize-episodic.ts:530 — process.exit() skips finally,
+    // leaking the SSH tunnel + postgres client. Use exitCode and let the
+    // event loop drain so finally runs first. Found via prod operator UAT
+    // 2026-04-26 (orphan SSH tunnel pid 4145976 traced back here).
+    process.exitCode = 0;
   } catch (err) {
     if (err instanceof ChrisError) {
       console.error(err.message);
     } else {
       console.error('fetch-prod-data: unexpected error:', err);
     }
-    process.exit(1);
+    process.exitCode = 1;
   } finally {
     if (client) await client.end({ timeout: 5 });
     await closeTunnel(ssh);
