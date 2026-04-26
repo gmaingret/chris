@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v2.4
 milestone_name: M009 Ritual Infrastructure + Daily Note + Weekly Review
-status: Phase 25 ready to plan
-stopped_at: ROADMAP.md written; awaiting /gsd-plan-phase 25
-last_updated: "2026-04-26T13:23:00Z"
-last_activity: "2026-04-26 — PROC-01/PROC-02 verified REDUNDANT post-GSD 1.38.5 (verdict in Open Items). Greg to decide whether to drop both from Phase 25 scope before /gsd-plan-phase 25. v2.4 ROADMAP.md unchanged: 6 phases (25-30), 54/54 REQ-IDs mapped."
+status: ROADMAP.md written; awaiting `/gsd-plan-phase 25`
+stopped_at: Phase 25 context gathered (--auto)
+last_updated: "2026-04-26T13:32:44.898Z"
+last_activity: "2026-04-26 — v2.4 ROADMAP.md written. 6 phases (25-30), 54/54 REQ-IDs mapped, all 7 HARD CO-LOCATION constraints honored. Carry-ins folded: PROC-01/02 → Phase 25; HARN-04/05/06 → Phase 30."
 progress:
   total_phases: 6
   completed_phases: 0
@@ -55,6 +55,7 @@ Prior deploy state: v2.3 + date-extraction Haiku JSON-fences fix (eedce33, deplo
 | **Total** | | **22** | **54** |
 
 **Phase ordering rationale:**
+
 - Phase 25 first (substrate non-negotiable)
 - Phases 26 + 27 + 29 parallel-eligible after Phase 25 (orthogonal handler surfaces)
 - Phase 28 after Phases 25/26/27 (depends on outcomes from rituals being skipped)
@@ -112,6 +113,7 @@ Full log in PROJECT.md Key Decisions table. Most relevant for M009:
 GSD updated 1.38.3 → 1.38.5. **PROC-01 verdict: REDUNDANT. PROC-02 verdict: REDUNDANT.**
 
 Evidence:
+
 - **PROC-01** (wire `gsd-verifier` into `/gsd-execute-phase`):
   - `~/.claude/get-shit-done/workflows/execute-phase.md:1338-1376` defines `verify_phase_goal` step that spawns `gsd-verifier` subagent (`subagent_type="gsd-verifier"`, line 1368) and reads VERIFICATION.md status from disk: `grep "^status:" "$PHASE_DIR"/*-VERIFICATION.md | cut -d: -f2 | tr -d ' '` (line 1374-1376).
   - Hard gate via status table (line 1378-1382): only `passed` advances to `update_roadmap`; `gaps_found` triggers `/gsd-plan-phase --gaps` cycle. This is exactly the regression class 1.38.4 changelog described and what PROC-01 was scoped to fix.
@@ -129,8 +131,8 @@ None. Ready to plan Phase 25 — pending todo resolved (verdict above).
 
 ## Session Continuity
 
-Last session: 2026-04-26T05:30:00Z
-Stopped at: v2.4 ROADMAP.md written; REQUIREMENTS.md traceability section filled; STATE.md updated with active milestone plan. Next: `/gsd-plan-phase 25`.
+Last session: 2026-04-26T13:32:44.887Z
+Stopped at: Phase 25 context gathered (--auto)
 
 ## Known Tech Debt
 
