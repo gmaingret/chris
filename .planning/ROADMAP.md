@@ -34,7 +34,7 @@
   3. `runRitualSweep()` invocable via `npx tsx scripts/manual-sweep.ts` (or REPL) returns `[]` against a clean DB without throwing; atomic `UPDATE rituals ... RETURNING *` idempotency proven by 2 concurrent invocations producing exactly 1 fired-row return.
 **Plans:** 3 plans
 - [x] 25-01-PLAN.md — Migration substrate (HARD CO-LOC #7 atomic): migration 0006 SQL + drizzle meta-snapshot + scripts/test.sh psql smoke gate (RIT-01..06)
-- [ ] 25-02-PLAN.md — Pure-function helpers: RitualConfig Zod schema, Luxon DST-safe computeNextRunAt, atomic UPDATE...RETURNING idempotency helper (RIT-07, 08, 10)
+- [x] 25-02-PLAN.md — Pure-function helpers: RitualConfig Zod schema, Luxon DST-safe computeNextRunAt, atomic UPDATE...RETURNING idempotency helper (RIT-07, 08, 10)
 - [ ] 25-03-PLAN.md — Process boundaries: runRitualSweep orchestrator, ritual channel slot in runSweep, registerCrons(deps) helper, 21:00 cron tick, cron.validate fail-fast in config, /health field, scripts/manual-sweep.ts (RIT-09, 11, 12)
 
 ### Phase 26: Daily Voice Note Ritual

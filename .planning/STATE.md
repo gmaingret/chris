@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.4
 milestone_name: M009 Ritual Infrastructure + Daily Note + Weekly Review
-status: executing
-stopped_at: Phase 25 context gathered (--auto)
-last_updated: "2026-04-26T15:32:36.359Z"
-last_activity: 2026-04-26 -- Phase 25 planning complete
+status: Plan 25-02 shipped (RIT-07, RIT-08, RIT-10)
+stopped_at: "Plan 25-02 complete (3 commits: 153aa2d, c7763bf, 2c7a60d) — Wave 2 done; Wave 3 (Plan 25-03) ready"
+last_updated: "2026-04-26T16:25:00.000Z"
+last_activity: 2026-04-26 -- Plan 25-02 complete (RitualConfig Zod + Luxon DST-safe computeNextRunAt + atomic UPDATE...RETURNING idempotency; 24/24 tests green)
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 3
-  completed_plans: 1
-  percent: 33
+  completed_plans: 2
+  percent: 67
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (symlink to /home/claude/chris/PLAN.md, updated 2026-0
 
 ## Current Position
 
-Phase: **25** Wave 1 complete (Plan 01 of 03)
-Plan: **02** ready to execute (Wave 2)
-Status: Plan 25-01 shipped (RIT-01..06)
-Progress: [███░░░░░░░] 33%
-Last activity: 2026-04-26 -- Plan 25-01 complete (migration 0006 + drizzle meta lineage 0..6 + scripts/test.sh substrate smoke gate green)
+Phase: **25** Waves 1+2 complete (Plans 01-02 of 03)
+Plan: **03** ready to execute (Wave 3)
+Status: Plan 25-02 shipped (RIT-07, RIT-08, RIT-10)
+Progress: [███████░░░] 67%
+Last activity: 2026-04-26 -- Plan 25-02 complete (RitualConfig Zod schema + Luxon DST-safe computeNextRunAt + atomic UPDATE...RETURNING idempotency; 24/24 ritual tests green under bash scripts/test.sh)
 
 Prior deploy state: v2.3 + date-extraction Haiku JSON-fences fix (eedce33, deployed 42a7eed 2026-04-25) live on Proxmox (192.168.1.50). Daily 23:00 Europe/Paris episodic cron + 6h sync cron + 10:00 proactive sweep cron all healthy. M009 will ADD a second 21:00 evening cron tick (RIT-11) for ritual firing.
 
@@ -89,6 +89,12 @@ Full log in PROJECT.md Key Decisions table. Most relevant for M009:
 5. Prompt rotation uses **shuffled-bag** (stronger than spec's "no consecutive duplicates" floor).
 6. **No 1-month real-use pause before M010** — superseded by D041; M010 validates via primed-fixture pipeline.
 
+### Plan 25-02 implementation decisions (2026-04-26)
+
+- **D-25-02-A: tryFireRitualAtomic null-observation predicate is `isNull(rituals.lastRunAt)` ONLY** (not `or(isNull, sql\`true\`)` as RESEARCH §6 prescribed). The `sql\`true\`` fallback would have failed the RIT-10 exactly-once contract under concurrency because postgres re-evaluates the second UPDATE's WHERE against post-commit row state, and `true` is row-state-independent. Strict `isNull` makes the second UPDATE's WHERE FAIL after the first commits (lastRunAt is no longer null), giving the SQL-level proof. The non-null `lastObserved` case retains `or(isNull, lt)` shape. See 25-02-SUMMARY.md Deviation 1 for full reasoning.
+- **D-25-02-B: Pitfall 2/3 grep guards (and TESTING.md D-02 fake-timer guard) require docstrings to NOT name forbidden patterns literally.** Source files describe forbidden patterns abstractly ("manual UTC ms arithmetic", "JS Date wall-clock setters", "fake-timer mocks") so the guard regex itself does not appear in source. Verification regex lives in plan reference. Future plan authors should anticipate this when writing acceptance criteria for file-level grep guards.
+- **D-25-02-C: D-09 3-arg `computeNextRunAt(now, cadence, config)` signature confirmed correct.** The 3-arg shape is the right call: cadence sources from `rituals.type` enum column, never denormalized into the jsonb config. RESEARCH.md §4's pseudocode is illustrative; the real signature is what landed.
+
 ### HARD CO-LOCATION CONSTRAINTS (from research/SUMMARY.md — must be honored across phase boundaries)
 
 1. **Phase 26**: PP#5 ritual-response detector co-located with voice note ritual handler (Pitfall 6, CRITICAL).
@@ -131,9 +137,9 @@ None. Ready to plan Phase 25 — pending todo resolved (verdict above).
 
 ## Session Continuity
 
-Last session: 2026-04-26T15:42:00Z
-Stopped at: Plan 25-01 complete (4 commits: dc5fd34, 9f883af, 2aa96e2, 889da4c) — Wave 1 done; Wave 2 (Plan 25-02) ready
-Resume file: .planning/phases/25-ritual-scheduling-foundation-process-gate/25-02-PLAN.md
+Last session: 2026-04-26T16:25:00Z
+Stopped at: Plan 25-02 complete (3 commits: 153aa2d, c7763bf, 2c7a60d) — Wave 2 done; Wave 3 (Plan 25-03) ready
+Resume file: .planning/phases/25-ritual-scheduling-foundation-process-gate/25-03-PLAN.md
 
 ## Known Tech Debt
 
