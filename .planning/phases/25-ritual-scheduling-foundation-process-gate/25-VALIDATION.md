@@ -1,10 +1,11 @@
 ---
 phase: 25
 slug: ritual-scheduling-foundation-process-gate
-status: draft
-nyquist_compliant: false
+status: ready
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-04-26
+updated: 2026-04-26
 ---
 
 # Phase 25 — Validation Strategy
@@ -47,7 +48,7 @@ created: 2026-04-26
 | 25-02-* | 02 | 2 | RIT-08 | — | computeNextRunAt DST-safe across 2026-03-29 + 2026-10-25; 4 cadences | property test | `npx vitest run src/rituals/__tests__/cadence.test.ts` | ❌ W0 | ⬜ pending |
 | 25-02-* | 02 | 2 | RIT-10 | — | Atomic UPDATE…RETURNING idempotency: 2 concurrent invocations → exactly 1 fired-row return | concurrency test (Docker postgres) | `npx vitest run src/rituals/__tests__/idempotency.test.ts` | ❌ W0 | ⬜ pending |
 | 25-03-* | 03 | 3 | RIT-09 | — | Ritual channel slot in runSweep between accountability and reflective; per-tick max-1 cap; shares isMuted() | unit + integration | `npx vitest run src/proactive/__tests__/sweep.test.ts` (extends existing) | ⚠ existing file | ⬜ pending |
-| 25-03-* | 03 | 3 | RIT-11 | — | `cron.schedule` invoked with `'0 21 * * *'`, `Europe/Paris` for ritual tick at startup | unit (cron mock spy) | `npx vitest run src/__tests__/cron-registration.test.ts` | ❌ W0 | ⬜ pending |
+| 25-03-* | 03 | 3 | RIT-11 | — | `cron.schedule` invoked with `'0 21 * * *'`, `Europe/Paris` for ritual tick at startup | unit (cron mock spy) | `npx vitest run src/rituals/__tests__/cron-registration.test.ts` | ❌ W0 | ⬜ pending |
 | 25-03-* | 03 | 3 | RIT-12 | — | `cron.validate('garbage')` rejects at config load; `/health` reports `ritual_cron_registered: true` | unit + integration | `npx vitest run src/__tests__/config.test.ts src/__tests__/health.test.ts` | ⚠ partial | ⬜ pending |
 | 25-03-* | 03 | 3 | RIT-09 (Pitfall 1) | — | Ritual storms after cron catch-up — per-tick max-1 cap PROVEN by simulating N=10 enabled rituals → 1 fired per tick | property test | `npx vitest run src/rituals/__tests__/scheduler.test.ts` | ❌ W0 | ⬜ pending |
 
@@ -61,7 +62,7 @@ created: 2026-04-26
 - [ ] `src/rituals/__tests__/cadence.test.ts` — stubs for RIT-08 (computeNextRunAt + DST property tests)
 - [ ] `src/rituals/__tests__/idempotency.test.ts` — stubs for RIT-10 (atomic UPDATE concurrency)
 - [ ] `src/rituals/__tests__/scheduler.test.ts` — stubs for RIT-09 (per-tick max-1 cap, channel slot)
-- [ ] `src/__tests__/cron-registration.test.ts` — stubs for RIT-11 (cron.schedule spy)
+- [ ] `src/rituals/__tests__/cron-registration.test.ts` — stubs for RIT-11 (cron.schedule spy)
 - [ ] `src/__tests__/config.test.ts` — extension for RIT-12 (cron.validate fail-fast)
 - [ ] `src/__tests__/health.test.ts` — extension for RIT-12 (`ritual_cron_registered` flag)
 
@@ -90,4 +91,4 @@ created: 2026-04-26
 - [ ] Feedback latency < 90s (full suite)
 - [ ] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** ready (PC-25-04 cleared 2026-04-26 — all 3 plans now have automated test commands for every requirement; planner-revision iteration 2/3)

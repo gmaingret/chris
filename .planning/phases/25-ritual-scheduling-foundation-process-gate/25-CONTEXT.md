@@ -58,13 +58,14 @@ Phase 25 lays the **substrate non-negotiable** for v2.4 M009. Migration `0006_ri
 - **Test:** `RITUAL_SWEEP_CRON=garbage` in `src/config.test.ts` (or `src/__tests__/config.test.ts`) asserts `import('../config.js')` rejects with a message matching `/invalid RITUAL_SWEEP_CRON/`. Mirrors how Phase 22 tested `EPISODIC_CRON_TIME` (or analogous).
 - **Rejected:** Warn-and-continue. Rejected because the failure is invisible — Greg has no way to notice "ritual didn't fire" until Phase 26's voice note ritual is supposed to send and doesn't, by which point days of trust have eroded.
 
-### Ritual channel daily counter (D-04)
+### Ritual channel daily counter (D-04 — REFINED 2026-04-26 post-RESEARCH Q3)
 
-**D-04:** **One independent counter for the ritual channel as a whole, shared across all rituals.** The ritual channel uses its own `dailyRitualCount` (or whatever the variable is called inside `runSweep`'s closure / shared state), independent of `accountability` and `reflective` counters but NOT split per-ritual-type.
+**D-04:** **One independent counter for the ritual channel as a whole, shared across all rituals, with a daily ceiling of 3.** The ritual channel uses its own `ritualCount` (or `dailyRitualCount` — naming at planner discretion) inside `runSweep`'s closure / shared state, independent of `accountability` and `reflective` counters and NOT split per-ritual-type.
 
-- **Rationale:** Per-tick max-1-ritual cap (TS-11) is the rate-limit mechanism for individual rituals — it prevents storms (Pitfall 1). The channel-level daily counter is for the *channel* (rituals as a group), not for each ritual; per-ritual-type counters would over-fragment the rate model and create tracking noise that nobody consumes. The "independent daily counter from reflective/accountability" phrasing in research SUMMARY (TS-11) means *across channels*, not *across rituals within the channel*.
-- **Concrete shape:** `runSweep()` already has `accountabilityCount` and `reflectiveCount` (or equivalent — planner verifies). Add `ritualCount` peer. The channel itself caps at 1/tick per TS-11; the counter caps at some daily ceiling (planner researches existing channel cap, e.g. 3-5/day, and matches).
-- **Rejected:** Per-ritual-type counter (`voiceNoteCount`, `wellbeingCount`, etc.). Rejected because the per-tick max-1 cap inside the channel already serializes them; a daily-per-type counter would only be useful if we expected one ritual to flood the others, but the cap prevents that.
+- **Rationale:** Per-tick max-1-ritual cap (TS-11) is the rate-limit mechanism for *individual* rituals — it prevents storms (Pitfall 1). The channel-level daily counter is for the *channel* (rituals as a group), not for each ritual; per-ritual-type counters would over-fragment the rate model and create tracking noise that nobody consumes. The "independent daily counter from reflective/accountability" phrasing in research SUMMARY (TS-11) means *across channels*, not *across rituals within the channel*.
+- **Why ceiling = 3:** RESEARCH.md Open Question 3 surfaced a real conflict — the existing accountability/reflective channels use a boolean `hasSentTodayX` cap (effectively 1/day), but M009's three rituals naturally produce up to **3 fires on a single calendar day**: morning wellbeing (09:00 Paris), evening voice note (21:00 Paris), and Sunday weekly review (20:00 Paris). A boolean cap would suppress two of them. A 3/day ceiling cleanly accommodates the worst case (Sunday: all three fire) without requiring per-ritual-type bookkeeping. Defense in depth against ritual storms (Pitfall 1) is preserved: per-tick max-1 cap + per-ritual cadence advancement (`next_run_at += 24h` after fire) + 3/day channel ceiling.
+- **Concrete shape:** `runSweep()` already has `accountabilityCount` and `reflectiveCount` (or equivalent — planner verifies). Add `ritualCount` peer with ceiling 3. Use `hasReachedRitualDailyCap()` or equivalent helper following the same shape as `hasSentTodayReflective`/`hasSentTodayAccountability` in `src/proactive/state.ts` lines 102-148. Persist via the same `proactive_state` KV table — add a new key like `ritual_daily_count` keyed by local date so the counter resets at midnight Europe/Paris.
+- **Rejected:** (a) NO daily channel cap. Rejected because the only safety net would be per-tick max-1 + per-ritual cadence, which is fine in steady-state but provides no defense against future bugs that double-advance `next_run_at` or skip the cadence helper. (b) Per-ritual-type counter (`voiceNoteCount`, `wellbeingCount`, etc.). Rejected because the per-tick max-1 cap inside the channel already serializes them. (c) Boolean `hasSentTodayRitual`. Rejected because it conflicts with the wellbeing+voice note same-day requirement.
 
 ### Test approach for cron registration (D-05)
 
@@ -91,6 +92,15 @@ Phase 25 lays the **substrate non-negotiable** for v2.4 M009. Migration `0006_ri
 - **Behavior:** Hard-fails on missing DB connection (no fallback). Logs each fired ritual + outcome. Exits 0 if no rituals fired (clean DB → `[]` per success criterion 3). No try/finally cleanup (matches `backfill-episodic.ts` pattern noted in STATE.md as "safe as-is").
 - **Rejected:** REPL-only via `node --experimental-repl-await`. Rejected per the existing scripts convention.
 
+### `computeNextRunAt` signature (D-09 — ADDED 2026-04-26 post-checker PC-25-03)
+
+**D-09:** **`computeNextRunAt(now: Date, cadence: RitualCadence, config: RitualConfig): Date`** — accept the 3-argument signature deviation from D-02's earlier 2-arg shape. `cadence` is sourced from `rituals.type` (the enum column), NOT from `RitualConfig` (the jsonb column).
+
+- **Rationale:** D-02 originally specified `computeNextRunAt(now, config)`, mirroring RESEARCH.md §4 Example 2's pseudocode. While drafting Plan 25-02, the planner correctly observed that `RitualConfigSchema` (D-02 + RIT-07) deliberately omits a `cadence` field — `rituals.type` is the source of truth for cadence, while `rituals.config` jsonb holds tunables (`fire_at`, `fire_dow`, `prompt_bag`, `skip_threshold`, `mute_until`, `time_zone`, `prompt_set_version`, `schema_version`). Folding `cadence` into `RitualConfigSchema` to preserve the 2-arg signature would denormalize a column that already lives elsewhere and force every downstream caller to keep both in sync.
+- **Tradeoff accepted:** A 3-arg signature is slightly less ergonomic at call sites, but every call site already has `ritual.type` in scope (the row was just fetched). The clean type/config separation outweighs the call-site cost.
+- **Effect on Plan 25-02 + 25-03:** Both plans use `computeNextRunAt(now, cadence, config)`. RESEARCH.md §4 should be read as illustrative pseudocode whose `config.cadence` lookup is provided by the caller via the explicit `cadence` argument.
+- **Rejected:** Adding `cadence` to `RitualConfigSchema`. Rejected per the schema-vs-column rationale above.
+
 ### Migration meta-snapshot regeneration approach (D-08)
 
 **D-08:** Use **`scripts/regen-snapshots.sh` clean-slate iterative replay** (TECH-DEBT-19-01 + Phase 19 v2.1 pattern), NOT `npx drizzle-kit generate --custom` against an unstable journal.
@@ -102,7 +112,6 @@ Phase 25 lays the **substrate non-negotiable** for v2.4 M009. Migration `0006_ri
 ### Claude's Discretion
 
 - **Naming details** — exact file names within `src/rituals/` (`types.ts` vs `schema.ts`, `idempotency.ts` vs co-locating in `scheduler.ts`), exact env-var name capitalization, exact log-event names (`rituals.cron.scheduled` vs `ritual.cron.registered`), exact test file locations (`src/rituals/__tests__/cadence.test.ts` is the obvious choice). Planner picks per existing project conventions in `.planning/codebase/CONVENTIONS.md`.
-- **Channel cap value** — what `ritualCount` daily ceiling to use. Planner reads `src/proactive/sweep.ts` to find existing channel caps and matches.
 - **`scripts/manual-sweep.ts` JSON output schema** — pretty-printed array of fired rows; planner picks reasonable shape based on what `runRitualSweep()` returns.
 - **Test data approach** — existing primed-fixture pipeline (D041, v2.3 Phase 24) is available; planner picks whether Plan 25-01's migration tests need primed fixtures or run against clean Docker Postgres only (success criterion 1 reads "clean Docker Postgres", so probably the latter).
 

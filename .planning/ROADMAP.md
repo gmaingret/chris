@@ -32,7 +32,10 @@
   1. `npx drizzle-kit generate` against fresh schema produces a clean diff (zero rows); `bash scripts/test.sh` runs migration 0006 from clean Docker Postgres and reports `rituals`, `wellbeing_snapshots`, `ritual_responses`, `ritual_fire_events`, `ritual_config_events`, `ritual_pending_responses` tables present + `RITUAL_RESPONSE` epistemic_tag enum value present + 3 indexes (partial `next_run_at WHERE enabled`, `snapshot_date`, `(ritual_id, fired_at DESC)`) present.
   2. `/health` endpoint reports `ritual_cron_registered: true`; container logs at startup show `cron.schedule` registered for both 10:00 morning sweep and 21:00 evening tick (Europe/Paris); `cron.validate` rejects `RITUAL_SWEEP_CRON=garbage` at config load with a fail-fast error.
   3. `runRitualSweep()` invocable via `npx tsx scripts/manual-sweep.ts` (or REPL) returns `[]` against a clean DB without throwing; atomic `UPDATE rituals ... RETURNING *` idempotency proven by 2 concurrent invocations producing exactly 1 fired-row return.
-**Plans**: TBD (~3 plans expected)
+**Plans:** 3 plans
+- [ ] 25-01-PLAN.md — Migration substrate (HARD CO-LOC #7 atomic): migration 0006 SQL + drizzle meta-snapshot + scripts/test.sh psql smoke gate (RIT-01..06)
+- [ ] 25-02-PLAN.md — Pure-function helpers: RitualConfig Zod schema, Luxon DST-safe computeNextRunAt, atomic UPDATE...RETURNING idempotency helper (RIT-07, 08, 10)
+- [ ] 25-03-PLAN.md — Process boundaries: runRitualSweep orchestrator, ritual channel slot in runSweep, registerCrons(deps) helper, 21:00 cron tick, cron.validate fail-fast in config, /health field, scripts/manual-sweep.ts (RIT-09, 11, 12)
 
 ### Phase 26: Daily Voice Note Ritual
 **Goal**: First real ritual; exercises the highest-risk integration point in M009 (PP#5 ritual-response detector at engine position 0). After this phase, Greg gets a 21:00 Paris evening prompt with one of 6 rotating prompts, dictates an answer via Android STT keyboard, his text reply lands as a Pensieve entry tagged `RITUAL_RESPONSE`, and Chris generates ZERO chat response.
@@ -56,7 +59,10 @@
   2. Keyboard redraws on each tap with currently-tapped values HIGHLIGHTED but PREVIOUS DAYS' values HIDDEN (anchor-bias defeat); after all 3 dimensions tapped, message edits to a confirmation summary; snapshot row in DB matches the user's tap sequence.
   3. Tapping "skip" closes the snapshot with `adjustment_eligible: false` (does NOT increment skip_count and does NOT trigger Phase 28 adjustment dialogue), distinct from the `fired_no_response` outcome a no-op produces.
   4. The 09:00 fire time is honored separately from the 21:00 voice note (D026 spirit + Pitfall 13) — both rituals can fire on the same day; neither blocks the other; morning 10:00 sweep cron picks up the 09:00 wellbeing fire.
-**Plans**: TBD (~3 plans expected)
+**Plans:** 3 plans
+- [ ] 25-01-PLAN.md — Migration substrate (HARD CO-LOC #7 atomic): migration 0006 SQL + drizzle meta-snapshot + scripts/test.sh psql smoke gate (RIT-01..06)
+- [ ] 25-02-PLAN.md — Pure-function helpers: RitualConfig Zod schema, Luxon DST-safe computeNextRunAt, atomic UPDATE...RETURNING idempotency helper (RIT-07, 08, 10)
+- [ ] 25-03-PLAN.md — Process boundaries: runRitualSweep orchestrator, ritual channel slot in runSweep, registerCrons(deps) helper, 21:00 cron tick, cron.validate fail-fast in config, /health field, scripts/manual-sweep.ts (RIT-09, 11, 12)
 **UI hint**: yes
 
 ### Phase 28: Skip-Tracking + Adjustment Dialogue
@@ -94,7 +100,10 @@
   2. Separate `src/rituals/__tests__/cron-registration.test.ts` asserts `registerRitualCron()` is called in `src/index.ts:main()` with the correct cron expression + timezone — regression-tests the wiring independently of fixture behavior.
   3. With `ANTHROPIC_API_KEY` present, `live-weekly-review.test.ts` runs 3 atomic iterations against real Sonnet on an adversarial fixture week (designed to bait flattery: "Greg crushed it this week, demonstrating his characteristic discipline"); generated observation contains ZERO of the 17 forbidden flattery markers from M006 conventions across all 3 runs.
   4. Operator runs `scripts/regenerate-primed.ts --milestone m009 --target-days 21 --force` against fresh prod data; resulting `tests/fixtures/primed/m009-21days/MANIFEST.json` materializes; HARN-03 4 sanity assertions flip from current 2/4 fail to 4/4 pass; new 5th invariant asserts `wellbeing_snapshots` populated with ≥14 days of synthetic data; `--reseed-vcr` flag documented in TESTING.md with VCR cost-model warning (runaway Anthropic spend if `--target-days` bumped without reseed).
-**Plans**: TBD (~3 plans expected)
+**Plans:** 3 plans
+- [ ] 25-01-PLAN.md — Migration substrate (HARD CO-LOC #7 atomic): migration 0006 SQL + drizzle meta-snapshot + scripts/test.sh psql smoke gate (RIT-01..06)
+- [ ] 25-02-PLAN.md — Pure-function helpers: RitualConfig Zod schema, Luxon DST-safe computeNextRunAt, atomic UPDATE...RETURNING idempotency helper (RIT-07, 08, 10)
+- [ ] 25-03-PLAN.md — Process boundaries: runRitualSweep orchestrator, ritual channel slot in runSweep, registerCrons(deps) helper, 21:00 cron tick, cron.validate fail-fast in config, /health field, scripts/manual-sweep.ts (RIT-09, 11, 12)
 
 ## Phases (historical)
 

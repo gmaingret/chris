@@ -1435,22 +1435,22 @@ describe('registerCrons', () => {
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED 2026-04-26)
 
 1. **Does Plan 25-01 need to seed `rituals` table rows for the 3 M009 rituals (daily voice note, daily wellbeing, weekly review)?**
    - What we know: ROADMAP.md success criterion 3 says `runRitualSweep()` returns `[]` against a clean DB without throwing. "Clean DB" implies no seeded ritual rows.
    - What's unclear: Whether Phase 26/27/29 (which OWN those handlers) also OWN the seed migration that inserts the 3 rows, OR Phase 25 ships the seed inserts.
-   - Recommendation: **Phase 26/27/29 own their respective ritual seed inserts.** Phase 25 ships table + cadence + scheduler infrastructure ONLY. This keeps Plan 25-01 focused on substrate per HARD CO-LOCATION #7.
+   - **RESOLVED:** Phase 26/27/29 own their respective ritual seed inserts. Phase 25 ships table + cadence + scheduler infrastructure ONLY. This keeps Plan 25-01 focused on substrate per HARD CO-LOCATION #7. Plan 25-01 MUST NOT include any `INSERT INTO rituals` statements; those land in their downstream phases.
 
 2. **Should the per-tick max-1 cap be enforced via SQL `LIMIT 1` or via a `for` loop with `break`?**
    - What we know: Both produce the same observable behavior.
    - What's unclear: Performance and code-review preferences.
-   - Recommendation: **`LIMIT 1` in the SQL query.** Cleaner; can't be accidentally broken by a future implementer adding logic between the fetch and the fire. Also matches the partial-index-friendly pattern (the index is `next_run_at WHERE enabled = true` — `ORDER BY next_run_at ASC LIMIT 1` is the index's natural query shape).
+   - **RESOLVED:** `LIMIT 1` in the SQL query. Cleaner; can't be accidentally broken by a future implementer adding logic between the fetch and the fire. Also matches the partial-index-friendly pattern (the index is `next_run_at WHERE enabled = true` — `ORDER BY next_run_at ASC LIMIT 1` is the index's natural query shape). Plan 25-03's `runRitualSweep` query MUST use `LIMIT 1`.
 
 3. **What is the appropriate `ritualCount` daily ceiling per CONTEXT.md D-04 "Claude's discretion — channel cap value"?**
    - What we know: Existing accountability/reflective channels use a single send-per-day boolean (`hasSentTodayReflective` / `hasSentTodayAccountability`), NOT a numeric N/day ceiling.
-   - What's unclear: Whether ritual channel needs a different model (e.g., 3/day to allow morning wellbeing + evening voice note + occasional weekly review on Sundays).
-   - Recommendation: **Match existing pattern: boolean `hasSentTodayRitual` cap (1 ritual fire per channel per local day).** Wait — this CONFLICTS with the M009 spec which fires both wellbeing (09:00) AND voice note (21:00) on the same day. **Revised recommendation:** Either (a) NO daily channel cap — rely on per-tick max-1 cap + per-ritual cadence (each ritual already advances `next_run_at` by 24h after fire, so each ritual is naturally ≤1/day), OR (b) ceiling of 3/day to comfortably accommodate wellbeing + voice note + (rarely) Sunday weekly review on the same day. **Plan 25-03 should resolve this with a `discuss-phase` decision OR pick (a) if no ambiguity.**
+   - Conflict surfaced: A boolean `hasSentTodayRitual` cap conflicts with the M009 spec which fires wellbeing (09:00) AND voice note (21:00) on the same day, plus weekly review on Sunday 20:00.
+   - **RESOLVED via CONTEXT.md D-04 refinement (2026-04-26):** Channel ceiling = **3/day** (`ritualCount` peer counter). 3 cleanly accommodates the worst case (Sunday: wellbeing 09:00 + voice note 21:00 + weekly review 20:00 — all three on same day). Defense in depth against ritual storms (Pitfall 1) is preserved: per-tick max-1 cap + per-ritual cadence advancement (`next_run_at += 24h` after fire) + 3/day channel ceiling. Use `hasReachedRitualDailyCap()` helper in `src/proactive/state.ts` mirroring `hasSentTodayReflective`/`hasSentTodayAccountability` shape (lines 102-148); persist via `proactive_state` KV table with key `ritual_daily_count` keyed by local Europe/Paris date so counter resets at local midnight.
 
 ---
 

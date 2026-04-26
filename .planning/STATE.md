@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v2.4
 milestone_name: M009 Ritual Infrastructure + Daily Note + Weekly Review
-status: ROADMAP.md written; awaiting `/gsd-plan-phase 25`
+status: executing
 stopped_at: Phase 25 context gathered (--auto)
-last_updated: "2026-04-26T13:32:44.898Z"
-last_activity: "2026-04-26 — v2.4 ROADMAP.md written. 6 phases (25-30), 54/54 REQ-IDs mapped, all 7 HARD CO-LOCATION constraints honored. Carry-ins folded: PROC-01/02 → Phase 25; HARN-04/05/06 → Phase 30."
+last_updated: "2026-04-26T15:15:12.883Z"
+last_activity: 2026-04-26 -- Phase 25 planning complete
 progress:
   total_phases: 6
   completed_phases: 0
-  total_plans: 21
+  total_plans: 3
   completed_plans: 0
   percent: 0
 ---
@@ -28,9 +28,9 @@ See: .planning/PROJECT.md (symlink to /home/claude/chris/PLAN.md, updated 2026-0
 
 Phase: **25** ready to plan
 Plan: —
-Status: ROADMAP.md written; awaiting `/gsd-plan-phase 25`
+Status: Ready to execute
 Progress: 0 / 22 plans (0%)
-Last activity: 2026-04-26 — v2.4 ROADMAP.md written. 6 phases (25-30), 54/54 REQ-IDs mapped, all 7 HARD CO-LOCATION constraints honored. Carry-ins folded: PROC-01/02 → Phase 25; HARN-04/05/06 → Phase 30.
+Last activity: 2026-04-26 -- Phase 25 planning complete
 
 Prior deploy state: v2.3 + date-extraction Haiku JSON-fences fix (eedce33, deployed 42a7eed 2026-04-25) live on Proxmox (192.168.1.50). Daily 23:00 Europe/Paris episodic cron + 6h sync cron + 10:00 proactive sweep cron all healthy. M009 will ADD a second 21:00 evening cron tick (RIT-11) for ritual firing.
 
