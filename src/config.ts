@@ -1,10 +1,29 @@
 import 'dotenv/config';
+import { validate } from 'node-cron';
 
 const required = (key: string): string => {
   const val = process.env[key];
   if (!val) throw new Error(`Missing required env var: ${key}`);
   return val;
 };
+
+/**
+ * validatedCron — D-03 fail-fast: validate cron expression at module load.
+ *
+ * Throws if the expression is invalid; container restart-loops until env
+ * fixed. Mirrors the existing `required(key)` helper pattern (throws on
+ * missing). A silently-broken cron expression means rituals never fire — the
+ * symptom is "Greg notices the bot didn't message him for several days",
+ * which is exactly the trust-breaking failure mode this milestone is built
+ * to prevent.
+ */
+function validatedCron(envKey: string, fallback: string): string {
+  const expr = process.env[envKey] || fallback;
+  if (!validate(expr)) {
+    throw new Error(`config: invalid ${envKey} expression "${expr}"`);
+  }
+  return expr;
+}
 
 export const config = {
   anthropicApiKey: required('ANTHROPIC_API_KEY'),
@@ -31,19 +50,23 @@ export const config = {
   immichApiUrl: process.env.IMMICH_API_URL || '',
   immichApiKey: process.env.IMMICH_API_KEY || '',
 
-  // Background sync scheduler
-  syncIntervalCron: process.env.SYNC_INTERVAL_CRON || '0 */6 * * *',
+  // Background sync scheduler — D-03 cron.validate fail-fast at config load
+  syncIntervalCron: validatedCron('SYNC_INTERVAL_CRON', '0 */6 * * *'),
   syncEnabled: process.env.SYNC_ENABLED !== 'false',
 
-  // Proactive messaging
-  proactiveSweepCron: process.env.PROACTIVE_SWEEP_CRON || '0 10 * * *',
+  // Proactive messaging — D-03 cron.validate fail-fast at config load
+  proactiveSweepCron: validatedCron('PROACTIVE_SWEEP_CRON', '0 10 * * *'),
   proactiveTimezone: process.env.PROACTIVE_TIMEZONE || 'Europe/Paris',
   proactiveSilenceThresholdMultiplier: parseFloat(process.env.PROACTIVE_SILENCE_THRESHOLD_MULTIPLIER || '2'),
   proactiveSilenceBaselineDays: parseInt(process.env.PROACTIVE_SILENCE_BASELINE_DAYS || '14', 10),
   proactiveCommitmentStaleDays: parseInt(process.env.PROACTIVE_COMMITMENT_STALE_DAYS || '7', 10),
   proactiveSweepContextMaxTokens: parseInt(process.env.PROACTIVE_SWEEP_CONTEXT_MAX_TOKENS || '10000', 10),
 
+  // Ritual sweep (M009 Phase 25 RIT-12) — second cron tick at 21:00 Paris
+  // peer to the proactive sweep above. D-03 cron.validate fail-fast.
+  ritualSweepCron: validatedCron('RITUAL_SWEEP_CRON', '0 21 * * *'),
+
   // Episodic consolidation (M008 Phase 20)
   // EPI-04: Episodic consolidation cron — fires at 23:00 in config.proactiveTimezone by default.
-  episodicCron: process.env.EPISODIC_CRON || '0 23 * * *',
+  episodicCron: validatedCron('EPISODIC_CRON', '0 23 * * *'),
 } as const;
