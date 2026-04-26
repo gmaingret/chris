@@ -4,8 +4,8 @@ milestone: v2.4
 milestone_name: M009 Ritual Infrastructure + Daily Note + Weekly Review
 status: Phase 25 ready to plan
 stopped_at: ROADMAP.md written; awaiting /gsd-plan-phase 25
-last_updated: "2026-04-26T05:30:00Z"
-last_activity: "2026-04-26 — v2.4 ROADMAP.md written. 6 phases (25-30), 54/54 REQ-IDs mapped, all 7 hard co-location constraints honored. Phase 25 includes process-gate carry-in (PROC-01/02); Phase 30 includes HARN-03 fixture refresh carry-in (HARN-04/05/06). Estimated 22 plans across 6 phases."
+last_updated: "2026-04-26T13:23:00Z"
+last_activity: "2026-04-26 — PROC-01/PROC-02 verified REDUNDANT post-GSD 1.38.5 (verdict in Open Items). Greg to decide whether to drop both from Phase 25 scope before /gsd-plan-phase 25. v2.4 ROADMAP.md unchanged: 6 phases (25-30), 54/54 REQ-IDs mapped."
 progress:
   total_phases: 6
   completed_phases: 0
@@ -107,13 +107,25 @@ Full log in PROJECT.md Key Decisions table. Most relevant for M009:
 - **Env-level vitest-4 fork-IPC hang under HuggingFace EACCES.** 5-file excluded-suite mitigation in `scripts/test.sh` keeps Docker gate green. M009 adds new `src/rituals/__tests__/` suites — confirm they don't trigger the hang during Phase 30.
 - **process.exit() in scripts** — same pattern present in `backfill-episodic.ts:264/269/272`, `synthesize-delta.ts:639/642`, `adversarial-test.ts`, `test-photo-memory.ts` — none have try/finally cleanup so safe as-is, but worth a future audit (post-M009).
 
-### Pending Todos
+### PROC-01/PROC-02 post-update verification (2026-04-26)
 
-- `2026-04-26-verify-proc-01-proc-02-still-needed-post-gsd-1-38-5.md` (planning) — Verify PROC-01/PROC-02 still needed post-GSD 1.38.5 before `/gsd-discuss-phase 25` or `/gsd-plan-phase 25`.
+GSD updated 1.38.3 → 1.38.5. **PROC-01 verdict: REDUNDANT. PROC-02 verdict: REDUNDANT.**
+
+Evidence:
+- **PROC-01** (wire `gsd-verifier` into `/gsd-execute-phase`):
+  - `~/.claude/get-shit-done/workflows/execute-phase.md:1338-1376` defines `verify_phase_goal` step that spawns `gsd-verifier` subagent (`subagent_type="gsd-verifier"`, line 1368) and reads VERIFICATION.md status from disk: `grep "^status:" "$PHASE_DIR"/*-VERIFICATION.md | cut -d: -f2 | tr -d ' '` (line 1374-1376).
+  - Hard gate via status table (line 1378-1382): only `passed` advances to `update_roadmap`; `gaps_found` triggers `/gsd-plan-phase --gaps` cycle. This is exactly the regression class 1.38.4 changelog described and what PROC-01 was scoped to fix.
+- **PROC-02** (SUMMARY.md `requirements-completed` frontmatter):
+  - `~/.claude/get-shit-done/templates/summary.md:41`: `requirements-completed: []  # REQUIRED — Copy ALL requirement IDs from this plan's 'requirements' frontmatter field.`
+  - `~/.claude/get-shit-done/workflows/execute-plan.md:336`: instructs executor to copy `requirements` array from PLAN.md frontmatter verbatim.
+  - `~/.claude/get-shit-done/bin/lib/commands.cjs:463`: `gsd-sdk` parser recognizes `fm['requirements-completed']`.
+  - `~/.claude/get-shit-done/workflows/audit-milestone.md:112,116,329`: `gsd-sdk query summary-extract --pick requirements_completed` consumed by milestone audit.
+
+**Recommended Phase 25 scope adjustment:** Drop PROC-01 and PROC-02 from Phase 25's first plan. Phase 25 plan budget shrinks by ~1 task (process-gate plan). Update `.planning/REQUIREMENTS.md` to mark PROC-01/PROC-02 as `[x] (upstream: GSD 1.38.4/1.38.5)` and update `.planning/ROADMAP.md` Phase 25 requirements list (54 → 52 requirements; Phase 25 14 → 12). **Greg decides whether to make those scope edits.**
 
 ### Blockers/Concerns
 
-None. Ready to plan Phase 25 — but resolve the pending todo first to avoid over-budgeting Phase 25.
+None. Ready to plan Phase 25 — pending todo resolved (verdict above).
 
 ## Session Continuity
 
