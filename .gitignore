@@ -31,3 +31,7 @@ tmp/
 tests/fixtures/prod-snapshot/
 tests/fixtures/primed/
 tests/fixtures/.vcr/
+
+# ── Local session/build state (claude code, synth-episodic overrides) ──
+.claude/
+.tmp/
