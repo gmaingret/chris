@@ -43,6 +43,13 @@
       "when": 1776524619341,
       "tag": "0005_episodic_summaries",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1777217039092,
+      "tag": "0006_rituals_wellbeing",
+      "breakpoints": true
     }
   ]
 }

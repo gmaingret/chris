@@ -2,7 +2,8 @@
 #
 # scripts/regen-snapshots.sh — regenerate drizzle-kit meta snapshots for
 # migrations 0001 and 0003 via clean-slate iterative replay per Phase 20
-# CONTEXT.md D-01.
+# CONTEXT.md D-01. Phase 25 extended the acceptance-gate apply sequence to
+# cover migrations 0005 + 0006 (rituals foundation, M009 v2.4).
 #
 # Runs in a throwaway Docker container on an isolated volume (compose project
 # `chris-regen`, port 5434). Safe to run on any branch — never mutates the
@@ -21,8 +22,8 @@
 #      across the snapshot chain (deviation from the original plan scope; see
 #      Plan 20-01 SUMMARY.md "Deviations").
 #   5. Copy regenerated + re-chained snapshots into src/db/migrations/meta/.
-#   6. Acceptance gate: tear down, fresh postgres, apply ALL five migrations
-#      0000..0004, run `drizzle-kit generate`. MUST print
+#   6. Acceptance gate: tear down, fresh postgres, apply ALL seven migrations
+#      0000..0006, run `drizzle-kit generate`. MUST print
 #      "No schema changes, nothing to migrate".
 #   7. Cleanup: docker compose down --volumes, rm -rf .tmp/drizzle-regen-*.
 #
@@ -54,6 +55,8 @@ MIGRATION_1="${MIGRATIONS_DIR}/0001_add_photos_psychology_mode.sql"
 MIGRATION_2="${MIGRATIONS_DIR}/0002_decision_archive.sql"
 MIGRATION_3="${MIGRATIONS_DIR}/0003_add_decision_epistemic_tag.sql"
 MIGRATION_4="${MIGRATIONS_DIR}/0004_decision_trigger_suppressions.sql"
+MIGRATION_5="${MIGRATIONS_DIR}/0005_episodic_summaries.sql"
+MIGRATION_6="${MIGRATIONS_DIR}/0006_rituals_wellbeing.sql"
 
 CHECK_ONLY=0
 if [[ "${1:-}" == "--check-only" ]]; then
@@ -84,12 +87,14 @@ OVR
 # nuke the committed 0005 snapshot and force operators to regenerate from
 # scratch.
 #
-# The fix: only delete the 0005 snapshot when THIS run produced it. We set
-# REGEN_PRODUCED_0005=1 just before invoking the acceptance-gate generate
-# that may emit the acceptance-check artifacts. If the script exits before
-# that point, or if the acceptance-check SQL does not exist at exit time,
-# the snapshot is a real committed file and must be preserved.
-REGEN_PRODUCED_0005=0
+# Phase 25 carries this discipline forward to 0006 (and any future Nth
+# acceptance-check artifact): the trap only deletes a snapshot when THIS run
+# produced it. We set REGEN_PRODUCED_0006=1 just before invoking the
+# acceptance-gate generate that may emit the acceptance-check artifacts. If
+# the script exits before that point, or if the acceptance-check SQL does not
+# exist at exit time, the snapshot is a real committed file and must be
+# preserved.
+REGEN_PRODUCED_0006=0
 cleanup() {
   local rc=$?
   echo ""
@@ -99,11 +104,20 @@ cleanup() {
   rm -rf "${TMP_DIR}/drizzle-regen-"* "${OUT_DIR}" "${OVERRIDE_FILE}" || true
   # Clean up any accidentally generated acceptance-check SQL (distinctive name
   # — drizzle-kit only produces it when this script passes --name acceptance_check).
-  find "${MIGRATIONS_DIR}" -maxdepth 1 -name "0005_acceptance_check*.sql" -delete 2>/dev/null || true
-  # Only delete the 0005 snapshot if THIS run produced it — otherwise it is a
-  # legitimate committed snapshot from Plan 20-02+ and must be preserved.
-  if [[ "${REGEN_PRODUCED_0005}" -eq 1 ]]; then
-    find "${META_DIR}" -name "0005_snapshot.json" -delete 2>/dev/null || true
+  # The acceptance-check generate runs AFTER applying all current migrations
+  # 0000..0006, so the produced filename would be 0007_acceptance_check*.sql.
+  # We also defensively wipe a 0006_acceptance_check artifact if present (safety
+  # belt for any stale state from a partial/aborted prior run when only 0..5
+  # were committed).
+  find "${MIGRATIONS_DIR}" -maxdepth 1 -name "0006_acceptance_check*.sql" -delete 2>/dev/null || true
+  find "${MIGRATIONS_DIR}" -maxdepth 1 -name "0007_acceptance_check*.sql" -delete 2>/dev/null || true
+  # Only delete the 0007 snapshot if THIS run produced it — otherwise it is a
+  # legitimate committed snapshot from a future plan and must be preserved.
+  # The committed Phase 25 0006_snapshot.json is NEVER touched here; only
+  # the post-0006 future-snapshot drizzle-kit emits during the acceptance
+  # generate (named 0007_snapshot.json by drizzle's sequence-counter).
+  if [[ "${REGEN_PRODUCED_0006}" -eq 1 ]]; then
+    find "${META_DIR}" -name "0007_snapshot.json" -delete 2>/dev/null || true
   fi
   exit "${rc}"
 }
@@ -175,7 +189,12 @@ CFG
   (
     cd "${work_dir}"
     # Pipe an empty stdin in case drizzle-kit prompts for anything.
-    yes '' 2>/dev/null | npx drizzle-kit introspect >&2 2>&1
+    # Phase 25: switched from `yes '' | ...` to `</dev/null` because under
+    # pipefail the `yes` writer gets SIGPIPE (141) once drizzle-kit's stdin
+    # closes successfully — the pipeline then reports 141 even though
+    # drizzle-kit exited 0. Empty-stdin redirect avoids the spurious failure
+    # while still preventing drizzle-kit from blocking on a TTY prompt.
+    npx drizzle-kit introspect >&2 2>&1 </dev/null
   ) >&2
   local rc=$?
   set -e
@@ -300,9 +319,9 @@ else
   patch_prev_id_inplace "${META_DIR}/0004_snapshot.json" "${NEW_ID_0003}"
 fi
 
-# ── Step 5: acceptance gate — fresh DB, all 5 migrations, generate = no-op ──
+# ── Step 5: acceptance gate — fresh DB, all 7 migrations, generate = no-op ──
 echo ""
-echo "🧪 Acceptance gate: fresh postgres + all 5 migrations + drizzle-kit generate..."
+echo "🧪 Acceptance gate: fresh postgres + all 7 migrations + drizzle-kit generate..."
 
 compose down --volumes --timeout 5 >/dev/null 2>&1 || true
 compose up -d postgres >/dev/null
@@ -313,15 +332,17 @@ apply_sql "${MIGRATION_1}"
 apply_sql "${MIGRATION_2}"
 apply_sql "${MIGRATION_3}"
 apply_sql "${MIGRATION_4}"
+apply_sql "${MIGRATION_5}"
+apply_sql "${MIGRATION_6}"
 
 # Run generate from repo root. Use a distinctive name so any accidentally-
 # produced migration is easy to spot and cleanup.
 #
-# Mark that THIS run is responsible for any 0005_snapshot.json that appears
-# from here onward. The EXIT trap consults this flag before deleting the
-# snapshot so it never blows away a legitimate committed snapshot on a
-# script re-run after Plan 20-02+ landed.
-REGEN_PRODUCED_0005=1
+# Mark that THIS run is responsible for any post-0006 snapshot that appears
+# from here onward. The EXIT trap consults this flag before deleting any
+# 0007_snapshot.json so it never blows away a legitimate committed snapshot
+# on a script re-run after a future plan lands a real 0007 migration.
+REGEN_PRODUCED_0006=1
 set +e
 GEN_OUT=$(DATABASE_URL="${DB_URL}" npx drizzle-kit generate --name acceptance_check 2>&1)
 GEN_RC=$?
@@ -332,9 +353,10 @@ echo "${GEN_OUT}"
 if echo "${GEN_OUT}" | grep -q "No schema changes"; then
   echo ""
   echo "✓ Snapshot regeneration acceptance gate: No schema changes"
-  # Defensive cleanup in case drizzle-kit wrote anything
-  find "${MIGRATIONS_DIR}" -maxdepth 1 -name "0005_acceptance_check*.sql" -delete 2>/dev/null || true
-  find "${META_DIR}" -name "0005_snapshot.json" -delete 2>/dev/null || true
+  # Defensive cleanup in case drizzle-kit wrote anything (the next sequence
+  # number after 0006 is 0007).
+  find "${MIGRATIONS_DIR}" -maxdepth 1 -name "0007_acceptance_check*.sql" -delete 2>/dev/null || true
+  find "${META_DIR}" -name "0007_snapshot.json" -delete 2>/dev/null || true
   exit 0
 else
   echo ""
