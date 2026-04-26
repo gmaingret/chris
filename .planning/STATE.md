@@ -1,11 +1,11 @@
 ---
 gsd_state_version: 1.0
-milestone: between
-milestone_name: between v2.3 and v2.4
-status: v2.3 Test Data Infrastructure ARCHIVED 2026-04-25 — ready to plan v2.4 M009 Ritual Infrastructure
-stopped_at: Completed /gsd-complete-milestone for v2.3
-last_updated: "2026-04-25T05:30:00Z"
-last_activity: "2026-04-25 — v2.3 milestone closed: archives written to milestones/v2.3-{ROADMAP,REQUIREMENTS,MILESTONE-AUDIT}.md, ROADMAP.md collapsed, PROJECT.md evolved (D041 added, v2.3 moved to historical), MILESTONES.md entry appended, RETROSPECTIVE.md milestone section + cross-milestone trends updated, REQUIREMENTS.md removed via git rm, tagged v2.3."
+milestone: v2.4
+milestone_name: M009 Ritual Infrastructure + Daily Note + Weekly Review
+status: Defining requirements
+stopped_at: /gsd-new-milestone in progress — defining requirements
+last_updated: "2026-04-26T05:00:00Z"
+last_activity: "2026-04-26 — v2.4 M009 milestone started. Folded carry-ins: process-gate (gsd-verifier wiring + SUMMARY.md frontmatter) + HARN-03 fixture refresh via fresh prod download + synthetic delta. M008 recency-window UX gap dropped (resolved 2026-04-25). M009 spec's '1-month pause before M010' superseded by D041 primed-fixture pipeline."
 progress:
   total_phases: 0
   completed_phases: 0
@@ -26,11 +26,12 @@ See: .planning/PROJECT.md (updated 2026-04-25 at v2.3 milestone close).
 
 ## Current Position
 
-**Between milestones.** v2.3 archived 2026-04-25. v2.4 M009 not yet started.
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements for v2.4 M009
+Last activity: 2026-04-26 — milestone v2.4 M009 started; PROJECT.md updated, REQUIREMENTS.md + ROADMAP.md pending.
 
-**Kickoff command:** `/gsd-new-milestone "M009 Ritual Infrastructure + Daily Note + Weekly Review"`.
-
-Prior deploy state unchanged: v2.2 + M008.1 fix live on Proxmox (192.168.1.50, HEAD = 2cfcecd). Daily 23:00 Europe/Paris episodic cron + 6h sync cron + 10:00 proactive sweep cron all healthy. v2.3 was test-infrastructure only — no prod deploy expected.
+Prior deploy state: v2.3 + date-extraction Haiku JSON-fences fix (eedce33, deployed 42a7eed 2026-04-25) live on Proxmox (192.168.1.50). Daily 23:00 Europe/Paris episodic cron + 6h sync cron + 10:00 proactive sweep cron all healthy. (Note: v2.3 itself was test-infrastructure only — runtime code on prod equals v2.2 server code + M008.1 + date-extraction fix.)
 
 ## Shipped Milestones
 
@@ -67,7 +68,7 @@ Full log in PROJECT.md Key Decisions table. Most relevant for M009:
   - **Date-extraction Haiku JSON-fences soak (PASS).** 24h prod `haiku-error` count = 0 (vs prior baseline >0 / day). Container uptime 3h (clean exit code 0 host-event restart at 02:01:56Z; postgres uptime 19h confirms only chris-chris-1 was bounced; not a crash). One date-anchored telegram query in last 24h was sent ~2h pre-deploy so doesn't validate fix in production directly, but unit-test coverage + property-swap regression tests are conclusive.
   - **Yesterday's episodic summary (2026-04-24) materialized correctly** (importance=1, length=209 — thin day, but cron fired). Tonight's 23:00 Paris cron will consolidate today (2026-04-25).
   - **HARN-03 still 2/4 pass / 2/4 fail on data sufficiency** (same numbers as yesterday: 176 entries, 6 summaries — known fixture-spec gap, not a regression). Carry to v2.4: bump `--target-days 21` or relax HARN-03 thresholds.
-- **M008 recency-window UX gap (DESIGN — defer to v2.4 M009 discussion).** Per D036 routing, queries within 7-day window route to raw Pensieve hybrid search and skip episodic summaries. In high-volume conversation days, yesterday falls out of the 20-message buffer AND isn't surfaced via the (skipped) summary. Result: Chris can lose continuity within the 7-day window. Symptom: "feels like we didn't talk since yesterday." Not a v2.3 regression — emergent property of M008 design. M009's daily-note + weekly-review work needs to address this; may want to inject yesterday's summary even in <7d window when conversation buffer doesn't span it.
+- **M008 recency-window UX gap — RESOLVED 2026-04-25 by date-extraction Haiku JSON-fences fix (eedce33, deployed 42a7eed).** Initially diagnosed as a routing-design issue (yesterday's summary skipped because <7d window routes to raw + buffer doesn't span). Actual root cause: `extractQueryDate` returned `null` on Haiku JSON-fence responses, causing INTERROGATE (interrogate.ts:69→78) to silently drop summary injection. `stripJsonFences()` + ±730d guard fixes the wire. 24h prod soak: `haiku-error` count = 0 (was >0/day). NOT a v2.4 phase.
 - **12 human-UAT items carried from v2.1/v2.2** (live Telegram feel, ACCOUNTABILITY tone, `/decisions` dashboard format, FR/RU localization).
 - **Env-level vitest-4 fork-IPC hang under HuggingFace EACCES.** 5-file excluded-suite mitigation in `scripts/test.sh` keeps Docker gate green. Worth a future fix-up phase; may intersect with v2.4 if M009 adds new test suites.
 

@@ -336,11 +336,29 @@ Chris is deployed on self-hosted Proxmox (192.168.1.50) with both containers hea
 
 Archived detail: `.planning/milestones/v2.0-*`, `.planning/milestones/v2.1-*`, `.planning/milestones/v2.2-*`, `.planning/milestones/v2.3-*`, `.planning/milestones/v2.X-phases/` (phase directories for v2.0–v2.2; v2.3 phase archival pending).
 
-## Next Milestone: v2.4 M009 Ritual Infrastructure + Daily Note + Weekly Review
+## Current Milestone: v2.4 M009 Ritual Infrastructure + Daily Note + Weekly Review *(MVP shipping point)*
 
-**Status:** unblocked. Primed-fixture pipeline (v2.3) supplies ≥7 summaries on demand via `loadPrimedFixture('m008-14days')`. Previously blocked by pause-gate requiring real wall-clock data accumulation; D041 convention now bans that gate class universally.
+**Goal:** Build scheduling + tracking infrastructure for rituals plus the three lightest rituals — daily voice note, daily wellbeing snapshot, weekly review. After M009 ships, Greg has the full frictionless reflection loop: M006 trust + M007 decisions + M008 episodic + M009 daily prompts + weekly observations. Everything from M010 onward builds on real data this milestone produces.
 
-**Kickoff command:** `/gsd-new-milestone "M009 Ritual Infrastructure + Daily Note + Weekly Review"`.
+**Target features:**
+- New `rituals` table (id, type enum daily/weekly/monthly/quarterly, last_run_at, next_run_at, enabled, config jsonb, skip_count, created_at)
+- New `wellbeing_snapshots` table (id, snapshot_date, energy/mood/anxiety 1–5, notes, created_at)
+- Proactive sweep extended to fire `rituals` whose `next_run_at` has passed (reactive triggers coexist)
+- Skip-tracking adjustment dialogue (3 consecutive skips → "what should change?" Haiku-parsed; `rituals.config` updated)
+- Daily voice note ritual — 6 rotating prompts, no consecutive duplicates, deposit-only (Chris does NOT respond)
+- Daily wellbeing snapshot — 3-row Telegram inline keyboard, no LLM analysis on deposit, optional skip without adjustment dialogue
+- Weekly review (Sunday evening, configurable) — exactly **one** observation + **one** Socratic question from M008 episodic + M007 resolved decisions; multi-question outputs rejected and regenerated at runtime
+- 14-day synthetic-fixture test asserting all 7 ritual behaviors via mock clock + primed-fixture pipeline (D041)
+- Carry-ins (folded into v2.4 scope):
+  - **Process gate** — wire `gsd-verifier` into `/gsd-execute-phase` so future phases can't ship without VERIFICATION.md; update SUMMARY.md template to emit `requirements-completed` frontmatter
+  - **HARN-03 fixture refresh** — refresh primed fixture against fresh prod data with `--target-days 21` (or relax thresholds) so the M009 14-day fixture test has ≥7 summaries / ≥200 entries
+
+**Key context:**
+- **D041 supersedes M009 spec's "1 month real daily use before M010" pause** — M010 validates via primed-fixture pipeline, not calendar wait.
+- **Recency-window symptom** ("feels like we didn't talk since yesterday") was fixed 2026-04-25 by date-extraction Haiku JSON-fences fix, not a v2.4 phase.
+- **D029/D030/D034/D035/D036 in force.** Weekly review reads via `retrieveContext` two-dim routing (D036).
+
+**Kickoff command:** `/gsd-new-milestone "M009 Ritual Infrastructure + Daily Note + Weekly Review"` (in progress).
 
 <details>
 <summary>v2.3 Test Data Infrastructure (shipped 2026-04-20, archived 2026-04-25 — historical)</summary>
@@ -438,4 +456,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: v2.3 milestone close, 2026-04-25*
+*Last updated: v2.4 M009 milestone kickoff, 2026-04-26*
