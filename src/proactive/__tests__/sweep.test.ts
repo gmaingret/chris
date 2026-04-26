@@ -29,6 +29,7 @@ const {
   mockClearEscalationKeys,
   mockTransitionDecision,
   mockDbSelect,
+  mockRunRitualSweep,
 } = vi.hoisted(() => ({
   mockIsMuted: vi.fn(),
   mockHasSentTodayReflective: vi.fn(),
@@ -56,6 +57,7 @@ const {
   mockClearEscalationKeys: vi.fn(),
   mockTransitionDecision: vi.fn(),
   mockDbSelect: vi.fn(),
+  mockRunRitualSweep: vi.fn(),
 }));
 
 // ── Module mocks ───────────────────────────────────────────────────────────
@@ -72,6 +74,10 @@ vi.mock('../state.js', () => ({
   setEscalationCount: mockSetEscalationCount,
   setEscalationState: mockSetEscalationState,
   clearEscalationKeys: mockClearEscalationKeys,
+}));
+
+vi.mock('../../rituals/scheduler.js', () => ({
+  runRitualSweep: mockRunRitualSweep,
 }));
 
 vi.mock('../triggers/silence.js', () => ({
@@ -313,6 +319,8 @@ describe('proactive sweep', () => {
       priority: 5,
       context: 'No unresolved thread detected',
     });
+    // Default: ritual channel returns no fires (clean DB)
+    mockRunRitualSweep.mockResolvedValue([]);
   });
 
   // ── Global mute gate ────────────────────────────────────────────────────
@@ -900,5 +908,54 @@ describe('proactive sweep', () => {
       expect.objectContaining({ err: expect.any(Error) }),
       'proactive.sweep.error',
     );
+  });
+
+  // ── Ritual channel (RIT-09) ─────────────────────────────────────────────
+
+  describe('ritual channel (RIT-09)', () => {
+    it('runs the ritual channel between escalation and reflective', async () => {
+      mockDeadlineNotFired();
+      mockSilenceNotFired();
+      mockCommitmentNotFired();
+      mockRunRitualSweep.mockResolvedValueOnce([]);
+
+      await runSweep();
+
+      expect(mockRunRitualSweep).toHaveBeenCalledTimes(1);
+      // It is invoked with a Date instance (the cron-tick `now`)
+      expect(mockRunRitualSweep).toHaveBeenCalledWith(expect.any(Date));
+    });
+
+    it('ritual channel error does NOT block reflective channel', async () => {
+      mockDeadlineNotFired();
+      // Reflective WOULD have something to do — silence trigger fires.
+      mockSilenceFired();
+      mockCommitmentNotFired();
+      mockLLMResponse('Hey, missing your check-ins.');
+      mockSendMessage.mockResolvedValueOnce({ message_id: 999 });
+
+      // Ritual channel throws — must be swallowed by the try/catch.
+      mockRunRitualSweep.mockRejectedValueOnce(new Error('synthetic ritual error'));
+
+      const result = await runSweep();
+
+      // Reflective channel STILL ran and sent a message.
+      expect(result.reflectiveResult?.triggered).toBe(true);
+      expect(mockSendMessage).toHaveBeenCalled();
+      expect(mockSetLastSentReflective).toHaveBeenCalled();
+      // The thrown error was logged at the ritual-channel catch.
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.objectContaining({ err: expect.any(Error) }),
+        'rituals.sweep.error',
+      );
+    });
+
+    it('ritual channel respects global mute gate (does not run when isMuted=true)', async () => {
+      mockIsMuted.mockResolvedValueOnce(true);
+
+      await runSweep();
+
+      expect(mockRunRitualSweep).not.toHaveBeenCalled();
+    });
   });
 });

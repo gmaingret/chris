@@ -25,6 +25,7 @@ import { bot } from '../bot/bot.js';
 import { config } from '../config.js';
 import { anthropic, SONNET_MODEL } from '../llm/client.js';
 import { saveMessage } from '../memory/conversation.js';
+import { runRitualSweep } from '../rituals/scheduler.js';
 import { logger } from '../utils/logger.js';
 import {
   isMuted,
@@ -333,6 +334,28 @@ export async function runSweep(): Promise<SweepResult> {
         );
         // Fall through to the next row.
       }
+    }
+
+    // ── RITUAL CHANNEL (M009 RIT-09) ───────────────────────────────────────
+    // Independent of accountability + reflective daily caps. Each ritual has
+    // its own cadence; firing the daily voice note does NOT consume the
+    // reflective channel slot. Defense in depth (per CONTEXT.md D-04 REFINED
+    // 2026-04-26 + RESEARCH §7 Open Question 3 RESOLVED 2026-04-26):
+    //   (1) per-tick max-1 cap inside runRitualSweep
+    //   (2) per-ritual cadence advancement (next_run_at advanced after fire)
+    //   (3) 3/day channel ceiling via hasReachedRitualDailyCap (proactive_state
+    //       KV table key 'ritual_daily_count', resets at local Europe/Paris
+    //       midnight)
+    // The 3/day ceiling cleanly accommodates the worst case (Sunday: wellbeing
+    // 09:00 + voice note 21:00 + weekly review 20:00 — all three on same day).
+    // Shares global mute (already gated above at line 85).
+    try {
+      await runRitualSweep(new Date());
+    } catch (err) {
+      logger.error({ err }, 'rituals.sweep.error');
+      // Per-ritual isolation lives INSIDE runRitualSweep — this catch is the
+      // last-line defence so a ritual-system bug does not block the reflective
+      // channel below.
     }
 
     // ── REFLECTIVE CHANNEL (independent per D-05) ──────────────────────────
