@@ -48,7 +48,12 @@
   2. Across 600 simulated fires (property-test in `prompt-rotation.test.ts`), the 6-prompt distribution is approximately uniform (~100 each ±20), zero consecutive duplicates fire, and the maximum gap between any prompt's fires never exceeds 11.
   3. On a day with ≥5 telegram JOURNAL-mode entries already deposited, the 21:00 fire is suppressed with `system_suppressed` outcome (does NOT increment skip_count) and `next_run_at` advances to tomorrow.
   4. Greg sending an actual Telegram voice message (not text) gets a polite EN/FR/RU decline (per `franc` detection on his last text message) suggesting the Android STT keyboard mic icon — NOT silently dropped.
-**Plans**: TBD (~4 plans expected)
+**Plans:** 5 plans (Wave 1 parallel: 26-01, 26-04 | Wave 2: 26-02 | Wave 3 parallel: 26-03, 26-05)
+- [ ] 26-01-PLAN.md — Migration 0007 + voice-note.ts substrate (PROMPTS, PROMPT_SET_VERSION, RESPONSE_WINDOW_HOURS, chooseNextPromptIndex shuffled-bag rotation primitive + 600-fire property test, prompt_text column added to ritual_pending_responses) [VOICE-02, VOICE-03]
+- [ ] 26-02-PLAN.md — HARD CO-LOC #1 + #5 ATOMIC: PP#5 ritual-response detector at engine position 0 + voice-note handler + recordRitualVoiceResponse atomic consume + storePensieveEntry epistemicTag extension + mock-chain coverage update across engine.test.ts + engine-mute.test.ts + engine-refusal.test.ts + cumulative `expect(mockAnthropicCreate).not.toHaveBeenCalled()` regression test [VOICE-01, VOICE-02, VOICE-03, VOICE-06]
+- [ ] 26-03-PLAN.md — Pre-fire suppression on ≥5 telegram JOURNAL entries today; advances next_run_at without incrementing skip_count; emits 'system_suppressed' outcome [VOICE-04]
+- [ ] 26-04-PLAN.md — Voice message polite-decline handler (`bot.on('message:voice')` ~10 LOC, EN/FR/RU per franc detection on last text language) [VOICE-05]
+- [ ] 26-05-PLAN.md — `scripts/fire-ritual.ts` operator wrapper for manual UAT [no new requirements; supports operator UAT]
 
 ### Phase 27: Daily Wellbeing Snapshot
 **Goal**: Independent of Phase 26 (orthogonal callback_query surface). After this phase, Greg gets a 09:00 Paris morning Telegram message with a 3-row × 5-button inline keyboard (energy / mood / anxiety), taps three numbers OR taps "skip", and the snapshot is durably persisted in `wellbeing_snapshots` with one row per local day. This is the first use of inline keyboards anywhere in the Chris codebase.
@@ -59,11 +64,11 @@
   2. Keyboard redraws on each tap with currently-tapped values HIGHLIGHTED but PREVIOUS DAYS' values HIDDEN (anchor-bias defeat); after all 3 dimensions tapped, message edits to a confirmation summary; snapshot row in DB matches the user's tap sequence.
   3. Tapping "skip" closes the snapshot with `adjustment_eligible: false` (does NOT increment skip_count and does NOT trigger Phase 28 adjustment dialogue), distinct from the `fired_no_response` outcome a no-op produces.
   4. The 09:00 fire time is honored separately from the 21:00 voice note (D026 spirit + Pitfall 13) — both rituals can fire on the same day; neither blocks the other; morning 10:00 sweep cron picks up the 09:00 wellbeing fire.
-**Plans:** 3 plans
-- [ ] 25-01-PLAN.md — Migration substrate (HARD CO-LOC #7 atomic): migration 0006 SQL + drizzle meta-snapshot + scripts/test.sh psql smoke gate (RIT-01..06)
-- [ ] 25-02-PLAN.md — Pure-function helpers: RitualConfig Zod schema, Luxon DST-safe computeNextRunAt, atomic UPDATE...RETURNING idempotency helper (RIT-07, 08, 10)
-- [ ] 25-03-PLAN.md — Process boundaries: runRitualSweep orchestrator, ritual channel slot in runSweep, registerCrons(deps) helper, 21:00 cron tick, cron.validate fail-fast in config, /health field, scripts/manual-sweep.ts (RIT-09, 11, 12)
-**UI hint**: yes
+**Plans:** 3 plans (Wave 1: 27-01 | Wave 2: 27-02 ATOMIC per D-27-06 | Wave 3: 27-03)
+- [ ] 27-01-PLAN.md — Callback router infrastructure (`bot.on('callback_query:data', handleRitualCallback)` first inline keyboard wiring + dispatcher + STUB wellbeing.ts for forward-import resolution) [WELL-01, WELL-02]
+- [ ] 27-02-PLAN.md — Wellbeing handler + seed migration 0008 ATOMIC: REPLACES STUB with `fireWellbeing` + `handleWellbeingCallback` keyboard render/edit-in-place + per-dimension upsert via `INSERT ... ON CONFLICT (snapshot_date) DO UPDATE SET <dim> = EXCLUDED.<dim>` + skip outcome `'wellbeing_skipped'` + anchor-bias defeat (no historical query, hidden previous-day values); wires `case 'daily_wellbeing'` in dispatchRitualHandler [WELL-03, WELL-04, WELL-05]
+- [ ] 27-03-PLAN.md — Operator UAT (`scripts/fire-wellbeing.ts`) + real-DB integration tests (8 cases) + anchor-bias regression guard in scripts/test.sh [supports WELL-01..05 via end-to-end testing]
+**UI hint**: yes (Telegram inline keyboard — first use in codebase)
 
 ### Phase 28: Skip-Tracking + Adjustment Dialogue
 **Goal**: Synthesis layer depending on Phases 25/26/27. After this phase, when Greg consistently misses a ritual (3 consecutive daily skips, 2 consecutive weekly skips), Chris fires a single message asking "what should change?" — Haiku parses the reply into one of 3 classes (change_requested / no_change / evasive), proposes a config patch, waits 60 seconds for confirmation, then applies. Self-protects against becoming the new nag.
@@ -86,8 +91,12 @@
   1. On the first Sunday after deploy, Chris sends ONE Telegram message to Greg containing: header "Observation (interpretation, not fact):" + one observation citing specific dates/topics from the prior 7-day window + exactly one Socratic question phrased to force a verdict (NOT "how do you feel?"). The observation persists to `pensieve_entries` with `epistemic_tag = 'RITUAL_RESPONSE'` and `metadata.kind = 'weekly_review'`, queryable later via INTERROGATE for "show me past weekly observations".
   2. Sonnet generation goes through `messages.parse` + `zodOutputFormat`; Stage-1 Zod `.refine()` rejects multi-`?` outputs OR multiple interrogative-leading words across EN/FR/RU (`est-ce que`, `comment`, `pourquoi`, `почему`, `что`, `когда`, `what`, `why`, `how`); Stage-2 Haiku judge invoked only if Stage-1 passes, catching semantic compound questions; runtime regenerate triggered up to 2 times before falling back to a templated single-question ("What stood out to you about this week?") with `chris.weekly-review.fallback-fired` log line.
   3. Observations are pattern-only — they do NOT re-surface individual M007 decisions (those are handled by the M007 ACCOUNTABILITY channel); date-grounding post-check rejects observations citing dates outside the 7-day window. When wellbeing variance for any dimension < 0.4 over the week, the observation does NOT cite wellbeing (no signal — prevents "your mood was 3 all week" non-observations).
-  4. The cron-context CONSTITUTIONAL_PREAMBLE injection holds end-to-end against real Sonnet under adversarial input — verified empirically by Phase 30 TEST-31 live test (3-of-3, zero of 17 forbidden flattery markers from M006 conventions).
-**Plans**: TBD (~4 plans expected)
+  4. The cron-context CONSTITUTIONAL_PREAMBLE injection holds end-to-end against real Sonnet under adversarial input — verified empirically by Phase 30 TEST-31 live test (3-of-3, zero of ~29-49 forbidden flattery markers from M006+M008 conventions per refined D-10 algorithm — exact count varies as upstream sets evolve).
+**Plans:** 4 plans (Wave 1: 29-01 | Wave 2: 29-02 ATOMIC HARD CO-LOC #2+#3 | Wave 3 parallel: 29-03, 29-04)
+- [ ] 29-01-PLAN.md — Pure-function substrate: assembleWeeklyReviewPrompt + loadWeeklyReviewContext (getEpisodicSummariesRange + decisions WHERE resolved_at + wellbeing variance gate stddev<0.4 + insufficient-data threshold <4 snapshots) + WEEKLY_REVIEW_HEADER constant [WEEK-01 substrate]
+- [ ] 29-02-PLAN.md — HARD CO-LOC #2 + #3 ATOMIC: Sonnet messages.parse + zodOutputFormat generator + Stage-1 Zod refine (`?` count + interrogative-leading-word EN/FR/RU) + Stage-2 Haiku judge (`{question_count, questions[]}`) + date-grounding post-check + retry cap=2 + templated EN-only fallback `"What stood out to you about this week?"` + CONSTITUTIONAL_PREAMBLE explicit injection + storePensieveEntry epistemicTag extension + RITUAL_RESPONSE persist with metadata.kind='weekly_review' [WEEK-02..08]
+- [ ] 29-03-PLAN.md — Wire-up: migration 0009_weekly_review_seed.sql + `dispatchRitualHandler` switch case `'weekly_review'` + drizzle meta-snapshot regen + scripts/test.sh psql line; includes checkpoint:human-verify gated UAT task [WEEK-01 fire-side]
+- [ ] 29-04-PLAN.md — HARD CO-LOC #6 prep: live anti-flattery test scaffolding (skipIf-gated until Phase 30) + adversarial fixture week + ~29-49 forbidden marker scan via 3-import deterministic algorithm (per refined D-10) + 3-of-3 atomic loop with `fallbacks === 0` strict assertion; includes 3 export-keyword visibility wirings on M006/M008 source constants [supports Phase 30 TEST-31; WEEK-09 wellbeing variance gate]
 
 ### Phase 30: Test Infrastructure + HARN-03 Refresh
 **Goal**: Integration phase that proves M009 works end-to-end. Loads `m009-21days` primed fixture, mocks 14 days via `vi.setSystemTime`, runs the full `processMessage` engine pipeline (NOT bypassing PP#5), asserts all 7 spec behaviors, plus a separate cron-registration regression file (forces the wiring not to silently de-register), plus the live anti-flattery test against real Sonnet (3-of-3 atomic). HARN-03 carry-in flips the v2.3 sanity gate from 2/4 fail to 4/4 pass and adds a 5th invariant for wellbeing_snapshots.
@@ -202,8 +211,8 @@ See [milestones/v2.3-ROADMAP.md](milestones/v2.3-ROADMAP.md) for full phase deta
 | 23. Test Suite + Backfill + /summary | v2.2    | 4/4   | Complete    | 2026-04-19 |
 | 24. Primed-Fixture Pipeline        | v2.3      | 4/4   | Complete    | 2026-04-20 |
 | 25. Ritual Scheduling Foundation   | v2.4      | 1/3 | In Progress|  |
-| 26. Daily Voice Note Ritual        | v2.4      | 0/4   | Not started | -          |
-| 27. Daily Wellbeing Snapshot       | v2.4      | 0/3   | Not started | -          |
+| 26. Daily Voice Note Ritual        | v2.4      | 0/5   | Planned     | -          |
+| 27. Daily Wellbeing Snapshot       | v2.4      | 0/3   | Planned     | -          |
 | 28. Skip-Tracking + Adjustment Dialogue | v2.4 | 0/4   | Not started | -          |
-| 29. Weekly Review                  | v2.4      | 0/4   | Not started | -          |
+| 29. Weekly Review                  | v2.4      | 0/4   | Planned     | -          |
 | 30. Test Infrastructure + HARN-03 Refresh | v2.4 | 0/3 | Not started | -          |

@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.4
 milestone_name: M009 Ritual Infrastructure + Daily Note + Weekly Review
-status: verifying
-stopped_at: "Plan 25-03 complete (7 commits: 226bd48, e0d8162, 40fc35d, 9bcadf9, abe4515, eb1572f, e494946) — Phase 25 substrate fully wired; ready to plan Phase 26 (Daily Voice Note Ritual)"
-last_updated: "2026-04-26T19:09:37.712Z"
-last_activity: 2026-04-26 — Phase 25 LEARNINGS extracted (6 decisions, 7 lessons, 5 patterns, 4 surprises)
+status: Phases 26+27+29 planned (parallel batch); ready to execute Phase 26 (Wave 1 of 3)
+stopped_at: "Phases 26+27+29 plans converted to canonical XML and committed (commits a263975 + 69a5aac + 6ee04de + 402ab3e). 12 plans across 3 phases (26: 5 plans / 27: 3 plans / 29: 4 plans). All checker blockers addressed: B1+B2 threat_model + verify/automated added; B3 26-02 split (9→7 tasks + new 26-05); B4 prompt_text column threading via migration 0007; B-1 marker derivation locked via 3-import deterministic algorithm. Phase 28 still TBD (depends on 26+27 outputs — skip-tracking needs rituals being skippable)."
+last_updated: "2026-04-27T11:55:00Z"
+last_activity: 2026-04-27 — Phases 26+27+29 plans converted to canonical XML; ready to sequential execute (26 → 27 → 29 → then plan+execute 28 → then 30)
 progress:
   total_phases: 6
   completed_phases: 1
-  total_plans: 3
+  total_plans: 15
   completed_plans: 3
-  percent: 100
+  percent: 20
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (symlink to /home/claude/chris/PLAN.md, updated 2026-0
 
 ## Current Position
 
-Phase: **25** COMPLETE (Plans 01-03 of 03 all shipped — substrate fully wired)
-Plan: **next phase 26 (Daily Voice Note Ritual)** ready to plan
-Status: Phase 25 complete — RIT-01..12 (12 of 12) all verifiably satisfied; Wave 1 + Wave 2 + Wave 3 shipped
-Progress: [██████████] 100% (Phase 25 of Phase 25 internal); milestone v2.4 ~17% (1 of 6 phases done)
-Last activity: 2026-04-26 — Phase 25 LEARNINGS extracted (6 decisions, 7 lessons, 5 patterns, 4 surprises)
+Phase: **25** COMPLETE; **26+27+29** PLANNED (12 plans canonical XML, all blockers cleared)
+Plan: ready to execute Phase 26 (Wave 1: 26-01 + 26-04 parallel-eligible)
+Status: Phases 26+27+29 plans complete and verified. Sequential execute order: 26 → 27 → 29 → (then plan+execute 28) → 30.
+Progress: [███░░░░░░░] ~20% (3 of 15 plans done across the 4 planned phases; Phase 28 + 30 still un-planned)
+Last activity: 2026-04-27 — Phases 26+27+29 plans converted to canonical XML matching Phase 25 / all prior milestones; checker blockers all addressed (B1+B2+B3+B4 in 26; B-1 in 29)
 
 Prior deploy state: v2.3 + date-extraction Haiku JSON-fences fix (eedce33, deployed 42a7eed 2026-04-25) live on Proxmox (192.168.1.50). Daily 23:00 Europe/Paris episodic cron + 6h sync cron + 10:00 proactive sweep cron all healthy. M009 will ADD a second 21:00 evening cron tick (RIT-11) for ritual firing.
 
