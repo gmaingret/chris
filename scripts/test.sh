@@ -13,6 +13,7 @@ MIGRATION_4_SQL="src/db/migrations/0004_decision_trigger_suppressions.sql"
 MIGRATION_5_SQL="src/db/migrations/0005_episodic_summaries.sql"
 MIGRATION_6_SQL="src/db/migrations/0006_rituals_wellbeing.sql"
 MIGRATION_7_SQL="src/db/migrations/0007_daily_voice_note_seed.sql"
+MIGRATION_8_SQL="src/db/migrations/0008_wellbeing_seed.sql"
 
 cleanup() {
   echo "🧹 Stopping test postgres..."
@@ -59,6 +60,8 @@ docker compose -f "$COMPOSE_FILE" exec -T postgres \
   psql -U chris -d chris -v ON_ERROR_STOP=1 -q < "$MIGRATION_6_SQL"
 docker compose -f "$COMPOSE_FILE" exec -T postgres \
   psql -U chris -d chris -v ON_ERROR_STOP=1 -q < "$MIGRATION_7_SQL"
+docker compose -f "$COMPOSE_FILE" exec -T postgres \
+  psql -U chris -d chris -v ON_ERROR_STOP=1 -q < "$MIGRATION_8_SQL"
 
 # Phase 25 (M009 v2.4) — post-migration substrate smoke gate.
 # Per HARD CO-LOCATION CONSTRAINT #7 + Pitfall 28: the SQL migration, the
@@ -121,6 +124,17 @@ if [[ "$PROMPT_TEXT_CHECK" != "prompt_text" ]]; then
 fi
 
 echo "PASS: Phase 26 migration 0007 substrate verified (seed + partial index + prompt_text column)"
+
+# Phase 27 (M009 v2.4) — wellbeing seed assertion (D-27-01). Single-line gate
+# mirrors Phase 26 voice-note seed shape: failure exits BEFORE vitest so a
+# missing daily_wellbeing seed row blocks the test suite.
+psql_seed_count=$(docker compose -f "$COMPOSE_FILE" exec -T postgres \
+  psql -U chris -d chris -tAc "SELECT count(*) FROM rituals WHERE name = 'daily_wellbeing'")
+if [[ "${psql_seed_count// /}" != "1" ]]; then
+  echo "❌ MIGRATION 0008: daily_wellbeing seed missing (got: '${psql_seed_count}')"
+  exit 1
+fi
+echo "✓ Migration 0008 substrate verified (daily_wellbeing seeded)"
 
 echo "🧪 Running tests..."
 DATABASE_URL="$DB_URL" \

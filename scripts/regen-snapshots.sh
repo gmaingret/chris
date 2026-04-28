@@ -58,6 +58,7 @@ MIGRATION_4="${MIGRATIONS_DIR}/0004_decision_trigger_suppressions.sql"
 MIGRATION_5="${MIGRATIONS_DIR}/0005_episodic_summaries.sql"
 MIGRATION_6="${MIGRATIONS_DIR}/0006_rituals_wellbeing.sql"
 MIGRATION_7="${MIGRATIONS_DIR}/0007_daily_voice_note_seed.sql"
+MIGRATION_8="${MIGRATIONS_DIR}/0008_wellbeing_seed.sql"
 
 CHECK_ONLY=0
 if [[ "${1:-}" == "--check-only" ]]; then
@@ -99,6 +100,10 @@ OVR
 # Phase 26 extends this discipline to 0007 — committed 0007_snapshot.json must
 # be preserved; only the post-0007 acceptance-gate artifact (0008_snapshot.json
 # named by drizzle's sequence-counter) is wiped when this run produced it.
+#
+# Phase 27 extends this discipline to 0008 — committed 0008_snapshot.json must
+# be preserved; only the post-0008 acceptance-gate artifact (0009_snapshot.json
+# named by drizzle's sequence-counter) is wiped when this run produced it.
 REGEN_PRODUCED_ACCEPTANCE=0
 cleanup() {
   local rc=$?
@@ -110,20 +115,21 @@ cleanup() {
   # Clean up any accidentally generated acceptance-check SQL (distinctive name
   # — drizzle-kit only produces it when this script passes --name acceptance_check).
   # The acceptance-check generate runs AFTER applying all current migrations
-  # 0000..0007, so the produced filename would be 0008_acceptance_check*.sql.
-  # We also defensively wipe stale 0006/0007_acceptance_check artifacts if
+  # 0000..0008, so the produced filename would be 0009_acceptance_check*.sql.
+  # We also defensively wipe stale 0006/0007/0008_acceptance_check artifacts if
   # present (safety belt for partial/aborted prior runs).
   find "${MIGRATIONS_DIR}" -maxdepth 1 -name "0006_acceptance_check*.sql" -delete 2>/dev/null || true
   find "${MIGRATIONS_DIR}" -maxdepth 1 -name "0007_acceptance_check*.sql" -delete 2>/dev/null || true
   find "${MIGRATIONS_DIR}" -maxdepth 1 -name "0008_acceptance_check*.sql" -delete 2>/dev/null || true
-  # Only delete the post-0007 snapshot if THIS run produced it — otherwise it
+  find "${MIGRATIONS_DIR}" -maxdepth 1 -name "0009_acceptance_check*.sql" -delete 2>/dev/null || true
+  # Only delete the post-0008 snapshot if THIS run produced it — otherwise it
   # is a legitimate committed snapshot from a future plan and must be preserved.
-  # The committed Phase 25 0006_snapshot.json + Phase 26 0007_snapshot.json are
-  # NEVER touched here; only the post-0007 future-snapshot drizzle-kit emits
-  # during the acceptance generate (named 0008_snapshot.json by drizzle's
-  # sequence-counter).
+  # The committed Phase 25 0006_snapshot.json + Phase 26 0007_snapshot.json +
+  # Phase 27 0008_snapshot.json are NEVER touched here; only the post-0008
+  # future-snapshot drizzle-kit emits during the acceptance generate (named
+  # 0009_snapshot.json by drizzle's sequence-counter).
   if [[ "${REGEN_PRODUCED_ACCEPTANCE}" -eq 1 ]]; then
-    find "${META_DIR}" -name "0008_snapshot.json" -delete 2>/dev/null || true
+    find "${META_DIR}" -name "0009_snapshot.json" -delete 2>/dev/null || true
   fi
   exit "${rc}"
 }
@@ -325,9 +331,9 @@ else
   patch_prev_id_inplace "${META_DIR}/0004_snapshot.json" "${NEW_ID_0003}"
 fi
 
-# ── Step 5: acceptance gate — fresh DB, all 8 migrations, generate = no-op ──
+# ── Step 5: acceptance gate — fresh DB, all 9 migrations, generate = no-op ──
 echo ""
-echo "🧪 Acceptance gate: fresh postgres + all 8 migrations + drizzle-kit generate..."
+echo "🧪 Acceptance gate: fresh postgres + all 9 migrations + drizzle-kit generate..."
 
 compose down --volumes --timeout 5 >/dev/null 2>&1 || true
 compose up -d postgres >/dev/null
@@ -341,14 +347,15 @@ apply_sql "${MIGRATION_4}"
 apply_sql "${MIGRATION_5}"
 apply_sql "${MIGRATION_6}"
 apply_sql "${MIGRATION_7}"
+apply_sql "${MIGRATION_8}"
 
 # Run generate from repo root. Use a distinctive name so any accidentally-
 # produced migration is easy to spot and cleanup.
 #
-# Mark that THIS run is responsible for any post-0007 snapshot that appears
+# Mark that THIS run is responsible for any post-0008 snapshot that appears
 # from here onward. The EXIT trap consults this flag before deleting any
-# 0008_snapshot.json so it never blows away a legitimate committed snapshot
-# on a script re-run after a future plan lands a real 0008 migration.
+# 0009_snapshot.json so it never blows away a legitimate committed snapshot
+# on a script re-run after a future plan lands a real 0009 migration.
 REGEN_PRODUCED_ACCEPTANCE=1
 set +e
 GEN_OUT=$(DATABASE_URL="${DB_URL}" npx drizzle-kit generate --name acceptance_check 2>&1)
@@ -361,9 +368,9 @@ if echo "${GEN_OUT}" | grep -q "No schema changes"; then
   echo ""
   echo "✓ Snapshot regeneration acceptance gate: No schema changes"
   # Defensive cleanup in case drizzle-kit wrote anything (the next sequence
-  # number after 0007 is 0008).
-  find "${MIGRATIONS_DIR}" -maxdepth 1 -name "0008_acceptance_check*.sql" -delete 2>/dev/null || true
-  find "${META_DIR}" -name "0008_snapshot.json" -delete 2>/dev/null || true
+  # number after 0008 is 0009).
+  find "${MIGRATIONS_DIR}" -maxdepth 1 -name "0009_acceptance_check*.sql" -delete 2>/dev/null || true
+  find "${META_DIR}" -name "0009_snapshot.json" -delete 2>/dev/null || true
   exit 0
 else
   echo ""
