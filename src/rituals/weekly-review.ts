@@ -210,3 +210,117 @@ const DateGroundingSchemaV4 = zV4.object({
   references_outside_window: zV4.boolean(),
   dates_referenced: zV4.array(zV4.string()).max(20),
 });
+
+// ── Discriminated retry-loop error classes (D-04 + D-05) ────────────────────
+
+/**
+ * Stage-2 violation: Haiku judge counted >1 distinct questions in Sonnet's
+ * question field. Carries the judge's full result so the retry loop can log
+ * it for telemetry without re-calling the judge.
+ */
+export class MultiQuestionError extends Error {
+  constructor(
+    public readonly stage2Result: { question_count: number; questions: string[] },
+  ) {
+    super(`Stage-2 violation: question_count = ${stage2Result.question_count}`);
+    this.name = 'MultiQuestionError';
+  }
+}
+
+/**
+ * Date-grounding violation: Haiku post-check detected ≥1 date references in
+ * Sonnet's observation falling outside the 7-day window. Carries the
+ * specific dates so the retry loop can log them for telemetry.
+ */
+export class DateOutOfWindowError extends Error {
+  constructor(public readonly datesReferenced: string[]) {
+    super(
+      `Date-grounding violation: out-of-window dates = ${JSON.stringify(datesReferenced)}`,
+    );
+    this.name = 'DateOutOfWindowError';
+  }
+}
+
+// ── Haiku judge calls (D-04 Stage-2 + D-05 date-grounding) ──────────────────
+
+/**
+ * Stage-2 Haiku question-counting judge. Invoked only after Stage-1 passes.
+ *
+ * Cost: ~$0.0003 per call (HAIKU model, ~150 max tokens, structured output).
+ * The judge prompt is locked verbatim per CONTEXT.md D-04 to keep the
+ * judge's behavior reproducible across model snapshots.
+ *
+ * Returns the parsed { count, questions } shape; the caller (retry loop)
+ * discriminates on `count > 1` to throw MultiQuestionError. The judge does
+ * NOT throw on count > 1 itself — the caller owns the dispatch decision.
+ *
+ * On parsed_output null (SDK contract for refusal/empty response): throws
+ * a generic Error which the retry loop catches and counts toward the cap.
+ */
+// Exported for unit tests in src/rituals/__tests__/weekly-review.test.ts.
+// External consumers (Plan 29-03 dispatcher) should call generateWeeklyObservation
+// or fireWeeklyReview, NOT this helper directly.
+export async function runStage2HaikuJudge(
+  question: string,
+): Promise<{ count: number; questions: string[] }> {
+  const judgePrompt =
+    "You are a question counter. Given the text below, count how many distinct questions are being asked of the reader. A compound question joined by 'and' or 'or' counts as multiple questions. An embedded question (quoted from someone else's mouth) counts as 1, but the question being directly asked at the end counts separately. Output JSON: { question_count: number, questions: string[] }.";
+  const response = await anthropic.messages.parse({
+    model: HAIKU_MODEL,
+    max_tokens: 150,
+    system: [{ type: 'text' as const, text: judgePrompt }],
+    messages: [{ role: 'user' as const, content: question }],
+    output_config: {
+      // SDK runtime requires zod/v4 schema; .d.ts surface still types as v3.
+      // Same cast pattern as src/episodic/consolidate.ts:156.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      format: zodOutputFormat(StageTwoJudgeSchemaV4 as unknown as any),
+    },
+  });
+  if (response.parsed_output === null || response.parsed_output === undefined) {
+    throw new Error('Stage-2 Haiku judge: parsed_output is null');
+  }
+  const parsed = StageTwoJudgeSchema.parse(response.parsed_output);
+  return { count: parsed.question_count, questions: parsed.questions };
+}
+
+/**
+ * Date-grounding Haiku post-check. Invoked only after Stage-2 passes.
+ *
+ * Verifies Sonnet's observation does not reference dates outside the 7-day
+ * window. Mirrors Pitfall 16 mitigation pattern. Cost: ~$0.0003 per call.
+ *
+ * The judge prompt is locked verbatim per CONTEXT.md D-05. Returns
+ * { inWindow: boolean, datesReferenced: string[] }; the caller throws
+ * DateOutOfWindowError if !inWindow.
+ *
+ * weekStart and weekEnd are ISO 'YYYY-MM-DD' strings (already rendered in
+ * the proactive timezone by fireWeeklyReview). Passing UTC instants would
+ * confuse the judge — the user-facing dates are calendar dates.
+ */
+// Exported for unit tests; same access boundary as runStage2HaikuJudge.
+export async function runDateGroundingCheck(
+  observation: string,
+  weekStart: string,
+  weekEnd: string,
+): Promise<{ inWindow: boolean; datesReferenced: string[] }> {
+  const judgePrompt = `You are a date-window auditor. Below is an observation about Greg's past week. The allowed date window is ${weekStart} to ${weekEnd} (inclusive). Identify any dates referenced in the observation, and report whether ANY of them fall outside the window. Output JSON: { references_outside_window: boolean, dates_referenced: string[] }.`;
+  const response = await anthropic.messages.parse({
+    model: HAIKU_MODEL,
+    max_tokens: 200,
+    system: [{ type: 'text' as const, text: judgePrompt }],
+    messages: [{ role: 'user' as const, content: observation }],
+    output_config: {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      format: zodOutputFormat(DateGroundingSchemaV4 as unknown as any),
+    },
+  });
+  if (response.parsed_output === null || response.parsed_output === undefined) {
+    throw new Error('Date-grounding: parsed_output is null');
+  }
+  const parsed = DateGroundingSchema.parse(response.parsed_output);
+  return {
+    inWindow: !parsed.references_outside_window,
+    datesReferenced: parsed.dates_referenced,
+  };
+}

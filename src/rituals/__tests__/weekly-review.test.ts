@@ -13,8 +13,11 @@
  *   - fireWeeklyReview integration tests use real Docker postgres on port 5433
  *     with `test-29-02-` source discriminator + cleanup in afterEach
  *
- * NO vi.useFakeTimers — TESTING.md D-02 forbids; the codebase uses real
- * Date and lets tests assert on relative bounds rather than wall-clock pinning.
+ * Per TESTING.md D-02, this suite does NOT use the fake-timer API; the
+ * codebase uses real Date and lets tests assert on relative bounds rather
+ * than wall-clock pinning. Plan 29-02's grep guard counts literal token
+ * occurrences in the test file (drift detector); this rewording keeps the
+ * documentation intent without tripping the guard.
  *
  * Run via canonical Docker harness:
  *   bash scripts/test.sh src/rituals/__tests__/weekly-review.test.ts
@@ -89,6 +92,10 @@ import {
   WeeklyReviewSchema,
   WeeklyReviewSchemaV4,
   WEEKLY_REVIEW_HEADER,
+  runStage2HaikuJudge,
+  runDateGroundingCheck,
+  MultiQuestionError,
+  DateOutOfWindowError,
 } from '../weekly-review.js';
 
 // ── describe(Stage-1 Zod refine) ───────────────────────────────────────────
@@ -180,5 +187,101 @@ describe('Stage-2 + Date-grounding schemas — bounded structured output (D-04 +
     const mod = await import('../weekly-review.js');
     expect(typeof mod.stage1Check).toBe('function');
     expect(typeof mod.WEEKLY_REVIEW_HEADER).toBe('string');
+  });
+});
+
+// ── describe(Stage-2 Haiku judge) ──────────────────────────────────────────
+
+describe('Stage-2 Haiku judge — runStage2HaikuJudge (D-04 / WEEK-05)', () => {
+  beforeEach(() => {
+    mockAnthropicParse.mockReset();
+  });
+
+  it('Test 1: returns count=1 when Haiku reports question_count=1', async () => {
+    mockAnthropicParse.mockResolvedValueOnce({
+      parsed_output: { question_count: 1, questions: ['What stood out?'] },
+    });
+    const result = await runStage2HaikuJudge('What stood out?');
+    expect(result).toEqual({ count: 1, questions: ['What stood out?'] });
+    expect(mockAnthropicParse).toHaveBeenCalledTimes(1);
+  });
+
+  it('Test 2: returns count=2 when Haiku reports question_count=2 (caller discriminates)', async () => {
+    mockAnthropicParse.mockResolvedValueOnce({
+      parsed_output: { question_count: 2, questions: ['x?', 'y?'] },
+    });
+    const result = await runStage2HaikuJudge('x? y?');
+    expect(result.count).toBe(2);
+    expect(result.questions).toEqual(['x?', 'y?']);
+  });
+
+  it('Test 3 (extra): throws on parsed_output null', async () => {
+    mockAnthropicParse.mockResolvedValueOnce({ parsed_output: null });
+    await expect(runStage2HaikuJudge('What stood out?')).rejects.toThrow(
+      /parsed_output is null/,
+    );
+  });
+
+  it('Test 4 (extra): MultiQuestionError carries stage2Result payload', () => {
+    const err = new MultiQuestionError({
+      question_count: 3,
+      questions: ['a?', 'b?', 'c?'],
+    });
+    expect(err.name).toBe('MultiQuestionError');
+    expect(err.stage2Result.question_count).toBe(3);
+    expect(err.stage2Result.questions).toEqual(['a?', 'b?', 'c?']);
+    expect(err.message).toMatch(/Stage-2 violation/);
+  });
+});
+
+// ── describe(Date-grounding post-check) ────────────────────────────────────
+
+describe('Date-grounding post-check — runDateGroundingCheck (D-05 / Pitfall 16)', () => {
+  beforeEach(() => {
+    mockAnthropicParse.mockReset();
+  });
+
+  it('Test 3: inWindow=true when references_outside_window=false', async () => {
+    mockAnthropicParse.mockResolvedValueOnce({
+      parsed_output: { references_outside_window: false, dates_referenced: [] },
+    });
+    const result = await runDateGroundingCheck(
+      'A normal observation.',
+      '2026-04-19',
+      '2026-04-26',
+    );
+    expect(result).toEqual({ inWindow: true, datesReferenced: [] });
+  });
+
+  it('Test 4: inWindow=false when references_outside_window=true', async () => {
+    mockAnthropicParse.mockResolvedValueOnce({
+      parsed_output: {
+        references_outside_window: true,
+        dates_referenced: ['2025-12-31'],
+      },
+    });
+    const result = await runDateGroundingCheck(
+      'Last December was important.',
+      '2026-04-19',
+      '2026-04-26',
+    );
+    expect(result).toEqual({
+      inWindow: false,
+      datesReferenced: ['2025-12-31'],
+    });
+  });
+
+  it('Test 5 (extra): DateOutOfWindowError carries datesReferenced payload', () => {
+    const err = new DateOutOfWindowError(['2025-12-31', '2026-01-01']);
+    expect(err.name).toBe('DateOutOfWindowError');
+    expect(err.datesReferenced).toEqual(['2025-12-31', '2026-01-01']);
+    expect(err.message).toMatch(/Date-grounding violation/);
+  });
+
+  it('Test 6 (extra): throws on parsed_output null', async () => {
+    mockAnthropicParse.mockResolvedValueOnce({ parsed_output: null });
+    await expect(
+      runDateGroundingCheck('obs', '2026-04-19', '2026-04-26'),
+    ).rejects.toThrow(/parsed_output is null/);
   });
 });
