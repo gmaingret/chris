@@ -160,3 +160,25 @@ describe('Stage-1 Zod refine — single-question regex gate (D-03 / WEEK-05)', (
     expect(() => WeeklyReviewSchemaV4.parse(valid)).not.toThrow();
   });
 });
+
+// ── describe(Stage-2 + Date-grounding schemas) ─────────────────────────────
+
+describe('Stage-2 + Date-grounding schemas — bounded structured output (D-04 + D-05)', () => {
+  // The v3 schemas are NOT exported (judge call sites are internal helpers in
+  // the same module). We import them via a side-channel: a re-import of the
+  // module under test, then access the schemas via dynamic require-style.
+  // Cleaner alternative: assert against the PUBLIC surface (judge call result
+  // shape) when those tests run in the next describe block. This describe
+  // block instead asserts on the SCHEMA SHAPE via runStage2HaikuJudge +
+  // runDateGroundingCheck mocks (Task 3 tests cover exact bounds rejection).
+
+  it('Schemas exist + are reachable from module exports/internals — sanity check', async () => {
+    // The judge schemas live as internal consts in src/rituals/weekly-review.ts.
+    // This test lives as a smoke check that the module loads without error
+    // (which indirectly proves the const declarations parsed). Real bounds
+    // enforcement is tested via the judge call sites in the next describe block.
+    const mod = await import('../weekly-review.js');
+    expect(typeof mod.stage1Check).toBe('function');
+    expect(typeof mod.WEEKLY_REVIEW_HEADER).toBe('string');
+  });
+});

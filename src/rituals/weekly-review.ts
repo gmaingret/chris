@@ -160,3 +160,53 @@ export const WeeklyReviewSchemaV4 = zV4.object({
 });
 
 export type WeeklyReviewOutput = z.infer<typeof WeeklyReviewSchema>;
+
+// ── Stage-2 Haiku judge schemas (D-04 / WEEK-05) ────────────────────────────
+
+/**
+ * v3 contract surface for the Stage-2 Haiku judge structured output.
+ *
+ * Bounded explicitly (DoS protection per threat T-29-02-03): question_count
+ * is a non-negative int ≤10; questions array is ≤10 entries. Haiku's output
+ * cannot expand the retry loop's LLM-call budget through unbounded fields.
+ *
+ * The judge's prompt instructs Haiku to count distinct questions in the
+ * `question` field of Sonnet's output. question_count > 1 → MultiQuestionError
+ * → retry (counts toward MAX_RETRIES=2 cap).
+ */
+const StageTwoJudgeSchema = z.object({
+  question_count: z.number().int().min(0).max(10),
+  questions: z.array(z.string()).max(10),
+});
+
+/** v4 SDK-boundary mirror — no refine, lock-step with v3. */
+const StageTwoJudgeSchemaV4 = zV4.object({
+  question_count: zV4.number().int().min(0).max(10),
+  questions: zV4.array(zV4.string()).max(10),
+});
+
+// ── Date-grounding post-check schemas (D-05 / Pitfall 16) ───────────────────
+
+/**
+ * v3 contract surface for the date-grounding Haiku post-check output.
+ *
+ * Bounded explicitly: dates_referenced array is ≤20 entries. The judge is
+ * asked to enumerate dates in Sonnet's observation and report whether ANY
+ * fall outside the [weekStart, weekEnd] window. references_outside_window
+ * === true → DateOutOfWindowError → retry (shared cap-2 budget).
+ *
+ * Why a Haiku post-check rather than regex: date references aren't always
+ * ISO-formatted ("Wednesday" / "two weeks ago" / "the day before yesterday")
+ * so a regex misses semantic mentions. Haiku catches them. Mirrors M008's
+ * Pitfall 16 mitigation pattern.
+ */
+const DateGroundingSchema = z.object({
+  references_outside_window: z.boolean(),
+  dates_referenced: z.array(z.string()).max(20),
+});
+
+/** v4 SDK-boundary mirror. */
+const DateGroundingSchemaV4 = zV4.object({
+  references_outside_window: zV4.boolean(),
+  dates_referenced: zV4.array(zV4.string()).max(20),
+});
