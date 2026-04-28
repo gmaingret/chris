@@ -12,7 +12,7 @@
 ## Phases (active milestone)
 
 - [x] **Phase 25: Ritual Scheduling Foundation** — Migration 0006 (rituals + wellbeing_snapshots + 4 event tables + RITUAL_RESPONSE enum), Luxon cadence helper, ritual channel slot in proactive sweep, second 21:00 cron tick, RitualConfig Zod schema, atomic UPDATE...RETURNING idempotency *(process-gate carry-in PROC-01/02 verified REDUNDANT post-GSD 1.38.4/1.38.5 on 2026-04-26 and dropped from scope)* — completed 2026-04-26 (3 plans, RIT-01..12 all shipped)
-- [ ] **Phase 26: Daily Voice Note Ritual** — PP#5 ritual-response detector (deposit-only contract), 6-prompt shuffled-bag rotation, 21:00 Paris fire with pre-fire suppression, STT filler tagging, polite-decline voice handler
+- [x] **Phase 26: Daily Voice Note Ritual** — PP#5 ritual-response detector (deposit-only contract), 6-prompt shuffled-bag rotation, 21:00 Paris fire with pre-fire suppression, STT filler tagging, polite-decline voice handler, operator UAT script — completed 2026-04-28 (5 plans, VOICE-01..06 all shipped)
 - [ ] **Phase 27: Daily Wellbeing Snapshot** — Inline keyboard 3-row × 5-button (first use in codebase) + callback_query handler with per-dim upsert, partial-state persistence with hide-previous-values, optional skip without adjustment dialogue, 09:00 Paris fire (separate from voice note per D026)
 - [ ] **Phase 28: Skip-Tracking + Adjustment Dialogue** — Discriminated RitualFireOutcome union, append-only ritual_fire_events, cadence-aware thresholds (daily=3, weekly=2), Haiku 3-class adjustment parser, 60s confirmation window, self-protective 30-day pause on 2 evasive, ritual_config_events audit
 - [ ] **Phase 29: Weekly Review** — Sunday 20:00 Paris fire reading getEpisodicSummariesRange (M008) + resolved decisions (M007), explicit CONSTITUTIONAL_PREAMBLE injection (cron context), Sonnet structured output (1 obs + 1 Socratic Q), two-stage single-question enforcement (Zod refine + Haiku judge), pattern-only observations, wellbeing variance gate, Pensieve persist as RITUAL_RESPONSE
@@ -53,7 +53,7 @@
 - [x] 26-02-PLAN.md — HARD CO-LOC #1 + #5 ATOMIC: PP#5 ritual-response detector at engine position 0 + voice-note handler + recordRitualVoiceResponse atomic consume + storePensieveEntry epistemicTag extension + mock-chain coverage update across engine.test.ts + engine-mute.test.ts + engine-refusal.test.ts + cumulative `expect(mockAnthropicCreate).not.toHaveBeenCalled()` regression test [VOICE-01, VOICE-02, VOICE-03, VOICE-06]
 - [x] 26-03-PLAN.md — Pre-fire suppression on ≥5 telegram JOURNAL entries today; advances next_run_at without incrementing skip_count; emits 'system_suppressed' outcome [VOICE-04]
 - [x] 26-04-PLAN.md — Voice message polite-decline handler (`bot.on('message:voice')` ~10 LOC, EN/FR/RU per franc detection on last text language) [VOICE-05]
-- [ ] 26-05-PLAN.md — `scripts/fire-ritual.ts` operator wrapper for manual UAT [no new requirements; supports operator UAT]
+- [x] 26-05-PLAN.md — `scripts/fire-ritual.ts` operator wrapper for manual UAT [no new requirements; supports operator UAT]
 
 ### Phase 27: Daily Wellbeing Snapshot
 **Goal**: Independent of Phase 26 (orthogonal callback_query surface). After this phase, Greg gets a 09:00 Paris morning Telegram message with a 3-row × 5-button inline keyboard (energy / mood / anxiety), taps three numbers OR taps "skip", and the snapshot is durably persisted in `wellbeing_snapshots` with one row per local day. This is the first use of inline keyboards anywhere in the Chris codebase.
@@ -210,8 +210,8 @@ See [milestones/v2.3-ROADMAP.md](milestones/v2.3-ROADMAP.md) for full phase deta
 | 22.1. Wire retrieveContext (INSERTED) | v2.2   | 1/1   | Complete    | 2026-04-19 |
 | 23. Test Suite + Backfill + /summary | v2.2    | 4/4   | Complete    | 2026-04-19 |
 | 24. Primed-Fixture Pipeline        | v2.3      | 4/4   | Complete    | 2026-04-20 |
-| 25. Ritual Scheduling Foundation   | v2.4      | 1/3 | In Progress|  |
-| 26. Daily Voice Note Ritual        | v2.4      | 4/5 | In Progress|  |
+| 25. Ritual Scheduling Foundation   | v2.4      | 3/3   | Complete    | 2026-04-26 |
+| 26. Daily Voice Note Ritual        | v2.4      | 5/5   | Complete    | 2026-04-28 |
 | 27. Daily Wellbeing Snapshot       | v2.4      | 0/3   | Planned     | -          |
 | 28. Skip-Tracking + Adjustment Dialogue | v2.4 | 0/4   | Not started | -          |
 | 29. Weekly Review                  | v2.4      | 0/4   | Planned     | -          |

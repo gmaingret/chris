@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.4
 milestone_name: M009 Ritual Infrastructure + Daily Note + Weekly Review
-status: "Plan 26-03 complete (4 commits: 7a0275a feat union, 85222c3 feat helper+STEP0, c91a38a fix cadence-anchoring Rule 1, 42fd436 test 7/7 green) — VOICE-04 pre-fire suppression on ≥5 telegram JOURNAL entries today shipped. shouldSuppressVoiceNoteFire helper queries Pensieve directly (D-26-05); STEP 0 suppression branch advances next_run_at to tomorrow's 21:00 Paris via dayBoundaryUtc(now,tz).end-anchored computeNextRunAt (Rule 1 fix vs literal plan text); 'system_suppressed' literal joined RitualFireOutcome union (D-26-06). Full Docker test suite: 1198/1252 pass, 50 baseline failures unchanged (live-LLM 401 + HuggingFace EACCES). 26-05 (scripts/fire-ritual.ts operator wrapper) is the only Phase 26 plan remaining."
-stopped_at: "Plan 26-03 complete (4 commits: 7a0275a, 85622c3, c91a38a, 42fd436) — VOICE-04 pre-fire suppression shipped. Phase 26 progress: 4/5 plans complete (26-01, 26-02, 26-03, 26-04 done; 26-05 remaining)."
-last_updated: "2026-04-28T09:55:00.000Z"
-last_activity: 2026-04-28 — Plan 26-03 complete (VOICE-04 pre-fire suppression; 4 commits; cadence-anchoring Rule 1 deviation auto-fixed).
+status: "Plan 26-05 complete (1 commit: 30e9cc9 feat scripts/fire-ritual.ts) — operator wrapper for manual UAT shipped; ROADMAP §Phase 26 success criterion 1 (`npx tsx scripts/fire-ritual.ts daily_voice_note`) now satisfiable end-to-end against staging. Backdates next_run_at to now()-1min via Drizzle parameterized UPDATE...WHERE name=$1 RETURNING, hard-fails on unknown ritual + missing argv, ESM entry-point guard prevents auto-execute on import (Phase 25 LEARNINGS lesson 4). All 8 grep gates pass; tsc --noEmit clean; smoke tests verified (missing-arg, unknown-ritual, real Docker postgres). **Phase 26 COMPLETE: 5/5 plans done; all VOICE-01..06 requirements [x].** Phase 26 ready for /gsd-verify-work."
+stopped_at: "Plan 26-05 complete (1 commit: 30e9cc9) — Phase 26 5/5 plans done; VOICE-01..06 all shipped. Phase 26 ready for /gsd-verify-work. Next: Phases 27/29 parallel-eligible."
+last_updated: "2026-04-28T10:30:00.000Z"
+last_activity: 2026-04-28 — Plan 26-05 complete (scripts/fire-ritual.ts operator wrapper; 1 commit). Phase 26 5/5 plans done.
 progress:
   total_phases: 6
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 15
-  completed_plans: 8
-  percent: 53
+  completed_plans: 9
+  percent: 60
 ---
 
 # Project State
@@ -26,17 +26,17 @@ See: .planning/PROJECT.md (symlink to /home/claude/chris/PLAN.md, updated 2026-0
 
 ## Current Position
 
-Phase: **25** COMPLETE; **26 IN PROGRESS** (Plans 26-01 + 26-02 + 26-03 + 26-04 done; Plan 26-05 remaining — sequential mode per user); **27+29 PLANNED**
-Plan: 26-03 complete (4 commits: 7a0275a, 85622c3, c91a38a, 42fd436) — VOICE-04 pre-fire suppression on ≥5 telegram JOURNAL entries today:
+Phase: **25** COMPLETE; **26 COMPLETE** (Plans 26-01 + 26-02 + 26-03 + 26-04 + 26-05 all done — VOICE-01..06 shipped); **27+29 PLANNED**
+Plan: 26-05 complete (1 commit: 30e9cc9) — scripts/fire-ritual.ts operator wrapper for manual UAT:
 
-  - `src/rituals/types.ts` (MODIFIED) — `'system_suppressed'` literal appended to RitualFireOutcome union as a peer (D-26-06); JSDoc comment updated to describe new value's semantics ("Phase 26 VOICE-04 — does NOT increment skip_count; Phase 28 may enrich SKIP-01 discriminated union").
-  - `src/rituals/voice-note.ts` (MODIFIED) — RITUAL_SUPPRESS_DEPOSIT_THRESHOLD=5 module-scope constant + shouldSuppressVoiceNoteFire(now) helper querying Pensieve directly via dayBoundaryUtc(now,tz).start (D-26-05; predicates: source='telegram' AND createdAt>=dayStart AND metadata->>'mode'='JOURNAL') + STEP 0 suppression branch in fireVoiceNote BEFORE prompt-bag pop (D-26-04). On suppression: advance next_run_at to tomorrow's 21:00 Paris via dayBoundaryUtc(now,tz).end-anchored computeNextRunAt, log rituals.voice_note.suppressed, return 'system_suppressed' with NO Telegram send / NO pending row insert / NO prompt_bag update / NO skip_count touch.
-  - `src/rituals/__tests__/voice-note-suppression.test.ts` (NEW 239 LoC) — 7 real-DB integration tests: 5 helper-direct (>=5 → true; <5 → false; yesterday 25h offset; non-telegram source; non-JOURNAL mode) + 2 scheduler-integration (suppression branch full assertions; normal fire when <5).
-  - 2 auto-fixed deviations: cadence-anchoring Rule 1 bug (suppression's literal `computeNextRunAt(now,...)` returned today's still-future 21:00 when sweep ran at 11:00 Paris instead of tomorrow's; fix: anchor to dayBoundaryUtc(now,tz).end so today's slot is reliably in past); dayBoundaryUtc signature mismatch Rule 3 (plan example 3-arg `(now, tz, 'start')` vs canonical 2-arg `(date, tz) → {start, end}`; impl honors actual signature). Both documented in 26-03-SUMMARY.md.
+  - `scripts/fire-ritual.ts` (NEW, 81 lines) — operator CLI script taking ritual name as positional arg; backdates `next_run_at` to now()-1min via `db.update(rituals).set({ nextRunAt }).where(eq(rituals.name, ritualName)).returning()`; hard-fails (exit 1) on missing argv → "Usage: ..." or zero-row UPDATE → "No ritual found with name '...'"; on success invokes `runRitualSweep()` once and prints `JSON.stringify(results, null, 2)` to stdout; structured `fire-ritual.set_next_run_at` log line emits ritualName + newNextRunAt for audit trail. ESM entry-point guard at file bottom (`if (import.meta.url === \`file://${process.argv[1]}\`)`) prevents auto-execute on import — Phase 25 LEARNINGS lesson 4. ROADMAP §Phase 26 success criterion 1 (`npx tsx scripts/fire-ritual.ts daily_voice_note`) now satisfiable end-to-end against staging.
+  - All 8 grep gates pass: `runRitualSweep` import (1), `runRitualSweep` total (4 ≥2), `process.argv[2]` (1), `import.meta.url ===` (1), Usage prefix (1), "No ritual found" (1), `oneMinuteAgo` (3 ≥2), tsc-noEmit-clean (0 errors).
+  - 3 smoke tests verified live this session: missing-arg → "Usage: ..." stderr + exit 1 ✓; unknown ritual against real Docker postgres → "No ritual found with name 'nonexistent_ritual_xyz'" stderr + exit 1 ✓; tsc --noEmit → zero errors anywhere ✓.
+  - 0 deviations from plan — script was authored by prior agent in untracked state and matched plan spec verbatim on first inspection; this session inspected, verified, smoke-tested, and committed.
 
-Status: All 7 voice-note-suppression tests green; full Docker test suite 1198/1252 pass; 50 baseline failures (HuggingFace EACCES + Anthropic 401 from missing real API key) unchanged from prior phases. Plan 26-03 next: 26-05 (scripts/fire-ritual.ts operator wrapper — only Phase 26 plan remaining).
-Progress: [█████░░░░░] 53%
-Last activity: 2026-04-28 — Plan 26-03 complete (VOICE-04 pre-fire suppression; 4 commits; cadence-anchoring Rule 1 deviation auto-fixed).
+Status: Phase 26 COMPLETE. All 5 plans shipped (26-01 substrate + rotation primitive; 26-02 PP#5 + handler + mock-chain HARD CO-LOC #1+#5; 26-03 pre-fire suppression VOICE-04; 26-04 voice polite-decline VOICE-05; 26-05 operator UAT script). All VOICE-01..06 marked [x] in REQUIREMENTS.md. Next: Phases 27/29 parallel-eligible (orthogonal handler surfaces, both depend only on Phase 25 substrate). Phase 26 ready for `/gsd-verify-work`.
+Progress: [██████░░░░] 60%
+Last activity: 2026-04-28 — Plan 26-05 complete (scripts/fire-ritual.ts operator wrapper; 1 commit). Phase 26 5/5 plans done.
 
 Prior deploy state: v2.3 + date-extraction Haiku JSON-fences fix (eedce33, deployed 42a7eed 2026-04-25) live on Proxmox (192.168.1.50). Daily 23:00 Europe/Paris episodic cron + 6h sync cron + 10:00 proactive sweep cron all healthy. M009 will ADD a second 21:00 evening cron tick (RIT-11) for ritual firing.
 
@@ -149,8 +149,8 @@ None. Ready to plan Phase 25 — pending todo resolved (verdict above).
 
 ## Session Continuity
 
-Last session: 2026-04-28T09:55:00Z
-Stopped at: Plan 26-03 complete (4 commits: 7a0275a, 85622c3, c91a38a, 42fd436) — VOICE-04 pre-fire suppression shipped. Phase 26 progress: 4/5 plans complete; 26-05 (scripts/fire-ritual.ts operator wrapper) remaining.
+Last session: 2026-04-28T10:10:00Z
+Stopped at: Plan 26-05 complete (1 commit: 30e9cc9) — scripts/fire-ritual.ts operator wrapper shipped. **Phase 26 COMPLETE: 5/5 plans done; VOICE-01..06 all [x].** Phase 26 ready for /gsd-verify-work. Next: Phases 27/29 parallel-eligible.
 Resume file: None
 
 ## Known Tech Debt
