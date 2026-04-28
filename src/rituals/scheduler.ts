@@ -33,7 +33,13 @@ import {
 import { logger } from '../utils/logger.js';
 import { computeNextRunAt } from './cadence.js';
 import { tryFireRitualAtomic } from './idempotency.js';
-import { parseRitualConfig, type RitualFireResult } from './types.js';
+import {
+  parseRitualConfig,
+  type RitualFireResult,
+  type RitualFireOutcome,
+  type RitualConfig,
+} from './types.js';
+import { fireVoiceNote } from './voice-note.js';
 
 // ── Ritual sweep orchestrator (M009 Phase 25 RIT-09) ──────────────────────
 
@@ -173,20 +179,20 @@ export async function runRitualSweep(now: Date = new Date()): Promise<RitualFire
     // on a clean DB without throwing. With seeded rituals, this code path
     // is exercised but no real send happens.
     try {
-      await dispatchRitualHandler(ritual);
+      const outcome = await dispatchRitualHandler(ritual, ritualConfig);
       // Atomic UPDATE succeeded — increment the channel-level daily counter
       // (D-04 refinement: ritualCount peer counter, ceiling=3, resets at
       // local Europe/Paris midnight via proactive_state KV table).
       await incrementRitualDailyCount(config.proactiveTimezone);
       logger.info(
-        { ritualId: ritual.id, type: ritual.type },
+        { ritualId: ritual.id, type: ritual.type, outcome },
         'rituals.fire.success',
       );
       results.push({
         ritualId: ritual.id,
         type: ritual.type,
-        fired: true,
-        outcome: 'fired',
+        fired: outcome === 'fired',
+        outcome,
       });
     } catch (handlerErr) {
       logger.error(
@@ -248,19 +254,28 @@ function cadencePeriodMs(type: 'daily' | 'weekly' | 'monthly' | 'quarterly'): nu
 }
 
 /**
- * dispatchRitualHandler — SKELETON for Phase 25.
+ * dispatchRitualHandler — name-keyed dispatch (D-26-08).
  *
- * Phases 26-29 will type-dispatch on ritual.name (or a ritual.kind field
- * added via Phase 26 seed migration) to the actual handlers (voice note,
- * wellbeing, weekly review). Phase 25 throws 'not implemented' so the code
- * path runs but produces no Telegram side-effect when fired against a clean
- * DB (per RESEARCH Assumption A2 + ROADMAP success criterion 3 "returns []
- * against clean DB without throwing").
+ * Phase 26 fills in the daily_voice_note handler. Future phases extend the
+ * switch with daily_wellbeing (Phase 27) and weekly_review (Phase 29).
+ *
+ * Keying by ritual.name (not ritual.type / cadence) is intentional —
+ * multiple rituals can share a cadence (e.g. daily_voice_note and
+ * daily_wellbeing are both 'daily'), so cadence is not unique enough.
  */
 async function dispatchRitualHandler(
   ritual: typeof rituals.$inferSelect,
-): Promise<void> {
-  throw new Error(
-    `rituals.dispatch: handler not implemented for ${ritual.type} (Phase 25 ships skeleton; Phases 26-29 fill)`,
-  );
+  cfg: RitualConfig,
+): Promise<RitualFireOutcome> {
+  switch (ritual.name) {
+    case 'daily_voice_note':
+      return fireVoiceNote(ritual, cfg);
+    // future Phases 27, 29:
+    // case 'daily_wellbeing': return fireWellbeing(ritual, cfg);
+    // case 'weekly_review':   return fireWeeklyReview(ritual, cfg);
+    default:
+      throw new Error(
+        `rituals.dispatch: handler not implemented for ${ritual.name}`,
+      );
+  }
 }
