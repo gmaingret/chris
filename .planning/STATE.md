@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.4
 milestone_name: M009 Ritual Infrastructure + Daily Note + Weekly Review
-status: Phases 26+27+29 planned (parallel batch); ready to execute Phase 26 (Wave 1 of 3)
-stopped_at: "Phases 26+27+29 plans converted to canonical XML and committed (commits a263975 + 69a5aac + 6ee04de + 402ab3e). 12 plans across 3 phases (26: 5 plans / 27: 3 plans / 29: 4 plans). All checker blockers addressed: B1+B2 threat_model + verify/automated added; B3 26-02 split (9→7 tasks + new 26-05); B4 prompt_text column threading via migration 0007; B-1 marker derivation locked via 3-import deterministic algorithm. Phase 28 still TBD (depends on 26+27 outputs — skip-tracking needs rituals being skippable)."
-last_updated: "2026-04-27T11:55:00Z"
-last_activity: 2026-04-27 — Phases 26+27+29 plans converted to canonical XML; ready to sequential execute (26 → 27 → 29 → then plan+execute 28 → then 30)
+status: Phase 26 in progress — Plan 26-01 complete; ready to execute Plan 26-02
+stopped_at: "Plan 26-01 complete (4 commits: f06a8d4, 7cdf809, b770a01, dc9a07a) — voice note substrate (migration 0007 + voice-note.ts constants + chooseNextPromptIndex pure shuffled-bag rotation + 13 green tests) landed. Substrate gate green. Ready to execute Plan 26-02 (handler + PP#5 detector + mock-chain coverage update)."
+last_updated: "2026-04-28T05:06:25.256Z"
+last_activity: 2026-04-28 — Plan 26-01 substrate landed (4 commits): migration 0007 + voice-note.ts constants + chooseNextPromptIndex pure shuffled-bag rotation + 13 green tests; ready for Plan 26-02
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 15
-  completed_plans: 3
-  percent: 20
+  completed_plans: 4
+  percent: 27
 ---
 
 # Project State
@@ -26,10 +26,10 @@ See: .planning/PROJECT.md (symlink to /home/claude/chris/PLAN.md, updated 2026-0
 
 ## Current Position
 
-Phase: **25** COMPLETE; **26+27+29** PLANNED (12 plans canonical XML, all blockers cleared)
-Plan: ready to execute Phase 26 (Wave 1: 26-01 + 26-04 parallel-eligible)
-Status: Phases 26+27+29 plans complete and verified. Sequential execute order: 26 → 27 → 29 → (then plan+execute 28) → 30.
-Progress: [███░░░░░░░] ~20% (3 of 15 plans done across the 4 planned phases; Phase 28 + 30 still un-planned)
+Phase: **25** COMPLETE; **26 IN PROGRESS** (Plan 26-01 done; Plans 26-02..05 pending); **27+29 PLANNED**
+Plan: 26-01 complete (4 commits: f06a8d4, 7cdf809, b770a01, dc9a07a + final metadata commit pending) — substrate landed (migration 0007 + voice-note.ts constants + chooseNextPromptIndex pure rotation primitive + 13 green tests). Ready to execute Plan 26-02 (Wave 2 — voice note handler + PP#5 detector + mock-chain coverage update; HARD CO-LOC #1 + #5).
+Status: Plan 26-01 substrate verified: migration applies cleanly, scripts/test.sh substrate gate green (PASS: Phase 26 migration 0007 substrate verified), all 13 new pure-function tests pass. 57 vitest baseline failures unchanged (live API + huggingface EACCES + engine-mute decision-capture mock — pre-existing, owned by Plan 26-02 mock-chain coverage update).
+Progress: [███░░░░░░░] 27% (4 of 15 plans done)
 Last activity: 2026-04-27 — Phases 26+27+29 plans converted to canonical XML matching Phase 25 / all prior milestones; checker blockers all addressed (B1+B2+B3+B4 in 26; B-1 in 29)
 
 Prior deploy state: v2.3 + date-extraction Haiku JSON-fences fix (eedce33, deployed 42a7eed 2026-04-25) live on Proxmox (192.168.1.50). Daily 23:00 Europe/Paris episodic cron + 6h sync cron + 10:00 proactive sweep cron all healthy. M009 will ADD a second 21:00 evening cron tick (RIT-11) for ritual firing.
@@ -95,6 +95,12 @@ Full log in PROJECT.md Key Decisions table. Most relevant for M009:
 - **D-25-02-B: Pitfall 2/3 grep guards (and TESTING.md D-02 fake-timer guard) require docstrings to NOT name forbidden patterns literally.** Source files describe forbidden patterns abstractly ("manual UTC ms arithmetic", "JS Date wall-clock setters", "fake-timer mocks") so the guard regex itself does not appear in source. Verification regex lives in plan reference. Future plan authors should anticipate this when writing acceptance criteria for file-level grep guards.
 - **D-25-02-C: D-09 3-arg `computeNextRunAt(now, cadence, config)` signature confirmed correct.** The 3-arg shape is the right call: cadence sources from `rituals.type` enum column, never denormalized into the jsonb config. RESEARCH.md §4's pseudocode is illustrative; the real signature is what landed.
 
+### Plan 26-01 implementation decisions (2026-04-28)
+
+- **D-26-01-A: PP#5 partial index declared in `src/db/schema.ts` via `.where(sql\`...\`)` (not just in migration SQL).** Code_context CONTEXT.md noted this was "cleaner — planner picks"; the call was YES — keeps drizzle-kit snapshot/schema parity tight, mirrors Phase 25 wellbeing_snapshots_snapshot_date_idx + rituals_next_run_at_enabled_idx precedent. Net-effect: `bash scripts/regen-snapshots.sh` reports "No schema changes" against fresh DB without per-run drift; `meta/0007_snapshot.json` already encodes the partial index so future drizzle-kit operations don't propose to add it.
+- **D-26-01-B: drizzle-kit auto-generated `0007_*.sql` discarded after producing the meta-snapshot; hand-authored `0007_daily_voice_note_seed.sql` is canonical.** drizzle-kit cannot model INSERT seed rows or DEFAULT-then-DROP-DEFAULT pattern; same hybrid-pattern Phase 25 used for 0006. The auto-generated SQL would have been `ALTER TABLE ... ADD COLUMN ... NOT NULL` (no DEFAULT) — fine on a literally zero-row table but introduces backfill ambiguity if any maintenance/migration adds rows mid-deploy. The DEFAULT-then-DROP-DEFAULT idiom is the safer contract.
+- **D-26-01-C: scripts/regen-snapshots.sh cleanup-trap flag renamed `REGEN_PRODUCED_0006` → `REGEN_PRODUCED_ACCEPTANCE`** for future-N safety. Cleanup glob updated `0007*.json` → `0008*.json` (the post-acceptance-gate sequence-counter slot drizzle-kit emits when this script runs after Plan 26-01's 0007 lands). Future plans (Plan 27-01, Plan 28-01, etc.) just flip the suffix +1.
+
 ### HARD CO-LOCATION CONSTRAINTS (from research/SUMMARY.md — must be honored across phase boundaries)
 
 1. **Phase 26**: PP#5 ritual-response detector co-located with voice note ritual handler (Pitfall 6, CRITICAL).
@@ -137,9 +143,9 @@ None. Ready to plan Phase 25 — pending todo resolved (verdict above).
 
 ## Session Continuity
 
-Last session: 2026-04-26T17:18:30Z
+Last session: 2026-04-28T05:05:25.696Z
 Stopped at: Plan 25-03 complete (7 commits: 226bd48, e0d8162, 40fc35d, 9bcadf9, abe4515, eb1572f, e494946) — Phase 25 substrate fully wired; ready to plan Phase 26 (Daily Voice Note Ritual)
-Resume file: .planning/ROADMAP.md (next phase to plan: Phase 26)
+Resume file: None
 
 ## Known Tech Debt
 
