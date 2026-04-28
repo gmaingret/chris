@@ -96,7 +96,7 @@ Each task was committed atomically:
 4. **Task 4: Author voice-note.test.ts + prompt-rotation-property.test.ts (VOICE-02 + VOICE-03)** — `dc9a07a` (test)
 5. **Task 5: Run full Docker test suite** — no code change; verification only (substrate gates green; new tests green; baseline failures unchanged)
 
-**Plan metadata:** [pending — added by final commit]
+**Plan metadata:** `33de2b1` (docs: complete plan)
 
 ## Files Created/Modified
 
