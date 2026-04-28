@@ -1,6 +1,6 @@
 import { eq, sql, and } from 'drizzle-orm';
 import { db } from '../db/connection.js';
-import { pensieveEntries, pensieveEmbeddings } from '../db/schema.js';
+import { pensieveEntries, pensieveEmbeddings, epistemicTagEnum } from '../db/schema.js';
 import { StorageError } from '../utils/errors.js';
 import { computeContentHash } from '../utils/content-hash.js';
 import { logger } from '../utils/logger.js';
@@ -15,11 +15,23 @@ export interface PensieveEntryMetadata {
 /**
  * Insert a pensieve entry with verbatim content — no trimming, no modification.
  * Throws StorageError on empty content or database failures.
+ *
+ * @param content - Verbatim content (D004 append-only contract)
+ * @param source - Source label (default 'telegram')
+ * @param metadata - Optional jsonb metadata blob
+ * @param opts - Optional advanced options.
+ *   `epistemicTag`: Pre-tag the entry with an explicit epistemic_tag enum value,
+ *   bypassing the Haiku auto-tagger (src/pensieve/tagger.ts). Used by ritual-response
+ *   ingest path (Phase 26 PP#5 — VOICE-01, per D-26-03) to write entries as
+ *   'RITUAL_RESPONSE' directly. The auto-tagger only updates entries with
+ *   epistemic_tag IS NULL, so pre-tagged entries are skipped by future tagger
+ *   invocations.
  */
 export async function storePensieveEntry(
   content: string,
   source: string = 'telegram',
   metadata?: PensieveEntryMetadata,
+  opts?: { epistemicTag?: typeof epistemicTagEnum.enumValues[number] },
 ): Promise<typeof pensieveEntries.$inferSelect> {
   if (!content) {
     throw new StorageError('Content must not be empty');
@@ -32,6 +44,7 @@ export async function storePensieveEntry(
         content,
         source,
         metadata: metadata ?? null,
+        epistemicTag: opts?.epistemicTag ?? null,
       })
       .returning();
 
@@ -39,7 +52,10 @@ export async function storePensieveEntry(
       throw new StorageError('Insert returned no rows');
     }
 
-    logger.info({ entryId: entry.id, source }, 'pensieve.store');
+    logger.info(
+      { entryId: entry.id, source, preTagged: opts?.epistemicTag ?? null },
+      'pensieve.store',
+    );
 
     return entry;
   } catch (error) {

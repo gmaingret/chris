@@ -51,6 +51,7 @@ describe('storePensieveEntry', () => {
       content: '  I felt uneasy about the meeting  ',
       source: 'telegram',
       metadata: null,
+      epistemicTag: null,
     });
   });
 
@@ -65,6 +66,7 @@ describe('storePensieveEntry', () => {
       content: 'hello',
       source: 'api',
       metadata: meta,
+      epistemicTag: null,
     });
     expect(result.metadata).toEqual(meta);
   });
