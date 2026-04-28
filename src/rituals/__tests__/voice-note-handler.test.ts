@@ -25,7 +25,10 @@ import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
 
 // Mock bot.api.sendMessage to avoid real Telegram calls.
-const mockSendMessage = vi.fn();
+// vi.hoisted ensures the mock fn is available when the vi.mock factory runs.
+const { mockSendMessage } = vi.hoisted(() => ({
+  mockSendMessage: vi.fn(),
+}));
 vi.mock('../../bot/bot.js', () => ({
   bot: { api: { sendMessage: mockSendMessage } },
 }));
@@ -63,7 +66,9 @@ describe('fireVoiceNote handler (Phase 26 VOICE-02 + VOICE-03)', () => {
 
   afterAll(async () => {
     await cleanup();
-    await sql.end({ timeout: 5 }).catch(() => {});
+    // NOTE: do NOT call sql.end() here — pool must stay alive for the
+    // sibling concurrency-race describe below. File-level pool close happens
+    // in the last describe's afterAll.
   });
 
   it('sends Telegram message with one of 6 spec prompts + inserts pending row WITH prompt_text + updates prompt_bag', async () => {

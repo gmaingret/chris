@@ -24,8 +24,13 @@ import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
 
 // ── Mock Anthropic client (load-bearing for Pitfall 6) ─────────────────────
-const mockAnthropicCreate = vi.fn();
-const mockAnthropicParse = vi.fn();
+// vi.hoisted ensures the mock fns are available when vi.mock factories run
+// (factories are hoisted above all imports; non-hoisted top-level consts are
+// not).
+const { mockAnthropicCreate, mockAnthropicParse } = vi.hoisted(() => ({
+  mockAnthropicCreate: vi.fn(),
+  mockAnthropicParse: vi.fn(),
+}));
 vi.mock('../../llm/client.js', () => ({
   anthropic: {
     messages: { create: mockAnthropicCreate, parse: mockAnthropicParse },
@@ -33,6 +38,23 @@ vi.mock('../../llm/client.js', () => ({
   HAIKU_MODEL: 'claude-haiku',
   SONNET_MODEL: 'claude-sonnet',
   OPUS_MODEL: 'claude-opus',
+}));
+
+// ── Mock fire-and-forget pipeline modules so the MISS-path doesn't hang ───
+// The MISS path falls through to the JOURNAL pipeline, which calls embeddings
+// (HuggingFace transformers) and tagger (Anthropic). HuggingFace has a
+// pre-existing EACCES baseline failure in this env; mocking it as no-op
+// prevents the 5s hang. Tagger is also Anthropic — already short-circuited by
+// the load-bearing not-called assertion in HIT path, but mocking it here as
+// no-op is cleaner for the MISS-path describe (which allows Anthropic).
+vi.mock('../../pensieve/embeddings.js', () => ({
+  embedAndStore: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock('../../pensieve/tagger.js', () => ({
+  tagEntry: vi.fn().mockResolvedValue(null),
+}));
+vi.mock('../../memory/relational.js', () => ({
+  writeRelationalMemory: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { db, sql } from '../../db/connection.js';
@@ -60,7 +82,9 @@ describe('PP#5 HIT path (Phase 26 VOICE-01, VOICE-06) — Pitfall 6 contract', (
   afterAll(async () => {
     expect(mockAnthropicCreate).not.toHaveBeenCalled();
     await cleanup();
-    await sql.end({ timeout: 5 }).catch(() => {});
+    // NOTE: do NOT call sql.end() here — pool must stay alive for the
+    // sibling MISS-path describe below. File-level pool close happens in the
+    // last describe's afterAll (TESTING.md afterAll convention).
   });
 
   beforeEach(async () => {
