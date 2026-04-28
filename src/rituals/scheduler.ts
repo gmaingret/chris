@@ -40,6 +40,7 @@ import {
   type RitualConfig,
 } from './types.js';
 import { fireVoiceNote } from './voice-note.js';
+import { fireWellbeing } from './wellbeing.js';
 
 // ── Ritual sweep orchestrator (M009 Phase 25 RIT-09) ──────────────────────
 
@@ -270,8 +271,9 @@ async function dispatchRitualHandler(
   switch (ritual.name) {
     case 'daily_voice_note':
       return fireVoiceNote(ritual, cfg);
-    // future Phases 27, 29:
-    // case 'daily_wellbeing': return fireWellbeing(ritual, cfg);
+    case 'daily_wellbeing':
+      return fireWellbeing(ritual, cfg);
+    // future Phase 29:
     // case 'weekly_review':   return fireWeeklyReview(ritual, cfg);
     default:
       throw new Error(
