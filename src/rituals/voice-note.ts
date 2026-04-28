@@ -23,6 +23,19 @@
  * Plan 26-01 ships substrate only: constants + chooseNextPromptIndex pure
  * function. Plans 26-02..04 fill in the rest.
  */
+import { and, desc, eq, gt, isNull } from 'drizzle-orm';
+import { config } from '../config.js';
+import { db } from '../db/connection.js';
+import {
+  rituals,
+  ritualPendingResponses,
+  ritualResponses,
+} from '../db/schema.js';
+import { logger } from '../utils/logger.js';
+import { StorageError } from '../utils/errors.js';
+import { storePensieveEntry } from '../pensieve/store.js';
+import type { RitualConfig, RitualFireOutcome } from './types.js';
+import { bot } from '../bot/bot.js';
 
 // ── Constants (M009 Phase 26 — VOICE-02 + VOICE-03 + VOICE-04 tunables) ────
 
@@ -109,4 +122,172 @@ export function chooseNextPromptIndex(
   }
   const idx = currentBag[0]!;
   return { index: idx, newBag: currentBag.slice(1) };
+}
+
+// ── PP#5 helpers (VOICE-01 — Plan 26-02; per D-26-02) ──────────────────────
+
+/**
+ * findActivePendingResponse — PP#5 hot-path query (D-26-02).
+ *
+ * Returns the most recent non-consumed ritual_pending_responses row for the
+ * given chat whose expires_at is in the future, or null if none exists.
+ *
+ * Backed by the partial index `ritual_pending_responses_chat_id_active_idx`
+ * on (chat_id, expires_at) WHERE consumed_at IS NULL (added in migration 0007
+ * by Plan 26-01). Index-only scan — sub-millisecond lookup even after years
+ * of accumulated rows.
+ */
+export async function findActivePendingResponse(
+  chatIdStr: string,
+  now: Date,
+): Promise<typeof ritualPendingResponses.$inferSelect | null> {
+  const chatId = BigInt(chatIdStr);
+  const [row] = await db
+    .select()
+    .from(ritualPendingResponses)
+    .where(
+      and(
+        eq(ritualPendingResponses.chatId, chatId),
+        isNull(ritualPendingResponses.consumedAt),
+        gt(ritualPendingResponses.expiresAt, now),
+      ),
+    )
+    .orderBy(desc(ritualPendingResponses.firedAt))
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * recordRitualVoiceResponse — PP#5 deposit helper (VOICE-01, VOICE-06; D-26-02).
+ *
+ * Three-step atomic-ish flow:
+ *   1. Atomic consume — UPDATE ... SET consumed_at WHERE consumed_at IS NULL
+ *      RETURNING id, prompt_text. Mutual exclusion against concurrent PP#5
+ *      invocations.
+ *   2. Pensieve write with explicit RITUAL_RESPONSE tag (D-26-03 epistemicTag
+ *      parameter) and metadata.source_subtype = 'ritual_voice_note' (VOICE-06).
+ *   3. ritual_responses link row insert with prompt_text from the consumed
+ *      pending row (per amended D-26-02 — no empty-string placeholder, no
+ *      NOT NULL violation; checker B4 fix).
+ *
+ * Throws StorageError('ritual.pp5.race_lost') on race-loss (concurrent consume
+ * already won) — engine PP#5 catches and returns '' silently.
+ */
+export async function recordRitualVoiceResponse(
+  pending: typeof ritualPendingResponses.$inferSelect,
+  chatId: bigint,
+  text: string,
+): Promise<{ pensieveEntryId: string; consumedAt: Date }> {
+  // STEP 1: Atomic consume (D-26-02 mutual exclusion guarantee).
+  // Return prompt_text alongside id so STEP 3 can populate ritual_responses
+  // (per amended D-26-02 — no empty-string placeholder).
+  const [consumed] = await db
+    .update(ritualPendingResponses)
+    .set({ consumedAt: new Date() })
+    .where(
+      and(
+        eq(ritualPendingResponses.id, pending.id),
+        isNull(ritualPendingResponses.consumedAt),
+      ),
+    )
+    .returning({
+      id: ritualPendingResponses.id,
+      consumedAt: ritualPendingResponses.consumedAt,
+      promptText: ritualPendingResponses.promptText,
+    });
+
+  if (!consumed || !consumed.consumedAt) {
+    throw new StorageError('ritual.pp5.race_lost');
+  }
+
+  // STEP 2: Pensieve write with explicit tag (D-26-03 epistemicTag param).
+  const entry = await storePensieveEntry(
+    text,
+    'telegram',
+    {
+      telegramChatId: Number(chatId),
+      source_subtype: 'ritual_voice_note', // VOICE-06
+      ritual_id: pending.ritualId,
+      ritual_pending_response_id: pending.id,
+    },
+    { epistemicTag: 'RITUAL_RESPONSE' }, // D-26-03 direct-tag write path
+  );
+
+  // STEP 3: ritual_responses link row — prompt_text from consumed pending row
+  // (per amended D-26-02; checker B4 fix — no empty-string).
+  await db.insert(ritualResponses).values({
+    ritualId: pending.ritualId,
+    firedAt: pending.firedAt,
+    respondedAt: consumed.consumedAt,
+    promptText: consumed.promptText,
+    pensieveEntryId: entry.id,
+  });
+
+  return { pensieveEntryId: entry.id, consumedAt: consumed.consumedAt };
+}
+
+// ── fireVoiceNote handler (VOICE-02 + VOICE-03 — Plan 26-02) ───────────────
+
+/**
+ * fireVoiceNote — daily voice note ritual handler (D-26-04, D-26-08).
+ *
+ * Dispatched from src/rituals/scheduler.ts dispatchRitualHandler when
+ * ritual.name === 'daily_voice_note'. Picks the next prompt from the
+ * shuffled bag, sends a Telegram message, and inserts a
+ * ritual_pending_responses row binding the fire to the chat (which PP#5
+ * will look up when Greg replies via STT).
+ *
+ * Persists prompt_text on the pending row per amended D-26-02 — PP#5's
+ * recordRitualVoiceResponse will read it back to populate
+ * ritual_responses.prompt_text (longitudinal trail).
+ *
+ * Returns the RitualFireOutcome string. Plan 26-03 will add the
+ * 'system_suppressed' branch (pre-fire suppression for high-deposit days).
+ */
+export async function fireVoiceNote(
+  ritual: typeof rituals.$inferSelect,
+  cfg: RitualConfig,
+): Promise<RitualFireOutcome> {
+  // STEP 1: Pop next prompt from bag (Plan 26-01 chooseNextPromptIndex).
+  // The "lastIdx" guard for the no-consecutive-duplicate invariant: if the
+  // current bag is empty (about to refill), check the trailing index of any
+  // previously-known sequence. With a steady-state empty bag from Plan 26-01
+  // seed, lastIdx is undefined for the very first fire.
+  const bag = cfg.prompt_bag ?? [];
+  const lastIdx = bag.length === 0 ? undefined : bag[bag.length - 1];
+  const { index: promptIdx, newBag } = chooseNextPromptIndex(
+    bag,
+    Math.random,
+    lastIdx,
+  );
+  const prompt = PROMPTS[promptIdx]!;
+
+  // STEP 2: Send Telegram message FIRST. If this throws, no pending row is
+  //         inserted, so PP#5 won't have a stale binding.
+  const chatId = BigInt(config.telegramAuthorizedUserId);
+  await bot.api.sendMessage(Number(chatId), prompt);
+
+  // STEP 3: Insert ritual_pending_responses row WITH prompt_text (amended D-26-02).
+  const firedAt = new Date();
+  const expiresAt = new Date(firedAt.getTime() + RESPONSE_WINDOW_HOURS * 3600 * 1000);
+  await db.insert(ritualPendingResponses).values({
+    ritualId: ritual.id,
+    chatId,
+    firedAt,
+    expiresAt,
+    promptText: prompt,
+  });
+
+  // STEP 4: Update rituals.config.prompt_bag with the new bag.
+  const updatedCfg: RitualConfig = { ...cfg, prompt_bag: newBag };
+  await db
+    .update(rituals)
+    .set({ config: updatedCfg })
+    .where(eq(rituals.id, ritual.id));
+
+  logger.info(
+    { ritualId: ritual.id, promptIdx, prompt },
+    'rituals.voice_note.fired',
+  );
+  return 'fired';
 }
