@@ -137,10 +137,16 @@ export async function fireWellbeing(
   // 4. Persist message_id to ritual_responses.metadata for the callback handler
   //    to use (technically optional — ctx.editMessageReplyMarkup uses the
   //    message_id from ctx.callbackQuery.message — but recorded for observability).
+  //
+  //    NOTE: postgres-js cannot bind a JS number to a `jsonb` parameter type
+  //    (errors with "The 'string' argument must be of type string..." at
+  //    bytes.js:22). We pass the message_id as a string ("12345") which jsonb
+  //    parses as the JSON number 12345 on the server side. Same idiom applied
+  //    in handleTap below for the per-dim value param.
   await db
     .update(ritualResponses)
     .set({
-      metadata: sql`jsonb_set(${ritualResponses.metadata}, '{message_id}', ${sent.message_id}::jsonb, true)`,
+      metadata: sql`jsonb_set(${ritualResponses.metadata}, '{message_id}', ${String(sent.message_id)}::jsonb, true)`,
     })
     .where(eq(ritualResponses.id, fireRow.id));
 
@@ -214,11 +220,15 @@ async function handleTap(
 
   // Atomic per-dim merge (no TOCTOU race — jsonb_set is row-lock atomic)
   // Path string `{partial,e}` is constructed from the validated dim above.
+  // Value passed as a string per postgres-js jsonb-binding constraint
+  // (cannot bind JS number directly to jsonb param — see fireWellbeing
+  // comment above). The integer is validated 1-5 above, so String(value)
+  // is always a parseable JSON number on the server side.
   const path = `{partial,${dim}}`;
   await db
     .update(ritualResponses)
     .set({
-      metadata: sql`jsonb_set(coalesce(${ritualResponses.metadata}, '{}'::jsonb), ${path}, ${value}::jsonb, true)`,
+      metadata: sql`jsonb_set(coalesce(${ritualResponses.metadata}, '{}'::jsonb), ${path}, ${String(value)}::jsonb, true)`,
     })
     .where(eq(ritualResponses.id, openRow.id));
 
