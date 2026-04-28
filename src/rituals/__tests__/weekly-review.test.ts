@@ -98,8 +98,10 @@ import {
   DateOutOfWindowError,
   generateWeeklyObservation,
   MAX_RETRIES,
+  fireWeeklyReview,
 } from '../weekly-review.js';
 import type { WeeklyReviewPromptInput } from '../weekly-review-prompt.js';
+import { parseRitualConfig, type RitualConfig } from '../types.js';
 
 // ── describe(Stage-1 Zod refine) ───────────────────────────────────────────
 
@@ -499,5 +501,275 @@ describe('templated fallback (W-4 / WEEK-06 — English-only v1 baseline)', () =
     );
     expect(matchingLogs).toHaveLength(1);
     expect(matchingLogs[0]![0]).toMatchObject({ attempts: 3 });
+  });
+});
+
+// ── describe(CONSTITUTIONAL_PREAMBLE injection at SDK boundary) ────────────
+
+describe('CONSTITUTIONAL_PREAMBLE injection at SDK boundary (HARD CO-LOC #3 / WEEK-02)', () => {
+  beforeEach(() => {
+    mockAnthropicParse.mockReset();
+  });
+
+  it("Sonnet call's system[0].text starts with '## Core Principles (Always Active)' — Pitfall 17 SDK-boundary verifier", async () => {
+    // Prime full success pipeline: Sonnet OK + Haiku judge OK + date-grounding OK
+    mockAnthropicParse.mockResolvedValueOnce({
+      parsed_output: {
+        observation:
+          'Greg made progress this week through several decision-points.',
+        question: 'What stood out?',
+      },
+    });
+    mockAnthropicParse.mockResolvedValueOnce({
+      parsed_output: { question_count: 1, questions: ['What stood out?'] },
+    });
+    mockAnthropicParse.mockResolvedValueOnce({
+      parsed_output: { references_outside_window: false, dates_referenced: [] },
+    });
+
+    const input: WeeklyReviewPromptInput = {
+      weekStart: '2026-04-19',
+      weekEnd: '2026-04-26',
+      tz: 'Europe/Paris',
+      summaries: [
+        {
+          summaryDate: '2026-04-22',
+          summary:
+            'A normal day. Greg pushed through some hard refactoring on Project Chris.',
+          importance: 5,
+          topics: ['work'],
+          emotionalArc: 'steady',
+          keyQuotes: [],
+        },
+      ],
+      resolvedDecisions: [],
+      includeWellbeing: false,
+    };
+
+    await generateWeeklyObservation(input);
+
+    // First call to anthropic.messages.parse is the Sonnet call. Its `system`
+    // argument is an array of content blocks; the first block carries the
+    // prompt text. CONSTITUTIONAL_PREAMBLE (the assembler's section 1) must
+    // appear at the start.
+    const firstCall = mockAnthropicParse.mock.calls[0]!;
+    const sonnetRequest = firstCall[0] as {
+      system: Array<{ type: string; text: string }>;
+    };
+    expect(sonnetRequest.system).toBeDefined();
+    expect(Array.isArray(sonnetRequest.system)).toBe(true);
+    expect(sonnetRequest.system[0]!.type).toBe('text');
+    expect(sonnetRequest.system[0]!.text.startsWith('## Core Principles (Always Active)')).toBe(
+      true,
+    );
+  });
+});
+
+// ── describe(fireWeeklyReview integration) ─────────────────────────────────
+
+const FIXTURE_RITUAL_NAME = 'test-29-02-weekly-review';
+const FIXTURE_SOURCE = 'test-29-02-weekly';
+
+const FIXTURE_RITUAL_CONFIG: RitualConfig = {
+  fire_at: '20:00',
+  fire_dow: 7,
+  skip_threshold: 2,
+  mute_until: null,
+  time_zone: 'Europe/Paris',
+  prompt_set_version: 'v1',
+  schema_version: 1,
+};
+
+async function cleanup(): Promise<void> {
+  // Delete child tables first per FK constraints. ritual_responses references
+  // pensieve_entries; pensieve_entries cascades cleanly.
+  await db.delete(ritualFireEvents);
+  await db.delete(ritualResponses);
+  await db.execute(sql`DELETE FROM pensieve_entries WHERE source = ${FIXTURE_SOURCE}`);
+  await db.execute(sql`DELETE FROM pensieve_entries WHERE metadata->>'source_subtype' = 'weekly_observation'`);
+  await db.delete(rituals).where(eq(rituals.name, FIXTURE_RITUAL_NAME));
+  await db.execute(sql`DELETE FROM episodic_summaries WHERE summary_date BETWEEN '2026-04-19' AND '2026-04-26'`);
+  await db.delete(decisions).where(eq(decisions.reasoning, 'fixture for weekly review test'));
+  await db.execute(sql`DELETE FROM wellbeing_snapshots WHERE snapshot_date BETWEEN '2026-04-19' AND '2026-04-26'`);
+}
+
+async function seedFixtureRitual(): Promise<typeof rituals.$inferSelect> {
+  const [row] = await db
+    .insert(rituals)
+    .values({
+      name: FIXTURE_RITUAL_NAME,
+      type: 'weekly',
+      nextRunAt: new Date(),
+      enabled: true,
+      config: FIXTURE_RITUAL_CONFIG,
+    })
+    .returning();
+  return row!;
+}
+
+describe('fireWeeklyReview integration (real DB + mocked Anthropic + mocked bot)', () => {
+  beforeAll(async () => {
+    await pgSql`SELECT 1 as ok`;
+  });
+
+  beforeEach(async () => {
+    await cleanup();
+    mockAnthropicParse.mockReset();
+    mockSendMessage.mockReset();
+    mockSendMessage.mockResolvedValue({ message_id: 12345 });
+    mockLoggerInfo.mockReset();
+    mockLoggerWarn.mockReset();
+  });
+
+  afterAll(async () => {
+    await cleanup();
+  });
+
+  /**
+   * Helper: prime full success pipeline (3 calls — Sonnet + Stage-2 Haiku +
+   * date-grounding Haiku — all OK).
+   */
+  function primeFullSuccess(observation: string, question: string): void {
+    mockAnthropicParse.mockResolvedValueOnce({
+      parsed_output: { observation, question },
+    });
+    mockAnthropicParse.mockResolvedValueOnce({
+      parsed_output: { question_count: 1, questions: [question] },
+    });
+    mockAnthropicParse.mockResolvedValueOnce({
+      parsed_output: { references_outside_window: false, dates_referenced: [] },
+    });
+  }
+
+  it('full happy path: 5 summaries + 2 resolved decisions in window → ritual_responses + Pensieve write + Telegram send', async () => {
+    // Seed substrate: 5 episodic summaries spanning the 7-day window
+    const summaryDates = [
+      '2026-04-20',
+      '2026-04-21',
+      '2026-04-22',
+      '2026-04-23',
+      '2026-04-24',
+    ];
+    for (const sd of summaryDates) {
+      await db.insert(episodicSummaries).values({
+        summaryDate: sd,
+        summary: `Greg made progress on ${sd}, working through several decision-points.`,
+        importance: 5,
+        topics: ['work'],
+        emotionalArc: 'steady',
+        keyQuotes: [],
+        sourceEntryIds: [],
+      });
+    }
+    // Seed 2 resolved decisions in the window
+    for (let i = 0; i < 2; i++) {
+      await db.insert(decisions).values({
+        decisionText: `Decision ${i}`,
+        status: 'resolved',
+        reasoning: 'fixture for weekly review test',
+        prediction: 'forecast text',
+        falsificationCriterion: 'falsification text',
+        resolveBy: new Date('2026-04-30T00:00:00Z'),
+        resolvedAt: new Date('2026-04-22T12:00:00Z'),
+        resolution: `Resolution ${i}`,
+      });
+    }
+
+    const ritual = await seedFixtureRitual();
+    const cfg = parseRitualConfig(ritual.config);
+
+    primeFullSuccess(
+      'Across this week Greg pushed through several decisions, holding steady on the harder ones.',
+      'What did you carry forward from those decisions?',
+    );
+
+    const outcome = await fireWeeklyReview(ritual, cfg);
+
+    expect(outcome).toBe('fired');
+
+    // Telegram message starts with D031 header
+    expect(mockSendMessage).toHaveBeenCalledTimes(1);
+    const sentMessage = mockSendMessage.mock.calls[0]![1] as string;
+    expect(sentMessage.startsWith('Observation (interpretation, not fact):')).toBe(true);
+    expect(sentMessage).toContain('Across this week Greg pushed');
+    expect(sentMessage).toContain('What did you carry forward');
+
+    // ritual_responses row inserted with respondedAt set + pensieveEntryId set
+    const responses = await db
+      .select()
+      .from(ritualResponses)
+      .where(eq(ritualResponses.ritualId, ritual.id));
+    expect(responses).toHaveLength(1);
+    expect(responses[0]!.respondedAt).not.toBeNull();
+    expect(responses[0]!.pensieveEntryId).not.toBeNull();
+
+    // Pensieve row exists with epistemic_tag = 'RITUAL_RESPONSE' + metadata.kind
+    // Use Drizzle ORM (typed) rather than db.execute(sql`...`) — postgres-js driver
+    // returns row arrays directly (no .rows accessor), and the typed select
+    // gives clean access to the snake_case-to-camelCase mapping.
+    const pensieveQueryRows = await db
+      .select()
+      .from(pensieveEntries)
+      .where(sql`metadata->>'kind' = 'weekly_review'`);
+    expect(pensieveQueryRows).toHaveLength(1);
+    const pRow = pensieveQueryRows[0]!;
+    expect(pRow.epistemicTag).toBe('RITUAL_RESPONSE');
+    const metadata = pRow.metadata as { kind: string; source_subtype: string } | null;
+    expect(metadata?.kind).toBe('weekly_review');
+    expect(metadata?.source_subtype).toBe('weekly_observation');
+  });
+
+  it('sparse-data short-circuit: zero summaries AND zero decisions → no Sonnet call, no Telegram send, no DB writes', async () => {
+    const ritual = await seedFixtureRitual();
+    const cfg = parseRitualConfig(ritual.config);
+
+    const outcome = await fireWeeklyReview(ritual, cfg);
+
+    expect(outcome).toBe('fired');
+    expect(mockAnthropicParse).toHaveBeenCalledTimes(0);
+    expect(mockSendMessage).toHaveBeenCalledTimes(0);
+
+    const responses = await db
+      .select()
+      .from(ritualResponses)
+      .where(eq(ritualResponses.ritualId, ritual.id));
+    expect(responses).toHaveLength(0);
+
+    // Skipped log emitted
+    const skippedLogs = mockLoggerInfo.mock.calls.filter(
+      (c) => c[1] === 'rituals.weekly.skipped.no_data',
+    );
+    expect(skippedLogs).toHaveLength(1);
+  });
+
+  it('SDK boundary verification: Sonnet `system[0].text` starts with CONSTITUTIONAL_PREAMBLE first line (HARD CO-LOC #3)', async () => {
+    // Seed at least one summary so we don't hit the sparse-data short-circuit
+    await db.insert(episodicSummaries).values({
+      summaryDate: '2026-04-22',
+      summary: 'A normal day. Greg made steady progress on Project Chris.',
+      importance: 5,
+      topics: ['work'],
+      emotionalArc: 'steady',
+      keyQuotes: [],
+      sourceEntryIds: [],
+    });
+
+    const ritual = await seedFixtureRitual();
+    const cfg = parseRitualConfig(ritual.config);
+
+    primeFullSuccess(
+      'Greg made progress this week through several decision-points.',
+      'What stood out?',
+    );
+
+    await fireWeeklyReview(ritual, cfg);
+
+    const sonnetCall = mockAnthropicParse.mock.calls[0]!;
+    const req = sonnetCall[0] as { system: Array<{ type: string; text: string }> };
+    expect(req.system[0]!.text.startsWith('## Core Principles (Always Active)')).toBe(true);
+  });
+
+  it('header constant export sanity: WEEKLY_REVIEW_HEADER is the exact D031 text', () => {
+    expect(WEEKLY_REVIEW_HEADER).toBe('Observation (interpretation, not fact):');
   });
 });

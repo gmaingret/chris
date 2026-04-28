@@ -478,3 +478,175 @@ export async function generateWeeklyObservation(
   // Defensive throw — TypeScript control-flow analysis can't prove the always-return.
   throw new Error('generateWeeklyObservation: unreachable code path');
 }
+
+// ── fireWeeklyReview orchestrator (WEEK-01 fire-side + WEEK-04 + WEEK-08) ───
+
+/**
+ * fireWeeklyReview — dispatched from src/rituals/scheduler.ts at the Sunday
+ * 20:00 Paris cron tick when ritual.name === 'weekly_review' (Plan 29-03
+ * wires the dispatcher case).
+ *
+ * Pipeline:
+ *   1. Compute the 7-day window via computeWeekBoundary (Plan 29-01).
+ *   2. Load substrate (M008 episodic summaries + M007 resolved decisions +
+ *      wellbeing snapshots) via loadWeeklyReviewContext (Plan 29-01).
+ *   3. Sparse-data short-circuit: zero summaries AND zero resolved decisions
+ *      → log + return 'fired' (no-op fire — mirrors CONS-02). Wellbeing
+ *      alone is insufficient signal for a weekly observation.
+ *   4. Generate observation via generateWeeklyObservation (retry-cap-2 +
+ *      fallback). Returns { observation, question, isFallback }.
+ *   5. Render user-facing message: WEEKLY_REVIEW_HEADER + \n\n + observation
+ *      + \n\n + question (D031 + WEEK-04 boundary marker rendering).
+ *   6. INSERT ritual_responses row BEFORE Telegram send (M007 D-28 write-
+ *      before-send pattern). On Telegram failure, the row records the fire
+ *      attempt for telemetry; respondedAt is set at the end on success.
+ *   7. Persist observation to Pensieve as RITUAL_RESPONSE (D-07 explicit tag
+ *      override; bypasses Haiku auto-tagger; metadata.kind='weekly_review').
+ *   8. Update ritual_responses.pensieve_entry_id back-reference + responded_at.
+ *   9. Send the user-facing message via Telegram.
+ *
+ * Conforms to Phase 26 D-26-08 dispatcher contract: takes (ritual, cfg) and
+ * returns RitualFireOutcome ('fired' on every successful path, including
+ * fallback and sparse-data short-circuit).
+ *
+ * The cfg parameter is currently unused (the weekly review has no per-fire
+ * config knobs beyond the cron's fire_dow/fire_at, which are read from
+ * ritual.config by the scheduler before dispatch). It is accepted to match
+ * the dispatcher signature uniformly with fireVoiceNote + fireWellbeing.
+ */
+export async function fireWeeklyReview(
+  ritual: typeof rituals.$inferSelect,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  cfg: RitualConfig,
+): Promise<RitualFireOutcome> {
+  const startMs = Date.now();
+  const now = new Date();
+  const { weekStart, weekEnd } = computeWeekBoundary(now);
+  const weekStartIso = DateTime.fromJSDate(weekStart, {
+    zone: config.proactiveTimezone,
+  }).toISODate()!;
+  const weekEndIso = DateTime.fromJSDate(weekEnd, {
+    zone: config.proactiveTimezone,
+  }).toISODate()!;
+
+  logger.info(
+    { ritualId: ritual.id, weekStart: weekStartIso, weekEnd: weekEndIso },
+    'rituals.weekly.fire.start',
+  );
+
+  // 2. Load substrate — parallel-fetch summaries + resolvedDecisions + wellbeing
+  const ctx = await loadWeeklyReviewContext(weekStart, weekEnd);
+
+  // 3. Sparse-data short-circuit (mirror CONS-02). Zero substrate → no-op fire.
+  if (ctx.summaries.length === 0 && ctx.resolvedDecisions.length === 0) {
+    logger.info(
+      { ritualId: ritual.id },
+      'rituals.weekly.skipped.no_data',
+    );
+    return 'fired'; // no telegram send; the cron next_run_at advances normally
+  }
+
+  // 4. Build prompt input + generate observation
+  const promptInput: WeeklyReviewPromptInput = {
+    weekStart: weekStartIso,
+    weekEnd: weekEndIso,
+    tz: config.proactiveTimezone,
+    summaries: ctx.summaries.map((s) => ({
+      summaryDate: s.summaryDate,
+      summary: s.summary,
+      importance: s.importance,
+      topics: s.topics,
+      emotionalArc: s.emotionalArc,
+      keyQuotes: s.keyQuotes,
+    })),
+    resolvedDecisions: ctx.resolvedDecisions.map((d) => ({
+      decisionText: d.decisionText,
+      reasoning: d.reasoning,
+      prediction: d.prediction,
+      falsificationCriterion: d.falsificationCriterion,
+      resolution: d.resolution ?? '',
+      resolutionNotes: d.resolutionNotes,
+    })),
+    includeWellbeing: ctx.includeWellbeing,
+    wellbeingSnapshots: ctx.includeWellbeing
+      ? ctx.wellbeingSnapshots.map((w) => ({
+          snapshotDate: w.snapshotDate,
+          energy: w.energy,
+          mood: w.mood,
+          anxiety: w.anxiety,
+        }))
+      : undefined,
+  };
+
+  const result = await generateWeeklyObservation(promptInput);
+
+  // 5. Render user-facing message with D031 header (WEEK-04)
+  const userFacingMessage = `${WEEKLY_REVIEW_HEADER}\n\n${result.observation}\n\n${result.question}`;
+
+  // 6. Insert ritual_responses row BEFORE Telegram send (M007 D-28 pattern).
+  // promptText carries the rendered user-facing message so longitudinal
+  // analysis can replay the exact text Greg saw.
+  const firedAt = new Date();
+  const [fireRow] = await db
+    .insert(ritualResponses)
+    .values({
+      ritualId: ritual.id,
+      firedAt,
+      promptText: userFacingMessage,
+      metadata: {
+        observationText: result.observation,
+        questionText: result.question,
+        isFallback: result.isFallback,
+        weekStart: weekStartIso,
+        weekEnd: weekEndIso,
+      },
+    })
+    .returning();
+
+  if (!fireRow) {
+    throw new Error('rituals.weekly.fire: ritual_responses INSERT returned no row');
+  }
+
+  // 7. Persist to Pensieve (WEEK-08) with explicit RITUAL_RESPONSE tag override
+  // (D-07 — bypasses Haiku auto-tagger; the auto-tagger only updates entries
+  // with epistemic_tag IS NULL, so pre-tagged entries are skipped by future
+  // tagger invocations). epistemicTag parameter shipped by Phase 26 commit
+  // 6c7210d (D-26-03); this plan reuses, does not re-extend.
+  const pensieveEntry = await storePensieveEntry(
+    result.observation,
+    'telegram',
+    {
+      ritual_response_id: fireRow.id,
+      kind: 'weekly_review',
+      week_start: weekStartIso,
+      week_end: weekEndIso,
+      source_subtype: 'weekly_observation',
+    },
+    { epistemicTag: 'RITUAL_RESPONSE' },
+  );
+
+  // 8. Update ritual_responses with pensieve_entry_id back-reference + respondedAt.
+  // respondedAt here marks the system's response (Pensieve write completed),
+  // not Greg's textual reply (which would set it via PP#5 in voice-note.ts —
+  // but PP#5 is voice-note-specific, NOT used by the weekly review).
+  const respondedAt = new Date();
+  await db
+    .update(ritualResponses)
+    .set({ pensieveEntryId: pensieveEntry.id, respondedAt })
+    .where(eq(ritualResponses.id, fireRow.id));
+
+  // 9. Send to Telegram
+  await bot.api.sendMessage(config.telegramAuthorizedUserId, userFacingMessage);
+
+  logger.info(
+    {
+      ritualId: ritual.id,
+      isFallback: result.isFallback,
+      pensieveEntryId: pensieveEntry.id,
+      durationMs: Date.now() - startMs,
+    },
+    'rituals.weekly.fire.success',
+  );
+
+  return 'fired';
+}
