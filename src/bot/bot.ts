@@ -8,6 +8,7 @@ import { handleDocument } from './handlers/document.js';
 import { handleSyncCommand, isAwaitingOAuthCode, handleOAuthCode } from './handlers/sync.js';
 import { handleDecisionsCommand } from './handlers/decisions.js';
 import { handleSummaryCommand } from './handlers/summary.js';
+import { handleVoiceMessageDecline } from './handlers/voice-decline.js';
 
 const ERROR_FALLBACK: Record<string, string> = {
   English: 'I got tangled up in my thoughts. Try again?',
@@ -75,6 +76,13 @@ bot.on('message:text', handleTextMessage as any);
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 bot.on('message:document', handleDocument as any);
+
+// VOICE-05 (M009 Phase 26 Plan 04 — D-26-09): polite-decline voice messages.
+// Greg's input modality is Android STT keyboard (text); a literal voice
+// message means he tapped the wrong icon. Reply in EN/FR/RU per his last
+// text-message language (no Whisper transcription per OOS-3).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+bot.on('message:voice', handleVoiceMessageDecline as any);
 
 bot.catch((err) => {
   logger.error({ err: err.error, ctx: err.ctx?.update }, 'Bot error');
