@@ -324,3 +324,157 @@ export async function runDateGroundingCheck(
     datesReferenced: parsed.dates_referenced,
   };
 }
+
+// ── Retry-cap-2 generator + templated fallback (D-04 / WEEK-06) ─────────────
+
+/**
+ * Maximum number of retries before falling back to the templated EN-only
+ * single-question observation. (initial + MAX_RETRIES = 3 max LLM-call
+ * cycles per weekly review).
+ *
+ * Pitfall 15 mitigation: hardcoded constant — beyond this, the runtime check
+ * is fighting a structural prompt failure. Log + fall back, never block the
+ * weekly cadence.
+ */
+export const MAX_RETRIES = 2;
+
+/**
+ * Templated single-question fallback. Ships ENGLISH-ONLY as the v1 baseline
+ * per CONTEXT.md "Claude's Discretion" + W-4 lock. FR/RU localization is
+ * explicitly DEFERRED to v2.5.
+ *
+ * This is a deliberate scope cut to ship Phase 29 within the LLM quality
+ * budget. When Greg's `franc` last-message-language detection is wired in
+ * future work, v2.5 will branch this fallback by language. Until then, the
+ * fallback ships single-language; this comment block IS the boundary marker
+ * so future-Greg knows where the deferral lies.
+ *
+ * Hardcoded text per Pitfall 14 explicit example. Logged via
+ * 'chris.weekly-review.fallback-fired' (NOT silent — visibility into how
+ * often Sonnet is failing the runtime gates).
+ */
+const TEMPLATED_FALLBACK_EN = {
+  observation: 'Reflecting on this week.',
+  question: 'What stood out to you about this week?',
+} as const;
+
+/**
+ * Build the Sonnet structured-output request. Pure-function for ease of test
+ * mocking; the retry loop calls this each attempt with the same prompt.
+ *
+ * IMPORTANT: the `system` argument receives the assembled prompt verbatim
+ * — this is the SDK boundary where CONSTITUTIONAL_PREAMBLE flows through
+ * to the model (HARD CO-LOC #3 verification point). The test file asserts
+ * `mockAnthropicParse.mock.calls[0][0].system[0].text` starts with
+ * '## Core Principles (Always Active)'.
+ */
+function buildSonnetRequest(prompt: string): Parameters<typeof anthropic.messages.parse>[0] {
+  return {
+    model: SONNET_MODEL,
+    max_tokens: 800,
+    system: [
+      {
+        type: 'text' as const,
+        text: prompt,
+        cache_control: { type: 'ephemeral' as const },
+      },
+    ],
+    messages: [
+      {
+        role: 'user' as const,
+        content: 'Generate the weekly review observation for this week.',
+      },
+    ],
+    output_config: {
+      // SDK runtime requires zod/v4; same cast as src/episodic/consolidate.ts:156.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      format: zodOutputFormat(WeeklyReviewSchemaV4 as unknown as any),
+    },
+  };
+}
+
+/**
+ * generateWeeklyObservation — the HARD CO-LOC #2 + #3 ATOMIC pipeline.
+ *
+ * Sequence per attempt (mirrors 29-RESEARCH §7.2 cost-ordering rationale —
+ * cheap Stage-1 regex before Stage-2 Haiku call before date-grounding Haiku):
+ *
+ *   1. Sonnet call via anthropic.messages.parse + zodOutputFormat (v4 schema)
+ *      — CONSTITUTIONAL_PREAMBLE flows through `system` argument (HARD CO-LOC #3)
+ *   2. v3 schema re-validation runs Stage-1 .refine() — throws ZodError on
+ *      multi-question (HARD CO-LOC #2 Stage-1 enforcement)
+ *   3. Stage-2 Haiku judge — throws MultiQuestionError on count > 1 (HARD
+ *      CO-LOC #2 Stage-2 enforcement)
+ *   4. Date-grounding Haiku post-check — throws DateOutOfWindowError on
+ *      out-of-window references (Pitfall 16 mitigation)
+ *
+ * Any thrown error is caught + counts toward MAX_RETRIES=2 budget. After
+ * cap, returns the EN-only templated fallback + emits the
+ * 'chris.weekly-review.fallback-fired' log event (WEEK-06).
+ *
+ * Returns { observation, question, isFallback }. Caller (fireWeeklyReview)
+ * logs isFallback=true to ritual_responses.metadata so longitudinal analysis
+ * can quantify how often the runtime gates kick in.
+ */
+export async function generateWeeklyObservation(
+  input: WeeklyReviewPromptInput,
+): Promise<{ observation: string; question: string; isFallback: boolean }> {
+  const prompt = assembleWeeklyReviewPrompt(input);
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      // 1. Sonnet call — system argument carries the assembled prompt
+      const response = await anthropic.messages.parse(buildSonnetRequest(prompt));
+      if (response.parsed_output === null || response.parsed_output === undefined) {
+        throw new Error('Sonnet: parsed_output is null');
+      }
+
+      // 2. v3 re-validation runs Stage-1 .refine() — throws ZodError on multi-question
+      const sonnetOut = WeeklyReviewSchema.parse(response.parsed_output);
+
+      // 3. Stage-2 Haiku judge
+      const stage2 = await runStage2HaikuJudge(sonnetOut.question);
+      if (stage2.count > 1) {
+        throw new MultiQuestionError({
+          question_count: stage2.count,
+          questions: stage2.questions,
+        });
+      }
+
+      // 4. Date-grounding post-check (D-05)
+      const dateCheck = await runDateGroundingCheck(
+        sonnetOut.observation,
+        input.weekStart,
+        input.weekEnd,
+      );
+      if (!dateCheck.inWindow) throw new DateOutOfWindowError(dateCheck.datesReferenced);
+
+      // PASS — all four gates cleared
+      logger.info(
+        { attempt, observationLen: sonnetOut.observation.length },
+        'rituals.weekly.regen.success',
+      );
+      return {
+        observation: sonnetOut.observation,
+        question: sonnetOut.question,
+        isFallback: false,
+      };
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      logger.warn({ err: errMsg, attempt }, 'rituals.weekly.regen.retry');
+      if (attempt === MAX_RETRIES) {
+        // Cap reached — emit fallback log + return EN-only templated text
+        logger.warn(
+          { err: errMsg, attempts: MAX_RETRIES + 1 },
+          'chris.weekly-review.fallback-fired',
+        );
+        return { ...TEMPLATED_FALLBACK_EN, isFallback: true };
+      }
+      // continue loop for next attempt
+    }
+  }
+
+  // Unreachable: the for-loop's last iteration always returns (success or fallback).
+  // Defensive throw — TypeScript control-flow analysis can't prove the always-return.
+  throw new Error('generateWeeklyObservation: unreachable code path');
+}

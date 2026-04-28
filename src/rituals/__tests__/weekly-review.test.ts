@@ -96,7 +96,10 @@ import {
   runDateGroundingCheck,
   MultiQuestionError,
   DateOutOfWindowError,
+  generateWeeklyObservation,
+  MAX_RETRIES,
 } from '../weekly-review.js';
+import type { WeeklyReviewPromptInput } from '../weekly-review-prompt.js';
 
 // ── describe(Stage-1 Zod refine) ───────────────────────────────────────────
 
@@ -283,5 +286,218 @@ describe('Date-grounding post-check — runDateGroundingCheck (D-05 / Pitfall 16
     await expect(
       runDateGroundingCheck('obs', '2026-04-19', '2026-04-26'),
     ).rejects.toThrow(/parsed_output is null/);
+  });
+});
+
+// ── describe(generateWeeklyObservation retry loop) ─────────────────────────
+
+/**
+ * Build a minimal WeeklyReviewPromptInput for retry-loop tests. The prompt
+ * assembler tolerates empty arrays for resolvedDecisions; we set
+ * includeWellbeing=false so the wellbeing block is omitted.
+ */
+function makeMinimalPromptInput(): WeeklyReviewPromptInput {
+  return {
+    weekStart: '2026-04-19',
+    weekEnd: '2026-04-26',
+    tz: 'Europe/Paris',
+    summaries: [
+      {
+        summaryDate: '2026-04-22',
+        summary:
+          'A normal day. Greg made steady progress on Project Chris. Worked through some hard refactoring decisions.',
+        importance: 5,
+        topics: ['work'],
+        emotionalArc: 'steady',
+        keyQuotes: [],
+      },
+    ],
+    resolvedDecisions: [],
+    includeWellbeing: false,
+  };
+}
+
+/**
+ * Helper: queue a successful Sonnet response. Sonnet output passes Stage-1
+ * (1 ?, 1 interrogative-leading-word) and observation length is 20+.
+ */
+function mockSonnetSuccess(): void {
+  mockAnthropicParse.mockResolvedValueOnce({
+    parsed_output: {
+      observation: 'Greg pushed through a hard refactoring stretch this week.',
+      question: 'What stood out?',
+    },
+  });
+}
+
+/** Helper: queue a Stage-2 Haiku success response (count=1). */
+function mockStage2Success(): void {
+  mockAnthropicParse.mockResolvedValueOnce({
+    parsed_output: { question_count: 1, questions: ['What stood out?'] },
+  });
+}
+
+/** Helper: queue a date-grounding Haiku success response. */
+function mockDateGroundingSuccess(): void {
+  mockAnthropicParse.mockResolvedValueOnce({
+    parsed_output: { references_outside_window: false, dates_referenced: [] },
+  });
+}
+
+describe('generateWeeklyObservation retry loop (D-04 / WEEK-06)', () => {
+  beforeEach(() => {
+    mockAnthropicParse.mockReset();
+    mockLoggerInfo.mockReset();
+    mockLoggerWarn.mockReset();
+  });
+
+  it('Test 1: success on first attempt — Sonnet OK + Haiku judge OK + date-grounding OK', async () => {
+    mockSonnetSuccess();
+    mockStage2Success();
+    mockDateGroundingSuccess();
+
+    const result = await generateWeeklyObservation(makeMinimalPromptInput());
+
+    expect(result.isFallback).toBe(false);
+    expect(result.observation).toContain('Greg pushed through');
+    expect(result.question).toBe('What stood out?');
+    // 3 LLM calls: Sonnet + Haiku judge + Haiku date-grounding
+    expect(mockAnthropicParse).toHaveBeenCalledTimes(3);
+  });
+
+  it('Test 2: Sonnet returns multi-? on first attempt → ZodError → retry → second attempt success', async () => {
+    // First attempt: Sonnet returns invalid multi-? question (Stage-1 reject via v3 .refine)
+    mockAnthropicParse.mockResolvedValueOnce({
+      parsed_output: {
+        observation: 'A perfectly fine 20-character observation.',
+        question: 'What stood out? And why?',
+      },
+    });
+    // Second attempt: full success path
+    mockSonnetSuccess();
+    mockStage2Success();
+    mockDateGroundingSuccess();
+
+    const result = await generateWeeklyObservation(makeMinimalPromptInput());
+
+    expect(result.isFallback).toBe(false);
+    expect(result.observation).toContain('Greg pushed through');
+    // Attempt 1: 1 Sonnet call (Stage-1 v3 parse threw before Haiku reached).
+    // Attempt 2: 3 calls (Sonnet + 2 Haiku). Total 4.
+    expect(mockAnthropicParse).toHaveBeenCalledTimes(4);
+  });
+
+  it('Test 3: 3 attempts all fail multi-? → templated fallback + chris.weekly-review.fallback-fired log', async () => {
+    // All 3 attempts: Sonnet returns multi-? (Stage-1 always rejects)
+    for (let i = 0; i < 3; i++) {
+      mockAnthropicParse.mockResolvedValueOnce({
+        parsed_output: {
+          observation: 'A perfectly fine 20-character observation.',
+          question: 'What stood out? And why?',
+        },
+      });
+    }
+
+    const result = await generateWeeklyObservation(makeMinimalPromptInput());
+
+    expect(result.isFallback).toBe(true);
+    expect(result.observation).toBe('Reflecting on this week.');
+    expect(result.question).toBe('What stood out to you about this week?');
+    // 3 attempts × 1 call (Stage-1 throws before Haiku) = 3 total
+    expect(mockAnthropicParse).toHaveBeenCalledTimes(3);
+    // Fallback log emitted exactly once
+    const fallbackLogCalls = mockLoggerWarn.mock.calls.filter(
+      (c) => c[1] === 'chris.weekly-review.fallback-fired',
+    );
+    expect(fallbackLogCalls).toHaveLength(1);
+  });
+
+  it('Test 4: Stage-1 OK + Stage-2 Haiku reports count=2 → MultiQuestionError → retry', async () => {
+    // First attempt: Sonnet OK (passes Stage-1) but Haiku judge says count=2
+    mockSonnetSuccess();
+    mockAnthropicParse.mockResolvedValueOnce({
+      parsed_output: { question_count: 2, questions: ['x?', 'y?'] },
+    });
+    // Second attempt: full success
+    mockSonnetSuccess();
+    mockStage2Success();
+    mockDateGroundingSuccess();
+
+    const result = await generateWeeklyObservation(makeMinimalPromptInput());
+
+    expect(result.isFallback).toBe(false);
+    // Attempt 1: 2 calls (Sonnet + Haiku). Attempt 2: 3 calls. Total 5.
+    expect(mockAnthropicParse).toHaveBeenCalledTimes(5);
+  });
+
+  it('Test 5: Stage-1 + Stage-2 OK + date-grounding fails → DateOutOfWindowError → retry', async () => {
+    // First attempt: Sonnet OK + Haiku judge OK + date-grounding FAILS
+    mockSonnetSuccess();
+    mockStage2Success();
+    mockAnthropicParse.mockResolvedValueOnce({
+      parsed_output: {
+        references_outside_window: true,
+        dates_referenced: ['2025-01-01'],
+      },
+    });
+    // Second attempt: full success
+    mockSonnetSuccess();
+    mockStage2Success();
+    mockDateGroundingSuccess();
+
+    const result = await generateWeeklyObservation(makeMinimalPromptInput());
+
+    expect(result.isFallback).toBe(false);
+    // Attempt 1: 3 calls. Attempt 2: 3 calls. Total 6.
+    expect(mockAnthropicParse).toHaveBeenCalledTimes(6);
+  });
+
+  it('Test 6: MAX_RETRIES = 2 (verbatim constant)', () => {
+    expect(MAX_RETRIES).toBe(2);
+  });
+});
+
+// ── describe(templated fallback) ───────────────────────────────────────────
+
+describe('templated fallback (W-4 / WEEK-06 — English-only v1 baseline)', () => {
+  beforeEach(() => {
+    mockAnthropicParse.mockReset();
+    mockLoggerWarn.mockReset();
+  });
+
+  it("templated fallback question text is exactly 'What stood out to you about this week?'", async () => {
+    // Force fallback by failing all 3 attempts
+    for (let i = 0; i < 3; i++) {
+      mockAnthropicParse.mockResolvedValueOnce({
+        parsed_output: {
+          observation: 'A perfectly fine 20-character observation.',
+          question: 'What stood out? And why?',
+        },
+      });
+    }
+
+    const result = await generateWeeklyObservation(makeMinimalPromptInput());
+
+    expect(result.question).toBe('What stood out to you about this week?');
+    expect(result.isFallback).toBe(true);
+  });
+
+  it('chris.weekly-review.fallback-fired emitted on retry-cap exhaustion (WEEK-06)', async () => {
+    for (let i = 0; i < 3; i++) {
+      mockAnthropicParse.mockResolvedValueOnce({
+        parsed_output: {
+          observation: 'A perfectly fine 20-character observation.',
+          question: 'What stood out? And why?',
+        },
+      });
+    }
+
+    await generateWeeklyObservation(makeMinimalPromptInput());
+
+    const matchingLogs = mockLoggerWarn.mock.calls.filter(
+      (c) => c[1] === 'chris.weekly-review.fallback-fired',
+    );
+    expect(matchingLogs).toHaveLength(1);
+    expect(matchingLogs[0]![0]).toMatchObject({ attempts: 3 });
   });
 });
