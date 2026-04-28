@@ -23,10 +23,11 @@
  * Plan 26-01 ships substrate only: constants + chooseNextPromptIndex pure
  * function. Plans 26-02..04 fill in the rest.
  */
-import { and, desc, eq, gt, isNull } from 'drizzle-orm';
+import { and, desc, eq, gt, gte, isNull, sql } from 'drizzle-orm';
 import { config } from '../config.js';
 import { db } from '../db/connection.js';
 import {
+  pensieveEntries,
   rituals,
   ritualPendingResponses,
   ritualResponses,
@@ -34,8 +35,10 @@ import {
 import { logger } from '../utils/logger.js';
 import { StorageError } from '../utils/errors.js';
 import { storePensieveEntry } from '../pensieve/store.js';
+import { dayBoundaryUtc } from '../episodic/sources.js';
 import type { RitualConfig, RitualFireOutcome } from './types.js';
 import { bot } from '../bot/bot.js';
+import { computeNextRunAt } from './cadence.js';
 
 // ── Constants (M009 Phase 26 — VOICE-02 + VOICE-03 + VOICE-04 tunables) ────
 
@@ -226,6 +229,45 @@ export async function recordRitualVoiceResponse(
   return { pensieveEntryId: entry.id, consumedAt: consumed.consumedAt };
 }
 
+// ── Pre-fire suppression (VOICE-04 — Plan 26-03; D-26-05 + D-26-06) ───────
+
+/**
+ * shouldSuppressVoiceNoteFire — Pitfall 9 mitigation (D-26-05).
+ *
+ * Returns true if today (local Europe/Paris day, computed via the canonical
+ * `dayBoundaryUtc` Luxon helper from src/episodic/sources.ts) already has
+ * `RITUAL_SUPPRESS_DEPOSIT_THRESHOLD` (default 5) or more telegram-source
+ * JOURNAL-mode Pensieve entries. When true, fireVoiceNote skips firing with
+ * the 'system_suppressed' outcome (D-26-06) — Greg has clearly journaled
+ * enough today that another prompt would feel redundant.
+ *
+ * Per CONTEXT.md D-26-05: the query targets Pensieve directly (not the
+ * conversations table) because Pensieve is the authoritative store (D035) and
+ * matches Pitfall 9's mitigation language verbatim ("≥5 deposits today").
+ * The `metadata.mode` field is set by JOURNAL-mode Pensieve writers
+ * (src/chris/modes/journal.ts) so the predicate `metadata->>'mode' = 'JOURNAL'`
+ * counts user JOURNAL deposits, not assistant turns or other modes.
+ *
+ * Note on dayBoundaryUtc signature: the canonical helper returns
+ * `{ start, end }` (NOT a single Date with a 'start'|'end' selector). We
+ * destructure `start` for the local-Paris day-start UTC instant.
+ */
+export async function shouldSuppressVoiceNoteFire(now: Date): Promise<boolean> {
+  const { start: dayStart } = dayBoundaryUtc(now, config.proactiveTimezone);
+  const result = await db
+    .select({ count: sql<number>`COUNT(*)::int` })
+    .from(pensieveEntries)
+    .where(
+      and(
+        eq(pensieveEntries.source, 'telegram'),
+        gte(pensieveEntries.createdAt, dayStart),
+        sql`${pensieveEntries.metadata}->>'mode' = 'JOURNAL'`,
+      ),
+    );
+  const count = result[0]?.count ?? 0;
+  return count >= RITUAL_SUPPRESS_DEPOSIT_THRESHOLD;
+}
+
 // ── fireVoiceNote handler (VOICE-02 + VOICE-03 — Plan 26-02) ───────────────
 
 /**
@@ -248,6 +290,25 @@ export async function fireVoiceNote(
   ritual: typeof rituals.$inferSelect,
   cfg: RitualConfig,
 ): Promise<RitualFireOutcome> {
+  // STEP 0: Pre-fire suppression check (VOICE-04 — Plan 26-03; D-26-04 + D-26-05).
+  // Runs BEFORE prompt selection per D-26-04: on suppression, advance
+  // next_run_at to tomorrow's 21:00 Paris via computeNextRunAt(now, 'daily', cfg)
+  // and return 'system_suppressed' (D-26-06) with NO Telegram send, NO pending
+  // row insert, NO prompt_bag update, NO skip_count touch.
+  const now = new Date();
+  if (await shouldSuppressVoiceNoteFire(now)) {
+    const tomorrow = computeNextRunAt(now, 'daily', cfg);
+    await db
+      .update(rituals)
+      .set({ nextRunAt: tomorrow })
+      .where(eq(rituals.id, ritual.id));
+    logger.info(
+      { ritualId: ritual.id, nextRunAt: tomorrow.toISOString() },
+      'rituals.voice_note.suppressed',
+    );
+    return 'system_suppressed';
+  }
+
   // STEP 1: Pop next prompt from bag (Plan 26-01 chooseNextPromptIndex).
   // The "lastIdx" guard for the no-consecutive-duplicate invariant: if the
   // current bag is empty (about to refill), check the trailing index of any
