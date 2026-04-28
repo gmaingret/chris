@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v2.4
 milestone_name: M009 Ritual Infrastructure + Daily Note + Weekly Review
 status: verifying
-stopped_at: "Plan 26-02 complete (8 commits: 6c7210d, 3da9af3, aaf793a, 3ef989a, 0290017, a2950c3, 9860c5f, 117c6dd) — HARD CO-LOC #1 + #5 honored atomically: PP#5 detector + voice-note handler + mock-chain coverage update + Pitfall 6 regression test all landed in same plan. Ready to execute Plan 26-03 (pre-fire suppression — VOICE-04)."
-last_updated: "2026-04-28T06:01:30.000Z"
-last_activity: 2026-04-28 — Plan 26-02 complete; engine-mute.test.ts pre-existing 7 ECONNREFUSED failures FIXED as side effect of mock-chain update (HARD CO-LOC #5 scope per D-26-07).
+stopped_at: "Plan 26-04 complete (3 commits: 7b4c19f, 3b2b0d6, b0794da) — VOICE-05 polite-decline voice handler shipped; bot.on('message:voice') registered. Per user sequencing: 26-04 next, then 26-03, then 26-05."
+last_updated: "2026-04-28T07:07:39.891Z"
+last_activity: 2026-04-28 — Plan 26-04 complete (VOICE-05 polite-decline; deferred pre-existing env failures).
 progress:
   total_phases: 6
   completed_phases: 1
@@ -26,11 +26,17 @@ See: .planning/PROJECT.md (symlink to /home/claude/chris/PLAN.md, updated 2026-0
 
 ## Current Position
 
-Phase: **25** COMPLETE; **26 IN PROGRESS** (Plans 26-01 + 26-02 done; Plans 26-03..05 pending); **27+29 PLANNED**
-Plan: 26-02 complete (8 commits: 6c7210d, 3da9af3, aaf793a, 3ef989a, 0290017, a2950c3, 9860c5f, 117c6dd) — HARD CO-LOC #1 + #5 atomic: PP#5 detector at processMessage entry, fireVoiceNote handler dispatched via name-keyed switch, storePensieveEntry epistemicTag parameter (D-26-03), mock-chain coverage for 3 engine test files (HARD CO-LOC #5 / D-26-07; engine-mute pre-existing 7 ECONNREFUSED failures FIXED), engine-pp5.test.ts cumulative not-called Anthropic invariant (Pitfall 6 contract), voice-note-handler.test.ts Promise.allSettled atomic-consume race. Ready to execute Plan 26-03 (pre-fire suppression — VOICE-04).
-Status: Plan 26-02 verified via scoped Docker harness: 11 test files / 120 tests passed including engine.test.ts (72/72), engine-mute.test.ts (5/5 — was 0/5), engine-refusal.test.ts (5/5), engine-pp5.test.ts (3/3 with afterAll Pitfall 6 invariant green), voice-note-handler.test.ts (4/4 with concurrency race green). Pre-existing baseline failures (live-integration 401, contradiction-false-positive HuggingFace EACCES) unchanged.
+Phase: **25** COMPLETE; **26 IN PROGRESS** (Plans 26-01 + 26-02 + 26-04 done; Plans 26-03 + 26-05 pending — sequential mode per user); **27+29 PLANNED**
+Plan: 26-04 complete (3 commits: 7b4c19f, 3b2b0d6, b0794da) — VOICE-05 polite-decline voice handler:
+
+  - `src/bot/handlers/voice-decline.ts` (NEW ~50 LoC) — handleVoiceMessageDecline reads getLastUserLanguage, replies in EN/FR/RU per D-26-09 verbatim wording, defaults to English on null/unmapped; OOS-3 (no Whisper) enforced via static import grep guard at module-graph level
+  - `src/bot/bot.ts` (MODIFIED) — bot.on('message:voice', handleVoiceMessageDecline as any) registered peer to existing message:text + message:document handlers, before bot.catch
+  - `src/bot/handlers/__tests__/voice-decline.test.ts` (NEW ~91 LoC) — 7 unit tests: EN/FR/RU/null-default/unmapped-default/chatId-stringification/side-effect-contract; vi.hoisted mock-factory pattern (commit 117c6dd precedent)
+  - 3 auto-fixed deviations: TS7053 narrowing (Rule 1), honest-docstring vs grep-guard (Rule 1), vi.hoisted blocker (Rule 3) — all documented in 26-04-SUMMARY.md
+
+Status: voice-decline.test.ts 7/7 green when run in isolation. `bash scripts/test.sh` exit 0; pre-existing 6-file environmental failures (live-LLM 401 + HuggingFace EACCES) unchanged from baseline (deferred-items.md proves zero references to Plan 26-04 surfaces). Plan 26-04 next: 26-03 (VOICE-04 pre-fire suppression — ~80 LoC + ~80 LoC test).
 Progress: [████░░░░░░] 40%
-Last activity: 2026-04-28 — Plan 26-02 complete; engine-mute.test.ts pre-existing 7 ECONNREFUSED failures FIXED as side effect of mock-chain update (HARD CO-LOC #5 scope per D-26-07).
+Last activity: 2026-04-28 — Plan 26-04 complete (VOICE-05 polite-decline; deferred pre-existing env failures).
 
 Prior deploy state: v2.3 + date-extraction Haiku JSON-fences fix (eedce33, deployed 42a7eed 2026-04-25) live on Proxmox (192.168.1.50). Daily 23:00 Europe/Paris episodic cron + 6h sync cron + 10:00 proactive sweep cron all healthy. M009 will ADD a second 21:00 evening cron tick (RIT-11) for ritual firing.
 
@@ -143,8 +149,8 @@ None. Ready to plan Phase 25 — pending todo resolved (verdict above).
 
 ## Session Continuity
 
-Last session: 2026-04-28T05:05:25.696Z
-Stopped at: Plan 25-03 complete (7 commits: 226bd48, e0d8162, 40fc35d, 9bcadf9, abe4515, eb1572f, e494946) — Phase 25 substrate fully wired; ready to plan Phase 26 (Daily Voice Note Ritual)
+Last session: 2026-04-28T07:04:03Z
+Stopped at: Plan 26-04 complete (3 commits: 7b4c19f, 3b2b0d6, b0794da) — VOICE-05 polite-decline voice handler shipped; bot.on('message:voice') registered. Per user sequencing: 26-04 next, then 26-03, then 26-05.
 Resume file: None
 
 ## Known Tech Debt

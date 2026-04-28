@@ -52,7 +52,7 @@
 - [x] 26-01-PLAN.md — Migration 0007 + voice-note.ts substrate (PROMPTS, PROMPT_SET_VERSION, RESPONSE_WINDOW_HOURS, chooseNextPromptIndex shuffled-bag rotation primitive + 600-fire property test, prompt_text column added to ritual_pending_responses) [VOICE-02, VOICE-03]
 - [x] 26-02-PLAN.md — HARD CO-LOC #1 + #5 ATOMIC: PP#5 ritual-response detector at engine position 0 + voice-note handler + recordRitualVoiceResponse atomic consume + storePensieveEntry epistemicTag extension + mock-chain coverage update across engine.test.ts + engine-mute.test.ts + engine-refusal.test.ts + cumulative `expect(mockAnthropicCreate).not.toHaveBeenCalled()` regression test [VOICE-01, VOICE-02, VOICE-03, VOICE-06]
 - [ ] 26-03-PLAN.md — Pre-fire suppression on ≥5 telegram JOURNAL entries today; advances next_run_at without incrementing skip_count; emits 'system_suppressed' outcome [VOICE-04]
-- [ ] 26-04-PLAN.md — Voice message polite-decline handler (`bot.on('message:voice')` ~10 LOC, EN/FR/RU per franc detection on last text language) [VOICE-05]
+- [x] 26-04-PLAN.md — Voice message polite-decline handler (`bot.on('message:voice')` ~10 LOC, EN/FR/RU per franc detection on last text language) [VOICE-05]
 - [ ] 26-05-PLAN.md — `scripts/fire-ritual.ts` operator wrapper for manual UAT [no new requirements; supports operator UAT]
 
 ### Phase 27: Daily Wellbeing Snapshot
@@ -211,7 +211,7 @@ See [milestones/v2.3-ROADMAP.md](milestones/v2.3-ROADMAP.md) for full phase deta
 | 23. Test Suite + Backfill + /summary | v2.2    | 4/4   | Complete    | 2026-04-19 |
 | 24. Primed-Fixture Pipeline        | v2.3      | 4/4   | Complete    | 2026-04-20 |
 | 25. Ritual Scheduling Foundation   | v2.4      | 1/3 | In Progress|  |
-| 26. Daily Voice Note Ritual        | v2.4      | 1/5 | In Progress|  |
+| 26. Daily Voice Note Ritual        | v2.4      | 3/5 | In Progress|  |
 | 27. Daily Wellbeing Snapshot       | v2.4      | 0/3   | Planned     | -          |
 | 28. Skip-Tracking + Adjustment Dialogue | v2.4 | 0/4   | Not started | -          |
 | 29. Weekly Review                  | v2.4      | 0/4   | Planned     | -          |
