@@ -136,6 +136,25 @@ if [[ "${psql_seed_count// /}" != "1" ]]; then
 fi
 echo "✓ Migration 0008 substrate verified (daily_wellbeing seeded)"
 
+# Phase 27 D-27-04 anchor-bias defeat regression guard (Plan 27-03 Task 3).
+# Fails loud if src/rituals/wellbeing.ts ever contains a SELECT against
+# wellbeing_snapshots. The "hide previous values" contract (Pitfall 11) is
+# enforced by absence-of-code, not by added code. Three independent
+# regression-defense lines: in-plan negative grep (Plan 27-02 verify block),
+# test-suite db.select spy (Plan 27-03 Test 2 in wellbeing.test.ts), and
+# this static guard (every CI run). Any one would catch a regression
+# independently. Regex matches both Drizzle camelCase (wellbeingSnapshots)
+# and SQL snake_case (wellbeing_snapshots) usage. Bare `import` lines do
+# NOT match (the regex requires `select.*` or `from.*` preceding the table
+# name) — only actual SELECT/FROM usage triggers the failure.
+if grep -E "select.*wellbeingSnapshots|from.*wellbeingSnapshots" src/rituals/wellbeing.ts; then
+  echo "❌ ANCHOR-BIAS VIOLATION: src/rituals/wellbeing.ts queries wellbeing_snapshots for SELECT."
+  echo "   Per D-27-04 (Pitfall 11), the wellbeing module MUST NOT read prior days' values."
+  echo "   Hide-previous-values is enforced by absence of code, not by added code."
+  exit 1
+fi
+echo "✓ Anchor-bias defeat regression guard verified (D-27-04 prong 1)"
+
 echo "🧪 Running tests..."
 DATABASE_URL="$DB_URL" \
   ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-test-key}" \
