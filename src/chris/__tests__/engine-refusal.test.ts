@@ -7,6 +7,8 @@ const {
   mockLimit,
   mockInsert,
   mockSelect,
+  mockFindActivePendingResponse,
+  mockRecordRitualVoiceResponse,
 } = vi.hoisted(() => {
   const mockReturning = vi.fn();
   const mockLimit = vi.fn();
@@ -19,7 +21,17 @@ const {
   const mockFrom = vi.fn(() => ({ where: mockSelectWhere }));
   const mockSelect = vi.fn(() => ({ from: mockFrom }));
   const mockCreate = vi.fn();
-  return { mockCreate, mockReturning, mockLimit, mockInsert, mockSelect };
+  const mockFindActivePendingResponse = vi.fn();
+  const mockRecordRitualVoiceResponse = vi.fn();
+  return {
+    mockCreate,
+    mockReturning,
+    mockLimit,
+    mockInsert,
+    mockSelect,
+    mockFindActivePendingResponse,
+    mockRecordRitualVoiceResponse,
+  };
 });
 
 // ── Module mocks ──────────────────────────────────────────────────────────────
@@ -98,6 +110,15 @@ vi.mock('../../decisions/suppressions.js', () => ({
   isSuppressed: vi.fn().mockResolvedValue(false),
 }));
 
+// ── Mock voice-note module (Phase 26 PP#5 — HARD CO-LOC #5 / D-26-07) ─────
+// Default findActivePendingResponse → null so PP#5 falls through to refusal
+// pre-processing. Without this mock, the new PP#5 import would pull in real
+// db/bot modules and break all tests (Pitfall 24 mock-chain regression class).
+vi.mock('../../rituals/voice-note.js', () => ({
+  findActivePendingResponse: mockFindActivePendingResponse,
+  recordRitualVoiceResponse: mockRecordRitualVoiceResponse,
+}));
+
 // ── Imports (after mocks) ─────────────────────────────────────────────────────
 
 import { processMessage } from '../engine.js';
@@ -111,6 +132,9 @@ describe('engine refusal integration (TRUST-03)', () => {
     vi.clearAllMocks();
     clearDeclinedTopics('12345');
     clearLanguageState('12345');
+    // PP#5 (Phase 26 D-26-07): default findActivePendingResponse → null so
+    // PP#5 falls through to refusal/language pre-processing tests.
+    mockFindActivePendingResponse.mockResolvedValue(null);
     mockReturning.mockResolvedValue([{ id: 1 }]);
     mockLimit.mockResolvedValue([]);
   });
@@ -156,6 +180,9 @@ describe('engine language detection (LANG-01, LANG-02)', () => {
     vi.clearAllMocks();
     clearDeclinedTopics('12345');
     clearLanguageState('12345');
+    // PP#5 (Phase 26 D-26-07): default findActivePendingResponse → null so
+    // PP#5 falls through to refusal/language pre-processing tests.
+    mockFindActivePendingResponse.mockResolvedValue(null);
     mockReturning.mockResolvedValue([{ id: 1 }]);
     mockLimit.mockResolvedValue([]);
   });

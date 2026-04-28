@@ -15,6 +15,8 @@ const {
   mockHandleInterrogate,
   mockLogInfo,
   mockLogWarn,
+  mockFindActivePendingResponse,
+  mockRecordRitualVoiceResponse,
 } = vi.hoisted(() => ({
   mockDetectMuteIntent: vi.fn(),
   mockGenerateMuteAcknowledgment: vi.fn(),
@@ -28,6 +30,8 @@ const {
   mockHandleInterrogate: vi.fn(),
   mockLogInfo: vi.fn(),
   mockLogWarn: vi.fn(),
+  mockFindActivePendingResponse: vi.fn(),
+  mockRecordRitualVoiceResponse: vi.fn(),
 }));
 
 // ── Module mocks ───────────────────────────────────────────────────────────
@@ -82,6 +86,42 @@ vi.mock('../modes/interrogate.js', () => ({
   handleInterrogate: mockHandleInterrogate,
 }));
 
+// ── Mock voice-note module (Phase 26 PP#5 — HARD CO-LOC #5 / D-26-07) ─────
+// Default findActivePendingResponse → null so PP#5 falls through to the
+// existing mute pre-processing tests' code paths. Without this mock, the
+// new PP#5 import would pull in real db/bot modules and break all tests.
+vi.mock('../../rituals/voice-note.js', () => ({
+  findActivePendingResponse: mockFindActivePendingResponse,
+  recordRitualVoiceResponse: mockRecordRitualVoiceResponse,
+}));
+
+// ── Mock decision-capture modules (engine.ts PP#0/PP#1; Plan 26-02 fix) ────
+// Plan 26-01 SUMMARY noted these mocks were missing in engine-mute.test.ts,
+// causing ECONNREFUSED ::1:5432 on every test (PP#0 calls
+// getActiveDecisionCapture which hits the real DB without these mocks).
+// HARD CO-LOC #5 owns the fix.
+vi.mock('../../decisions/capture-state.js', () => ({
+  getActiveDecisionCapture: vi.fn().mockResolvedValue(null),
+  clearCapture: vi.fn(),
+  isAbortPhrase: vi.fn().mockReturnValue(false),
+  coerceValidDraft: vi.fn((d) => d),
+}));
+vi.mock('../../decisions/capture.js', () => ({
+  handleCapture: vi.fn(),
+  openCapture: vi.fn(),
+}));
+vi.mock('../../decisions/resolution.js', () => ({
+  handleResolution: vi.fn(),
+  handlePostmortem: vi.fn(),
+}));
+vi.mock('../../decisions/triggers.js', () => ({
+  detectTriggerPhrase: vi.fn().mockReturnValue(null),
+  classifyStakes: vi.fn().mockResolvedValue('trivial'),
+}));
+vi.mock('../../decisions/suppressions.js', () => ({
+  isSuppressed: vi.fn().mockResolvedValue(false),
+}));
+
 vi.mock('../../config.js', () => ({
   config: {
     anthropicApiKey: 'test-key',
@@ -117,6 +157,9 @@ function makeLLMResponse(text: string) {
 describe('engine mute pre-processing', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // PP#5 (Phase 26 D-26-07): default findActivePendingResponse → null so
+    // PP#5 falls through to the mute pre-processing code path under test.
+    mockFindActivePendingResponse.mockResolvedValue(null);
     mockSaveMessage.mockResolvedValue({ id: 'conv-1' });
     mockSetMuteUntil.mockResolvedValue(undefined);
   });

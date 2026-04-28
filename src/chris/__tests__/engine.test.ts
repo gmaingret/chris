@@ -77,6 +77,19 @@ vi.mock('../../pensieve/store.js', () => ({
   storePensieveEntry: mockStorePensieveEntry,
 }));
 
+// ── Mock voice-note module (Phase 26 PP#5 — HARD CO-LOC #5 / D-26-07) ─────
+// Default: findActivePendingResponse → null so PP#5 falls through and the
+// existing PP#0..PP#4 + mode-detect tests continue to exercise their original
+// code paths. Without this update, the new PP#5 call site would invoke the
+// unmocked module → real DB query → test failures (Phase 14 v2.1 regression
+// class — Pitfall 24).
+const mockFindActivePendingResponse = vi.fn();
+const mockRecordRitualVoiceResponse = vi.fn();
+vi.mock('../../rituals/voice-note.js', () => ({
+  findActivePendingResponse: mockFindActivePendingResponse,
+  recordRitualVoiceResponse: mockRecordRitualVoiceResponse,
+}));
+
 // ── Mock tagger (fire-and-forget) ──────────────────────────────────────────
 const mockTagEntry = vi.fn();
 vi.mock('../../pensieve/tagger.js', () => ({
@@ -621,6 +634,9 @@ describe('processMessage (engine)', () => {
     // across runs (two tests reuse the same entryId and would otherwise see
     // the second firing filtered out as "already surfaced").
     __resetSurfacedContradictionsForTests();
+    // PP#5 (Phase 26 D-26-07): default findActivePendingResponse → null so
+    // PP#5 falls through to PP#0..PP#4 normal pipeline. HARD CO-LOC #5.
+    mockFindActivePendingResponse.mockResolvedValue(null);
     // Mode detection → JOURNAL
     mockCreate.mockResolvedValueOnce(makeLLMResponse('{"mode": "JOURNAL"}'));
     // Sonnet response
@@ -1112,6 +1128,9 @@ describe('processMessage (engine)', () => {
 describe('praise quarantine integration (SYCO-04/05)', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    // PP#5 (Phase 26 D-26-07): default findActivePendingResponse → null so
+    // PP#5 falls through to PP#0..PP#4 normal pipeline.
+    mockFindActivePendingResponse.mockResolvedValue(null);
     mockSaveMessage.mockResolvedValue({ id: 'conv-1' });
     mockStorePensieveEntry.mockResolvedValue({ id: ENTRY_ID, content: TEST_TEXT });
     mockBuildMessageHistory.mockResolvedValue([]);
