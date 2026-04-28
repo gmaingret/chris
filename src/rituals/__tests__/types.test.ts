@@ -121,8 +121,9 @@ describe('RitualConfigSchema — strict rejection (RIT-07)', () => {
 });
 
 describe('RitualFireOutcome + RitualFireResult — scaffold shape', () => {
-  it('RitualFireOutcome union has 6 variants (compile-time exhaustiveness)', () => {
+  it('RitualFireOutcome union has 7 variants (compile-time exhaustiveness)', () => {
     // If the union shrinks or grows, this assertion fails to type-check.
+    // Phase 26 Plan 26-03 (D-26-06) appended 'system_suppressed' for VOICE-04.
     const variants: RitualFireOutcome[] = [
       'fired',
       'caught_up',
@@ -130,9 +131,10 @@ describe('RitualFireOutcome + RitualFireResult — scaffold shape', () => {
       'race_lost',
       'in_dialogue',
       'config_invalid',
+      'system_suppressed',
     ];
-    // Runtime sanity: 6 variants enumerated above.
-    expect(variants).toHaveLength(6);
+    // Runtime sanity: 7 variants enumerated above.
+    expect(variants).toHaveLength(7);
   });
 
   it('RitualFireResult interface accepts a well-typed object literal', () => {

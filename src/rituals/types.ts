@@ -74,12 +74,16 @@ export function parseRitualConfig(input: unknown): RitualConfig {
  * per-outcome semantic enforcement and the SKIP-01 richer discriminated
  * union ship in Phase 28.
  *
- *   - 'fired'          — atomic UPDATE...RETURNING claimed the row, prompt sent.
- *   - 'caught_up'      — next_run_at is in the future (no work to do).
- *   - 'muted'          — config.mute_until is in the future, ritual suppressed.
- *   - 'race_lost'      — concurrent sweep already fired this ritual (RIT-10).
- *   - 'in_dialogue'    — Phase 28: user is mid-conversation, defer to next tick.
- *   - 'config_invalid' — RitualConfigSchema.parse threw ZodError; sweep skips.
+ *   - 'fired'             — atomic UPDATE...RETURNING claimed the row, prompt sent.
+ *   - 'caught_up'         — next_run_at is in the future (no work to do).
+ *   - 'muted'             — config.mute_until is in the future, ritual suppressed.
+ *   - 'race_lost'         — concurrent sweep already fired this ritual (RIT-10).
+ *   - 'in_dialogue'       — Phase 28: user is mid-conversation, defer to next tick.
+ *   - 'config_invalid'    — RitualConfigSchema.parse threw ZodError; sweep skips.
+ *   - 'system_suppressed' — Phase 26 VOICE-04 (D-26-06): pre-fire check skipped
+ *                           firing (e.g., heavy-deposit-day suppression for daily
+ *                           voice note). Distinct from 'fired_no_response' (Phase
+ *                           28 skip-tracking) — does NOT increment skip_count.
  */
 export type RitualFireOutcome =
   | 'fired'
@@ -87,7 +91,8 @@ export type RitualFireOutcome =
   | 'muted'
   | 'race_lost'
   | 'in_dialogue'
-  | 'config_invalid';
+  | 'config_invalid'
+  | 'system_suppressed'; // ← Phase 26 VOICE-04 (Plan 26-03; D-26-06)
 
 export interface RitualFireResult {
   ritualId: string;
