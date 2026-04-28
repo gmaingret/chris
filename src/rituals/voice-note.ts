@@ -292,12 +292,23 @@ export async function fireVoiceNote(
 ): Promise<RitualFireOutcome> {
   // STEP 0: Pre-fire suppression check (VOICE-04 — Plan 26-03; D-26-04 + D-26-05).
   // Runs BEFORE prompt selection per D-26-04: on suppression, advance
-  // next_run_at to tomorrow's 21:00 Paris via computeNextRunAt(now, 'daily', cfg)
-  // and return 'system_suppressed' (D-26-06) with NO Telegram send, NO pending
-  // row insert, NO prompt_bag update, NO skip_count touch.
+  // next_run_at to tomorrow's 21:00 Paris and return 'system_suppressed'
+  // (D-26-06) with NO Telegram send, NO pending row insert, NO prompt_bag
+  // update, NO skip_count touch.
+  //
+  // Why we advance via `computeNextRunAt(endOfToday, 'daily', cfg)` and NOT
+  // `computeNextRunAt(now, ...)`: in production the cron sweep dispatches
+  // fireVoiceNote at the configured fire_at (21:00 Paris), so `now ≈ today's
+  // 21:00 Paris` and `computeNextRunAt(now, 'daily', cfg)` lands on tomorrow's
+  // 21:00 Paris (target <= now → +1 day). But a manual `runRitualSweep` (or
+  // an `npx tsx scripts/manual-sweep.ts` invocation) at any earlier wall-clock
+  // time would compute today's still-future 21:00 Paris instead — defeating
+  // the suppression's "skip today entirely" semantic. Anchoring to the local
+  // end-of-day instant guarantees tomorrow's slot under both timing patterns.
   const now = new Date();
   if (await shouldSuppressVoiceNoteFire(now)) {
-    const tomorrow = computeNextRunAt(now, 'daily', cfg);
+    const { end: endOfTodayLocal } = dayBoundaryUtc(now, cfg.time_zone);
+    const tomorrow = computeNextRunAt(endOfTodayLocal, 'daily', cfg);
     await db
       .update(rituals)
       .set({ nextRunAt: tomorrow })
