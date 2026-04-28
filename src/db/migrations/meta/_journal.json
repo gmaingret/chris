@@ -50,6 +50,13 @@
       "when": 1777217039092,
       "tag": "0006_rituals_wellbeing",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1777348359976,
+      "tag": "0007_daily_voice_note_seed",
+      "breakpoints": true
     }
   ]
 }

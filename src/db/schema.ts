@@ -482,12 +482,24 @@ export const ritualConfigEvents = pgTable('ritual_config_events', {
  * TTL sweep (Phase 27). `consumed_at` is set when a reply is bound to the
  * pending entry (mutual exclusion via UPDATE ... WHERE consumed_at IS NULL).
  */
-export const ritualPendingResponses = pgTable('ritual_pending_responses', {
-  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  ritualId: uuid('ritual_id').notNull().references(() => rituals.id),
-  chatId: bigint('chat_id', { mode: 'bigint' }).notNull(),
-  firedAt: timestamp('fired_at', { withTimezone: true }).notNull(),
-  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-  consumedAt: timestamp('consumed_at', { withTimezone: true }),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const ritualPendingResponses = pgTable(
+  'ritual_pending_responses',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    ritualId: uuid('ritual_id').notNull().references(() => rituals.id),
+    chatId: bigint('chat_id', { mode: 'bigint' }).notNull(),
+    firedAt: timestamp('fired_at', { withTimezone: true }).notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+    promptText: text('prompt_text').notNull(), // ← Phase 26 amended D-26-02 (2026-04-27)
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    // Phase 26 PP#5 hot-path partial index: chat_id-keyed lookup for active
+    // (non-consumed) pending responses. Mirrors Phase 25's
+    // rituals_next_run_at_enabled_idx partial-index pattern.
+    index('ritual_pending_responses_chat_id_active_idx')
+      .on(table.chatId, table.expiresAt)
+      .where(sql`${table.consumedAt} IS NULL`),
+  ],
+);
