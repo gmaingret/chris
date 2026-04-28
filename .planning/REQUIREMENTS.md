@@ -44,11 +44,11 @@ After M009 ships, Greg has the full reflection loop: M006 trust + M007 decision 
 
 ### Daily Wellbeing Snapshot
 
-- [ ] **WELL-01**: Single Telegram message with 3-row × 5-button `InlineKeyboard` (energy / mood / anxiety, 1–5 each) + a 4th-row "skip" button. First use of inline keyboards in this codebase.
-- [ ] **WELL-02**: `bot.on('callback_query:data', handleRitualCallback)` registered in `src/bot/bot.ts`. Each tap upserts the corresponding column in `wellbeing_snapshots` per-dimension via `INSERT ... ON CONFLICT (snapshot_date) DO UPDATE SET <dim> = EXCLUDED.<dim>` to avoid last-write-wins race under rapid taps.
-- [ ] **WELL-03**: Partial-state in `ritual_responses.metadata` jsonb — survives across taps. UI redraws keyboard with current selections HIGHLIGHTED (so Greg sees what he's tapped) but PREVIOUS DAYS' values HIDDEN (defeats anchor bias). Snapshot considered "complete" once all 3 dimensions tapped or "skip" pressed.
-- [ ] **WELL-04**: Skip button (`adjustment_eligible: false`) — optional skip allowed without triggering adjustment dialogue. Distinct from a `fired_no_response` outcome (which DOES trigger skip-tracking).
-- [ ] **WELL-05**: Default fire time 09:00 Europe/Paris, configurable via `rituals.config.fire_at`. **Separate from voice note (21:00)** per D026 spirit + Pitfall 13 — captures felt-state in the morning before the day's narrative reflection pollutes the numeric series.
+- [x] **WELL-01**: Single Telegram message with 3-row × 5-button `InlineKeyboard` (energy / mood / anxiety, 1–5 each) + a 4th-row "skip" button. First use of inline keyboards in this codebase.
+- [x] **WELL-02**: `bot.on('callback_query:data', handleRitualCallback)` registered in `src/bot/bot.ts`. Each tap upserts the corresponding column in `wellbeing_snapshots` per-dimension via `INSERT ... ON CONFLICT (snapshot_date) DO UPDATE SET <dim> = EXCLUDED.<dim>` to avoid last-write-wins race under rapid taps.
+- [x] **WELL-03**: Partial-state in `ritual_responses.metadata` jsonb — survives across taps. UI redraws keyboard with current selections HIGHLIGHTED (so Greg sees what he's tapped) but PREVIOUS DAYS' values HIDDEN (defeats anchor bias). Snapshot considered "complete" once all 3 dimensions tapped or "skip" pressed.
+- [x] **WELL-04**: Skip button (`adjustment_eligible: false`) — optional skip allowed without triggering adjustment dialogue. Distinct from a `fired_no_response` outcome (which DOES trigger skip-tracking).
+- [x] **WELL-05**: Default fire time 09:00 Europe/Paris, configurable via `rituals.config.fire_at`. **Separate from voice note (21:00)** per D026 spirit + Pitfall 13 — captures felt-state in the morning before the day's narrative reflection pollutes the numeric series.
 
 ### Weekly Review
 

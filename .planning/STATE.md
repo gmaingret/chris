@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v2.4
 milestone_name: M009 Ritual Infrastructure + Daily Note + Weekly Review
-status: verifying
-stopped_at: "Plan 27-01 complete (3 commits: 380a481 dispatcher+stub, 4ba31a1 bot.on registration, 0e1b5b0 7 unit tests). First inline-keyboard surface in codebase. WELL-01/WELL-02 partial; full completion in Plan 27-02."
-last_updated: "2026-04-28T11:40:00.000Z"
-last_activity: 2026-04-28 — Plan 27-01 complete (callback router infrastructure; 3 commits). Phase 27 in progress (1/3 plans).
+status: executing
+stopped_at: "Plan 27-02 complete (3 commits: bdc924a migration 0008 + test.sh substrate gate, 2d451f3 wellbeing.ts STUB → real fireWellbeing + handleWellbeingCallback ~330 LOC, 3fff9a1 dispatchRitualHandler 'case daily_wellbeing' wired). All 5 WELL requirements (WELL-01..05) terminate. D-27-06 atomicity satisfied. Plan 27-03 next (operator UAT script + integration tests against real Docker postgres)."
+last_updated: "2026-04-28T12:38:48.223Z"
+last_activity: 2026-04-28 — Plan 27-02 complete (wellbeing handler + seed migration ATOMIC; 3 commits). All 5 WELL requirements terminate.
 progress:
   total_phases: 6
   completed_phases: 2
@@ -26,26 +26,25 @@ See: .planning/PROJECT.md (symlink to /home/claude/chris/PLAN.md, updated 2026-0
 
 ## Current Position
 
-Phase: **25** COMPLETE; **26 COMPLETE**; **27 IN PROGRESS** (Plan 27-01 done; 27-02 + 27-03 pending). **29 PLANNED**.
-Plan: 27-01 complete (3 commits: 380a481 + 4ba31a1 + 0e1b5b0) — first inline-keyboard callback dispatcher in codebase:
+Phase: **25** COMPLETE; **26 COMPLETE**; **27 IN PROGRESS** (Plans 27-01 + 27-02 done; 27-03 pending). **29 PLANNED**.
+Plan: 27-02 complete (3 commits: bdc924a + 2d451f3 + 3fff9a1) — wellbeing handler + seed migration ATOMIC per D-27-06:
 
-  - `src/bot/handlers/ritual-callback.ts` (NEW, ~75 LOC) — prefix-routing dispatcher. Routes `r:w:*` → `handleWellbeingCallback` (handler owns its own ack); silently acks `r:adj:*` (Phase 28 forward-compat), `r:wr:*` (Phase 29 forward-compat), and unknown root prefixes via warn-log per Telegram's 30-second answerCallbackQuery contract. Auth gate via existing `bot.use(auth)` middleware preserved without code change.
-  - `src/rituals/wellbeing.ts` (NEW, STUB) — exports `handleWellbeingCallback` signature that throws `'rituals.wellbeing.handleWellbeingCallback: stub — Plan 27-02 fills this'`. Plan 27-02 wholesale-replaces with real `fireWellbeing` + handler. The throwing stub is a safety net; mocked via vi.mock in Plan 27-01 tests so never fires.
-  - `src/bot/bot.ts` (MODIFIED, +5 LOC) — added `bot.on('callback_query:data', handleRitualCallback as any)` registration AFTER `bot.on('message:voice')` and BEFORE `bot.catch`. Awk-verified source-order: `auth=22 cb=91 catch=93`.
-  - `src/bot/__tests__/ritual-callback.test.ts` (NEW, 7 tests) — covers all 4 dispatch branches: 2 wellbeing routing + 3 unknown ritual prefix + 1 unknown root + 1 missing data. Mocks wellbeing.js so throwing stub never fires; mocks logger to keep test stdout clean. All 7 tests pass first run.
-  - 0 deviations from plan. WELL-01 + WELL-02 partial (router shipped; keyboard rendering + DB writes ship in Plan 27-02 atomically with migration 0008 seed insert per D-27-06).
-  - Pre-existing full-suite test isolation issue documented in `.planning/phases/27-daily-wellbeing-snapshot/deferred-items.md`. 60/60 rituals + 63/63 bot tests pass in isolation; full-suite cross-contamination is out of Plan 27-01 scope.
+  - `src/db/migrations/0008_wellbeing_seed.sql` (NEW) — single idempotent INSERT seeding `daily_wellbeing` ritual at next 09:00 Europe/Paris (CASE date math sidesteps catch-up ceiling on first sweep tick). RitualConfigSchema-conformant 6-of-8 field config (omits optional fire_dow + prompt_bag for daily-no-bag ritual). ON CONFLICT (name) DO NOTHING idempotent re-apply.
+  - `src/db/migrations/meta/0008_snapshot.json` (NEW) — cloned from 0007 (pure-DML migration → no schema delta → schema content byte-identical) with re-chained id/prevId. `_journal.json` extended with `idx:8 tag:0008_wellbeing_seed`.
+  - `src/rituals/wellbeing.ts` (REPLACED — STUB → ~330 LOC real). Exports `fireWellbeing(ritual, cfg) → Promise<RitualFireOutcome>` (initial-fire: insert ritual_responses with empty partial, send 4-row keyboard via bot.api.sendMessage, persist message_id via jsonb_set, return 'fired') + `handleWellbeingCallback(ctx, data) → Promise<void>` (parseCallbackData server-side validates dim ∈ {e,m,a} + value ∈ [1,5]; findOpenWellbeingRow filters responded_at IS NULL + fired_at::date = today; per-tap merge via atomic jsonb_set; completion-gated wellbeing_snapshots upsert when isComplete(partial) — single atomic write, all 3 NOT NULL cols populated; skip writes adjustment_eligible:false + emits 'wellbeing_skipped' outcome distinct from fired_no_response).
+  - `src/rituals/scheduler.ts` (MODIFIED, +3 LOC) — added `import { fireWellbeing } from './wellbeing.js';` + `case 'daily_wellbeing': return fireWellbeing(ritual, cfg);` branch alongside Phase 26's `daily_voice_note`. Only `// case 'weekly_review'` comment remains as Phase 29 placeholder.
+  - `scripts/test.sh` (MODIFIED) — applies migration 0008 + asserts `SELECT count(*) FROM rituals WHERE name = 'daily_wellbeing' = 1` BEFORE vitest fires. Failure exits with `❌ MIGRATION 0008: daily_wellbeing seed missing` (mirrors Phase 25 6|1|3 + Phase 26 voice-note seed gate shape).
+  - `scripts/regen-snapshots.sh` (MODIFIED) — declared MIGRATION_8 const + applied in acceptance gate chain + bumped acceptance-check cleanup names from 0008 to 0009 (next sequence after 0008). Acceptance gate prints "No schema changes, nothing to migrate" — confirms 0008 is pure DML.
+  - 2 deviations (both Rule 3 auto-fix-blocking): (1) `fireWellbeing` signature conformed to live (ritual, cfg) → Promise<RitualFireOutcome> per Phase 26 D-26-08 dispatcher contract (plan was authored against pre-Phase-26 1-arg void-returning shape). (2) hand-cloned 0008_snapshot.json from 0007 because pure-DML migration produces no new snapshot from drizzle-kit regen (acceptance gate "No schema changes"); journal-snapshot 1:1 invariant preserved.
+  - All 5 WELL requirements (WELL-01..05) terminate in this plan. Anchor-bias defeat (D-27-04) two-pronged enforced: (prong 1) module reads ZERO data from wellbeing_snapshots — verified by negative grep `! grep -E "select.*wellbeingSnapshots|from.*wellbeingSnapshots" src/rituals/wellbeing.ts`; (prong 2) constant prompt 'Wellbeing snapshot — tap energy, mood, anxiety:' has no historical numeric reference.
+  - Verification: `npx tsc --noEmit` exits 0; `npx vitest run src/rituals/ src/bot/` reports 15/15 files / 123/123 tests passing in isolation; `npx tsx scripts/manual-sweep.ts` against test DB seeded with 0008 returns `[]` cleanly without throwing; live DB verifies `next_run_at = 2026-04-29 07:00:00+00` (UTC = 09:00 Europe/Paris CEST in April).
+  - Pre-existing full-suite test isolation issues (113 fails) continue to surface in `bash scripts/test.sh` but are NOT caused by this plan — categories match Plan 27-01's deferred-items.md (live-integration 401 + HuggingFace EACCES + DB cross-contamination). Substrate gates (0006 + 0007 + 0008) all passed (test.sh exited 0; gates exit 1 on failure).
 
-Prior context — Plan 26-05 complete (1 commit: 30e9cc9) — scripts/fire-ritual.ts operator wrapper for manual UAT:
+Prior context — Plan 27-01 complete (3 commits: 380a481 + 4ba31a1 + 0e1b5b0) — first inline-keyboard callback dispatcher in codebase. Routes r:w:* → handleWellbeingCallback (now real after Plan 27-02); silently acks unknown prefixes per Telegram's 30s contract.
 
-  - `scripts/fire-ritual.ts` (NEW, 81 lines) — operator CLI script taking ritual name as positional arg; backdates `next_run_at` to now()-1min via `db.update(rituals).set({ nextRunAt }).where(eq(rituals.name, ritualName)).returning()`; hard-fails (exit 1) on missing argv → "Usage: ..." or zero-row UPDATE → "No ritual found with name '...'"; on success invokes `runRitualSweep()` once and prints `JSON.stringify(results, null, 2)` to stdout; structured `fire-ritual.set_next_run_at` log line emits ritualName + newNextRunAt for audit trail. ESM entry-point guard at file bottom (`if (import.meta.url === \`file://${process.argv[1]}\`)`) prevents auto-execute on import — Phase 25 LEARNINGS lesson 4. ROADMAP §Phase 26 success criterion 1 (`npx tsx scripts/fire-ritual.ts daily_voice_note`) now satisfiable end-to-end against staging.
-  - All 8 grep gates pass: `runRitualSweep` import (1), `runRitualSweep` total (4 ≥2), `process.argv[2]` (1), `import.meta.url ===` (1), Usage prefix (1), "No ritual found" (1), `oneMinuteAgo` (3 ≥2), tsc-noEmit-clean (0 errors).
-  - 3 smoke tests verified live this session: missing-arg → "Usage: ..." stderr + exit 1 ✓; unknown ritual against real Docker postgres → "No ritual found with name 'nonexistent_ritual_xyz'" stderr + exit 1 ✓; tsc --noEmit → zero errors anywhere ✓.
-  - 0 deviations from plan — script was authored by prior agent in untracked state and matched plan spec verbatim on first inspection; this session inspected, verified, smoke-tested, and committed.
-
-Status: Phase 27 IN PROGRESS. Plan 27-01 complete (callback router infrastructure shipped). Next: Plan 27-02 (wellbeing handler + migration 0008 seed — atomic per D-27-06; replaces wellbeing.ts stub wholesale + wires `case 'daily_wellbeing':` in dispatchRitualHandler). Phase 26 still ready for `/gsd-verify-work`. Phase 29 still parallel-eligible (orthogonal to Phase 27).
+Status: Phase 27 IN PROGRESS. Plans 27-01 + 27-02 complete (router + handler + seed all live). Next: Plan 27-03 (operator UAT script `scripts/fire-wellbeing.ts` + integration tests `src/rituals/__tests__/wellbeing.test.ts` against real Docker postgres covering all 8 behaviors from Plan 27-02 task 2 <behavior> block + scripts/test.sh anchor-bias regression guard). Phase 26 still ready for `/gsd-verify-work`. Phase 29 still parallel-eligible (orthogonal to Phase 27).
 Progress: [███████░░░] 67%
-Last activity: 2026-04-28 — Plan 27-01 complete (callback router infrastructure; 3 commits). First inline-keyboard surface in codebase. WELL-01/WELL-02 partial.
+Last activity: 2026-04-28 — Plan 27-02 complete (wellbeing handler + seed migration ATOMIC; 3 commits). All 5 WELL requirements terminate.
 
 Prior deploy state: v2.3 + date-extraction Haiku JSON-fences fix (eedce33, deployed 42a7eed 2026-04-25) live on Proxmox (192.168.1.50). Daily 23:00 Europe/Paris episodic cron + 6h sync cron + 10:00 proactive sweep cron all healthy. M009 will ADD a second 21:00 evening cron tick (RIT-11) for ritual firing.
 
@@ -164,7 +163,7 @@ None. Ready to plan Phase 25 — pending todo resolved (verdict above).
 
 ## Session Continuity
 
-Last session: 2026-04-28T11:40:00Z
+Last session: 2026-04-28T12:37:06.816Z
 Stopped at: Plan 27-01 complete (3 commits: 380a481 dispatcher+stub, 4ba31a1 bot.on registration, 0e1b5b0 7 unit tests). First inline-keyboard surface in codebase shipped. WELL-01/WELL-02 partial; Plan 27-02 next (wellbeing handler + migration 0008 seed; replaces wellbeing.ts stub wholesale).
 Resume file: None
 

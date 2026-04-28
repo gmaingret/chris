@@ -66,7 +66,7 @@
   4. The 09:00 fire time is honored separately from the 21:00 voice note (D026 spirit + Pitfall 13) — both rituals can fire on the same day; neither blocks the other; morning 10:00 sweep cron picks up the 09:00 wellbeing fire.
 **Plans:** 3 plans (Wave 1: 27-01 | Wave 2: 27-02 ATOMIC per D-27-06 | Wave 3: 27-03)
 - [x] 27-01-PLAN.md — Callback router infrastructure (`bot.on('callback_query:data', handleRitualCallback)` first inline keyboard wiring + dispatcher + STUB wellbeing.ts for forward-import resolution) [WELL-01, WELL-02]
-- [ ] 27-02-PLAN.md — Wellbeing handler + seed migration 0008 ATOMIC: REPLACES STUB with `fireWellbeing` + `handleWellbeingCallback` keyboard render/edit-in-place + per-dimension upsert via `INSERT ... ON CONFLICT (snapshot_date) DO UPDATE SET <dim> = EXCLUDED.<dim>` + skip outcome `'wellbeing_skipped'` + anchor-bias defeat (no historical query, hidden previous-day values); wires `case 'daily_wellbeing'` in dispatchRitualHandler [WELL-03, WELL-04, WELL-05]
+- [x] 27-02-PLAN.md — Wellbeing handler + seed migration 0008 ATOMIC: REPLACES STUB with `fireWellbeing` + `handleWellbeingCallback` keyboard render/edit-in-place + per-dimension upsert via `INSERT ... ON CONFLICT (snapshot_date) DO UPDATE SET <dim> = EXCLUDED.<dim>` + skip outcome `'wellbeing_skipped'` + anchor-bias defeat (no historical query, hidden previous-day values); wires `case 'daily_wellbeing'` in dispatchRitualHandler [WELL-03, WELL-04, WELL-05]
 - [ ] 27-03-PLAN.md — Operator UAT (`scripts/fire-wellbeing.ts`) + real-DB integration tests (8 cases) + anchor-bias regression guard in scripts/test.sh [supports WELL-01..05 via end-to-end testing]
 **UI hint**: yes (Telegram inline keyboard — first use in codebase)
 
@@ -212,7 +212,7 @@ See [milestones/v2.3-ROADMAP.md](milestones/v2.3-ROADMAP.md) for full phase deta
 | 24. Primed-Fixture Pipeline        | v2.3      | 4/4   | Complete    | 2026-04-20 |
 | 25. Ritual Scheduling Foundation   | v2.4      | 3/3   | Complete    | 2026-04-26 |
 | 26. Daily Voice Note Ritual        | v2.4      | 5/5   | Complete    | 2026-04-28 |
-| 27. Daily Wellbeing Snapshot       | v2.4      | 1/3 | In Progress|  |
+| 27. Daily Wellbeing Snapshot       | v2.4      | 2/3 | In Progress|  |
 | 28. Skip-Tracking + Adjustment Dialogue | v2.4 | 0/4   | Not started | -          |
 | 29. Weekly Review                  | v2.4      | 0/4   | Planned     | -          |
 | 30. Test Infrastructure + HARN-03 Refresh | v2.4 | 0/3 | Not started | -          |
