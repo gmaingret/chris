@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.4
 milestone_name: M009 Ritual Infrastructure + Daily Note + Weekly Review
-status: "Plan 26-05 complete (1 commit: 30e9cc9 feat scripts/fire-ritual.ts) — operator wrapper for manual UAT shipped; ROADMAP §Phase 26 success criterion 1 (`npx tsx scripts/fire-ritual.ts daily_voice_note`) now satisfiable end-to-end against staging. Backdates next_run_at to now()-1min via Drizzle parameterized UPDATE...WHERE name=$1 RETURNING, hard-fails on unknown ritual + missing argv, ESM entry-point guard prevents auto-execute on import (Phase 25 LEARNINGS lesson 4). All 8 grep gates pass; tsc --noEmit clean; smoke tests verified (missing-arg, unknown-ritual, real Docker postgres). **Phase 26 COMPLETE: 5/5 plans done; all VOICE-01..06 requirements [x].** Phase 26 ready for /gsd-verify-work."
-stopped_at: "Plan 26-05 complete (1 commit: 30e9cc9) — Phase 26 5/5 plans done; VOICE-01..06 all shipped. Phase 26 ready for /gsd-verify-work. Next: Phases 27/29 parallel-eligible."
-last_updated: "2026-04-28T10:30:00.000Z"
-last_activity: 2026-04-28 — Plan 26-05 complete (scripts/fire-ritual.ts operator wrapper; 1 commit). Phase 26 5/5 plans done.
+status: verifying
+stopped_at: "Plan 27-01 complete (3 commits: 380a481 dispatcher+stub, 4ba31a1 bot.on registration, 0e1b5b0 7 unit tests). First inline-keyboard surface in codebase. WELL-01/WELL-02 partial; full completion in Plan 27-02."
+last_updated: "2026-04-28T11:40:00.000Z"
+last_activity: 2026-04-28 — Plan 27-01 complete (callback router infrastructure; 3 commits). Phase 27 in progress (1/3 plans).
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 15
-  completed_plans: 9
-  percent: 60
+  completed_plans: 10
+  percent: 67
 ---
 
 # Project State
@@ -26,17 +26,26 @@ See: .planning/PROJECT.md (symlink to /home/claude/chris/PLAN.md, updated 2026-0
 
 ## Current Position
 
-Phase: **25** COMPLETE; **26 COMPLETE** (Plans 26-01 + 26-02 + 26-03 + 26-04 + 26-05 all done — VOICE-01..06 shipped); **27+29 PLANNED**
-Plan: 26-05 complete (1 commit: 30e9cc9) — scripts/fire-ritual.ts operator wrapper for manual UAT:
+Phase: **25** COMPLETE; **26 COMPLETE**; **27 IN PROGRESS** (Plan 27-01 done; 27-02 + 27-03 pending). **29 PLANNED**.
+Plan: 27-01 complete (3 commits: 380a481 + 4ba31a1 + 0e1b5b0) — first inline-keyboard callback dispatcher in codebase:
+
+  - `src/bot/handlers/ritual-callback.ts` (NEW, ~75 LOC) — prefix-routing dispatcher. Routes `r:w:*` → `handleWellbeingCallback` (handler owns its own ack); silently acks `r:adj:*` (Phase 28 forward-compat), `r:wr:*` (Phase 29 forward-compat), and unknown root prefixes via warn-log per Telegram's 30-second answerCallbackQuery contract. Auth gate via existing `bot.use(auth)` middleware preserved without code change.
+  - `src/rituals/wellbeing.ts` (NEW, STUB) — exports `handleWellbeingCallback` signature that throws `'rituals.wellbeing.handleWellbeingCallback: stub — Plan 27-02 fills this'`. Plan 27-02 wholesale-replaces with real `fireWellbeing` + handler. The throwing stub is a safety net; mocked via vi.mock in Plan 27-01 tests so never fires.
+  - `src/bot/bot.ts` (MODIFIED, +5 LOC) — added `bot.on('callback_query:data', handleRitualCallback as any)` registration AFTER `bot.on('message:voice')` and BEFORE `bot.catch`. Awk-verified source-order: `auth=22 cb=91 catch=93`.
+  - `src/bot/__tests__/ritual-callback.test.ts` (NEW, 7 tests) — covers all 4 dispatch branches: 2 wellbeing routing + 3 unknown ritual prefix + 1 unknown root + 1 missing data. Mocks wellbeing.js so throwing stub never fires; mocks logger to keep test stdout clean. All 7 tests pass first run.
+  - 0 deviations from plan. WELL-01 + WELL-02 partial (router shipped; keyboard rendering + DB writes ship in Plan 27-02 atomically with migration 0008 seed insert per D-27-06).
+  - Pre-existing full-suite test isolation issue documented in `.planning/phases/27-daily-wellbeing-snapshot/deferred-items.md`. 60/60 rituals + 63/63 bot tests pass in isolation; full-suite cross-contamination is out of Plan 27-01 scope.
+
+Prior context — Plan 26-05 complete (1 commit: 30e9cc9) — scripts/fire-ritual.ts operator wrapper for manual UAT:
 
   - `scripts/fire-ritual.ts` (NEW, 81 lines) — operator CLI script taking ritual name as positional arg; backdates `next_run_at` to now()-1min via `db.update(rituals).set({ nextRunAt }).where(eq(rituals.name, ritualName)).returning()`; hard-fails (exit 1) on missing argv → "Usage: ..." or zero-row UPDATE → "No ritual found with name '...'"; on success invokes `runRitualSweep()` once and prints `JSON.stringify(results, null, 2)` to stdout; structured `fire-ritual.set_next_run_at` log line emits ritualName + newNextRunAt for audit trail. ESM entry-point guard at file bottom (`if (import.meta.url === \`file://${process.argv[1]}\`)`) prevents auto-execute on import — Phase 25 LEARNINGS lesson 4. ROADMAP §Phase 26 success criterion 1 (`npx tsx scripts/fire-ritual.ts daily_voice_note`) now satisfiable end-to-end against staging.
   - All 8 grep gates pass: `runRitualSweep` import (1), `runRitualSweep` total (4 ≥2), `process.argv[2]` (1), `import.meta.url ===` (1), Usage prefix (1), "No ritual found" (1), `oneMinuteAgo` (3 ≥2), tsc-noEmit-clean (0 errors).
   - 3 smoke tests verified live this session: missing-arg → "Usage: ..." stderr + exit 1 ✓; unknown ritual against real Docker postgres → "No ritual found with name 'nonexistent_ritual_xyz'" stderr + exit 1 ✓; tsc --noEmit → zero errors anywhere ✓.
   - 0 deviations from plan — script was authored by prior agent in untracked state and matched plan spec verbatim on first inspection; this session inspected, verified, smoke-tested, and committed.
 
-Status: Phase 26 COMPLETE. All 5 plans shipped (26-01 substrate + rotation primitive; 26-02 PP#5 + handler + mock-chain HARD CO-LOC #1+#5; 26-03 pre-fire suppression VOICE-04; 26-04 voice polite-decline VOICE-05; 26-05 operator UAT script). All VOICE-01..06 marked [x] in REQUIREMENTS.md. Next: Phases 27/29 parallel-eligible (orthogonal handler surfaces, both depend only on Phase 25 substrate). Phase 26 ready for `/gsd-verify-work`.
-Progress: [██████░░░░] 60%
-Last activity: 2026-04-28 — Plan 26-05 complete (scripts/fire-ritual.ts operator wrapper; 1 commit). Phase 26 5/5 plans done.
+Status: Phase 27 IN PROGRESS. Plan 27-01 complete (callback router infrastructure shipped). Next: Plan 27-02 (wellbeing handler + migration 0008 seed — atomic per D-27-06; replaces wellbeing.ts stub wholesale + wires `case 'daily_wellbeing':` in dispatchRitualHandler). Phase 26 still ready for `/gsd-verify-work`. Phase 29 still parallel-eligible (orthogonal to Phase 27).
+Progress: [███████░░░] 67%
+Last activity: 2026-04-28 — Plan 27-01 complete (callback router infrastructure; 3 commits). First inline-keyboard surface in codebase. WELL-01/WELL-02 partial.
 
 Prior deploy state: v2.3 + date-extraction Haiku JSON-fences fix (eedce33, deployed 42a7eed 2026-04-25) live on Proxmox (192.168.1.50). Daily 23:00 Europe/Paris episodic cron + 6h sync cron + 10:00 proactive sweep cron all healthy. M009 will ADD a second 21:00 evening cron tick (RIT-11) for ritual firing.
 
@@ -101,6 +110,12 @@ Full log in PROJECT.md Key Decisions table. Most relevant for M009:
 - **D-25-02-B: Pitfall 2/3 grep guards (and TESTING.md D-02 fake-timer guard) require docstrings to NOT name forbidden patterns literally.** Source files describe forbidden patterns abstractly ("manual UTC ms arithmetic", "JS Date wall-clock setters", "fake-timer mocks") so the guard regex itself does not appear in source. Verification regex lives in plan reference. Future plan authors should anticipate this when writing acceptance criteria for file-level grep guards.
 - **D-25-02-C: D-09 3-arg `computeNextRunAt(now, cadence, config)` signature confirmed correct.** The 3-arg shape is the right call: cadence sources from `rituals.type` enum column, never denormalized into the jsonb config. RESEARCH.md §4's pseudocode is illustrative; the real signature is what landed.
 
+### Plan 27-01 implementation decisions (2026-04-28)
+
+- **D-27-01-A: Logger module mocked in tests in addition to wellbeing.** Plan's reference test scaffold only mandated `vi.mock` of `'../../rituals/wellbeing.js'`. I additionally mocked `'../../utils/logger.js'` because the dispatcher emits `logger.warn` for the 5 silent-ack branches; the real pino logger would print warn output during test runs and pollute test stdout. Mirrors existing pattern from `src/bot/__tests__/document-handler.test.ts`. No behavioral change — the dispatch logic is unchanged; only test ergonomics improve. Documented in 27-01-SUMMARY.md "Decisions Made".
+
+- **D-27-01-B: Pre-existing full-suite test isolation issue logged to deferred-items.md (out of scope).** `bash scripts/test.sh` reports 29 failed test files / 74 failed tests when run as a full suite. Categorized failures: live-integration suite needs real Anthropic API key (test harness uses `test-key` placeholder; pre-existing), and 8 DB-integration suites pass cleanly when run in isolation but cross-contaminate at the DB level when run together. Verified by `npx vitest run src/rituals/` → 60/60 passed and `npx vitest run src/bot/` → 63/63 passed against the same Docker postgres. Plan 27-01 introduces zero changes that touch these failing modules — pure routing wiring + new STUB + new test file. Per executor SCOPE BOUNDARY rule (only fix issues DIRECTLY caused by current task's changes), this is deferred to a future infra plan to investigate vitest fork isolation + per-suite DB cleanup hooks.
+
 ### Plan 26-01 implementation decisions (2026-04-28)
 
 - **D-26-01-A: PP#5 partial index declared in `src/db/schema.ts` via `.where(sql\`...\`)` (not just in migration SQL).** Code_context CONTEXT.md noted this was "cleaner — planner picks"; the call was YES — keeps drizzle-kit snapshot/schema parity tight, mirrors Phase 25 wellbeing_snapshots_snapshot_date_idx + rituals_next_run_at_enabled_idx precedent. Net-effect: `bash scripts/regen-snapshots.sh` reports "No schema changes" against fresh DB without per-run drift; `meta/0007_snapshot.json` already encodes the partial index so future drizzle-kit operations don't propose to add it.
@@ -149,8 +164,8 @@ None. Ready to plan Phase 25 — pending todo resolved (verdict above).
 
 ## Session Continuity
 
-Last session: 2026-04-28T10:10:00Z
-Stopped at: Plan 26-05 complete (1 commit: 30e9cc9) — scripts/fire-ritual.ts operator wrapper shipped. **Phase 26 COMPLETE: 5/5 plans done; VOICE-01..06 all [x].** Phase 26 ready for /gsd-verify-work. Next: Phases 27/29 parallel-eligible.
+Last session: 2026-04-28T11:40:00Z
+Stopped at: Plan 27-01 complete (3 commits: 380a481 dispatcher+stub, 4ba31a1 bot.on registration, 0e1b5b0 7 unit tests). First inline-keyboard surface in codebase shipped. WELL-01/WELL-02 partial; Plan 27-02 next (wellbeing handler + migration 0008 seed; replaces wellbeing.ts stub wholesale).
 Resume file: None
 
 ## Known Tech Debt
