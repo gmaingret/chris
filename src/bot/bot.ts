@@ -7,6 +7,7 @@ import { getLastUserLanguage } from '../chris/language.js';
 import { handleDocument } from './handlers/document.js';
 import { handleSyncCommand, isAwaitingOAuthCode, handleOAuthCode } from './handlers/sync.js';
 import { handleDecisionsCommand } from './handlers/decisions.js';
+import { handleRitualCallback } from './handlers/ritual-callback.js';
 import { handleSummaryCommand } from './handlers/summary.js';
 import { handleVoiceMessageDecline } from './handlers/voice-decline.js';
 
@@ -83,6 +84,11 @@ bot.on('message:document', handleDocument as any);
 // text-message language (no Whisper transcription per OOS-3).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 bot.on('message:voice', handleVoiceMessageDecline as any);
+
+// First inline-keyboard surface in this codebase (M009 Phase 27 WELL-02).
+// Future ritual callback prefixes: r:adj:* (Phase 28), r:wr:* (Phase 29).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+bot.on('callback_query:data', handleRitualCallback as any);
 
 bot.catch((err) => {
   logger.error({ err: err.error, ctx: err.ctx?.update }, 'Bot error');
