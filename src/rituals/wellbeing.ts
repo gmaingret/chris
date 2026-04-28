@@ -1,15 +1,424 @@
 /**
- * src/rituals/wellbeing.ts — Phase 27 Plan 01 STUB (replaced by Plan 02)
+ * src/rituals/wellbeing.ts — Phase 27 Plan 02 (WELL-01..05)
  *
- * Phase 27 Plan 01 ships only the bot router infrastructure. This stub
- * exports the function signature that handleRitualCallback imports, so
- * Plan 01 compiles without depending on Plan 02 having shipped.
+ * Daily wellbeing snapshot ritual handler. First inline-keyboard surface in
+ * the codebase. Two entry points:
  *
- * Plan 02 replaces this file wholesale with the real implementation
- * (fireWellbeing + full handleWellbeingCallback).
+ *   - fireWellbeing(ritual, cfg): called by dispatchRitualHandler at sweep
+ *     time. Inserts a ritual_responses row, builds the inline keyboard (3
+ *     rows of 1-5 buttons + skip row), sends via Telegram. Returns 'fired'
+ *     RitualFireOutcome (matches Phase 26 fireVoiceNote contract — D-26-08).
+ *
+ *   - handleWellbeingCallback(ctx, data): called by handleRitualCallback
+ *     when a `r:w:*` callback arrives. Merges per-dim into metadata.partial
+ *     via jsonb_set (atomic at Postgres column level — no TOCTOU race), then:
+ *     - skip → close + write metadata.skipped + emit 'wellbeing_skipped' outcome
+ *     - 3rd dim tapped → write wellbeing_snapshots row + emit 'wellbeing_completed' outcome
+ *     - 1st/2nd dim tapped → redraw keyboard with [N] highlights, no completion
+ *
+ * Anchor-bias defeat (D-27-04): this module reads ZERO data from
+ * wellbeing_snapshots and ZERO data from prior ritual_responses (other than
+ * today's in-progress row). The "hide" is the absence of code, not added code.
+ * Plan 27-03's negative grep guard in scripts/test.sh enforces this contract
+ * across future regressions.
+ *
+ * Race-safety: per-tap UPDATE … SET metadata = jsonb_set(...) is atomic at
+ * Postgres row-lock level. Concurrent UPDATEs on the same row serialize. The
+ * completion-gated wellbeing_snapshots INSERT runs ONCE (only when handler
+ * observes all 3 dims present in just-merged metadata).
+ *
+ * NOT NULL constraint on wellbeing_snapshots.energy/mood/anxiety means partial-
+ * row writes fail. We stage partial state in ritual_responses.metadata.partial
+ * jsonb (per WELL-03) and only write to wellbeing_snapshots when all 3 dims
+ * are captured (per D-27-05).
+ *
+ * Server-side validation (D-27-09): parseCallbackData rejects dimStr ∉ {e,m,a}
+ * or value ∉ [1,5] with kind:'invalid' — Telegram callback_data is untrusted.
+ * Defense-in-depth: explicit assert before sql.raw() construction.
+ *
+ * Outcome semantics (forward-compat for Phase 28 skip-tracking):
+ *   - 'wellbeing_completed' — all 3 dims captured (Phase 28 RESETS skip_count)
+ *   - 'wellbeing_skipped'   — user tapped Skip (Phase 28 NOT counted toward skip_count)
+ *   - 'fired_no_response'   — emitted by Phase 28 sweep when prior responded_at is NULL + window expired
+ *   - 'wellbeing_partial'   — Phase 28 may emit if some dims captured but window expired
  */
-import type { Context } from 'grammy';
+import { eq, sql } from 'drizzle-orm';
+import { InlineKeyboard, type Context } from 'grammy';
+import { DateTime } from 'luxon';
+import { bot } from '../bot/bot.js';
+import { config } from '../config.js';
+import { db } from '../db/connection.js';
+import { rituals, ritualResponses, ritualFireEvents, wellbeingSnapshots } from '../db/schema.js';
+import { logger } from '../utils/logger.js';
+import type { RitualConfig, RitualFireOutcome } from './types.js';
 
-export async function handleWellbeingCallback(_ctx: Context, _data: string): Promise<void> {
-  throw new Error('rituals.wellbeing.handleWellbeingCallback: stub — Plan 27-02 fills this');
+// ── Constants ──────────────────────────────────────────────────────────────
+
+const WELLBEING_PROMPT = 'Wellbeing snapshot — tap energy, mood, anxiety:';
+const WELLBEING_SKIP_LABEL = 'Skip';
+const WELLBEING_CALLBACK_PREFIX = 'r:w:';
+const WELLBEING_SKIP_CALLBACK = 'r:w:skip';
+const DIMS = ['e', 'm', 'a'] as const;
+type Dim = (typeof DIMS)[number];
+const DIM_LABELS: Record<Dim, string> = { e: 'energy', m: 'mood', a: 'anxiety' };
+
+// Outcome strings written to ritual_fire_events.outcome (text NOT NULL)
+const OUTCOME_COMPLETED = 'wellbeing_completed';
+const OUTCOME_SKIPPED = 'wellbeing_skipped';
+
+// Metadata jsonb shape (stored in ritual_responses.metadata)
+interface WellbeingPartial {
+  e?: number;
+  m?: number;
+  a?: number;
+}
+interface WellbeingMetadata {
+  message_id?: number;
+  partial: WellbeingPartial;
+  completed?: boolean;
+  skipped?: boolean;
+  adjustment_eligible?: boolean;
+}
+
+// ── Fire-side (called by dispatchRitualHandler) ────────────────────────────
+
+/**
+ * fireWellbeing — initial fire. Creates ritual_responses row with empty partial
+ * state, builds the inline keyboard, sends via Telegram.
+ *
+ * Anchor-bias defeat: reads ZERO data from wellbeing_snapshots. The keyboard
+ * starts blank (no highlights). The prompt text is constant — no historical
+ * reference (D-27-04 prong 2).
+ *
+ * Idempotency: dispatchRitualHandler caller has already run tryFireRitualAtomic
+ * (RIT-10), so this function is invoked AT MOST ONCE per fire even under
+ * concurrent sweep ticks. Safe to insert ritual_responses + send Telegram
+ * message without further deduplication.
+ *
+ * Conforms to Phase 26 D-26-08 dispatcher contract: takes (ritual, cfg) and
+ * returns RitualFireOutcome. Currently unconditionally returns 'fired' — Phase
+ * 28 may add a 'system_suppressed' branch (mirroring fireVoiceNote D-26-06)
+ * if anchor-day-suppression is desired; for v2.4 the wellbeing fire is
+ * unconditional once the sweep tick claims it.
+ *
+ * Logs: rituals.wellbeing.fired
+ */
+export async function fireWellbeing(
+  ritual: typeof rituals.$inferSelect,
+  _cfg: RitualConfig,
+): Promise<RitualFireOutcome> {
+  // 1. Insert ritual_responses row with empty partial state
+  const initialMetadata: WellbeingMetadata = { partial: {} };
+  const [fireRow] = await db
+    .insert(ritualResponses)
+    .values({
+      ritualId: ritual.id,
+      firedAt: new Date(),
+      promptText: WELLBEING_PROMPT,
+      metadata: initialMetadata,
+    })
+    .returning();
+
+  if (!fireRow) {
+    logger.error({ ritualId: ritual.id }, 'rituals.wellbeing.fire.insert_failed');
+    return 'fired';
+  }
+
+  // 2. Build initial keyboard (no highlights — empty partial)
+  const kb = buildKeyboard({ partial: {} });
+
+  // 3. Send via Telegram + record message_id for subsequent edit-in-place
+  const sent = await bot.api.sendMessage(
+    config.telegramAuthorizedUserId,
+    WELLBEING_PROMPT,
+    { reply_markup: kb },
+  );
+
+  // 4. Persist message_id to ritual_responses.metadata for the callback handler
+  //    to use (technically optional — ctx.editMessageReplyMarkup uses the
+  //    message_id from ctx.callbackQuery.message — but recorded for observability).
+  await db
+    .update(ritualResponses)
+    .set({
+      metadata: sql`jsonb_set(${ritualResponses.metadata}, '{message_id}', ${sent.message_id}::jsonb, true)`,
+    })
+    .where(eq(ritualResponses.id, fireRow.id));
+
+  logger.info(
+    { ritualId: ritual.id, fireRowId: fireRow.id, messageId: sent.message_id },
+    'rituals.wellbeing.fired',
+  );
+
+  return 'fired';
+}
+
+// ── Callback-side (called by handleRitualCallback) ─────────────────────────
+
+/**
+ * handleWellbeingCallback — entry point for r:w:* callbacks.
+ *
+ * Parses callback_data with server-side validation (D-27-09: dim ∈ {e,m,a},
+ * value ∈ [1,5]), finds today's open ritual_responses row, merges the new
+ * value into metadata.partial via atomic jsonb_set, redraws the keyboard,
+ * and on completion (3rd dim OR skip) writes the final snapshot + clears keyboard.
+ *
+ * Always invokes ctx.answerCallbackQuery() exactly once (Telegram 30s contract).
+ *
+ * Logs: rituals.wellbeing.tap, rituals.wellbeing.completed,
+ *       rituals.wellbeing.skipped, rituals.wellbeing.no_open_row,
+ *       rituals.wellbeing.invalid_payload
+ */
+export async function handleWellbeingCallback(ctx: Context, data: string): Promise<void> {
+  const parsed = parseCallbackData(data);
+  if (parsed.kind === 'invalid') {
+    logger.warn({ data }, 'rituals.wellbeing.invalid_payload');
+    await ctx.answerCallbackQuery({ text: 'Invalid wellbeing button' });
+    return;
+  }
+
+  // Find the open ritual_responses row for today's daily_wellbeing fire
+  const openRow = await findOpenWellbeingRow();
+  if (!openRow) {
+    logger.warn({ data }, 'rituals.wellbeing.no_open_row');
+    await ctx.answerCallbackQuery({ text: 'Snapshot already closed' });
+    return;
+  }
+
+  if (parsed.kind === 'skip') {
+    await handleSkip(ctx, openRow);
+    return;
+  }
+
+  // parsed.kind === 'tap'
+  await handleTap(ctx, openRow, parsed.dim, parsed.value);
+}
+
+// ── Tap handling ───────────────────────────────────────────────────────────
+
+async function handleTap(
+  ctx: Context,
+  openRow: typeof ritualResponses.$inferSelect,
+  dim: Dim,
+  value: number,
+): Promise<void> {
+  // Defense-in-depth: parseCallbackData already validated dim ∈ {e,m,a} and
+  // value ∈ [1,5]. Re-assert before sql.raw() construction so any future
+  // refactor that bypasses parseCallbackData fails loud rather than silently
+  // opening an injection surface (PATTERNS.md item 7).
+  if (!DIMS.includes(dim)) {
+    throw new Error(`rituals.wellbeing.handleTap: invariant violated — dim=${dim} not in {e,m,a}`);
+  }
+  if (!Number.isInteger(value) || value < 1 || value > 5) {
+    throw new Error(`rituals.wellbeing.handleTap: invariant violated — value=${value} not in [1,5]`);
+  }
+
+  // Atomic per-dim merge (no TOCTOU race — jsonb_set is row-lock atomic)
+  // Path string `{partial,e}` is constructed from the validated dim above.
+  const path = `{partial,${dim}}`;
+  await db
+    .update(ritualResponses)
+    .set({
+      metadata: sql`jsonb_set(coalesce(${ritualResponses.metadata}, '{}'::jsonb), ${path}, ${value}::jsonb, true)`,
+    })
+    .where(eq(ritualResponses.id, openRow.id));
+
+  logger.info({ fireRowId: openRow.id, dim, value }, 'rituals.wellbeing.tap');
+
+  // Re-read merged state (for redraw + completion check)
+  const [updatedRow] = await db
+    .select()
+    .from(ritualResponses)
+    .where(eq(ritualResponses.id, openRow.id))
+    .limit(1);
+
+  const meta = (updatedRow?.metadata ?? { partial: {} }) as WellbeingMetadata;
+
+  if (isComplete(meta.partial)) {
+    await completeSnapshot(ctx, openRow, meta);
+  } else {
+    // Redraw keyboard with [N] highlights for tapped dimensions
+    await ctx.editMessageReplyMarkup({ reply_markup: buildKeyboard(meta) });
+    await ctx.answerCallbackQuery({ text: `${DIM_LABELS[dim]}: ${value}` });
+  }
+}
+
+// ── Completion + persistence ───────────────────────────────────────────────
+
+async function completeSnapshot(
+  ctx: Context,
+  openRow: typeof ritualResponses.$inferSelect,
+  meta: WellbeingMetadata,
+): Promise<void> {
+  const today = todayLocalDate();
+
+  // Single atomic insert with all 3 columns (per D-27-05)
+  await db
+    .insert(wellbeingSnapshots)
+    .values({
+      snapshotDate: today,
+      energy: meta.partial.e!,
+      mood: meta.partial.m!,
+      anxiety: meta.partial.a!,
+    })
+    .onConflictDoUpdate({
+      target: wellbeingSnapshots.snapshotDate,
+      set: {
+        energy: sql.raw('EXCLUDED.energy'),
+        mood: sql.raw('EXCLUDED.mood'),
+        anxiety: sql.raw('EXCLUDED.anxiety'),
+      },
+    });
+
+  // Mark ritual_responses row as responded
+  const completedMeta: WellbeingMetadata = { ...meta, completed: true };
+  await db
+    .update(ritualResponses)
+    .set({
+      respondedAt: new Date(),
+      metadata: completedMeta,
+    })
+    .where(eq(ritualResponses.id, openRow.id));
+
+  // Emit ritual_fire_events for Phase 28 skip-tracking
+  await db.insert(ritualFireEvents).values({
+    ritualId: openRow.ritualId,
+    firedAt: new Date(),
+    outcome: OUTCOME_COMPLETED,
+    metadata: { fireRowId: openRow.id, snapshotDate: today },
+  });
+
+  // Clear keyboard via editMessageText (no reply_markup → keyboard cleared)
+  await ctx.editMessageText(
+    `Logged: energy ${meta.partial.e}, mood ${meta.partial.m}, anxiety ${meta.partial.a}.`,
+  );
+  await ctx.answerCallbackQuery({ text: 'Snapshot complete' });
+
+  logger.info(
+    { fireRowId: openRow.id, snapshotDate: today, ...meta.partial },
+    'rituals.wellbeing.completed',
+  );
+}
+
+// ── Skip handling ──────────────────────────────────────────────────────────
+
+async function handleSkip(
+  ctx: Context,
+  openRow: typeof ritualResponses.$inferSelect,
+): Promise<void> {
+  const meta = (openRow.metadata ?? { partial: {} }) as WellbeingMetadata;
+
+  // Mark as skipped — adjustment_eligible: false per WELL-04
+  const skippedMeta: WellbeingMetadata = {
+    ...meta,
+    skipped: true,
+    adjustment_eligible: false,
+  };
+  await db
+    .update(ritualResponses)
+    .set({
+      respondedAt: new Date(),
+      metadata: skippedMeta,
+    })
+    .where(eq(ritualResponses.id, openRow.id));
+
+  // Emit 'wellbeing_skipped' outcome — Phase 28 filters this out of skip_count
+  await db.insert(ritualFireEvents).values({
+    ritualId: openRow.ritualId,
+    firedAt: new Date(),
+    outcome: OUTCOME_SKIPPED,
+    metadata: { fireRowId: openRow.id, adjustment_eligible: false },
+  });
+
+  // Clear keyboard
+  await ctx.editMessageText('Skipped wellbeing snapshot.');
+  await ctx.answerCallbackQuery({ text: 'Skipped' });
+
+  logger.info({ fireRowId: openRow.id }, 'rituals.wellbeing.skipped');
+}
+
+// ── Keyboard rendering ─────────────────────────────────────────────────────
+
+function buildKeyboard(meta: Pick<WellbeingMetadata, 'partial'>): InlineKeyboard {
+  const kb = new InlineKeyboard();
+  for (const dim of DIMS) {
+    const tappedValue = meta.partial[dim];
+    for (let val = 1; val <= 5; val++) {
+      const label = tappedValue === val ? `[${val}]` : `${val}`;
+      kb.text(label, `${WELLBEING_CALLBACK_PREFIX}${dim}:${val}`);
+    }
+    kb.row();
+  }
+  kb.text(WELLBEING_SKIP_LABEL, WELLBEING_SKIP_CALLBACK);
+  return kb;
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+type ParsedCallback =
+  | { kind: 'tap'; dim: Dim; value: number }
+  | { kind: 'skip' }
+  | { kind: 'invalid' };
+
+/**
+ * Server-side validation per D-27-09 — Telegram callback_data is untrusted.
+ * Rejects dimStr ∉ {e,m,a} or value ∉ [1,5] with kind:'invalid'.
+ */
+function parseCallbackData(data: string): ParsedCallback {
+  if (!data.startsWith(WELLBEING_CALLBACK_PREFIX)) return { kind: 'invalid' };
+  const rest = data.slice(WELLBEING_CALLBACK_PREFIX.length);
+  if (rest === 'skip') return { kind: 'skip' };
+  const [dimStr, valStr] = rest.split(':');
+  if (!dimStr || !valStr) return { kind: 'invalid' };
+  if (!DIMS.includes(dimStr as Dim)) return { kind: 'invalid' };
+  const value = Number(valStr);
+  if (!Number.isInteger(value) || value < 1 || value > 5) return { kind: 'invalid' };
+  return { kind: 'tap', dim: dimStr as Dim, value };
+}
+
+function isComplete(partial: WellbeingPartial): boolean {
+  return partial.e !== undefined && partial.m !== undefined && partial.a !== undefined;
+}
+
+function todayLocalDate(): string {
+  return DateTime.now().setZone(config.proactiveTimezone).toISODate()!;
+}
+
+/**
+ * Find today's open ritual_responses row for the daily_wellbeing ritual.
+ *
+ * "Open" = responded_at IS NULL AND fired_at::date matches today's local date.
+ * Returns null if no open row exists (snapshot already completed/skipped, or
+ * stale callback after window expiry).
+ *
+ * Queries by ritual NAME ('daily_wellbeing') so the callback handler does not
+ * need to know the seeded UUID.
+ */
+async function findOpenWellbeingRow(): Promise<typeof ritualResponses.$inferSelect | null> {
+  const today = todayLocalDate();
+  const tz = config.proactiveTimezone;
+  const [row] = await db
+    .select({
+      id: ritualResponses.id,
+      ritualId: ritualResponses.ritualId,
+      firedAt: ritualResponses.firedAt,
+      respondedAt: ritualResponses.respondedAt,
+      promptText: ritualResponses.promptText,
+      pensieveEntryId: ritualResponses.pensieveEntryId,
+      metadata: ritualResponses.metadata,
+      createdAt: ritualResponses.createdAt,
+    })
+    .from(ritualResponses)
+    .innerJoin(rituals, eq(rituals.id, ritualResponses.ritualId))
+    .where(
+      sql`
+        ${rituals.name} = 'daily_wellbeing'
+        AND ${ritualResponses.respondedAt} IS NULL
+        AND date_trunc('day', ${ritualResponses.firedAt} AT TIME ZONE ${tz})
+            = ${today}::date
+      `,
+    )
+    .orderBy(sql`${ritualResponses.firedAt} DESC`)
+    .limit(1);
+
+  return row ?? null;
 }
