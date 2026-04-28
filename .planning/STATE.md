@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.4
 milestone_name: M009 Ritual Infrastructure + Daily Note + Weekly Review
 status: executing
-stopped_at: "Plan 27-02 complete (3 commits: bdc924a migration 0008 + test.sh substrate gate, 2d451f3 wellbeing.ts STUB → real fireWellbeing + handleWellbeingCallback ~330 LOC, 3fff9a1 dispatchRitualHandler 'case daily_wellbeing' wired). All 5 WELL requirements (WELL-01..05) terminate. D-27-06 atomicity satisfied. Plan 27-03 next (operator UAT script + integration tests against real Docker postgres)."
-last_updated: "2026-04-28T12:38:48.223Z"
+stopped_at: "Plan 27-01 complete (3 commits: 380a481 dispatcher+stub, 4ba31a1 bot.on registration, 0e1b5b0 7 unit tests). First inline-keyboard surface in codebase shipped. WELL-01/WELL-02 partial; Plan 27-02 next (wellbeing handler + migration 0008 seed; replaces wellbeing.ts stub wholesale)."
+last_updated: "2026-04-28T17:18:27.637Z"
 last_activity: 2026-04-28 — Plan 27-02 complete (wellbeing handler + seed migration ATOMIC; 3 commits). All 5 WELL requirements terminate.
 progress:
   total_phases: 6
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 15
-  completed_plans: 10
-  percent: 67
+  completed_plans: 11
+  percent: 73
 ---
 
 # Project State
@@ -43,7 +43,7 @@ Plan: 27-02 complete (3 commits: bdc924a + 2d451f3 + 3fff9a1) — wellbeing hand
 Prior context — Plan 27-01 complete (3 commits: 380a481 + 4ba31a1 + 0e1b5b0) — first inline-keyboard callback dispatcher in codebase. Routes r:w:* → handleWellbeingCallback (now real after Plan 27-02); silently acks unknown prefixes per Telegram's 30s contract.
 
 Status: Phase 27 IN PROGRESS. Plans 27-01 + 27-02 complete (router + handler + seed all live). Next: Plan 27-03 (operator UAT script `scripts/fire-wellbeing.ts` + integration tests `src/rituals/__tests__/wellbeing.test.ts` against real Docker postgres covering all 8 behaviors from Plan 27-02 task 2 <behavior> block + scripts/test.sh anchor-bias regression guard). Phase 26 still ready for `/gsd-verify-work`. Phase 29 still parallel-eligible (orthogonal to Phase 27).
-Progress: [███████░░░] 67%
+Progress: [███████░░░] 73%
 Last activity: 2026-04-28 — Plan 27-02 complete (wellbeing handler + seed migration ATOMIC; 3 commits). All 5 WELL requirements terminate.
 
 Prior deploy state: v2.3 + date-extraction Haiku JSON-fences fix (eedce33, deployed 42a7eed 2026-04-25) live on Proxmox (192.168.1.50). Daily 23:00 Europe/Paris episodic cron + 6h sync cron + 10:00 proactive sweep cron all healthy. M009 will ADD a second 21:00 evening cron tick (RIT-11) for ritual firing.
@@ -163,7 +163,7 @@ None. Ready to plan Phase 25 — pending todo resolved (verdict above).
 
 ## Session Continuity
 
-Last session: 2026-04-28T12:37:06.816Z
+Last session: 2026-04-28T17:18:27.624Z
 Stopped at: Plan 27-01 complete (3 commits: 380a481 dispatcher+stub, 4ba31a1 bot.on registration, 0e1b5b0 7 unit tests). First inline-keyboard surface in codebase shipped. WELL-01/WELL-02 partial; Plan 27-02 next (wellbeing handler + migration 0008 seed; replaces wellbeing.ts stub wholesale).
 Resume file: None
 
