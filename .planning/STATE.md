@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.4
 milestone_name: M009 Ritual Infrastructure + Daily Note + Weekly Review
-status: Phase 26 in progress — Plan 26-01 complete; ready to execute Plan 26-02
-stopped_at: "Plan 26-01 complete (4 commits: f06a8d4, 7cdf809, b770a01, dc9a07a) — voice note substrate (migration 0007 + voice-note.ts constants + chooseNextPromptIndex pure shuffled-bag rotation + 13 green tests) landed. Substrate gate green. Ready to execute Plan 26-02 (handler + PP#5 detector + mock-chain coverage update)."
-last_updated: "2026-04-28T05:06:25.256Z"
-last_activity: 2026-04-28 — Plan 26-01 substrate landed (4 commits): migration 0007 + voice-note.ts constants + chooseNextPromptIndex pure shuffled-bag rotation + 13 green tests; ready for Plan 26-02
+status: verifying
+stopped_at: "Plan 26-02 complete (8 commits: 6c7210d, 3da9af3, aaf793a, 3ef989a, 0290017, a2950c3, 9860c5f, 117c6dd) — HARD CO-LOC #1 + #5 honored atomically: PP#5 detector + voice-note handler + mock-chain coverage update + Pitfall 6 regression test all landed in same plan. Ready to execute Plan 26-03 (pre-fire suppression — VOICE-04)."
+last_updated: "2026-04-28T06:01:30.000Z"
+last_activity: 2026-04-28 — Plan 26-02 complete; engine-mute.test.ts pre-existing 7 ECONNREFUSED failures FIXED as side effect of mock-chain update (HARD CO-LOC #5 scope per D-26-07).
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 15
-  completed_plans: 4
-  percent: 27
+  completed_plans: 6
+  percent: 40
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (symlink to /home/claude/chris/PLAN.md, updated 2026-0
 
 ## Current Position
 
-Phase: **25** COMPLETE; **26 IN PROGRESS** (Plan 26-01 done; Plans 26-02..05 pending); **27+29 PLANNED**
-Plan: 26-01 complete (4 commits: f06a8d4, 7cdf809, b770a01, dc9a07a + final metadata commit pending) — substrate landed (migration 0007 + voice-note.ts constants + chooseNextPromptIndex pure rotation primitive + 13 green tests). Ready to execute Plan 26-02 (Wave 2 — voice note handler + PP#5 detector + mock-chain coverage update; HARD CO-LOC #1 + #5).
-Status: Plan 26-01 substrate verified: migration applies cleanly, scripts/test.sh substrate gate green (PASS: Phase 26 migration 0007 substrate verified), all 13 new pure-function tests pass. 57 vitest baseline failures unchanged (live API + huggingface EACCES + engine-mute decision-capture mock — pre-existing, owned by Plan 26-02 mock-chain coverage update).
-Progress: [███░░░░░░░] 27% (4 of 15 plans done)
-Last activity: 2026-04-27 — Phases 26+27+29 plans converted to canonical XML matching Phase 25 / all prior milestones; checker blockers all addressed (B1+B2+B3+B4 in 26; B-1 in 29)
+Phase: **25** COMPLETE; **26 IN PROGRESS** (Plans 26-01 + 26-02 done; Plans 26-03..05 pending); **27+29 PLANNED**
+Plan: 26-02 complete (8 commits: 6c7210d, 3da9af3, aaf793a, 3ef989a, 0290017, a2950c3, 9860c5f, 117c6dd) — HARD CO-LOC #1 + #5 atomic: PP#5 detector at processMessage entry, fireVoiceNote handler dispatched via name-keyed switch, storePensieveEntry epistemicTag parameter (D-26-03), mock-chain coverage for 3 engine test files (HARD CO-LOC #5 / D-26-07; engine-mute pre-existing 7 ECONNREFUSED failures FIXED), engine-pp5.test.ts cumulative not-called Anthropic invariant (Pitfall 6 contract), voice-note-handler.test.ts Promise.allSettled atomic-consume race. Ready to execute Plan 26-03 (pre-fire suppression — VOICE-04).
+Status: Plan 26-02 verified via scoped Docker harness: 11 test files / 120 tests passed including engine.test.ts (72/72), engine-mute.test.ts (5/5 — was 0/5), engine-refusal.test.ts (5/5), engine-pp5.test.ts (3/3 with afterAll Pitfall 6 invariant green), voice-note-handler.test.ts (4/4 with concurrency race green). Pre-existing baseline failures (live-integration 401, contradiction-false-positive HuggingFace EACCES) unchanged.
+Progress: [████░░░░░░] 40%
+Last activity: 2026-04-28 — Plan 26-02 complete; engine-mute.test.ts pre-existing 7 ECONNREFUSED failures FIXED as side effect of mock-chain update (HARD CO-LOC #5 scope per D-26-07).
 
 Prior deploy state: v2.3 + date-extraction Haiku JSON-fences fix (eedce33, deployed 42a7eed 2026-04-25) live on Proxmox (192.168.1.50). Daily 23:00 Europe/Paris episodic cron + 6h sync cron + 10:00 proactive sweep cron all healthy. M009 will ADD a second 21:00 evening cron tick (RIT-11) for ritual firing.
 
