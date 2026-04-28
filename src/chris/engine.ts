@@ -73,6 +73,7 @@ import { config } from '../config.js';
 import { LLMError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 import { stripFences } from '../utils/text.js';
+import { findActivePendingResponse, recordRitualVoiceResponse } from '../rituals/voice-note.js';
 
 // ── Abort acknowledgment (PP#0) ──────────────────────────────────────────
 
@@ -163,6 +164,49 @@ export async function processMessage(
   const start = Date.now();
 
   try {
+    // ── PP#5: Ritual-response detection (M009 Phase 26 VOICE-01; per D-26-02) ─
+    // Runs FIRST. State-table lookup against ritual_pending_responses;
+    // on hit, write Pensieve as RITUAL_RESPONSE + return empty string
+    // (IN-02 silent-skip via src/bot/bot.ts:54).
+    // HARD CO-LOC #1 (Pitfall 6 mitigation): co-located with voice-note
+    // handler in Plan 26-02. Splitting them = guaranteed Chris-responds-
+    // to-rituals regression for the gap window.
+    const chatIdStrPP5 = chatId.toString();
+    const pending = await findActivePendingResponse(chatIdStrPP5, new Date());
+    if (pending) {
+      try {
+        const result = await recordRitualVoiceResponse(pending, chatId, text);
+        logger.info(
+          {
+            pendingId: pending.id,
+            ritualId: pending.ritualId,
+            pensieveEntryId: result.pensieveEntryId,
+          },
+          'chris.engine.pp5.hit',
+        );
+        return ''; // IN-02 silent-skip
+      } catch (depositErr) {
+        // Race-loss is expected under concurrent PP#5 (rare but possible) — the
+        // winner already deposited; loser stays silent so cumulative Anthropic
+        // not-called invariant in engine-pp5.test.ts holds.
+        if (
+          depositErr instanceof Error &&
+          depositErr.message === 'ritual.pp5.race_lost'
+        ) {
+          logger.info({ pendingId: pending.id }, 'chris.engine.pp5.race_lost');
+          return ''; // Silent — winner's response covered it
+        }
+        // Other errors: fall through (better to deposit-as-JOURNAL than lose).
+        logger.warn(
+          {
+            err: depositErr instanceof Error ? depositErr.message : String(depositErr),
+            pendingId: pending.id,
+          },
+          'chris.engine.pp5.deposit_error',
+        );
+      }
+    }
+
     // ── PP#0: active decision-capture check (SWEEP-03) ─────────────────
     // Runs BEFORE mute/refusal/language/mode detection (D-24).
     const activeCapture = await getActiveDecisionCapture(chatId);
