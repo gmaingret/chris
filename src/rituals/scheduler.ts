@@ -40,6 +40,7 @@ import {
   type RitualConfig,
 } from './types.js';
 import { fireVoiceNote } from './voice-note.js';
+import { fireWeeklyReview } from './weekly-review.js';
 import { fireWellbeing } from './wellbeing.js';
 
 // ── Ritual sweep orchestrator (M009 Phase 25 RIT-09) ──────────────────────
@@ -255,14 +256,21 @@ function cadencePeriodMs(type: 'daily' | 'weekly' | 'monthly' | 'quarterly'): nu
 }
 
 /**
- * dispatchRitualHandler — name-keyed dispatch (D-26-08).
+ * dispatchRitualHandler — name-keyed dispatch (D-26-08 / D-29-08).
  *
- * Phase 26 fills in the daily_voice_note handler. Future phases extend the
- * switch with daily_wellbeing (Phase 27) and weekly_review (Phase 29).
+ * Phase 26 filled in daily_voice_note. Phase 27 filled in daily_wellbeing.
+ * Phase 29 (this commit) fills in weekly_review — the Sunday 20:00 Paris
+ * Sonnet-driven observation ritual.
  *
  * Keying by ritual.name (not ritual.type / cadence) is intentional —
  * multiple rituals can share a cadence (e.g. daily_voice_note and
  * daily_wellbeing are both 'daily'), so cadence is not unique enough.
+ *
+ * Default branch preserved as a safety belt for unimplemented handlers
+ * (e.g., future M013 monthly/quarterly rituals seeded before their handler
+ * lands). The atomic UPDATE...RETURNING in runRitualSweep already advanced
+ * next_run_at by the time control reaches here, so a throw here surfaces
+ * via 'rituals.fire.handler_error' in the sweep's logs without looping.
  */
 async function dispatchRitualHandler(
   ritual: typeof rituals.$inferSelect,
@@ -273,8 +281,8 @@ async function dispatchRitualHandler(
       return fireVoiceNote(ritual, cfg);
     case 'daily_wellbeing':
       return fireWellbeing(ritual, cfg);
-    // future Phase 29:
-    // case 'weekly_review':   return fireWeeklyReview(ritual, cfg);
+    case 'weekly_review':
+      return fireWeeklyReview(ritual, cfg);
     default:
       throw new Error(
         `rituals.dispatch: handler not implemented for ${ritual.name}`,

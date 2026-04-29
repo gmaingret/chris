@@ -6,24 +6,40 @@
  * via bash scripts/test.sh. Each test owns a FIXTURE_PREFIX-scoped set of
  * ritual rows; cleanup is name-prefix-scoped.
  *
- * Coverage (8 tests):
+ * Coverage (10 tests):
  *   1. Empty DB → returns [] without throwing (RIT-09 success criterion 3)
  *   2. Per-tick max-1: 3 due rituals → exactly 1 processed per tick (Pitfall 1)
  *   3. Skeleton dispatch outcome: fired=true with outcome=fired (handler
- *      throws, but atomic UPDATE succeeded so the substrate marks it fired)
+ *      throws via default branch for unknown ritual.name, but atomic UPDATE
+ *      succeeded so the substrate marks it fired) — also exercises Phase 29
+ *      D-29-08 "default branch still throws for unimplemented handlers"
  *   4. Catch-up ceiling: ritual >1 cadence period stale → outcome=caught_up
  *   5. mute_until in future → outcome=muted (no fire)
  *   6. Disabled rituals are not selected
  *   7. 3/day channel ceiling: 4 due rituals → ticks 1-3 fire, tick 4 returns []
  *   8. Counter reset at next local-day boundary (yesterday-keyed counter is
  *      stale; today's hasReachedRitualDailyCap is false)
+ *   9. Phase 29 D-29-08: dispatchRitualHandler routes weekly_review to
+ *      fireWeeklyReview (verifies switch case + import wiring via vi.mock)
+ *  10. Phase 29 D-29-08: default branch throws for unmapped ritual.name
+ *      (verifies the safety belt for future M013 monthly/quarterly rituals
+ *      seeded before their handler lands)
  */
-import { describe, it, expect, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { eq, inArray } from 'drizzle-orm';
 import { db, sql } from '../../db/connection.js';
 import { rituals, proactiveState } from '../../db/schema.js';
 import { hasReachedRitualDailyCap } from '../../proactive/state.js';
+
+// Phase 29 D-29-08: mock fireWeeklyReview at module level so the dispatch
+// case in scheduler.ts is exercised without invoking the real Sonnet pipeline.
+// Hoisted by Vitest so the mock is in place before scheduler.js loads.
+vi.mock('../weekly-review.js', () => ({
+  fireWeeklyReview: vi.fn().mockResolvedValue('fired'),
+}));
+
 import { runRitualSweep } from '../scheduler.js';
+import { fireWeeklyReview } from '../weekly-review.js';
 
 const FIXTURE_PREFIX = 'sched-test-';
 const COUNTER_KEY = 'ritual_daily_count';
@@ -55,6 +71,16 @@ describe('runRitualSweep', () => {
 
   afterAll(async () => {
     await cleanFixtures();
+    // Phase 29 D-29-08: restore the weekly_review seed's nextRunAt to a
+    // far-future value so subsequent test files don't see a forever-due
+    // weekly_review row. The Phase 29 routing test below mutates this row's
+    // nextRunAt to make it due now; without restoration the row would remain
+    // perpetually due. 1 year out is well beyond any reasonable test window.
+    const farFuture = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+    await db
+      .update(rituals)
+      .set({ nextRunAt: farFuture })
+      .where(eq(rituals.name, 'weekly_review'));
     await sql.end();
   });
 
@@ -244,4 +270,111 @@ describe('runRitualSweep', () => {
     const reached = await hasReachedRitualDailyCap('Europe/Paris');
     expect(reached).toBe(false);
   });
+
+  // ── Phase 29 D-29-08 — dispatchRitualHandler weekly_review wiring ──────
+  //
+  // The dispatcher is name-keyed (D-26-08); the switch case shipped in this
+  // plan routes ritual.name === 'weekly_review' to fireWeeklyReview.
+  // fireWeeklyReview is module-level mocked above; these tests exercise the
+  // routing path without invoking the real Sonnet pipeline.
+  //
+  // The migration 0009 weekly_review seed row already exists in the test DB
+  // (applied by scripts/test.sh before vitest fires). To exercise the dispatch
+  // for this test, we update the existing seed's nextRunAt to the past and
+  // assert the mock fires. afterAll restores nextRunAt to a far-future value
+  // so subsequent test files don't pick up a forever-due weekly_review.
+  it('Phase 29 D-29-08: dispatchRitualHandler routes weekly_review to fireWeeklyReview', async () => {
+    const mock = fireWeeklyReview as unknown as ReturnType<typeof vi.fn>;
+    mock.mockClear();
+
+    // Cross-file isolation: other test files (e.g. weekly-review.test.ts,
+    // wellbeing.test.ts) may have left ritual rows with past nextRunAt that
+    // would win the runRitualSweep ASC ordering and starve the weekly_review
+    // dispatch we want to verify here. Snapshot all OTHER rituals' state and
+    // push their nextRunAt out of the due window for this test, then restore
+    // them in finally so other tests still see their original state.
+    const otherRituals = await db
+      .select()
+      .from(rituals)
+      .where(eq(rituals.enabled, true));
+    const farFuture = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+    const snapshots = otherRituals
+      .filter((r) => r.name !== 'weekly_review')
+      .map((r) => ({ id: r.id, nextRunAt: r.nextRunAt }));
+    for (const snap of snapshots) {
+      await db
+        .update(rituals)
+        .set({ nextRunAt: farFuture })
+        .where(eq(rituals.id, snap.id));
+    }
+
+    try {
+      // Make the existing weekly_review seed due now. The seed was inserted by
+      // migration 0009 with name='weekly_review', type='weekly', enabled=true.
+      const dueNow = new Date(Date.now() - 100);
+      await db
+        .update(rituals)
+        .set({ nextRunAt: dueNow })
+        .where(eq(rituals.name, 'weekly_review'));
+
+      // Reset the channel counter just before sweep so other test files that
+      // may have left counter state don't trip the cap-reached short-circuit.
+      await db.delete(proactiveState).where(eq(proactiveState.key, COUNTER_KEY));
+
+      const results = await runRitualSweep(new Date());
+
+      expect(results.length).toBe(1);
+      expect(results[0]!.outcome).toBe('fired');
+      expect(results[0]!.fired).toBe(true);
+      // The dispatcher MUST have called fireWeeklyReview exactly once with the
+      // weekly_review ritual row + parsed config.
+      expect(mock).toHaveBeenCalledTimes(1);
+      const callArgs = mock.mock.calls[0]!;
+      expect(callArgs[0].name).toBe('weekly_review');
+      expect(callArgs[0].type).toBe('weekly');
+      // cfg (second arg) is the parsed RitualConfig; verify shape
+      expect(callArgs[1].fire_at).toBe('20:00');
+    } finally {
+      // Restore every other ritual's nextRunAt so subsequent tests/files
+      // observe their original state.
+      for (const snap of snapshots) {
+        await db
+          .update(rituals)
+          .set({ nextRunAt: snap.nextRunAt })
+          .where(eq(rituals.id, snap.id));
+      }
+    }
+  });
+
+  it('Phase 29 D-29-08: default branch throws for unmapped ritual.name (safety belt)', async () => {
+    // Insert a ritual whose name is NOT in the dispatcher switch (no
+    // 'monthly_retro' handler exists yet — Phase 25/26/27/29 only wire
+    // weekly_review + daily_voice_note + daily_wellbeing). The atomic
+    // UPDATE in runRitualSweep advances nextRunAt regardless, so 'fired'
+    // is the correct outcome from the substrate's perspective; the handler
+    // error is captured in results[0].error.
+    const dueNow = new Date(Date.now() - 100);
+    await db.insert(rituals).values({
+      name: `${FIXTURE_PREFIX}unmapped`,
+      type: 'monthly',
+      nextRunAt: dueNow,
+      enabled: true,
+      config: validConfigJson,
+    });
+
+    const results = await runRitualSweep(new Date());
+    expect(results.length).toBe(1);
+    // atomic UPDATE succeeded → fired=true, outcome='fired' (Phase 25
+    // semantic: the slot was claimed). The handler error is captured for
+    // visibility but does not reverse the substrate state.
+    expect(results[0]!.fired).toBe(true);
+    expect(results[0]!.outcome).toBe('fired');
+    expect(results[0]!.error).toBeDefined();
+    const errMsg = results[0]!.error instanceof Error
+      ? results[0]!.error.message
+      : String(results[0]!.error);
+    expect(errMsg).toContain('handler not implemented');
+    expect(errMsg).toContain(`${FIXTURE_PREFIX}unmapped`);
+  });
+
 });
