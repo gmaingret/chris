@@ -95,7 +95,7 @@
 **Plans:** 4 plans (Wave 1: 29-01 | Wave 2: 29-02 ATOMIC HARD CO-LOC #2+#3 | Wave 3 parallel: 29-03, 29-04)
 - [x] 29-01-PLAN.md — Pure-function substrate: assembleWeeklyReviewPrompt + loadWeeklyReviewContext (getEpisodicSummariesRange + decisions WHERE resolved_at + wellbeing variance gate stddev<0.4 + insufficient-data threshold <4 snapshots) + WEEKLY_REVIEW_HEADER constant [WEEK-01 substrate]
 - [x] 29-02-PLAN.md — HARD CO-LOC #2 + #3 ATOMIC: Sonnet messages.parse + zodOutputFormat generator + Stage-1 Zod refine (`?` count + interrogative-leading-word EN/FR/RU) + Stage-2 Haiku judge (`{question_count, questions[]}`) + date-grounding post-check + retry cap=2 + templated EN-only fallback `"What stood out to you about this week?"` + CONSTITUTIONAL_PREAMBLE explicit injection + storePensieveEntry epistemicTag extension + RITUAL_RESPONSE persist with metadata.kind='weekly_review' [WEEK-02..08]
-- [ ] 29-03-PLAN.md — Wire-up: migration 0009_weekly_review_seed.sql + `dispatchRitualHandler` switch case `'weekly_review'` + drizzle meta-snapshot regen + scripts/test.sh psql line; includes checkpoint:human-verify gated UAT task [WEEK-01 fire-side]
+- [x] 29-03-PLAN.md — Wire-up: migration 0009_weekly_review_seed.sql + `dispatchRitualHandler` switch case `'weekly_review'` + drizzle meta-snapshot regen + scripts/test.sh psql line; includes checkpoint:human-verify gated UAT task [WEEK-01 fire-side]
 - [ ] 29-04-PLAN.md — HARD CO-LOC #6 prep: live anti-flattery test scaffolding (skipIf-gated until Phase 30) + adversarial fixture week + ~29-49 forbidden marker scan via 3-import deterministic algorithm (per refined D-10) + 3-of-3 atomic loop with `fallbacks === 0` strict assertion; includes 3 export-keyword visibility wirings on M006/M008 source constants [supports Phase 30 TEST-31; WEEK-09 wellbeing variance gate]
 
 ### Phase 30: Test Infrastructure + HARN-03 Refresh
@@ -214,5 +214,5 @@ See [milestones/v2.3-ROADMAP.md](milestones/v2.3-ROADMAP.md) for full phase deta
 | 26. Daily Voice Note Ritual        | v2.4      | 5/5   | Complete    | 2026-04-28 |
 | 27. Daily Wellbeing Snapshot       | v2.4      | 3/3 | Complete   | 2026-04-28 |
 | 28. Skip-Tracking + Adjustment Dialogue | v2.4 | 0/4   | Not started | -          |
-| 29. Weekly Review                  | v2.4      | 1/4 | In Progress|  |
+| 29. Weekly Review                  | v2.4      | 3/4 | In Progress|  |
 | 30. Test Infrastructure + HARN-03 Refresh | v2.4 | 0/3 | Not started | -          |

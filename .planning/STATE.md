@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.4
 milestone_name: M009 Ritual Infrastructure + Daily Note + Weekly Review
 status: executing
-stopped_at: "Plan 29-02 complete (5 task commits + 1 docs commit). HARD CO-LOC #2 + #3 ATOMIC plan terminated: Stage-1 Zod refine + Stage-2 Haiku judge + date-grounding + retry-cap-2 + EN templated fallback + fireWeeklyReview orchestrator + Pensieve RITUAL_RESPONSE persist all live. WEEK-02..08 closed; WEEK-09 already closed in Plan 29-01. Phase 29 has 2/4 plans done; 29-03 (wire-up + seed 0009) and 29-04 (live-test scaffolding) remain."
-last_updated: "2026-04-28T18:30:00.000Z"
-last_activity: 2026-04-28 — Plan 29-02 complete (HARD CO-LOC #2+#3 ATOMIC; 5 task commits + 1 docs commit). WEEK-02..08 terminate; 31/31 tests green; full rituals suite 131/131.
+stopped_at: "Plan 29-03 complete (3 task commits: 7dc35c9, 2fbdadb, 45d9995). Migration 0009_weekly_review_seed.sql + drizzle meta lineage + scripts/test.sh seed-row gate + dispatchRitualHandler 'weekly_review' case + 2 new scheduler.test.ts tests. WEEK-01 fire-side substrate verifiably met. Full pipeline (cron tick → runRitualSweep → tryFireRitualAtomic → dispatchRitualHandler → fireWeeklyReview) is now invocable. Next on Phase 29: Plan 29-04 (live anti-flattery test scaffolding for Phase 30 TEST-31)."
+last_updated: "2026-04-29T00:34:49.588Z"
+last_activity: "2026-04-29 — Plan 29-03 complete (3 task commits). Migration 0009 seeds weekly_review at next Sunday 20:00 Paris; dispatcher routes weekly_review → fireWeeklyReview; scheduler.test.ts 10/10 (full rituals/__tests__/ 133/133); WEEK-01 terminates."
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 15
-  completed_plans: 13
-  percent: 87
+  completed_plans: 14
+  percent: 93
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (symlink to /home/claude/chris/PLAN.md, updated 2026-0
 
 ## Current Position
 
-Phase: **25** COMPLETE; **26 COMPLETE**; **27 IN PROGRESS** (Plans 27-01 + 27-02 done; 27-03 pending). **29 IN PROGRESS** (Plans 29-01 + 29-02 done; 29-03 + 29-04 pending).
+Phase: **25** COMPLETE; **26 COMPLETE**; **27 IN PROGRESS** (Plans 27-01 + 27-02 done; 27-03 pending). **29 IN PROGRESS** (Plans 29-01 + 29-02 + 29-03 done; 29-04 pending).
 Plan: 29-02 complete (5 task commits + 1 docs commit: 9dee2a7 + 7b34a52 + 53135c4 + b2fe0b0 + b75dc0f + 8e4f56d) — HARD CO-LOC #2 + #3 ATOMIC plan:
 
   - `src/rituals/weekly-review.ts` (39 → 652 LoC, +613) — Plan 29-01's skeleton replaced with full impl: `stage1Check` + `INTERROGATIVE_REGEX` (EN+FR+RU per D-03) + `WeeklyReviewSchema` (v3 with .refine) + `WeeklyReviewSchemaV4` (v4 SDK boundary mirror) + `StageTwoJudgeSchema` v3+v4 + `DateGroundingSchema` v3+v4 + `MultiQuestionError` + `DateOutOfWindowError` + `runStage2HaikuJudge` (D-04 Haiku question-counter) + `runDateGroundingCheck` (D-05 Haiku date-window auditor) + `MAX_RETRIES = 2` + `TEMPLATED_FALLBACK_EN` (English-only v1; FR/RU deferred to v2.5 per W-4 lock) + `generateWeeklyObservation` retry-loop + `fireWeeklyReview(ritual, cfg) → Promise<RitualFireOutcome>` orchestrator (substrate fetch → sparse-data guard → generation w/retry+fallback → D031 header render → ritual_responses write → Pensieve persist `epistemicTag: 'RITUAL_RESPONSE'` → Telegram send).
@@ -53,9 +53,9 @@ Prior context — Plan 27-02 complete (3 commits: bdc924a + 2d451f3 + 3fff9a1) �
 
 Prior context — Plan 27-01 complete (3 commits: 380a481 + 4ba31a1 + 0e1b5b0) — first inline-keyboard callback dispatcher in codebase. Routes r:w:* → handleWellbeingCallback (now real after Plan 27-02); silently acks unknown prefixes per Telegram's 30s contract.
 
-Status: Phases 27 + 29 IN PROGRESS in parallel. **Phase 29:** Plans 29-01 + 29-02 complete (substrate + HARD CO-LOC #2+#3 ATOMIC generator). Next: Plan 29-03 (migration 0009 seed + dispatcher wire-up + scripts/test.sh psql line) + Plan 29-04 (live anti-flattery test scaffolding for Phase 30 TEST-31). **Phase 27:** Plans 27-01 + 27-02 complete; Plan 27-03 next (UAT script + integration tests). Phase 26 still ready for `/gsd-verify-work`.
-Progress: [█████████░] 87%
-Last activity: 2026-04-28 — Plan 29-02 complete (HARD CO-LOC #2+#3 ATOMIC; 5 task commits + 1 docs commit). WEEK-02..08 terminate; HARD CO-LOC #2 + #3 closed.
+Status: Phases 27 + 29 IN PROGRESS in parallel. **Phase 29:** Plans 29-01 + 29-02 + 29-03 complete (substrate + HARD CO-LOC #2+#3 ATOMIC generator + wire-up). Next: Plan 29-04 (live anti-flattery test scaffolding for Phase 30 TEST-31). **Phase 27:** Plans 27-01 + 27-02 complete; Plan 27-03 next (UAT script + integration tests). Phase 26 still ready for `/gsd-verify-work`.
+Progress: [█████████░] 93%
+Last activity: 2026-04-29 — Plan 29-03 complete (3 task commits: 7dc35c9, 2fbdadb, 45d9995). Migration 0009 seeds weekly_review at next Sunday 20:00 Paris; dispatcher routes weekly_review → fireWeeklyReview; scheduler.test.ts 10/10 (full rituals/__tests__/ 133/133); WEEK-01 terminates. WEEK-01..09 all terminate (Phase 29 plan-side complete; verifier next).
 
 Prior deploy state: v2.3 + date-extraction Haiku JSON-fences fix (eedce33, deployed 42a7eed 2026-04-25) live on Proxmox (192.168.1.50). Daily 23:00 Europe/Paris episodic cron + 6h sync cron + 10:00 proactive sweep cron all healthy. M009 will ADD a second 21:00 evening cron tick (RIT-11) for ritual firing.
 
@@ -182,7 +182,7 @@ None. Ready to plan Phase 25 — pending todo resolved (verdict above).
 
 ## Session Continuity
 
-Last session: 2026-04-28T18:30:00.000Z
+Last session: 2026-04-29T00:34:32.132Z
 Stopped at: Plan 29-02 complete (5 task commits + 1 docs commit: 9dee2a7, 7b34a52, 53135c4, b2fe0b0, b75dc0f, 8e4f56d). HARD CO-LOC #2 + #3 ATOMIC plan terminated. Next on Phase 29: Plan 29-03 (migration 0009 seed + dispatcher wire-up + scripts/test.sh psql line). Plan 29-04 (live anti-flattery test scaffolding for Phase 30 TEST-31) parallel-eligible after 29-03.
 Resume file: None
 
