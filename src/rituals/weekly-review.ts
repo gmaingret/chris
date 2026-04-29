@@ -41,7 +41,7 @@ import { anthropic, HAIKU_MODEL, SONNET_MODEL } from '../llm/client.js';
 import { bot } from '../bot/bot.js';
 import { config } from '../config.js';
 import { db } from '../db/connection.js';
-import { rituals, ritualResponses } from '../db/schema.js';
+import { rituals, ritualFireEvents, ritualResponses } from '../db/schema.js';
 import { logger } from '../utils/logger.js';
 import { storePensieveEntry } from '../pensieve/store.js';
 import {
@@ -52,7 +52,7 @@ import {
   computeWeekBoundary,
   loadWeeklyReviewContext,
 } from './weekly-review-sources.js';
-import type { RitualConfig, RitualFireOutcome } from './types.js';
+import { RITUAL_OUTCOME, type RitualConfig, type RitualFireOutcome } from './types.js';
 
 /**
  * D031 boundary marker — verbatim user-facing header prepended to the weekly
@@ -513,6 +513,15 @@ export async function generateWeeklyObservation(
  * config knobs beyond the cron's fire_dow/fire_at, which are read from
  * ritual.config by the scheduler before dispatch). It is accepted to match
  * the dispatcher signature uniformly with fireVoiceNote + fireWellbeing.
+ *
+ * Phase 28 ritual_fire_events instrumentation note:
+ * Weekly review has NO user-reply window. ritual_fire_events from this handler
+ * emits ONLY outcome:'fired'. The 'fired_no_response' (skip-counting) outcome
+ * for weekly review is emitted by ritualResponseWindowSweep on virtual response
+ * window expiry — but per Plan 28-02 / RESEARCH OQ#5: weekly review skip-
+ * tracking treats 2 consecutive 'fired' events without intermediate 'responded'
+ * as the skip-threshold trigger. Implementation lives in Plan 28-02
+ * computeSkipCount.
  */
 export async function fireWeeklyReview(
   ritual: typeof rituals.$inferSelect,
@@ -543,6 +552,20 @@ export async function fireWeeklyReview(
       { ritualId: ritual.id },
       'rituals.weekly.skipped.no_data',
     );
+    // Phase 28 SKIP-01: emit ritual_fire_events even on sparse-data path.
+    // Per PATTERNS.md: sparse-data short-circuit is still outcome='fired'
+    // (no LLM call, no Telegram send; Greg saw no message). Does NOT count
+    // as fired_no_response because Greg was not asked anything.
+    await db.insert(ritualFireEvents).values({
+      ritualId: ritual.id,
+      firedAt: now,
+      outcome: RITUAL_OUTCOME.FIRED,
+      metadata: {
+        reason: 'no_data_short_circuit',
+        weekStart: weekStartIso,
+        weekEnd: weekEndIso,
+      },
+    });
     return 'fired'; // no telegram send; the cron next_run_at advances normally
   }
 
@@ -637,6 +660,21 @@ export async function fireWeeklyReview(
 
   // 9. Send to Telegram
   await bot.api.sendMessage(config.telegramAuthorizedUserId, userFacingMessage);
+
+  // Phase 28 SKIP-01: emit ritual_fire_events on successful weekly review fire.
+  // Weekly review emits ONLY 'fired' from this handler (no 'responded' or
+  // 'fired_no_response' — see JSDoc note on skip-tracking for weekly review).
+  await db.insert(ritualFireEvents).values({
+    ritualId: ritual.id,
+    firedAt,
+    outcome: RITUAL_OUTCOME.FIRED,
+    metadata: {
+      ritualResponseId: fireRow.id,
+      isFallback: result.isFallback,
+      weekStart: weekStartIso,
+      weekEnd: weekEndIso,
+    },
+  });
 
   logger.info(
     {
