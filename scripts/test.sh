@@ -14,6 +14,7 @@ MIGRATION_5_SQL="src/db/migrations/0005_episodic_summaries.sql"
 MIGRATION_6_SQL="src/db/migrations/0006_rituals_wellbeing.sql"
 MIGRATION_7_SQL="src/db/migrations/0007_daily_voice_note_seed.sql"
 MIGRATION_8_SQL="src/db/migrations/0008_wellbeing_seed.sql"
+MIGRATION_9_SQL="src/db/migrations/0009_weekly_review_seed.sql"
 
 cleanup() {
   echo "🧹 Stopping test postgres..."
@@ -62,6 +63,8 @@ docker compose -f "$COMPOSE_FILE" exec -T postgres \
   psql -U chris -d chris -v ON_ERROR_STOP=1 -q < "$MIGRATION_7_SQL"
 docker compose -f "$COMPOSE_FILE" exec -T postgres \
   psql -U chris -d chris -v ON_ERROR_STOP=1 -q < "$MIGRATION_8_SQL"
+docker compose -f "$COMPOSE_FILE" exec -T postgres \
+  psql -U chris -d chris -v ON_ERROR_STOP=1 -q < "$MIGRATION_9_SQL"
 
 # Phase 25 (M009 v2.4) — post-migration substrate smoke gate.
 # Per HARD CO-LOCATION CONSTRAINT #7 + Pitfall 28: the SQL migration, the
@@ -135,6 +138,21 @@ if [[ "${psql_seed_count// /}" != "1" ]]; then
   exit 1
 fi
 echo "✓ Migration 0008 substrate verified (daily_wellbeing seeded)"
+
+# Phase 29 (M009 v2.4) — weekly_review seed assertion (D-09 / WEEK-01 fire-side).
+# Single-line gate mirrors Phase 26 voice-note + Phase 27 wellbeing seed shapes:
+# failure exits BEFORE vitest so a missing weekly_review seed row blocks the test
+# suite (catches lineage mismatches before any false-positive type-checked tests).
+# The gate runs after migration 0009 apply.
+echo "🔍 Verifying Phase 29 weekly_review seed row..."
+SEED_CHECK=$(docker compose -f "$COMPOSE_FILE" exec -T postgres \
+  psql -U chris -d chris -v ON_ERROR_STOP=1 -tAq \
+  -c "SELECT count(*) FROM rituals WHERE name = 'weekly_review';" | tr -d '[:space:]')
+if [[ "$SEED_CHECK" != "1" ]]; then
+  echo "❌ FAIL: weekly_review seed row missing (got count=$SEED_CHECK, expected 1)"
+  exit 1
+fi
+echo "✓ Phase 29 seed-row gate: weekly_review present"
 
 # Phase 27 D-27-04 anchor-bias defeat regression guard (Plan 27-03 Task 3).
 # Fails loud if src/rituals/wellbeing.ts ever contains a SELECT against
