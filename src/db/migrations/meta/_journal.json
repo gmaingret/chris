@@ -64,6 +64,13 @@
       "when": 1777376633000,
       "tag": "0008_wellbeing_seed",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1777422168284,
+      "tag": "0009_weekly_review_seed",
+      "breakpoints": true
     }
   ]
 }
