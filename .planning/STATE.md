@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.4
 milestone_name: M009 Ritual Infrastructure + Daily Note + Weekly Review
 status: executing
-stopped_at: "Plan 29-03 complete (3 task commits: 7dc35c9, 2fbdadb, 45d9995). Migration 0009_weekly_review_seed.sql + drizzle meta lineage + scripts/test.sh seed-row gate + dispatchRitualHandler 'weekly_review' case + 2 new scheduler.test.ts tests. WEEK-01 fire-side substrate verifiably met. Full pipeline (cron tick → runRitualSweep → tryFireRitualAtomic → dispatchRitualHandler → fireWeeklyReview) is now invocable. Next on Phase 29: Plan 29-04 (live anti-flattery test scaffolding for Phase 30 TEST-31)."
-last_updated: "2026-04-29T00:34:49.588Z"
-last_activity: "2026-04-29 — Plan 29-03 complete (3 task commits). Migration 0009 seeds weekly_review at next Sunday 20:00 Paris; dispatcher routes weekly_review → fireWeeklyReview; scheduler.test.ts 10/10 (full rituals/__tests__/ 133/133); WEEK-01 terminates."
+stopped_at: "Plan 29-02 complete (5 task commits + 1 docs commit: 9dee2a7, 7b34a52, 53135c4, b2fe0b0, b75dc0f, 8e4f56d). HARD CO-LOC #2 + #3 ATOMIC plan terminated. Next on Phase 29: Plan 29-03 (migration 0009 seed + dispatcher wire-up + scripts/test.sh psql line). Plan 29-04 (live anti-flattery test scaffolding for Phase 30 TEST-31) parallel-eligible after 29-03."
+last_updated: "2026-04-29T15:56:18.832Z"
+last_activity: 2026-04-29 -- Phase 28 planning complete
 progress:
   total_phases: 6
-  completed_phases: 3
-  total_plans: 15
-  completed_plans: 14
-  percent: 93
+  completed_phases: 4
+  total_plans: 19
+  completed_plans: 15
+  percent: 79
 ---
 
 # Project State
@@ -53,9 +53,9 @@ Prior context — Plan 27-02 complete (3 commits: bdc924a + 2d451f3 + 3fff9a1) �
 
 Prior context — Plan 27-01 complete (3 commits: 380a481 + 4ba31a1 + 0e1b5b0) — first inline-keyboard callback dispatcher in codebase. Routes r:w:* → handleWellbeingCallback (now real after Plan 27-02); silently acks unknown prefixes per Telegram's 30s contract.
 
-Status: Phases 27 + 29 IN PROGRESS in parallel. **Phase 29:** Plans 29-01 + 29-02 + 29-03 complete (substrate + HARD CO-LOC #2+#3 ATOMIC generator + wire-up). Next: Plan 29-04 (live anti-flattery test scaffolding for Phase 30 TEST-31). **Phase 27:** Plans 27-01 + 27-02 complete; Plan 27-03 next (UAT script + integration tests). Phase 26 still ready for `/gsd-verify-work`.
+Status: Ready to execute
 Progress: [█████████░] 93%
-Last activity: 2026-04-29 — Plan 29-03 complete (3 task commits: 7dc35c9, 2fbdadb, 45d9995). Migration 0009 seeds weekly_review at next Sunday 20:00 Paris; dispatcher routes weekly_review → fireWeeklyReview; scheduler.test.ts 10/10 (full rituals/__tests__/ 133/133); WEEK-01 terminates. WEEK-01..09 all terminate (Phase 29 plan-side complete; verifier next).
+Last activity: 2026-04-29 -- Phase 28 planning complete
 
 Prior deploy state: v2.3 + date-extraction Haiku JSON-fences fix (eedce33, deployed 42a7eed 2026-04-25) live on Proxmox (192.168.1.50). Daily 23:00 Europe/Paris episodic cron + 6h sync cron + 10:00 proactive sweep cron all healthy. M009 will ADD a second 21:00 evening cron tick (RIT-11) for ritual firing.
 
