@@ -29,6 +29,7 @@ import { db } from '../db/connection.js';
 import {
   pensieveEntries,
   rituals,
+  ritualFireEvents,
   ritualPendingResponses,
   ritualResponses,
 } from '../db/schema.js';
@@ -36,7 +37,7 @@ import { logger } from '../utils/logger.js';
 import { StorageError } from '../utils/errors.js';
 import { storePensieveEntry } from '../pensieve/store.js';
 import { dayBoundaryUtc } from '../episodic/sources.js';
-import type { RitualConfig, RitualFireOutcome } from './types.js';
+import { RITUAL_OUTCOME, type RitualConfig, type RitualFireOutcome } from './types.js';
 import { bot } from '../bot/bot.js';
 import { computeNextRunAt } from './cadence.js';
 
@@ -226,6 +227,22 @@ export async function recordRitualVoiceResponse(
     pensieveEntryId: entry.id,
   });
 
+  // STEP 4 (Phase 28 SKIP-01 / D-28-03): emit 'responded' ritual_fire_events
+  // row + reset rituals.skip_count = 0. Two sequential writes — NOT a
+  // transaction (both are idempotent under retry; D-28-03 documents tradeoff).
+  // 'responded' resets skip_count so ritual does not trigger adjustment
+  // dialogue on next sweep tick (user engagement resets the clock).
+  await db.insert(ritualFireEvents).values({
+    ritualId: pending.ritualId,
+    firedAt: consumed.consumedAt,
+    outcome: RITUAL_OUTCOME.RESPONDED,
+    metadata: {
+      pendingResponseId: pending.id,
+      pensieveEntryId: entry.id,
+    },
+  });
+  await db.update(rituals).set({ skipCount: 0 }).where(eq(rituals.id, pending.ritualId));
+
   return { pensieveEntryId: entry.id, consumedAt: consumed.consumedAt };
 }
 
@@ -317,6 +334,17 @@ export async function fireVoiceNote(
       { ritualId: ritual.id, nextRunAt: tomorrow.toISOString() },
       'rituals.voice_note.suppressed',
     );
+    // Phase 28 SKIP-01: emit ritual_fire_events on suppression path.
+    // system_suppressed does NOT increment skip_count (per SKIP-01 rules).
+    await db.insert(ritualFireEvents).values({
+      ritualId: ritual.id,
+      firedAt: now,
+      outcome: RITUAL_OUTCOME.SYSTEM_SUPPRESSED,
+      metadata: {
+        reason: 'heavy_deposit_day',
+        deposit_threshold: RITUAL_SUPPRESS_DEPOSIT_THRESHOLD,
+      },
+    });
     return 'system_suppressed';
   }
 
@@ -361,5 +389,14 @@ export async function fireVoiceNote(
     { ritualId: ritual.id, promptIdx, prompt },
     'rituals.voice_note.fired',
   );
+  // Phase 28 SKIP-01: emit ritual_fire_events on successful fire path.
+  // 'fired' does NOT increment skip_count. firedAt uses the local var
+  // already in scope from STEP 3 (matches the pending row's firedAt).
+  await db.insert(ritualFireEvents).values({
+    ritualId: ritual.id,
+    firedAt,
+    outcome: RITUAL_OUTCOME.FIRED,
+    metadata: { promptIdx, prompt },
+  });
   return 'fired';
 }

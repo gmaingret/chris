@@ -36,11 +36,11 @@
  * or value ∉ [1,5] with kind:'invalid' — Telegram callback_data is untrusted.
  * Defense-in-depth: explicit assert before sql.raw() construction.
  *
- * Outcome semantics (forward-compat for Phase 28 skip-tracking):
- *   - 'wellbeing_completed' — all 3 dims captured (Phase 28 RESETS skip_count)
- *   - 'wellbeing_skipped'   — user tapped Skip (Phase 28 NOT counted toward skip_count)
- *   - 'fired_no_response'   — emitted by Phase 28 sweep when prior responded_at is NULL + window expired
- *   - 'wellbeing_partial'   — Phase 28 may emit if some dims captured but window expired
+ * Outcome semantics (Phase 28 homogenized via RITUAL_OUTCOME const map):
+ *   - 'wellbeing_completed' resets skip_count via D-28-03; represents full 3-tap engagement
+ *   - 'wellbeing_skipped' is neither reset nor increment; Greg's explicit opt-out
+ *   - 'fired_no_response' emitted by ritualResponseWindowSweep on 18h window expiry
+ *   - 'fired' emitted on initial fire (added Phase 28); not previously tracked from wellbeing
  */
 import { eq, sql } from 'drizzle-orm';
 import { InlineKeyboard, type Context } from 'grammy';
@@ -50,7 +50,7 @@ import { config } from '../config.js';
 import { db } from '../db/connection.js';
 import { rituals, ritualResponses, ritualFireEvents, wellbeingSnapshots } from '../db/schema.js';
 import { logger } from '../utils/logger.js';
-import type { RitualConfig, RitualFireOutcome } from './types.js';
+import { RITUAL_OUTCOME, type RitualConfig, type RitualFireOutcome } from './types.js';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -61,10 +61,6 @@ const WELLBEING_SKIP_CALLBACK = 'r:w:skip';
 const DIMS = ['e', 'm', 'a'] as const;
 type Dim = (typeof DIMS)[number];
 const DIM_LABELS: Record<Dim, string> = { e: 'energy', m: 'mood', a: 'anxiety' };
-
-// Outcome strings written to ritual_fire_events.outcome (text NOT NULL)
-const OUTCOME_COMPLETED = 'wellbeing_completed';
-const OUTCOME_SKIPPED = 'wellbeing_skipped';
 
 // Metadata jsonb shape (stored in ritual_responses.metadata)
 interface WellbeingPartial {
@@ -154,6 +150,16 @@ export async function fireWellbeing(
     { ritualId: ritual.id, fireRowId: fireRow.id, messageId: sent.message_id },
     'rituals.wellbeing.fired',
   );
+
+  // Phase 28 SKIP-01: emit ritual_fire_events on fire path.
+  // Per RESEARCH Landmine 8: fire-side emit was MISSING pre-Phase-28;
+  // only completion/skip writes existed. 'fired' does NOT increment skip_count.
+  await db.insert(ritualFireEvents).values({
+    ritualId: ritual.id,
+    firedAt: new Date(),
+    outcome: RITUAL_OUTCOME.FIRED,
+    metadata: { fireRowId: fireRow.id, prompt: WELLBEING_PROMPT },
+  });
 
   return 'fired';
 }
@@ -289,13 +295,21 @@ async function completeSnapshot(
     })
     .where(eq(ritualResponses.id, openRow.id));
 
-  // Emit ritual_fire_events for Phase 28 skip-tracking
+  // Phase 28 SKIP-01: emit ritual_fire_events for completed wellbeing snapshot.
+  // Uses RITUAL_OUTCOME const map (homogenized in Phase 28 — was a free-form string).
+  // 'wellbeing_completed' is the response signal — resets skip_count (D-28-03).
+  // Per PATTERNS.md: keep wellbeing_completed as the response signal; do NOT
+  // also emit 'responded' (it would be redundant).
   await db.insert(ritualFireEvents).values({
     ritualId: openRow.ritualId,
     firedAt: new Date(),
-    outcome: OUTCOME_COMPLETED,
+    outcome: RITUAL_OUTCOME.WELLBEING_COMPLETED,
     metadata: { fireRowId: openRow.id, snapshotDate: today },
   });
+
+  // Phase 28 D-28-03: reset denormalized skip_count on completion.
+  // Skip_count = 0 because Greg engaged with the ritual (3-tap completion).
+  await db.update(rituals).set({ skipCount: 0 }).where(eq(rituals.id, openRow.ritualId));
 
   // Clear keyboard via editMessageText (no reply_markup → keyboard cleared)
   await ctx.editMessageText(
@@ -331,11 +345,13 @@ async function handleSkip(
     })
     .where(eq(ritualResponses.id, openRow.id));
 
-  // Emit 'wellbeing_skipped' outcome — Phase 28 filters this out of skip_count
+  // Phase 28 SKIP-01: emit WELLBEING_SKIPPED via RITUAL_OUTCOME const map (homogenized in Phase 28).
+  // 'wellbeing_skipped' is neither reset nor increment (SKIP-01 rules) — Greg's
+  // explicit opt-out of today's snapshot. Does NOT touch rituals.skip_count.
   await db.insert(ritualFireEvents).values({
     ritualId: openRow.ritualId,
     firedAt: new Date(),
-    outcome: OUTCOME_SKIPPED,
+    outcome: RITUAL_OUTCOME.WELLBEING_SKIPPED,
     metadata: { fireRowId: openRow.id, adjustment_eligible: false },
   });
 

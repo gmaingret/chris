@@ -22,10 +22,10 @@
  * computeNextRunAt (Luxon-based, DST-safe). The Pitfall 2/3 grep guard is
  * scoped to cadence.ts (Plan 25-02), not the whole src/rituals/ tree.
  */
-import { and, asc, eq, lte } from 'drizzle-orm';
+import { and, asc, eq, isNull, lte, sql } from 'drizzle-orm';
 import { config } from '../config.js';
 import { db } from '../db/connection.js';
-import { rituals } from '../db/schema.js';
+import { ritualFireEvents, ritualPendingResponses, rituals } from '../db/schema.js';
 import {
   hasReachedRitualDailyCap,
   incrementRitualDailyCount,
@@ -34,6 +34,7 @@ import { logger } from '../utils/logger.js';
 import { computeNextRunAt } from './cadence.js';
 import { tryFireRitualAtomic } from './idempotency.js';
 import {
+  RITUAL_OUTCOME,
   parseRitualConfig,
   type RitualFireResult,
   type RitualFireOutcome,
@@ -82,6 +83,16 @@ import { fireWellbeing } from './wellbeing.js';
 export async function runRitualSweep(now: Date = new Date()): Promise<RitualFireResult[]> {
   const startMs = Date.now();
   logger.info({ timestamp: now.toISOString() }, 'rituals.sweep.start');
+
+  // Phase 28 SKIP-01 — Response window sweep (runs BEFORE STEP 0 channel-cap).
+  // Detects expired ritual_pending_responses rows and emits window_missed +
+  // fired_no_response events. Best-effort: a failure here does NOT block the
+  // standard dispatch path below (try/catch isolates the helper).
+  try {
+    await ritualResponseWindowSweep(now);
+  } catch (sweepErr) {
+    logger.error({ err: sweepErr }, 'rituals.window_sweep.error');
+  }
 
   // STEP 0: channel-cap short-circuit (D-04 refinement) — if 3 rituals already
   // fired today (local Europe/Paris date), bail before doing any DB work.
@@ -253,6 +264,119 @@ function cadencePeriodMs(type: 'daily' | 'weekly' | 'monthly' | 'quarterly'): nu
     case 'quarterly':
       return 91 * 24 * 60 * 60 * 1000;
   }
+}
+
+/**
+ * ritualResponseWindowSweep — Phase 28 Plan 01 SKIP-01 substrate helper.
+ *
+ * Scans ritual_pending_responses for rows whose expires_at has passed with
+ * consumed_at IS NULL and emits PAIRED ritual_fire_events per row:
+ *   1. WINDOW_MISSED  — the fact: response window passed without consumption.
+ *   2. FIRED_NO_RESPONSE — the policy classification: THE skip-counting outcome.
+ *
+ * Separation rationale (RESEARCH Landmine 8): window_missed is the underlying
+ * fact; fired_no_response is the policy classification. Downstream projections
+ * (Plan 28-02's computeSkipCount) can filter on either independently.
+ *
+ * Atomic-consume race-safety: mirrors voice-note.ts:184-204 (RIT-10
+ * idempotency precedent). UPDATE...WHERE consumedAt IS NULL RETURNING ensures
+ * at most ONE sweep tick wins per pending row. A concurrent PP#5 deposit that
+ * already consumed the row causes this sweep to silently skip that iteration.
+ *
+ * Idempotent skip_count increment: each fired_no_response has its own unique
+ * event row (uuid PK on ritualFireEvents), so the increment count matches the
+ * event count on replay. Re-running the sweep never double-counts.
+ *
+ * Per-call LIMIT 50 protects against backlog of expired rows triggering
+ * unbounded work in a single tick (T-28-D1 DoS mitigant). Backlog drains
+ * over subsequent sweep ticks.
+ *
+ * Wrapped in try/catch at the runRitualSweep call site — a sweep-helper
+ * failure does NOT block the standard handler dispatch path.
+ *
+ * @param now - Current timestamp (explicit parameter for testability; defaults
+ *   to new Date() in production).
+ * @returns Number of fired_no_response events emitted in this call.
+ */
+export async function ritualResponseWindowSweep(now: Date = new Date()): Promise<number> {
+  // STEP 1: SELECT expired, unconsumed pending rows. LIMIT 50 per-call cap.
+  const expired = await db
+    .select()
+    .from(ritualPendingResponses)
+    .where(
+      and(
+        isNull(ritualPendingResponses.consumedAt),
+        // expiresAt <= now: the response window has closed
+        sql`${ritualPendingResponses.expiresAt} <= ${now.toISOString()}`,
+      ),
+    )
+    .limit(50);
+
+  if (expired.length === 0) {
+    return 0; // hot path — sub-millisecond when nothing pending
+  }
+
+  let emittedCount = 0;
+
+  for (const row of expired) {
+    // STEP 2: Atomic-consume via UPDATE...RETURNING (mirrors voice-note.ts:184-204).
+    // If no row returned, a concurrent sweep or PP#5 deposit consumed it first.
+    // Race is handled silently — continue to next iteration.
+    const [consumed] = await db
+      .update(ritualPendingResponses)
+      .set({ consumedAt: now })
+      .where(
+        and(
+          eq(ritualPendingResponses.id, row.id),
+          isNull(ritualPendingResponses.consumedAt),
+        ),
+      )
+      .returning({
+        id: ritualPendingResponses.id,
+      });
+
+    if (!consumed) {
+      // Race lost — peer (PP#5 or concurrent sweep) consumed first. Silently skip.
+      continue;
+    }
+
+    // STEP 3: PAIRED EMIT — window_missed (fact) + fired_no_response (policy).
+    // Two sequential inserts, NOT a transaction — both are idempotent under
+    // retry because each has a unique uuid PK. D-28-03 accepts this tradeoff.
+    const pendingResponseId = row.id;
+    const expiresAtIso = row.expiresAt.toISOString();
+
+    await db.insert(ritualFireEvents).values({
+      ritualId: row.ritualId,
+      firedAt: now,
+      outcome: RITUAL_OUTCOME.WINDOW_MISSED,
+      metadata: { pendingResponseId, expiresAt: expiresAtIso },
+    });
+
+    await db.insert(ritualFireEvents).values({
+      ritualId: row.ritualId,
+      firedAt: now,
+      outcome: RITUAL_OUTCOME.FIRED_NO_RESPONSE,
+      metadata: { pendingResponseId, expiresAt: expiresAtIso },
+    });
+
+    // STEP 4: Increment denormalized skip_count by 1 (D-28-03).
+    // Idempotent: each fired_no_response event is unique, so increment count
+    // matches event count after replay from ritual_fire_events.
+    await db
+      .update(rituals)
+      .set({ skipCount: sql`${rituals.skipCount} + 1` })
+      .where(eq(rituals.id, row.ritualId));
+
+    emittedCount++;
+  }
+
+  logger.info(
+    { scanned: expired.length, emitted: emittedCount },
+    'rituals.window_sweep.done',
+  );
+
+  return emittedCount;
 }
 
 /**

@@ -1,9 +1,12 @@
 /**
  * src/rituals/__tests__/types.test.ts — Phase 25 Plan 02 Task 1 (RIT-07)
+ *                                        Phase 28 Plan 01 Task 1 (SKIP-01)
  *
- * Unit tests for the `RitualConfigSchema` Zod schema. Pure-function (no DB,
- * no network), runs in microseconds. Asserts:
+ * Unit tests for the `RitualConfigSchema` Zod schema + `RitualFireOutcome`
+ * union + `RITUAL_OUTCOME` const map. Pure-function (no DB, no network), runs
+ * in microseconds. Asserts:
  *
+ *   Phase 25 (original):
  *   1. Accepts a fully-populated valid 8-field config + schema_version=1.
  *   2. Accepts a config with optional fields (fire_dow, prompt_bag) omitted.
  *   3. Rejects unknown fields with `Unrecognized key` (proves `.strict()`
@@ -13,9 +16,16 @@
  *   6. Rejects fire_dow outside 1..7 (ISO weekday bound).
  *   7. Rejects skip_threshold outside 1..10.
  *   8. Rejects prompt_bag arrays longer than 6.
- *   9. Verifies `RitualFireOutcome` exposes 6 union variants and
+ *   9. Verifies `RitualFireOutcome` exposes variants and
  *      `RitualFireResult` interface fields are present (compile-time + shape
  *      check).
+ *
+ *   Phase 28 (SKIP-01 additions):
+ *   10. RitualFireOutcome union has exactly 12 string-literal members.
+ *   11. RITUAL_OUTCOME const map has 12 keys; values include all 5 new variants.
+ *   12. RITUAL_OUTCOME satisfies Record<string, RitualFireOutcome> at compile time.
+ *   13. RitualConfigSchema parses with adjustment_mute_until set/absent/null; rejects non-ISO.
+ *   14. RitualConfigSchema still rejects unknown fields (strict-mode preserved).
  *
  * Run in isolation:
  *   npx vitest run src/rituals/__tests__/types.test.ts
@@ -23,6 +33,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   RitualConfigSchema,
+  RITUAL_OUTCOME,
   parseRitualConfig,
   type RitualConfig,
   type RitualFireOutcome,
@@ -121,22 +132,6 @@ describe('RitualConfigSchema — strict rejection (RIT-07)', () => {
 });
 
 describe('RitualFireOutcome + RitualFireResult — scaffold shape', () => {
-  it('RitualFireOutcome union has 7 variants (compile-time exhaustiveness)', () => {
-    // If the union shrinks or grows, this assertion fails to type-check.
-    // Phase 26 Plan 26-03 (D-26-06) appended 'system_suppressed' for VOICE-04.
-    const variants: RitualFireOutcome[] = [
-      'fired',
-      'caught_up',
-      'muted',
-      'race_lost',
-      'in_dialogue',
-      'config_invalid',
-      'system_suppressed',
-    ];
-    // Runtime sanity: 7 variants enumerated above.
-    expect(variants).toHaveLength(7);
-  });
-
   it('RitualFireResult interface accepts a well-typed object literal', () => {
     const r: RitualFireResult = {
       ritualId: '00000000-0000-0000-0000-000000000000',
@@ -147,5 +142,99 @@ describe('RitualFireOutcome + RitualFireResult — scaffold shape', () => {
     expect(r.ritualId).toBe('00000000-0000-0000-0000-000000000000');
     expect(r.fired).toBe(true);
     expect(r.outcome).toBe('fired');
+  });
+});
+
+// ── Phase 28 SKIP-01 tests ─────────────────────────────────────────────────
+
+describe('RitualFireOutcome — 12-variant union (Phase 28 SKIP-01)', () => {
+  it('union has exactly 12 string-literal members (TS exhaustiveness check)', () => {
+    // Compile-time: all 12 variants must be assignable to RitualFireOutcome.
+    // If the union shrinks or grows, this array will fail to type-check.
+    const all: RitualFireOutcome[] = [
+      'fired',
+      'caught_up',
+      'muted',
+      'race_lost',
+      'in_dialogue',
+      'config_invalid',
+      'system_suppressed',    // Phase 26 VOICE-04
+      'wellbeing_completed',  // Phase 27 (homogenized in 28)
+      'wellbeing_skipped',    // Phase 27 (homogenized in 28)
+      'responded',            // Phase 28 SKIP-01
+      'window_missed',        // Phase 28 SKIP-01
+      'fired_no_response',    // Phase 28 SKIP-01 — THE skip-counting outcome
+    ];
+    expect(all).toHaveLength(12);
+  });
+});
+
+describe('RITUAL_OUTCOME const map (Phase 28 SKIP-01 — Pitfall 4 mitigation)', () => {
+  it('has exactly 12 keys matching all RitualFireOutcome variants', () => {
+    const values = Object.values(RITUAL_OUTCOME);
+    expect(values).toHaveLength(12);
+  });
+
+  it('includes all 5 new Phase 28 + Phase 27 homogenized variants', () => {
+    const values = Object.values(RITUAL_OUTCOME);
+    expect(values).toContain('fired_no_response');
+    expect(values).toContain('responded');
+    expect(values).toContain('window_missed');
+    expect(values).toContain('wellbeing_completed');
+    expect(values).toContain('wellbeing_skipped');
+  });
+
+  it('includes all original Phase 25-26 variants', () => {
+    const values = Object.values(RITUAL_OUTCOME);
+    expect(values).toContain('fired');
+    expect(values).toContain('caught_up');
+    expect(values).toContain('muted');
+    expect(values).toContain('race_lost');
+    expect(values).toContain('in_dialogue');
+    expect(values).toContain('config_invalid');
+    expect(values).toContain('system_suppressed');
+  });
+
+  it('satisfies Record<string, RitualFireOutcome> at compile time (no string drift)', () => {
+    // The `as const satisfies Record<string, RitualFireOutcome>` in types.ts
+    // is the compile-time proof. This test verifies runtime shape consistency.
+    const map: Record<string, RitualFireOutcome> = RITUAL_OUTCOME;
+    expect(typeof map).toBe('object');
+    // Every value must match the union literal — proved by the satisfies clause.
+    for (const val of Object.values(map)) {
+      expect(typeof val).toBe('string');
+      expect(val.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe('RitualConfigSchema — adjustment_mute_until (Phase 28 D-28-08)', () => {
+  it('parses when adjustment_mute_until is set to a valid ISO datetime', () => {
+    const cfg = { ...validConfig, adjustment_mute_until: '2026-05-15T20:00:00.000Z' };
+    const parsed = RitualConfigSchema.parse(cfg);
+    expect(parsed.adjustment_mute_until).toBe('2026-05-15T20:00:00.000Z');
+  });
+
+  it('parses when adjustment_mute_until is absent (undefined)', () => {
+    const parsed = RitualConfigSchema.parse(validConfig);
+    expect(parsed.adjustment_mute_until).toBeUndefined();
+  });
+
+  it('parses when adjustment_mute_until is null', () => {
+    const cfg = { ...validConfig, adjustment_mute_until: null };
+    const parsed = RitualConfigSchema.parse(cfg);
+    expect(parsed.adjustment_mute_until).toBeNull();
+  });
+
+  it('rejects non-ISO adjustment_mute_until (e.g. "not-iso") with ZodError', () => {
+    expect(() =>
+      RitualConfigSchema.parse({ ...validConfig, adjustment_mute_until: 'not-iso' }),
+    ).toThrow();
+  });
+
+  it('still rejects unknown fields (strict-mode invariant preserved)', () => {
+    expect(() =>
+      RitualConfigSchema.parse({ ...validConfig, completely_unknown: 'x' }),
+    ).toThrow(/Unrecognized key/);
   });
 });

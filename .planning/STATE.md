@@ -4,8 +4,8 @@ milestone: v2.4
 milestone_name: M009 Ritual Infrastructure + Daily Note + Weekly Review
 status: executing
 stopped_at: "Plan 29-02 complete (5 task commits + 1 docs commit: 9dee2a7, 7b34a52, 53135c4, b2fe0b0, b75dc0f, 8e4f56d). HARD CO-LOC #2 + #3 ATOMIC plan terminated. Next on Phase 29: Plan 29-03 (migration 0009 seed + dispatcher wire-up + scripts/test.sh psql line). Plan 29-04 (live anti-flattery test scaffolding for Phase 30 TEST-31) parallel-eligible after 29-03."
-last_updated: "2026-04-29T15:56:18.832Z"
-last_activity: 2026-04-29 -- Phase 28 planning complete
+last_updated: "2026-04-29T16:04:57.257Z"
+last_activity: 2026-04-29 -- Phase 28 execution started
 progress:
   total_phases: 6
   completed_phases: 4
@@ -22,12 +22,12 @@ See: .planning/PROJECT.md (symlink to /home/claude/chris/PLAN.md, updated 2026-0
 
 **Core value:** Greg can deposit any memory, thought, or feeling into Chris and later ask questions that Chris answers by searching everything Greg has ever told him — with full fidelity, no data loss, and genuine contextual understanding across English, French, and Russian. Memory is tiered: raw Pensieve for recent fidelity, episodic daily summaries for older context.
 
-**Current focus:** v2.4 M009 *(MVP shipping point)* — ritual scheduling infrastructure plus three rituals (daily voice note, daily wellbeing snapshot, weekly review) that complete the frictionless reflection loop. After M009 ships, every M010+ profile milestone consumes the real cadence-driven data this milestone produces.
+**Current focus:** Phase 28 — Skip-Tracking + Adjustment Dialogue
 
 ## Current Position
 
-Phase: **25** COMPLETE; **26 COMPLETE**; **27 IN PROGRESS** (Plans 27-01 + 27-02 done; 27-03 pending). **29 IN PROGRESS** (Plans 29-01 + 29-02 + 29-03 done; 29-04 pending).
-Plan: 29-02 complete (5 task commits + 1 docs commit: 9dee2a7 + 7b34a52 + 53135c4 + b2fe0b0 + b75dc0f + 8e4f56d) — HARD CO-LOC #2 + #3 ATOMIC plan:
+Phase: 28 (Skip-Tracking + Adjustment Dialogue) — EXECUTING
+Plan: 1 of 4
 
   - `src/rituals/weekly-review.ts` (39 → 652 LoC, +613) — Plan 29-01's skeleton replaced with full impl: `stage1Check` + `INTERROGATIVE_REGEX` (EN+FR+RU per D-03) + `WeeklyReviewSchema` (v3 with .refine) + `WeeklyReviewSchemaV4` (v4 SDK boundary mirror) + `StageTwoJudgeSchema` v3+v4 + `DateGroundingSchema` v3+v4 + `MultiQuestionError` + `DateOutOfWindowError` + `runStage2HaikuJudge` (D-04 Haiku question-counter) + `runDateGroundingCheck` (D-05 Haiku date-window auditor) + `MAX_RETRIES = 2` + `TEMPLATED_FALLBACK_EN` (English-only v1; FR/RU deferred to v2.5 per W-4 lock) + `generateWeeklyObservation` retry-loop + `fireWeeklyReview(ritual, cfg) → Promise<RitualFireOutcome>` orchestrator (substrate fetch → sparse-data guard → generation w/retry+fallback → D031 header render → ritual_responses write → Pensieve persist `epistemicTag: 'RITUAL_RESPONSE'` → Telegram send).
   - `src/rituals/__tests__/weekly-review.test.ts` (NEW, 775 LoC) — 8 describe blocks; 31 tests: 9 Stage-1 unit + 1 schema sanity + 4 Stage-2 mocked + 4 Date-grounding mocked + 6 retry-loop mocked + 2 templated fallback + 1 SDK-boundary CONSTITUTIONAL_PREAMBLE assertion + 4 fireWeeklyReview real-DB integration. All real-DB tests use `test-29-02-` source discriminator for fixture isolation per D041.
@@ -53,9 +53,9 @@ Prior context — Plan 27-02 complete (3 commits: bdc924a + 2d451f3 + 3fff9a1) �
 
 Prior context — Plan 27-01 complete (3 commits: 380a481 + 4ba31a1 + 0e1b5b0) — first inline-keyboard callback dispatcher in codebase. Routes r:w:* → handleWellbeingCallback (now real after Plan 27-02); silently acks unknown prefixes per Telegram's 30s contract.
 
-Status: Ready to execute
+Status: Executing Phase 28
 Progress: [█████████░] 93%
-Last activity: 2026-04-29 -- Phase 28 planning complete
+Last activity: 2026-04-29 -- Phase 28 execution started
 
 Prior deploy state: v2.3 + date-extraction Haiku JSON-fences fix (eedce33, deployed 42a7eed 2026-04-25) live on Proxmox (192.168.1.50). Daily 23:00 Europe/Paris episodic cron + 6h sync cron + 10:00 proactive sweep cron all healthy. M009 will ADD a second 21:00 evening cron tick (RIT-11) for ritual firing.
 
