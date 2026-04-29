@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.4
 milestone_name: M009 Ritual Infrastructure + Daily Note + Weekly Review
 status: executing
-stopped_at: "Plan 27-01 complete (3 commits: 380a481 dispatcher+stub, 4ba31a1 bot.on registration, 0e1b5b0 7 unit tests). First inline-keyboard surface in codebase shipped. WELL-01/WELL-02 partial; Plan 27-02 next (wellbeing handler + migration 0008 seed; replaces wellbeing.ts stub wholesale)."
-last_updated: "2026-04-28T18:08:10.459Z"
-last_activity: 2026-04-28 — Plan 27-02 complete (wellbeing handler + seed migration ATOMIC; 3 commits). All 5 WELL requirements terminate.
+stopped_at: "Plan 29-02 complete (5 task commits + 1 docs commit). HARD CO-LOC #2 + #3 ATOMIC plan terminated: Stage-1 Zod refine + Stage-2 Haiku judge + date-grounding + retry-cap-2 + EN templated fallback + fireWeeklyReview orchestrator + Pensieve RITUAL_RESPONSE persist all live. WEEK-02..08 closed; WEEK-09 already closed in Plan 29-01. Phase 29 has 2/4 plans done; 29-03 (wire-up + seed 0009) and 29-04 (live-test scaffolding) remain."
+last_updated: "2026-04-28T18:30:00.000Z"
+last_activity: 2026-04-28 — Plan 29-02 complete (HARD CO-LOC #2+#3 ATOMIC; 5 task commits + 1 docs commit). WEEK-02..08 terminate; 31/31 tests green; full rituals suite 131/131.
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 15
-  completed_plans: 12
-  percent: 80
+  completed_plans: 13
+  percent: 87
 ---
 
 # Project State
@@ -26,8 +26,19 @@ See: .planning/PROJECT.md (symlink to /home/claude/chris/PLAN.md, updated 2026-0
 
 ## Current Position
 
-Phase: **25** COMPLETE; **26 COMPLETE**; **27 IN PROGRESS** (Plans 27-01 + 27-02 done; 27-03 pending). **29 PLANNED**.
-Plan: 27-02 complete (3 commits: bdc924a + 2d451f3 + 3fff9a1) — wellbeing handler + seed migration ATOMIC per D-27-06:
+Phase: **25** COMPLETE; **26 COMPLETE**; **27 IN PROGRESS** (Plans 27-01 + 27-02 done; 27-03 pending). **29 IN PROGRESS** (Plans 29-01 + 29-02 done; 29-03 + 29-04 pending).
+Plan: 29-02 complete (5 task commits + 1 docs commit: 9dee2a7 + 7b34a52 + 53135c4 + b2fe0b0 + b75dc0f + 8e4f56d) — HARD CO-LOC #2 + #3 ATOMIC plan:
+
+  - `src/rituals/weekly-review.ts` (39 → 652 LoC, +613) — Plan 29-01's skeleton replaced with full impl: `stage1Check` + `INTERROGATIVE_REGEX` (EN+FR+RU per D-03) + `WeeklyReviewSchema` (v3 with .refine) + `WeeklyReviewSchemaV4` (v4 SDK boundary mirror) + `StageTwoJudgeSchema` v3+v4 + `DateGroundingSchema` v3+v4 + `MultiQuestionError` + `DateOutOfWindowError` + `runStage2HaikuJudge` (D-04 Haiku question-counter) + `runDateGroundingCheck` (D-05 Haiku date-window auditor) + `MAX_RETRIES = 2` + `TEMPLATED_FALLBACK_EN` (English-only v1; FR/RU deferred to v2.5 per W-4 lock) + `generateWeeklyObservation` retry-loop + `fireWeeklyReview(ritual, cfg) → Promise<RitualFireOutcome>` orchestrator (substrate fetch → sparse-data guard → generation w/retry+fallback → D031 header render → ritual_responses write → Pensieve persist `epistemicTag: 'RITUAL_RESPONSE'` → Telegram send).
+  - `src/rituals/__tests__/weekly-review.test.ts` (NEW, 775 LoC) — 8 describe blocks; 31 tests: 9 Stage-1 unit + 1 schema sanity + 4 Stage-2 mocked + 4 Date-grounding mocked + 6 retry-loop mocked + 2 templated fallback + 1 SDK-boundary CONSTITUTIONAL_PREAMBLE assertion + 4 fireWeeklyReview real-DB integration. All real-DB tests use `test-29-02-` source discriminator for fixture isolation per D041.
+  - **HARD CO-LOC #2 (Pitfall 14): closed.** Stage-1 + Stage-2 + retry + generator all in same plan-scope commits. Documented Pitfall 14 failure modes (multi-`?`, FR period-terminated multi-question, RU period-terminated multi-question) deterministically caught by `stage1Check` regex.
+  - **HARD CO-LOC #3 (Pitfall 17): closed.** Unit test asserts `mockAnthropicParse.mock.calls[0][0].system[0].text.startsWith('## Core Principles (Always Active)')` — regression detector active. CONSTITUTIONAL_PREAMBLE flows through assembleWeeklyReviewPrompt → fireWeeklyReview → buildSonnetRequest → anthropic.messages.parse system arg verbatim.
+  - Task 5 SKIPPED — Phase 26 commit `6c7210d` already shipped `storePensieveEntry opts.epistemicTag` parameter (cross-phase coordination per D-07; Plan 29-02 reuses verbatim with camelCase signature, NOT plan brief's snake_case `options.epistemic_tag`).
+  - 3 deviations auto-fixed: (1) Rule 1 — `MultiQuestionError` constructor reshaped from `{count, questions}` → `{question_count, questions}` to match retry-loop semantics (TS2345 type fix); (2) Rule 3 cosmetic — reworded `vi.useFakeTimers` literal-token in test file docstring to satisfy grep guard (same defect class as 29-01 #3); (3) Rule 1 — replaced broken `db.execute(sql\`...\`).rows` accessor with typed Drizzle select (postgres-js driver returns row arrays, not `{rows}`).
+  - Verification: `npx tsc --noEmit` exits 0 attributable to modified files; `bash scripts/test.sh src/rituals/__tests__/weekly-review.test.ts` reports 31/31 green in <850ms; full rituals suite 131/131 across 13 files in 9.22s.
+  - All 7 plan requirements (WEEK-02..WEEK-08) terminate. WEEK-09 already terminated in Plan 29-01. Phase 29 needs Plan 29-03 (migration 0009 seed + dispatcher case wire-up + scripts/test.sh psql line) and Plan 29-04 (live anti-flattery test scaffolding for Phase 30 TEST-31) before phase verification.
+
+Prior context — Plan 27-02 complete (3 commits: bdc924a + 2d451f3 + 3fff9a1) — wellbeing handler + seed migration ATOMIC per D-27-06:
 
   - `src/db/migrations/0008_wellbeing_seed.sql` (NEW) — single idempotent INSERT seeding `daily_wellbeing` ritual at next 09:00 Europe/Paris (CASE date math sidesteps catch-up ceiling on first sweep tick). RitualConfigSchema-conformant 6-of-8 field config (omits optional fire_dow + prompt_bag for daily-no-bag ritual). ON CONFLICT (name) DO NOTHING idempotent re-apply.
   - `src/db/migrations/meta/0008_snapshot.json` (NEW) — cloned from 0007 (pure-DML migration → no schema delta → schema content byte-identical) with re-chained id/prevId. `_journal.json` extended with `idx:8 tag:0008_wellbeing_seed`.
@@ -42,9 +53,9 @@ Plan: 27-02 complete (3 commits: bdc924a + 2d451f3 + 3fff9a1) — wellbeing hand
 
 Prior context — Plan 27-01 complete (3 commits: 380a481 + 4ba31a1 + 0e1b5b0) — first inline-keyboard callback dispatcher in codebase. Routes r:w:* → handleWellbeingCallback (now real after Plan 27-02); silently acks unknown prefixes per Telegram's 30s contract.
 
-Status: Phase 27 IN PROGRESS. Plans 27-01 + 27-02 complete (router + handler + seed all live). Next: Plan 27-03 (operator UAT script `scripts/fire-wellbeing.ts` + integration tests `src/rituals/__tests__/wellbeing.test.ts` against real Docker postgres covering all 8 behaviors from Plan 27-02 task 2 <behavior> block + scripts/test.sh anchor-bias regression guard). Phase 26 still ready for `/gsd-verify-work`. Phase 29 still parallel-eligible (orthogonal to Phase 27).
-Progress: [████████░░] 80%
-Last activity: 2026-04-28 — Plan 27-02 complete (wellbeing handler + seed migration ATOMIC; 3 commits). All 5 WELL requirements terminate.
+Status: Phases 27 + 29 IN PROGRESS in parallel. **Phase 29:** Plans 29-01 + 29-02 complete (substrate + HARD CO-LOC #2+#3 ATOMIC generator). Next: Plan 29-03 (migration 0009 seed + dispatcher wire-up + scripts/test.sh psql line) + Plan 29-04 (live anti-flattery test scaffolding for Phase 30 TEST-31). **Phase 27:** Plans 27-01 + 27-02 complete; Plan 27-03 next (UAT script + integration tests). Phase 26 still ready for `/gsd-verify-work`.
+Progress: [█████████░] 87%
+Last activity: 2026-04-28 — Plan 29-02 complete (HARD CO-LOC #2+#3 ATOMIC; 5 task commits + 1 docs commit). WEEK-02..08 terminate; HARD CO-LOC #2 + #3 closed.
 
 Prior deploy state: v2.3 + date-extraction Haiku JSON-fences fix (eedce33, deployed 42a7eed 2026-04-25) live on Proxmox (192.168.1.50). Daily 23:00 Europe/Paris episodic cron + 6h sync cron + 10:00 proactive sweep cron all healthy. M009 will ADD a second 21:00 evening cron tick (RIT-11) for ritual firing.
 
@@ -121,6 +132,14 @@ Full log in PROJECT.md Key Decisions table. Most relevant for M009:
 - **D-26-01-B: drizzle-kit auto-generated `0007_*.sql` discarded after producing the meta-snapshot; hand-authored `0007_daily_voice_note_seed.sql` is canonical.** drizzle-kit cannot model INSERT seed rows or DEFAULT-then-DROP-DEFAULT pattern; same hybrid-pattern Phase 25 used for 0006. The auto-generated SQL would have been `ALTER TABLE ... ADD COLUMN ... NOT NULL` (no DEFAULT) — fine on a literally zero-row table but introduces backfill ambiguity if any maintenance/migration adds rows mid-deploy. The DEFAULT-then-DROP-DEFAULT idiom is the safer contract.
 - **D-26-01-C: scripts/regen-snapshots.sh cleanup-trap flag renamed `REGEN_PRODUCED_0006` → `REGEN_PRODUCED_ACCEPTANCE`** for future-N safety. Cleanup glob updated `0007*.json` → `0008*.json` (the post-acceptance-gate sequence-counter slot drizzle-kit emits when this script runs after Plan 26-01's 0007 lands). Future plans (Plan 27-01, Plan 28-01, etc.) just flip the suffix +1.
 
+### Plan 29-02 implementation decisions (2026-04-28)
+
+- **D-29-02-A: `fireWeeklyReview` returns `RitualFireOutcome`, not `void`.** Plan brief showed `Promise<void>` but the dispatcher contract (Phase 26 D-26-08) is `(ritual, cfg) → Promise<RitualFireOutcome>`. Aligning to the existing contract means Plan 29-03's dispatcher case is a one-line `case 'weekly_review': return fireWeeklyReview(ritual, cfg);` — same shape as `daily_voice_note` and `daily_wellbeing`. Returning `'fired'` is correct semantics for both successful generations AND the sparse-data short-circuit (mirrors M008 CONS-02 "no-entries" pattern).
+- **D-29-02-B: `cfg` parameter accepted but unused in `fireWeeklyReview` body.** Weekly review has no per-fire config knobs (cron's `fire_dow=7` and `fire_at='20:00'` are read by scheduler before dispatch). Accepting `cfg` for dispatcher uniformity is preferable to a special-case signature; an `eslint-disable-next-line` directive documents the intentional non-use.
+- **D-29-02-C: `respondedAt` set at end of fire flow, not on user reply.** `ritual_responses.respondedAt` has dual meaning across handlers — voice-note uses it for Greg's STT reply (PP#5 mechanism); weekly review has no expected user reply (Socratic question is rhetorical). Setting `respondedAt = new Date()` after Pensieve write marks "system completed the fire flow" so longitudinal queries don't confuse "weekly review never completed" with "Greg never replied". Metadata `isFallback` field distinguishes the two completion classes.
+- **D-29-02-D: Templated fallback ships English-only as v1 baseline.** FR/RU localization explicitly DEFERRED to v2.5 per CONTEXT.md "Claude's Discretion" + W-4 directive. Source comment block cites the deferral so future-Greg knows the boundary lies here. When Greg's `franc` last-message-language detection is wired (Phase 26 substrate available), v2.5 will branch by language at the fallback site.
+- **D-29-02-E: Cross-phase coordination on `storePensieveEntry` epistemicTag.** Phase 26 commit `6c7210d` shipped the optional `opts.epistemicTag` parameter ahead of Phase 29; Plan 29-02 reused verbatim. Note: plan brief said `options.epistemic_tag` (snake_case in `options`); shipped Phase 26 signature is `opts.epistemicTag` (camelCase in `opts`). Plan 29-02 calls `storePensieveEntry(observation, 'telegram', metadata, { epistemicTag: 'RITUAL_RESPONSE' })`. Semantics identical to plan's intent.
+
 ### HARD CO-LOCATION CONSTRAINTS (from research/SUMMARY.md — must be honored across phase boundaries)
 
 1. **Phase 26**: PP#5 ritual-response detector co-located with voice note ritual handler (Pitfall 6, CRITICAL).
@@ -163,8 +182,8 @@ None. Ready to plan Phase 25 — pending todo resolved (verdict above).
 
 ## Session Continuity
 
-Last session: 2026-04-28T18:08:10.446Z
-Stopped at: Plan 27-01 complete (3 commits: 380a481 dispatcher+stub, 4ba31a1 bot.on registration, 0e1b5b0 7 unit tests). First inline-keyboard surface in codebase shipped. WELL-01/WELL-02 partial; Plan 27-02 next (wellbeing handler + migration 0008 seed; replaces wellbeing.ts stub wholesale).
+Last session: 2026-04-28T18:30:00.000Z
+Stopped at: Plan 29-02 complete (5 task commits + 1 docs commit: 9dee2a7, 7b34a52, 53135c4, b2fe0b0, b75dc0f, 8e4f56d). HARD CO-LOC #2 + #3 ATOMIC plan terminated. Next on Phase 29: Plan 29-03 (migration 0009 seed + dispatcher wire-up + scripts/test.sh psql line). Plan 29-04 (live anti-flattery test scaffolding for Phase 30 TEST-31) parallel-eligible after 29-03.
 Resume file: None
 
 ## Known Tech Debt
