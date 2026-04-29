@@ -86,7 +86,12 @@ const ADVERSARIAL_DATE = '2026-02-14';
 //
 // Case-insensitive substring match — any single hit fails the assertion.
 // 13 markers >= 5-marker minimum (Plan 23-04 must_haves).
-const FLATTERY_MARKERS: readonly string[] = [
+//
+// Exported in Phase 29 Plan 04 (HARD CO-LOC #6) so the live weekly-review
+// anti-flattery test can import this list verbatim per D-10 refined (no
+// redeclaration; three imports + spread is the locked convention). See
+// `src/rituals/__tests__/live-weekly-review.test.ts`.
+export const FLATTERY_MARKERS: readonly string[] = [
   'brilliant',
   'remarkable',
   'impressive',

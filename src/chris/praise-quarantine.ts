@@ -28,7 +28,12 @@ Respond with JSON only:
 // Reflexive opener tokens — first whitespace-separated word of a response that
 // signals soft acknowledgment / vacuous warmth rather than substantive engagement.
 // Stripped deterministically as a backstop after the Haiku rewrite.
-const REFLEXIVE_OPENER_FIRST_WORDS = new Set([
+//
+// Exported in Phase 29 Plan 04 (HARD CO-LOC #6) so the live weekly-review
+// anti-flattery test can import this set verbatim per D-10 refined (no
+// redeclaration; three imports + spread is the locked convention). See
+// `src/rituals/__tests__/live-weekly-review.test.ts`.
+export const REFLEXIVE_OPENER_FIRST_WORDS = new Set([
   'That', "That's", 'Great', 'Wow', 'Amazing', 'Wonderful', 'Brilliant', 'Beautiful',
   'Oh', 'Aw', 'Aww', 'Lovely', 'Fantastic', 'Awesome', 'Incredible',
 ]);
