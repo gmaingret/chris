@@ -2,9 +2,14 @@
 phase: 29-weekly-review
 verified: 2026-04-29T01:00:00Z
 status: human_needed
-score: 4/4 ROADMAP success criteria verified (SC4 empirical proof deferred to Phase 30)
-overrides_applied: 0
-re_verification: null
+status_history:
+  - 2026-04-29T01:00:00Z: human_needed (4/4 SCs structural; 3 items flagged for UAT)
+  - 2026-04-29T02:00:00Z: human_needed (reduced — Greg post-verification dropped SC-2/3 to automated skipIf gate; SC-4 confirmed Phase 30 deferral; only SC-1 first-Sunday visual remains)
+score: 4/4 ROADMAP success criteria structurally verified (SC-1 awaiting first-Sunday post-deploy check; SC-2/3 promoted to automated skipIf-gated test; SC-4 deferred to Phase 30 TEST-31)
+overrides_applied: 2  # SC-2/3 → automated; SC-4 → Phase 30 deferral
+re_verification:
+  scheduled: 2026-05-03 (first Sunday post-deploy)
+  scope: SC-1 only — verify weekly_review fire occurred + Pensieve persist + Telegram delivery
 gaps: []
 deferred:
   - truth: "SC4 — Cron-context CONSTITUTIONAL_PREAMBLE injection holds end-to-end against real Sonnet under adversarial input"

@@ -1,9 +1,12 @@
 ---
 phase: 26-daily-voice-note-ritual
 verified: 2026-04-26T10:35:00Z
-status: human_needed
-score: 17/17 plan-level truths VERIFIED + 2/4 ROADMAP SCs VERIFIED + 2/4 ROADMAP SCs PARTIAL pending operator UAT
-overrides_applied: 0
+status: passed
+status_history:
+  - 2026-04-26: human_needed (17/17 plan-level truths VERIFIED; 2 SCs flagged pending operator UAT)
+  - 2026-04-29: passed (Greg post-verification — both pending UAT items dropped as not-applicable; see footer)
+score: 17/17 plan-level truths VERIFIED; 4/4 ROADMAP SCs accepted (2 verified programmatically + 2 dropped as not-applicable per Greg 2026-04-29)
+overrides_applied: 2  # SC-1 + SC-4 dropped per Greg's review
 human_verification:
   - test: "Operator UAT: SC-1 end-to-end Telegram round-trip"
     expected: "`npx tsx scripts/fire-ritual.ts daily_voice_note` against staging produces a Telegram message arriving at Greg's chat with one of the 6 spec prompts; sending a free-text reply within 18h causes the reply to land in `pensieve_entries` with `epistemic_tag = 'RITUAL_RESPONSE'` AND `metadata.source_subtype = 'ritual_voice_note'`, AND Chris produces NO chat response (engine returns empty string, IN-02 silent-skip via `src/bot/bot.ts:54`)"
@@ -242,4 +245,13 @@ The 2 human-verification items are intrinsic to the phase goal — Telegram mess
 *Verified: 2026-04-26T10:35:00Z*
 *Verifier: Claude (gsd-verifier)*
 
-## HUMAN VERIFICATION REQUIRED
+## Greg post-verification 2026-04-29 — status: passed
+
+The verifier flagged 2 ROADMAP success criteria as `human_needed`. Greg reviewed and dropped both as not-applicable:
+
+- **SC-1 (Telegram round-trip):** *"unless you broke something, it works since the beginning"* — Telegram bot delivery is pre-existing infra (functioning since project inception, M001..M008). Phase 26 ships the PP#5 detector + handler logic (component-tested with cumulative `not.toHaveBeenCalled()` regression test). The Telegram delivery layer is not modified by Phase 26 and not under test.
+- **SC-4 (Voice message polite-decline):** *"what's the point since we don't support whisper"* — The polite-decline handler exists BECAUSE voice transcription is an explicit anti-feature (PLAN.md OOS-3). Unit tests for the handler's EN/FR/RU templates verify the decline shape; sending an actual voice file to validate "the decline arrives" is testing pre-existing Telegram delivery, not Phase 26 logic.
+
+**Phase 26 status flips to `passed`.** No outstanding UAT.
+
+## VERIFICATION PASSED (post-Greg-review 2026-04-29)
