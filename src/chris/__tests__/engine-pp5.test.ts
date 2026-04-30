@@ -62,6 +62,7 @@ import {
   rituals,
   ritualPendingResponses,
   ritualResponses,
+  ritualFireEvents,
   pensieveEntries,
 } from '../../db/schema.js';
 import { processMessage } from '../engine.js';
@@ -70,7 +71,10 @@ const FIXTURE_RITUAL_NAME = 'engine-pp5-test-ritual';
 
 async function cleanup(): Promise<void> {
   // Ordered cleanup: child tables first (FK constraints), then rituals fixture.
+  // Phase 28 Plan 28-01 extended recordRitualVoiceResponse to write ritual_fire_events
+  // — add it to cleanup before rituals deletion to satisfy FK constraint.
   await db.delete(ritualResponses);
+  await db.delete(ritualFireEvents);
   await db.delete(ritualPendingResponses);
   await db.delete(pensieveEntries);
   await db.delete(rituals).where(eq(rituals.name, FIXTURE_RITUAL_NAME));
