@@ -48,6 +48,7 @@ import {
   rituals,
   ritualPendingResponses,
   ritualResponses,
+  ritualFireEvents,
   ritualConfigEvents,
 } from '../../db/schema.js';
 import { handleAdjustmentReply } from '../adjustment-dialogue.js';
@@ -102,8 +103,10 @@ async function insertAdjustmentPendingRow(ritualId: string) {
 
 async function cleanup() {
   if (seededRitualIds.length > 0) {
+    // Delete child tables first (FK constraints) before deleting rituals
     await db.delete(ritualConfigEvents).where(inArray(ritualConfigEvents.ritualId, seededRitualIds));
     await db.delete(ritualResponses).where(inArray(ritualResponses.ritualId, seededRitualIds));
+    await db.delete(ritualFireEvents).where(inArray(ritualFireEvents.ritualId, seededRitualIds));
     await db.delete(ritualPendingResponses).where(inArray(ritualPendingResponses.ritualId, seededRitualIds));
     await db.delete(rituals).where(inArray(rituals.id, seededRitualIds));
     seededRitualIds = [];
