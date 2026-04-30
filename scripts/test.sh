@@ -15,6 +15,7 @@ MIGRATION_6_SQL="src/db/migrations/0006_rituals_wellbeing.sql"
 MIGRATION_7_SQL="src/db/migrations/0007_daily_voice_note_seed.sql"
 MIGRATION_8_SQL="src/db/migrations/0008_wellbeing_seed.sql"
 MIGRATION_9_SQL="src/db/migrations/0009_weekly_review_seed.sql"
+MIGRATION_10_SQL="src/db/migrations/0010_adjustment_dialogue.sql"
 
 cleanup() {
   echo "🧹 Stopping test postgres..."
@@ -65,6 +66,8 @@ docker compose -f "$COMPOSE_FILE" exec -T postgres \
   psql -U chris -d chris -v ON_ERROR_STOP=1 -q < "$MIGRATION_8_SQL"
 docker compose -f "$COMPOSE_FILE" exec -T postgres \
   psql -U chris -d chris -v ON_ERROR_STOP=1 -q < "$MIGRATION_9_SQL"
+docker compose -f "$COMPOSE_FILE" exec -T postgres \
+  psql -U chris -d chris -v ON_ERROR_STOP=1 -q < "$MIGRATION_10_SQL"
 
 # Phase 25 (M009 v2.4) — post-migration substrate smoke gate.
 # Per HARD CO-LOCATION CONSTRAINT #7 + Pitfall 28: the SQL migration, the
@@ -153,6 +156,32 @@ if [[ "$SEED_CHECK" != "1" ]]; then
   exit 1
 fi
 echo "✓ Phase 29 seed-row gate: weekly_review present"
+
+# Phase 28 (M009 v2.4) — adjustment dialogue substrate gate.
+# Migration 0010 adds metadata jsonb column to ritual_pending_responses
+# (RESEARCH Landmine 2 — column did not exist before Phase 28). Plan 28-03
+# depends on this column being present for PP#5 dispatch by metadata.kind.
+# Failure exits BEFORE vitest so a missing column blocks the test suite.
+METADATA_COL_CHECK=$(docker compose -f "$COMPOSE_FILE" exec -T postgres \
+  psql -U chris -d chris -tAc \
+  "SELECT column_name FROM information_schema.columns
+   WHERE table_name='ritual_pending_responses' AND column_name='metadata' LIMIT 1;")
+
+if [[ "$METADATA_COL_CHECK" != "metadata" ]]; then
+  echo "❌ FAIL: ritual_pending_responses.metadata column missing after migration 0010 (got: '$METADATA_COL_CHECK')"
+  exit 1
+fi
+
+METADATA_IDX_CHECK=$(docker compose -f "$COMPOSE_FILE" exec -T postgres \
+  psql -U chris -d chris -tAc \
+  "SELECT indexname FROM pg_indexes WHERE indexname = 'ritual_pending_responses_adjustment_confirmation_idx';")
+
+if [[ "$METADATA_IDX_CHECK" != "ritual_pending_responses_adjustment_confirmation_idx" ]]; then
+  echo "❌ FAIL: adjustment_confirmation partial index missing after migration 0010 (got: '$METADATA_IDX_CHECK')"
+  exit 1
+fi
+
+echo "✓ Phase 28 migration 0010 substrate verified (metadata column + adjustment_confirmation partial index)"
 
 # Phase 27 D-27-04 anchor-bias defeat regression guard (Plan 27-03 Task 3).
 # Fails loud if src/rituals/wellbeing.ts ever contains a SELECT against
