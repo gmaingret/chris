@@ -40,7 +40,7 @@ import {
   type RitualFireOutcome,
   type RitualConfig,
 } from './types.js';
-import { shouldFireAdjustmentDialogue } from './skip-tracking.js';
+import { autoReEnableExpiredMutes, shouldFireAdjustmentDialogue } from './skip-tracking.js';
 import { fireAdjustmentDialogue } from './adjustment-dialogue.js';
 import { fireVoiceNote } from './voice-note.js';
 import { fireWeeklyReview } from './weekly-review.js';
@@ -85,6 +85,17 @@ import { fireWellbeing } from './wellbeing.js';
 export async function runRitualSweep(now: Date = new Date()): Promise<RitualFireResult[]> {
   const startMs = Date.now();
   logger.info({ timestamp: now.toISOString() }, 'rituals.sweep.start');
+
+  // Phase 28 Plan 04 SKIP-06 — auto-re-enable expired mutes BEFORE the
+  // response-window sweep. Re-enabled rituals must participate in this
+  // tick's normal flow (next_run_at calculation, channel-cap, dispatch),
+  // not wait for the next tick. Wrapped in try/catch (CRON-01 belt-and-
+  // suspenders) so a failure does NOT block the dispatch path.
+  try {
+    await autoReEnableExpiredMutes(now);
+  } catch (err) {
+    logger.error({ err }, 'rituals.auto_re_enable.error');
+  }
 
   // Phase 28 SKIP-01 — Response window sweep (runs BEFORE STEP 0 channel-cap).
   // Detects expired ritual_pending_responses rows and emits window_missed +

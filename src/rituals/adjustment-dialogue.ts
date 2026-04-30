@@ -40,6 +40,8 @@ import { logger } from '../utils/logger.js';
 import { StorageError } from '../utils/errors.js';
 import { bot } from '../bot/bot.js';
 import { anthropic, HAIKU_MODEL } from '../llm/client.js';
+import { detectRefusal } from '../chris/refusal.js';
+import { hasReachedEvasiveTrigger } from './skip-tracking.js';
 import { RITUAL_OUTCOME, parseRitualConfig, type RitualFireOutcome } from './types.js';
 
 // ── Constants (D-28-05 + D-28-06 locked spec) ─────────────────────────────
@@ -51,6 +53,136 @@ const CONFIDENCE_DEFAULT_EVASIVE_THRESHOLD = 0.7; // CONTEXT.md "default-evasive
 
 const ADJUSTMENT_JUDGE_PROMPT =
   "You are classifying a user's reply to an adjustment-dialogue message about a recurring ritual. The ritual has been skipped too many times and the user was asked what should change. Classify the reply into exactly one category: 'change_requested' (user wants a specific change to the ritual config), 'no_change' (user says no change needed, or wants to keep going), or 'evasive' (user is vague, dismissive, or unclear). If change_requested, extract the proposed change field (one of: fire_at, fire_dow, skip_threshold, mute_until) and the new value. Output JSON: { classification: 'change_requested'|'no_change'|'evasive', proposed_change: { field, new_value } | null, confidence: number 0-1 }.";
+
+// ── M006 Refusal pre-check (Plan 28-04 SKIP-07 + RESEARCH Pitfall 2) ─────────
+
+/**
+ * Adjustment-specific refusal patterns NOT in the general detectRefusal.
+ * Kept local to the adjustment dialogue context — 'disable' in a general
+ * conversation might mean something else; here it explicitly means
+ * "disable this ritual" (PATTERNS.md §C recommendation).
+ *
+ * The NOT_NOW_EXTENDED pattern is broader than refusal.ts's standalone "not now"
+ * regex (which requires end-of-string anchor). In the adjustment dialogue context,
+ * "not now please" / "not now thanks" etc. all clearly mean deferral.
+ */
+const ADJUSTMENT_DISABLE_PATTERN = /\b(disable|deactivate|turn\s+off)\b/i;
+// Broader "not now" for the adjustment dialogue context (refusal.ts is standalone-only)
+const ADJUSTMENT_NOT_NOW_PATTERN = /\bnot\s+(?:now|today|right\s+now)\b/i;
+
+/**
+ * isAdjustmentRefusal — check if text is a refusal in the adjustment dialogue context.
+ *
+ * Combines the general detectRefusal (15 EN + 14 FR + 14 RU patterns) with the
+ * adjustment-specific ADJUSTMENT_DISABLE_PATTERN. Distinguishes 'not now' (7-day
+ * deferral) from 'drop it'/'disable' (hard manual disable).
+ *
+ * Per RESEARCH Pitfall 2: this function MUST be called BEFORE any Haiku call.
+ * Refusals that reach Haiku could be mis-classified as 'evasive', triggering
+ * a spurious 30-day pause after 2 refusals.
+ */
+function isAdjustmentRefusal(
+  text: string,
+): { isRefusal: boolean; topic: string; isHardDisable: boolean; isNotNow: boolean } {
+  // Check general detectRefusal first (EN_PATTERNS covers 'drop it', 'not now', etc.)
+  const general = detectRefusal(text);
+  if (general.isRefusal) {
+    // Distinguish 'not now' (deferral) from 'drop it' (hard disable)
+    const isNotNow = ADJUSTMENT_NOT_NOW_PATTERN.test(text);
+    const topic = 'topic' in general ? general.topic : text.trim();
+    return { isRefusal: true, topic, isHardDisable: !isNotNow, isNotNow };
+  }
+  // Adjustment-specific: 'disable' / 'deactivate' / 'turn off'
+  if (ADJUSTMENT_DISABLE_PATTERN.test(text)) {
+    return { isRefusal: true, topic: text.trim(), isHardDisable: true, isNotNow: false };
+  }
+  // Adjustment-specific extended "not now" (broader than standalone-only in refusal.ts)
+  // Handles "not now please", "not now thanks", etc. in the adjustment dialogue context.
+  if (ADJUSTMENT_NOT_NOW_PATTERN.test(text)) {
+    return { isRefusal: true, topic: text.trim(), isHardDisable: false, isNotNow: true };
+  }
+  return { isRefusal: false, topic: '', isHardDisable: false, isNotNow: false };
+}
+
+/**
+ * routeRefusal — handle a confirmed refusal in the adjustment dialogue context.
+ *
+ * Per CONTEXT.md D-28-08:
+ * - Hard disable ("drop it" / "disable"): set rituals.enabled = false (manual disable,
+ *   permanent until Greg manually re-enables). Writes ritual_config_events with
+ *   actor='adjustment_dialogue_refusal' + patch.kind='manual_disable'.
+ * - "not now" (deferral): set config.adjustment_mute_until = now + 7 days. Skip-counting
+ *   continues; dialogue won't fire for 7 days. Writes ritual_config_events with
+ *   actor='adjustment_dialogue_refusal' + patch.kind='apply' + patch.field='adjustment_mute_until'.
+ *
+ * Per RESEARCH Landmine 1: ritual_config_events writes use the discriminated envelope
+ * inside `patch` jsonb (actor varchar(32) + patch jsonb — NOT change_kind/old_value columns).
+ *
+ * Critical: refusals do NOT write to ritual_responses and do NOT count as evasive.
+ * This is the load-bearing separation for SKIP-06: hasReachedEvasiveTrigger only
+ * reads ritual_responses rows, so refusals can never trigger the evasive counter.
+ */
+async function routeRefusal(
+  ritualId: string,
+  refusal: { isHardDisable: boolean; isNotNow: boolean; topic: string },
+  text: string,
+): Promise<void> {
+  if (refusal.isHardDisable) {
+    // Hard disable — set enabled=false (manual, permanent until operator re-enables)
+    await db.update(rituals).set({ enabled: false }).where(eq(rituals.id, ritualId));
+
+    await db.insert(ritualConfigEvents).values({
+      ritualId,
+      actor: 'adjustment_dialogue_refusal',
+      patch: {
+        kind: 'manual_disable',
+        source: 'user_drop_it_or_disable',
+        user_text: text.slice(0, 200),
+      },
+    });
+
+    logger.info(
+      { ritualId, originalText: text.slice(0, 100) },
+      'chris.adjustment.refused.manual_disable',
+    );
+
+    await bot.api.sendMessage(
+      Number(config.telegramAuthorizedUserId),
+      'OK, disabling this ritual. You can re-enable it manually anytime.',
+    );
+  } else if (refusal.isNotNow) {
+    // "not now" deferral — set adjustment_mute_until = now + 7 days
+    const sevenDaysFromNow = new Date(Date.now() + 7 * 24 * 3600 * 1000);
+
+    await db
+      .update(rituals)
+      .set({
+        config: sql`jsonb_set(${rituals.config}, ${sql.raw("'{adjustment_mute_until}'")}, ${String(JSON.stringify(sevenDaysFromNow.toISOString()))}::jsonb, true)`,
+      })
+      .where(eq(rituals.id, ritualId));
+
+    await db.insert(ritualConfigEvents).values({
+      ritualId,
+      actor: 'adjustment_dialogue_refusal',
+      patch: {
+        kind: 'apply',
+        field: 'adjustment_mute_until',
+        new_value: sevenDaysFromNow.toISOString(),
+        source: 'user_not_now',
+      },
+    });
+
+    logger.info(
+      { ritualId, deferUntil: sevenDaysFromNow.toISOString() },
+      'chris.adjustment.refused.not_now',
+    );
+
+    await bot.api.sendMessage(
+      Number(config.telegramAuthorizedUserId),
+      "OK, I'll skip the adjustment dialogue for 7 days. Skip-tracking continues.",
+    );
+  }
+}
 
 // ── Zod schemas (v3+v4 dual — mirrors weekly-review.ts:131-186 pattern) ──────
 
@@ -231,6 +363,17 @@ export async function handleAdjustmentReply(
     throw new StorageError('ritual.adjustment.race_lost');
   }
 
+  // STEP 1.5 (Plan 28-04): M006 refusal pre-check — load-bearing for SKIP-06.
+  // RESEARCH Pitfall 2: refusals MUST short-circuit BEFORE the Haiku call to
+  // prevent classifier mis-classifying refusal-as-evasive → spurious 30-day pause.
+  // Refusals NEVER reach Haiku, NEVER count as evasive, NEVER write the
+  // metadata.classification='evasive' marker that hasReachedEvasiveTrigger reads.
+  const refusal = isAdjustmentRefusal(text);
+  if (refusal.isRefusal) {
+    await routeRefusal(pending.ritualId, refusal, text);
+    return ''; // IN-02 silent-skip
+  }
+
   // STEP 2: Haiku 3-class classification with retry-cap-2 + templated fallback
   const classified = await classifyAdjustmentReply(text);
 
@@ -279,7 +422,7 @@ export async function handleAdjustmentReply(
     logger.info({ ritualId: pending.ritualId }, 'chris.adjustment.classified.no_change');
   } else {
     // evasive (or change_requested with no proposed_change — conservative fallback)
-    // Write ritual_responses row — Plan 28-04's hasReachedEvasiveTrigger reads this
+    // Write ritual_responses row — hasReachedEvasiveTrigger reads this
     await db.insert(ritualResponses).values({
       ritualId: pending.ritualId,
       firedAt: pending.firedAt,
@@ -294,6 +437,40 @@ export async function handleAdjustmentReply(
 
     // Do NOT reset skip_count (the user did not engage)
     logger.info({ ritualId: pending.ritualId, confidence: classified.confidence }, 'chris.adjustment.classified.evasive');
+
+    // Plan 28-04 SKIP-06 — after writing the evasive marker, check whether
+    // hasReachedEvasiveTrigger fires (>= 2 evasive in 14d → 30-day pause).
+    if (await hasReachedEvasiveTrigger(pending.ritualId)) {
+      const thirtyDaysFromNow = new Date(Date.now() + 30 * 24 * 3600 * 1000);
+
+      await db
+        .update(rituals)
+        .set({
+          enabled: false,
+          config: sql`jsonb_set(${rituals.config}, ${sql.raw("'{mute_until}'")}, ${String(JSON.stringify(thirtyDaysFromNow.toISOString()))}::jsonb, true)`,
+        })
+        .where(eq(rituals.id, pending.ritualId));
+
+      await db.insert(ritualConfigEvents).values({
+        ritualId: pending.ritualId,
+        actor: 'system',
+        patch: {
+          kind: 'auto_pause',
+          source: '2_evasive_in_14d',
+          mute_until: thirtyDaysFromNow.toISOString(),
+        },
+      });
+
+      logger.info(
+        { ritualId: pending.ritualId, muteUntil: thirtyDaysFromNow.toISOString() },
+        'chris.adjustment.auto_paused',
+      );
+
+      await bot.api.sendMessage(
+        Number(config.telegramAuthorizedUserId),
+        `Pausing this ritual for 30 days — feels like the timing isn't right. It will auto-re-enable on ${thirtyDaysFromNow.toISOString().slice(0, 10)}.`,
+      );
+    }
   }
 
   return ''; // IN-02 silent-skip
