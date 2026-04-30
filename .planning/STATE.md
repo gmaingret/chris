@@ -4,14 +4,14 @@ milestone: v2.4
 milestone_name: M009 Ritual Infrastructure + Daily Note + Weekly Review
 status: executing
 stopped_at: Phase 30 context gathered
-last_updated: "2026-04-30T12:11:08.714Z"
-last_activity: 2026-04-29 -- Phase 28 execution started
+last_updated: "2026-04-30T16:35:56.963Z"
+last_activity: 2026-04-30 -- Phase 30 planning complete
 progress:
   total_phases: 6
   completed_phases: 5
-  total_plans: 19
+  total_plans: 23
   completed_plans: 19
-  percent: 100
+  percent: 83
 ---
 
 # Project State
@@ -53,9 +53,9 @@ Prior context — Plan 27-02 complete (3 commits: bdc924a + 2d451f3 + 3fff9a1) �
 
 Prior context — Plan 27-01 complete (3 commits: 380a481 + 4ba31a1 + 0e1b5b0) — first inline-keyboard callback dispatcher in codebase. Routes r:w:* → handleWellbeingCallback (now real after Plan 27-02); silently acks unknown prefixes per Telegram's 30s contract.
 
-Status: Executing Phase 28
+Status: Ready to execute
 Progress: [█████████░] 93%
-Last activity: 2026-04-29 -- Phase 28 execution started
+Last activity: 2026-04-30 -- Phase 30 planning complete
 
 Prior deploy state: v2.3 + date-extraction Haiku JSON-fences fix (eedce33, deployed 42a7eed 2026-04-25) live on Proxmox (192.168.1.50). Daily 23:00 Europe/Paris episodic cron + 6h sync cron + 10:00 proactive sweep cron all healthy. M009 will ADD a second 21:00 evening cron tick (RIT-11) for ritual firing.
 
