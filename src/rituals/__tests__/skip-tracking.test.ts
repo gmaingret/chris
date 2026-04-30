@@ -14,7 +14,7 @@
  *   bash scripts/test.sh src/rituals/__tests__/skip-tracking.test.ts
  */
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, sql as drizzleSql } from 'drizzle-orm';
 
 // ── Mock Anthropic (cumulative not-called assertion: Pitfall 6 / T-28-E1) ───
 const { mockAnthropicCreate, mockAnthropicParse } = vi.hoisted(() => ({
@@ -46,7 +46,7 @@ vi.mock('../../pensieve/tagger.js', () => ({
   tagEntry: vi.fn().mockResolvedValue(null),
 }));
 
-import { db, sql as pgClient } from '../../db/connection.js';
+import { db } from '../../db/connection.js';
 import { rituals, ritualFireEvents } from '../../db/schema.js';
 import { RITUAL_OUTCOME } from '../types.js';
 import { computeSkipCount, shouldFireAdjustmentDialogue, cadenceDefaultThreshold } from '../skip-tracking.js';
@@ -90,8 +90,8 @@ describe('Phase 28 SKIP-03 — Seed skip_threshold audit (RESEARCH Landmine 4)',
   it('daily_voice_note has skip_threshold = 3 (daily cadence default)', async () => {
     const [row] = await db
       .select({
-        skipThreshold: pgClient<number>`(config->>'skip_threshold')::int`,
-      } as { skipThreshold: number })
+        skipThreshold: drizzleSql<number>`(${rituals.config}->>'skip_threshold')::int`,
+      })
       .from(rituals)
       .where(eq(rituals.name, 'daily_voice_note'))
       .limit(1);
@@ -103,8 +103,8 @@ describe('Phase 28 SKIP-03 — Seed skip_threshold audit (RESEARCH Landmine 4)',
   it('daily_wellbeing has skip_threshold = 3 (daily cadence default)', async () => {
     const [row] = await db
       .select({
-        skipThreshold: pgClient<number>`(config->>'skip_threshold')::int`,
-      } as { skipThreshold: number })
+        skipThreshold: drizzleSql<number>`(${rituals.config}->>'skip_threshold')::int`,
+      })
       .from(rituals)
       .where(eq(rituals.name, 'daily_wellbeing'))
       .limit(1);
@@ -116,8 +116,8 @@ describe('Phase 28 SKIP-03 — Seed skip_threshold audit (RESEARCH Landmine 4)',
   it('weekly_review has skip_threshold = 2 (weekly cadence default)', async () => {
     const [row] = await db
       .select({
-        skipThreshold: pgClient<number>`(config->>'skip_threshold')::int`,
-      } as { skipThreshold: number })
+        skipThreshold: drizzleSql<number>`(${rituals.config}->>'skip_threshold')::int`,
+      })
       .from(rituals)
       .where(eq(rituals.name, 'weekly_review'))
       .limit(1);
