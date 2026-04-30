@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.4
 milestone_name: M009 Ritual Infrastructure + Daily Note + Weekly Review
 status: executing
-stopped_at: "Plan 29-02 complete (5 task commits + 1 docs commit: 9dee2a7, 7b34a52, 53135c4, b2fe0b0, b75dc0f, 8e4f56d). HARD CO-LOC #2 + #3 ATOMIC plan terminated. Next on Phase 29: Plan 29-03 (migration 0009 seed + dispatcher wire-up + scripts/test.sh psql line). Plan 29-04 (live anti-flattery test scaffolding for Phase 30 TEST-31) parallel-eligible after 29-03."
-last_updated: "2026-04-29T16:04:57.257Z"
+stopped_at: Phase 30 context gathered
+last_updated: "2026-04-30T12:11:08.714Z"
 last_activity: 2026-04-29 -- Phase 28 execution started
 progress:
   total_phases: 6
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 19
-  completed_plans: 15
-  percent: 79
+  completed_plans: 19
+  percent: 100
 ---
 
 # Project State
@@ -182,9 +182,9 @@ None. Ready to plan Phase 25 — pending todo resolved (verdict above).
 
 ## Session Continuity
 
-Last session: 2026-04-29T00:34:32.132Z
-Stopped at: Plan 29-02 complete (5 task commits + 1 docs commit: 9dee2a7, 7b34a52, 53135c4, b2fe0b0, b75dc0f, 8e4f56d). HARD CO-LOC #2 + #3 ATOMIC plan terminated. Next on Phase 29: Plan 29-03 (migration 0009 seed + dispatcher wire-up + scripts/test.sh psql line). Plan 29-04 (live anti-flattery test scaffolding for Phase 30 TEST-31) parallel-eligible after 29-03.
-Resume file: None
+Last session: 2026-04-30T12:11:08.702Z
+Stopped at: Phase 30 context gathered
+Resume file: .planning/phases/30-test-infrastructure-harn-03-refresh/30-CONTEXT.md
 
 ## Known Tech Debt
 
