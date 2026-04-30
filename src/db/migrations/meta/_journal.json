@@ -71,6 +71,13 @@
       "when": 1777422168284,
       "tag": "0009_weekly_review_seed",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1777538253770,
+      "tag": "0010_adjustment_dialogue",
+      "breakpoints": true
     }
   ]
 }

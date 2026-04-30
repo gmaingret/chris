@@ -74,6 +74,7 @@ import { LLMError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 import { stripFences } from '../utils/text.js';
 import { findActivePendingResponse, recordRitualVoiceResponse } from '../rituals/voice-note.js';
+import { handleAdjustmentReply, handleConfirmationReply } from '../rituals/adjustment-dialogue.js';
 
 // ── Abort acknowledgment (PP#0) ──────────────────────────────────────────
 
@@ -174,7 +175,25 @@ export async function processMessage(
     const chatIdStrPP5 = chatId.toString();
     const pending = await findActivePendingResponse(chatIdStrPP5, new Date());
     if (pending) {
+      // Phase 28 Plan 03 SKIP-04 + SKIP-05 — metadata.kind dispatch (RESEARCH Landmine 6).
+      // Voice-note pending rows had no metadata pre-Phase-28 (column did not exist).
+      // After migration 0010, rows default to '{}'::jsonb so metadata->>'kind'
+      // returns undefined, falling through to the voice-note path (Pitfall 6 invariant).
+      // NULL metadata (defensive) also falls through.
+      const kind = (pending.metadata as { kind?: string } | null)?.kind;
       try {
+        if (kind === 'adjustment_dialogue') {
+          await handleAdjustmentReply(pending, Number(chatId), text);
+          logger.info({ pendingId: pending.id, kind }, 'chris.engine.pp5.adjustment_dialogue');
+          return ''; // IN-02 silent-skip — Pitfall 6 invariant preserved
+        }
+        if (kind === 'adjustment_confirmation') {
+          await handleConfirmationReply(pending, Number(chatId), text);
+          logger.info({ pendingId: pending.id, kind }, 'chris.engine.pp5.adjustment_confirmation');
+          return '';
+        }
+        // Default branch (kind === undefined / null) — existing voice-note path.
+        // Preserves Phase 26 VOICE-01 / VOICE-06 contract (RESEARCH Landmine 6).
         const result = await recordRitualVoiceResponse(pending, chatId, text);
         logger.info(
           {
@@ -195,6 +214,13 @@ export async function processMessage(
         ) {
           logger.info({ pendingId: pending.id }, 'chris.engine.pp5.race_lost');
           return ''; // Silent — winner's response covered it
+        }
+        if (
+          depositErr instanceof Error &&
+          depositErr.message === 'ritual.adjustment.race_lost'
+        ) {
+          logger.info({ pendingId: pending.id }, 'chris.engine.pp5.adjustment_race_lost');
+          return '';
         }
         // Other errors: fall through (better to deposit-as-JOURNAL than lose).
         logger.warn(

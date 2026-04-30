@@ -76,7 +76,7 @@ vi.mock('../weekly-review.js', () => ({
 }));
 
 import { db, sql as pgClient } from '../../db/connection.js';
-import { rituals, ritualFireEvents, proactiveState } from '../../db/schema.js';
+import { rituals, ritualFireEvents, ritualPendingResponses, proactiveState } from '../../db/schema.js';
 import { runRitualSweep } from '../scheduler.js';
 import { seedRitualWithFireEvents } from './fixtures/skip-tracking.js';
 
@@ -108,6 +108,9 @@ async function cleanFixtures(): Promise<void> {
     .filter((r) => r.name.startsWith(FIXTURE_PREFIX))
     .map((r) => r.id);
   if (ids.length > 0) {
+    // Phase 28 Plan 03: fireAdjustmentDialogue now writes to ritualPendingResponses
+    // — must delete before rituals (FK constraint).
+    await db.delete(ritualPendingResponses).where(inArray(ritualPendingResponses.ritualId, ids));
     await db.delete(ritualFireEvents).where(inArray(ritualFireEvents.ritualId, ids));
     await db.delete(rituals).where(inArray(rituals.id, ids));
   }

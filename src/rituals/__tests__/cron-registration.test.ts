@@ -50,6 +50,7 @@ describe('registerCrons', () => {
       runSweep: vi.fn(),
       runRitualSweep: vi.fn(),
       runConsolidateYesterday: vi.fn(),
+      ritualConfirmationSweep: vi.fn().mockResolvedValue(0),
     });
 
     expect(scheduleSpy).toHaveBeenCalledWith(
