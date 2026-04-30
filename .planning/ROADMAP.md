@@ -113,10 +113,11 @@
   2. Separate `src/rituals/__tests__/cron-registration.test.ts` asserts `registerRitualCron()` is called in `src/index.ts:main()` with the correct cron expression + timezone — regression-tests the wiring independently of fixture behavior.
   3. With `ANTHROPIC_API_KEY` present, `live-weekly-review.test.ts` runs 3 atomic iterations against real Sonnet on an adversarial fixture week (designed to bait flattery: "Greg crushed it this week, demonstrating his characteristic discipline"); generated observation contains ZERO of the 17 forbidden flattery markers from M006 conventions across all 3 runs.
   4. Operator runs `scripts/regenerate-primed.ts --milestone m009 --target-days 21 --force` against fresh prod data; resulting `tests/fixtures/primed/m009-21days/MANIFEST.json` materializes; HARN-03 4 sanity assertions flip from current 2/4 fail to 4/4 pass; new 5th invariant asserts `wellbeing_snapshots` populated with ≥14 days of synthetic data; `--reseed-vcr` flag documented in TESTING.md with VCR cost-model warning (runaway Anthropic spend if `--target-days` bumped without reseed).
-**Plans:** 3 plans
-- [ ] 25-01-PLAN.md — Migration substrate (HARD CO-LOC #7 atomic): migration 0006 SQL + drizzle meta-snapshot + scripts/test.sh psql smoke gate (RIT-01..06)
-- [ ] 25-02-PLAN.md — Pure-function helpers: RitualConfig Zod schema, Luxon DST-safe computeNextRunAt, atomic UPDATE...RETURNING idempotency helper (RIT-07, 08, 10)
-- [ ] 25-03-PLAN.md — Process boundaries: runRitualSweep orchestrator, ritual channel slot in runSweep, registerCrons(deps) helper, 21:00 cron tick, cron.validate fail-fast in config, /health field, scripts/manual-sweep.ts (RIT-09, 11, 12)
+**Plans:** 4 plans (Wave 1: 30-01 substrate | Wave 2 parallel-eligible per D-30-04: 30-02, 30-03, 30-04)
+- [ ] 30-01-PLAN.md — HARN fixture refresh substrate: --reseed-vcr flag wiring + m009-21days regeneration + MANIFEST fail-fast invariants (Sunday=ISO weekday 7) + primed-sanity threshold flip 7→21 + 5th wellbeing_snapshots≥14 invariant + VCR cost model docs (HARN-04, HARN-05, HARN-06)
+- [ ] 30-02-PLAN.md — Synthetic fixture test (TEST-23..30 ATOMIC): src/rituals/__tests__/synthetic-fixture.test.ts NEW with 14-day vi.setSystemTime walk + cumulative afterAll mockAnthropicCreate.not.toHaveBeenCalled (Pitfall 6 regression) + 6 it() blocks across 8 TEST IDs + simulateCallbackQuery helper extraction + chat-id BigInt(99921) registry slot + ritual.next_run_at reset (TEST-23, TEST-24, TEST-25, TEST-26, TEST-27, TEST-28, TEST-29, TEST-30)
+- [ ] 30-03-PLAN.md — Cron registration regression EXTENSION (HARD CO-LOC #4): append 5th it() block to existing src/rituals/__tests__/cron-registration.test.ts asserting registerCrons invoked from src/index.ts main() with all 4 M009 handlers including ritualConfirmationSweep via static fs.readFile analysis (TEST-32)
+- [ ] 30-04-PLAN.md — Live anti-flattery gate flip (HARD CO-LOC #6): tighten src/rituals/__tests__/live-weekly-review.test.ts skipIf to dual-gate RUN_LIVE_TESTS+ANTHROPIC_API_KEY per D-30-03 cost discipline + reword Phase-30 marker comments + extend TESTING.md Live Tests table with M009 row + manual invocation pattern (TEST-31)
 
 ## Phases (historical)
 
@@ -219,4 +220,4 @@ See [milestones/v2.3-ROADMAP.md](milestones/v2.3-ROADMAP.md) for full phase deta
 | 27. Daily Wellbeing Snapshot       | v2.4      | 3/3 | Complete   | 2026-04-28 |
 | 28. Skip-Tracking + Adjustment Dialogue | v2.4 | 4/4 | Complete   | 2026-04-30 |
 | 29. Weekly Review                  | v2.4      | 3/4 | In Progress|  |
-| 30. Test Infrastructure + HARN-03 Refresh | v2.4 | 0/3 | Not started | -          |
+| 30. Test Infrastructure + HARN-03 Refresh | v2.4 | 0/4 | Planned     | -          |
