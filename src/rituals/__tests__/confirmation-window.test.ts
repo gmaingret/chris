@@ -171,16 +171,14 @@ describe('Phase 28 Plan 03 SKIP-05 — 60s confirmation window', () => {
   });
 
   it('Test 9 (timeout branch): expired confirmation row auto-applied by ritualConfirmationSweep with actor=auto_apply_on_timeout', async () => {
-    vi.useFakeTimers();
     const ritual = await createTestRitual();
-    const firedAt = new Date();
-    // expired 1 second ago
-    const expiresAt = new Date(firedAt.getTime() - 1_000);
-    const pending = await seedConfirmationPending(ritual.id, expiresAt);
+    // Seed row that already expired (1 minute ago) — no fake timers needed;
+    // we pass an already-expired expiresAt and call sweep with now = new Date()
+    // which is after expiry.
+    const alreadyExpired = new Date(Date.now() - 60_000);
+    const pending = await seedConfirmationPending(ritual.id, alreadyExpired);
 
-    // Advance clock past expiry
-    vi.setSystemTime(firedAt.getTime() + 61_000);
-
+    // ritualConfirmationSweep called with now > expiresAt — should pick up the row
     const processed = await ritualConfirmationSweep(new Date());
 
     expect(processed).toBe(1);
@@ -197,7 +195,12 @@ describe('Phase 28 Plan 03 SKIP-05 — 60s confirmation window', () => {
     const patch = configEvents[0]!.patch as { kind?: string };
     expect(patch.kind).toBe('apply');
 
-    vi.useRealTimers();
+    // Verify pending row was consumed
+    const [consumedRow] = await db
+      .select()
+      .from(ritualPendingResponses)
+      .where(eq(ritualPendingResponses.id, pending.id));
+    expect(consumedRow!.consumedAt).not.toBeNull();
   });
 
   it('Test 10 (race): sweep + handleConfirmationReply race — exactly ONE patch applied', async () => {
