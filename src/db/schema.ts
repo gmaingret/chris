@@ -492,6 +492,7 @@ export const ritualPendingResponses = pgTable(
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     consumedAt: timestamp('consumed_at', { withTimezone: true }),
     promptText: text('prompt_text').notNull(), // ← Phase 26 amended D-26-02 (2026-04-27)
+    metadata: jsonb('metadata').default(sql`'{}'::jsonb`), // ← Phase 28 migration 0010 (D-28-06 + RESEARCH Landmine 2)
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -501,5 +502,10 @@ export const ritualPendingResponses = pgTable(
     index('ritual_pending_responses_chat_id_active_idx')
       .on(table.chatId, table.expiresAt)
       .where(sql`${table.consumedAt} IS NULL`),
+    // Phase 28 D-28-06 — partial index for 1-minute confirmation sweep.
+    // Scoped to expired adjustment_confirmation rows. Sub-millisecond when zero pending.
+    index('ritual_pending_responses_adjustment_confirmation_idx')
+      .on(table.expiresAt)
+      .where(sql`${table.consumedAt} IS NULL AND ${table.metadata}->>'kind' = 'adjustment_confirmation'`),
   ],
 );
