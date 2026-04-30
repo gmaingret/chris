@@ -22,6 +22,7 @@ import { logger } from './utils/logger.js';
 export interface CronRegistrationStatus {
   proactive: 'registered' | 'failed';
   ritual: 'registered' | 'failed';
+  ritualConfirmation: 'registered' | 'failed';
   episodic: 'registered' | 'failed';
   sync: 'registered' | 'failed' | 'disabled';
 }
@@ -37,6 +38,8 @@ export interface RegisterCronsDeps {
   runSweep: () => Promise<unknown>;
   runRitualSweep: () => Promise<unknown>;
   runConsolidateYesterday: () => Promise<void>;
+  /** Phase 28 D-28-06 — 1-minute confirmation sweep handler. */
+  ritualConfirmationSweep: () => Promise<number | void>;
   /** Optional — sync may be disabled in some envs (e.g. polling-only test runs). */
   runSync?: () => Promise<void>;
 }
@@ -54,6 +57,7 @@ export function registerCrons(deps: RegisterCronsDeps): CronRegistrationStatus {
   const status: CronRegistrationStatus = {
     proactive: 'failed',
     ritual: 'failed',
+    ritualConfirmation: 'failed',
     episodic: 'failed',
     sync: deps.runSync ? 'failed' : 'disabled',
   };
@@ -112,6 +116,27 @@ export function registerCrons(deps: RegisterCronsDeps): CronRegistrationStatus {
   logger.info(
     { cron: deps.config.ritualSweepCron, timezone: deps.config.proactiveTimezone },
     'rituals.cron.scheduled',
+  );
+
+  // Phase 28 D-28-06 — 1-minute confirmation sweep (every minute).
+  // NARROW helper (NOT runRitualSweep) per RESEARCH Landmine 5: ONLY scans for
+  // expired adjustment_confirmation pending rows. Sub-millisecond when no work.
+  // CRON-01 try/catch belt-and-suspenders.
+  cron.schedule(
+    '* * * * *',
+    async () => {
+      try {
+        await deps.ritualConfirmationSweep();
+      } catch (err) {
+        logger.error({ err }, 'rituals.confirmation_sweep.error');
+      }
+    },
+    { timezone: deps.config.proactiveTimezone },
+  );
+  status.ritualConfirmation = 'registered';
+  logger.info(
+    { cron: '* * * * *', timezone: deps.config.proactiveTimezone },
+    'rituals.confirmation_sweep.scheduled',
   );
 
   // Existing 23:00 Paris episodic (mirrors src/index.ts:89-96)

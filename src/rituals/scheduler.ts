@@ -41,6 +41,7 @@ import {
   type RitualConfig,
 } from './types.js';
 import { shouldFireAdjustmentDialogue } from './skip-tracking.js';
+import { fireAdjustmentDialogue } from './adjustment-dialogue.js';
 import { fireVoiceNote } from './voice-note.js';
 import { fireWeeklyReview } from './weekly-review.js';
 import { fireWellbeing } from './wellbeing.js';
@@ -187,32 +188,43 @@ export async function runRitualSweep(now: Date = new Date()): Promise<RitualFire
       return results;
     }
 
-    // Phase 28 Plan 02 SKIP-03 — adjustment-dialogue predicate dispatch.
+    // Phase 28 Plan 03 SKIP-04 — adjustment-dialogue predicate dispatch.
     // After atomic-fire claim succeeds (next_run_at advanced — RIT-10), check
     // whether skip_count has reached the cadence-aware threshold. If yes,
-    // skip standard handler dispatch and emit in_dialogue outcome — Plan
-    // 28-03 will replace this with the actual fireAdjustmentDialogue handler.
-    // Plan 28-02 ships the predicate gate; Plan 28-03 wires the handler.
+    // dispatch fireAdjustmentDialogue instead of standard handler.
+    // Plan 28-02 shipped the predicate gate; Plan 28-03 wires the real handler.
     //
     // Note: skipCount is NOT reset on this branch — the threshold-met state
-    // persists. Plan 28-03's dialogue handler will reset skip_count on Greg's
-    // reply (or after the 60s confirmation window applies the patch).
+    // persists until Greg replies (reset in handleAdjustmentReply no_change path)
+    // or the 60s confirmation window auto-applies a patch (ritualConfirmationSweep).
     //
     // Note: incrementRitualDailyCount IS called on this branch — the channel-cap
-    // accounting tracks "ritual fire attempts that consumed the channel slot"
-    // (per STEP 6 comment below). The adjustment dialogue consumes the slot.
+    // accounting tracks "ritual fire attempts that consumed the channel slot".
     if (await shouldFireAdjustmentDialogue(ritual)) {
       logger.info(
         { ritualId: ritual.id, skipCount: ritual.skipCount, type: ritual.type },
         'rituals.adjustment_dialogue.predicate_hit',
       );
-      await incrementRitualDailyCount(config.proactiveTimezone);
-      results.push({
-        ritualId: ritual.id,
-        type: ritual.type,
-        fired: false,
-        outcome: 'in_dialogue',
-      });
+      try {
+        const outcome = await fireAdjustmentDialogue(ritual);
+        await incrementRitualDailyCount(config.proactiveTimezone);
+        results.push({
+          ritualId: ritual.id,
+          type: ritual.type,
+          fired: outcome === 'in_dialogue',
+          outcome,
+        });
+      } catch (err) {
+        logger.error({ err, ritualId: ritual.id }, 'rituals.adjustment_dialogue.error');
+        await incrementRitualDailyCount(config.proactiveTimezone);
+        results.push({
+          ritualId: ritual.id,
+          type: ritual.type,
+          fired: false,
+          outcome: 'in_dialogue',
+          error: err,
+        });
+      }
       return results;
     }
 

@@ -10,6 +10,7 @@ import { runSweep } from './proactive/sweep.js';
 import { runConsolidateYesterday } from './episodic/cron.js';
 import { registerCrons, type CronRegistrationStatus } from './cron-registration.js';
 import { runRitualSweep } from './rituals/scheduler.js';
+import { ritualConfirmationSweep } from './rituals/adjustment-dialogue.js';
 
 // Module-scoped registration status — populated by main() via registerCrons().
 // /health route reads this for the ritual_cron_registered field (RIT-12 part b).
@@ -90,6 +91,7 @@ async function main() {
     runSweep,
     runRitualSweep,
     runConsolidateYesterday,
+    ritualConfirmationSweep, // Phase 28 D-28-06 — 1-minute confirmation sweep
   });
 
   const port = parseInt(process.env.PORT || '3000', 10);
