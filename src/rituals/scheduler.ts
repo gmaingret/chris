@@ -40,6 +40,7 @@ import {
   type RitualFireOutcome,
   type RitualConfig,
 } from './types.js';
+import { shouldFireAdjustmentDialogue } from './skip-tracking.js';
 import { fireVoiceNote } from './voice-note.js';
 import { fireWeeklyReview } from './weekly-review.js';
 import { fireWellbeing } from './wellbeing.js';
@@ -182,6 +183,35 @@ export async function runRitualSweep(now: Date = new Date()): Promise<RitualFire
         type: ritual.type,
         fired: false,
         outcome: 'race_lost',
+      });
+      return results;
+    }
+
+    // Phase 28 Plan 02 SKIP-03 — adjustment-dialogue predicate dispatch.
+    // After atomic-fire claim succeeds (next_run_at advanced — RIT-10), check
+    // whether skip_count has reached the cadence-aware threshold. If yes,
+    // skip standard handler dispatch and emit in_dialogue outcome — Plan
+    // 28-03 will replace this with the actual fireAdjustmentDialogue handler.
+    // Plan 28-02 ships the predicate gate; Plan 28-03 wires the handler.
+    //
+    // Note: skipCount is NOT reset on this branch — the threshold-met state
+    // persists. Plan 28-03's dialogue handler will reset skip_count on Greg's
+    // reply (or after the 60s confirmation window applies the patch).
+    //
+    // Note: incrementRitualDailyCount IS called on this branch — the channel-cap
+    // accounting tracks "ritual fire attempts that consumed the channel slot"
+    // (per STEP 6 comment below). The adjustment dialogue consumes the slot.
+    if (await shouldFireAdjustmentDialogue(ritual)) {
+      logger.info(
+        { ritualId: ritual.id, skipCount: ritual.skipCount, type: ritual.type },
+        'rituals.adjustment_dialogue.predicate_hit',
+      );
+      await incrementRitualDailyCount(config.proactiveTimezone);
+      results.push({
+        ritualId: ritual.id,
+        type: ritual.type,
+        fired: false,
+        outcome: 'in_dialogue',
       });
       return results;
     }
