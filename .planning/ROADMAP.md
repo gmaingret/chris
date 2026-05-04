@@ -17,6 +17,7 @@
 - [ ] **Phase 28: Skip-Tracking + Adjustment Dialogue** — Discriminated RitualFireOutcome union, append-only ritual_fire_events, cadence-aware thresholds (daily=3, weekly=2), Haiku 3-class adjustment parser, 60s confirmation window, self-protective 30-day pause on 2 evasive, ritual_config_events audit
 - [ ] **Phase 29: Weekly Review** — Sunday 20:00 Paris fire reading getEpisodicSummariesRange (M008) + resolved decisions (M007), explicit CONSTITUTIONAL_PREAMBLE injection (cron context), Sonnet structured output (1 obs + 1 Socratic Q), two-stage single-question enforcement (Zod refine + Haiku judge), pattern-only observations, wellbeing variance gate, Pensieve persist as RITUAL_RESPONSE
 - [ ] **Phase 30: Test Infrastructure + HARN-03 Refresh** — 14-day synthetic fixture via vi.setSystemTime + loadPrimedFixture('m009-21days') asserting all 7 spec behaviors through full processMessage, separate cron-registration regression file, live anti-flattery 3-of-3 against real Sonnet, HARN-03 fixture refresh against fresh prod data with --target-days 21 + 5th invariant for wellbeing_snapshots (carry-in)
+- [ ] **Phase 31: Rename `voice_note` → `journal` (terminology cleanup)** — The Phase 26 ritual was historically named `daily_voice_note` but the feature is purely text (Chris sends a prompt, Greg replies in text; voice messages get a polite decline). Naming is misleading and grates in conversation. Rename DB row (migration 0011), all source files (`src/rituals/voice-note.ts` → `journal.ts` + 4 test files), all functions (`fireVoiceNote` → `fireJournal`, `recordRitualVoiceResponse` → `recordJournalResponse`, `shouldSuppressVoiceNoteFire` → `shouldSuppressJournalFire`), all string constants (`metadata.source_subtype = 'ritual_voice_note'` → `'ritual_journal'`), all comments, top-level docs (M009_Ritual_Infrastructure.md, PRD_Project_Chris.md, PLAN.md). Atomic — partial rename breaks the bot. Historical migration filename `0007_daily_voice_note_seed.sql` stays (drizzle journal); supersession via 0011. `.planning/` archives untouched (historical record). Must ship before v2.5.
 
 ## Phase Details (active milestone)
 
@@ -220,4 +221,5 @@ See [milestones/v2.3-ROADMAP.md](milestones/v2.3-ROADMAP.md) for full phase deta
 | 27. Daily Wellbeing Snapshot       | v2.4      | 3/3 | Complete   | 2026-04-28 |
 | 28. Skip-Tracking + Adjustment Dialogue | v2.4 | 4/4 | Complete   | 2026-04-30 |
 | 29. Weekly Review                  | v2.4      | 3/4 | In Progress|  |
-| 30. Test Infrastructure + HARN-03 Refresh | v2.4 | 0/4 | Planned     | -          |
+| 30. Test Infrastructure + HARN-03 Refresh | v2.4 | 2/4 | In Progress (30-03 + 30-04 shipped 2026-05-04; 30-01 + 30-02 scheduled 2026-05-08) | -          |
+| 31. Rename `voice_note` → `journal` | v2.4 | 0/2 | Planned     | -          |
