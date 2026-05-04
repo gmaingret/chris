@@ -191,10 +191,21 @@ vi.mock('../../llm/client.js', async (importOriginal) => {
 | `src/decisions/__tests__/live-accountability.test.ts` | TEST-13 ACCOUNTABILITY mode produces no flattery/condemnation (Haiku judge classifies Sonnet output on two axes, 3-of-3) |
 | `src/decisions/__tests__/vague-validator-live.test.ts` | TEST-14 real Haiku vague-prediction validator across EN/FR/RU |
 | `src/episodic/__tests__/live-anti-flattery.test.ts` | TEST-22 end-to-end consolidation on an adversarial fixture day; 17 forbidden markers scanned; 3-of-3 |
+| `src/rituals/__tests__/live-weekly-review.test.ts` | TEST-31 weekly-review observation against real Sonnet on adversarial week; 40 forbidden markers (17 + 8 + 15) scanned + zero-fallback gate; 3-of-3. **Dual-gated** per D-30-03 — requires `RUN_LIVE_TESTS=1` AND `ANTHROPIC_API_KEY`. |
 
 **Gate pattern — `describe.skipIf`:**
 ```ts
+// Default pattern (TEST-01, TEST-09, TEST-13, TEST-14, TEST-22):
 describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live ...', () => { ... });
+
+// Dual-gated pattern (TEST-31 only — D-30-03 cost discipline; ~$0.45/run):
+describe.skipIf(!process.env.RUN_LIVE_TESTS || !process.env.ANTHROPIC_API_KEY)('Live ...', () => { ... });
+```
+
+Manual invocation for the dual-gated TEST-31:
+```bash
+RUN_LIVE_TESTS=1 ANTHROPIC_API_KEY=sk-ant-... \
+  bash scripts/test.sh src/rituals/__tests__/live-weekly-review.test.ts
 ```
 Or the older form in `models-smoke.test.ts`:
 ```ts

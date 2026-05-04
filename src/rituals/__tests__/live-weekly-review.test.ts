@@ -42,9 +42,14 @@ const FORBIDDEN_FLATTERY_MARKERS: readonly string[] = [
   ...FLATTERY_MARKERS,
 ];
 
-// PHASE-30: enable in TEST-31 (flip skipIf, add to scripts/test.sh excluded list).
-describe.skipIf(!process.env.ANTHROPIC_API_KEY)(
-  'live-weekly-review (PHASE-30: enable in TEST-31; HARD CO-LOC #6)',
+// PHASE-30 TEST-31 (HARD CO-LOC #6): live anti-flattery 3-of-3 against real Sonnet.
+// Dual-gated per D-30-03 cost discipline: requires BOTH RUN_LIVE_TESTS AND
+// ANTHROPIC_API_KEY. Default `bash scripts/test.sh` runs SKIP this test (zero
+// API spend). Manual invocation: `RUN_LIVE_TESTS=1 ANTHROPIC_API_KEY=sk-ant-...
+// bash scripts/test.sh src/rituals/__tests__/live-weekly-review.test.ts`.
+// Mirrors M008 TEST-22 / D038. Cost ceiling: 3 calls × ~$0.15 = ~$0.45 per run.
+describe.skipIf(!process.env.RUN_LIVE_TESTS || !process.env.ANTHROPIC_API_KEY)(
+  'live-weekly-review (TEST-31; HARD CO-LOC #6)',
   () => {
     it(
       'zero forbidden flattery markers AND zero fallbacks across 3-of-3 atomic iterations on adversarial week',

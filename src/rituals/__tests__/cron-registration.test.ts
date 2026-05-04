@@ -13,6 +13,7 @@
  *      from the registered handler invocation (CRON-01 belt-and-suspenders)
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { readFile } from 'node:fs/promises';
 
 const { scheduleSpy, validateSpy } = vi.hoisted(() => ({
   scheduleSpy: vi.fn(),
@@ -111,5 +112,44 @@ describe('registerCrons', () => {
     // Invoke it directly — should NOT throw (the try/catch swallows)
     await expect(ritualHandler()).resolves.toBeUndefined();
     expect(throwingRunRitualSweep).toHaveBeenCalled();
+  });
+
+  it('TEST-32: registerCrons invoked from src/index.ts main() with all M009 cron handlers (HARD CO-LOC #4)', async () => {
+    // Static analysis: read src/index.ts via fs.readFile and assert
+    // registerCrons() is invoked from main() with all 4 M009 cron handlers.
+    // Regression test for the Pitfall 2 class: a future refactor that comments
+    // out registerCrons() during debugging, forgets to wire ritualConfirmationSweep
+    // (Phase 28 D-28-06), or moves the call to a non-main() path would silently
+    // de-register crons in prod. The existing 4 spy-level tests exercise the
+    // helper, not the call site — TEST-32 closes that gap.
+
+    const indexSource = await readFile('src/index.ts', 'utf8');
+
+    // (1) registerCrons MUST be invoked (assigned to cronStatus per index.ts main())
+    expect(indexSource, 'src/index.ts must invoke registerCrons').toMatch(
+      /cronStatus\s*=\s*registerCrons\(\{/,
+    );
+
+    // (2) All 4 M009 cron handlers must be passed (Pitfall 2 — must include
+    //     ritualConfirmationSweep, not just runRitualSweep):
+    expect(indexSource, 'runSweep handler passed').toMatch(/runSweep,/);
+    expect(indexSource, 'runRitualSweep handler passed').toMatch(/runRitualSweep,/);
+    expect(indexSource, 'runConsolidateYesterday handler passed').toMatch(
+      /runConsolidateYesterday,/,
+    );
+    expect(
+      indexSource,
+      'ritualConfirmationSweep handler passed (Phase 28 D-28-06)',
+    ).toMatch(/ritualConfirmationSweep/);
+
+    // (3) ritualConfirmation cron expression hardcoded at '* * * * *' in
+    //     cron-registration.ts:126 (1-minute confirmation sweep per Phase 28).
+    //     If a future refactor parameterizes this, this test must be updated to
+    //     assert the new contract; until then, the literal is the contract.
+    const cronRegSource = await readFile('src/cron-registration.ts', 'utf8');
+    expect(
+      cronRegSource,
+      'src/cron-registration.ts must register the 1-minute ritualConfirmation cron',
+    ).toMatch(/'\* \* \* \* \*'/);
   });
 });
