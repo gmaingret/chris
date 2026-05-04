@@ -1,25 +1,25 @@
 /**
- * src/rituals/__tests__/voice-note-handler.test.ts — Phase 26 Plan 02
+ * src/rituals/__tests__/journal-handler.test.ts — Phase 26 Plan 02 (renamed Phase 31)
  * (VOICE-02 + VOICE-03 + VOICE-01 atomic-consume race)
  *
- * Real-DB integration test for the fireVoiceNote handler + atomic-consume
- * race semantics of recordRitualVoiceResponse. Asserts:
+ * Real-DB integration test for the fireJournal handler + atomic-consume
+ * race semantics of recordJournalResponse. Asserts:
  *
- *   1. fireVoiceNote sends a Telegram message with one of the 6 PROMPTS
+ *   1. fireJournal sends a Telegram message with one of the 6 PROMPTS
  *      and inserts ritual_pending_responses with prompt_text matching the
  *      sent prompt (amended D-26-02 — checker B4 fix).
- *   2. fireVoiceNote pops the next index from rituals.config.prompt_bag and
+ *   2. fireJournal pops the next index from rituals.config.prompt_bag and
  *      writes the new bag back; with empty bag, refills via shuffled-bag
  *      rotation.
  *   3. Telegram send failure does NOT leave a stale pending row (rolling-
  *      forward correctness — STEP 2 sends BEFORE STEP 3 inserts).
- *   4. recordRitualVoiceResponse atomic-consume race: 2 concurrent calls
+ *   4. recordJournalResponse atomic-consume race: 2 concurrent calls
  *      against the SAME pending row produce EXACTLY 1 fulfilled +
  *      1 rejected with StorageError('ritual.pp5.race_lost'). Per checker
  *      W6 — concrete Promise.allSettled body, not sketched comments.
  *
  * Run via canonical Docker harness:
- *   bash scripts/test.sh src/rituals/__tests__/voice-note-handler.test.ts
+ *   bash scripts/test.sh src/rituals/__tests__/journal-handler.test.ts
  */
 import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
@@ -38,26 +38,30 @@ import {
   rituals,
   ritualPendingResponses,
   ritualResponses,
+  ritualFireEvents,
   pensieveEntries,
 } from '../../db/schema.js';
 import {
-  fireVoiceNote,
-  recordRitualVoiceResponse,
+  fireJournal,
+  recordJournalResponse,
   PROMPTS,
-} from '../voice-note.js';
+} from '../journal.js';
 import { parseRitualConfig } from '../types.js';
 
-const FIXTURE_RITUAL_NAME = 'voice-note-handler-test-ritual';
+const FIXTURE_RITUAL_NAME = 'journal-handler-test-ritual';
 
 async function cleanup(): Promise<void> {
   // Ordered cleanup: child tables first (FK constraints), then rituals fixture.
+  // Phase 28 Plan 28-01 extended recordJournalResponse to write ritual_fire_events
+  // — add it to cleanup before rituals deletion to satisfy FK constraint.
   await db.delete(ritualResponses);
+  await db.delete(ritualFireEvents);
   await db.delete(ritualPendingResponses);
   await db.delete(pensieveEntries);
   await db.delete(rituals).where(eq(rituals.name, FIXTURE_RITUAL_NAME));
 }
 
-describe('fireVoiceNote handler (Phase 26 VOICE-02 + VOICE-03)', () => {
+describe('fireJournal handler (Phase 26 VOICE-02 + VOICE-03)', () => {
   beforeEach(async () => {
     await cleanup();
     mockSendMessage.mockReset();
@@ -92,7 +96,7 @@ describe('fireVoiceNote handler (Phase 26 VOICE-02 + VOICE-03)', () => {
       .returning();
     const cfg = parseRitualConfig(ritual!.config);
 
-    const outcome = await fireVoiceNote(ritual!, cfg);
+    const outcome = await fireJournal(ritual!, cfg);
 
     expect(outcome).toBe('fired');
     expect(mockSendMessage).toHaveBeenCalledTimes(1);
@@ -139,7 +143,7 @@ describe('fireVoiceNote handler (Phase 26 VOICE-02 + VOICE-03)', () => {
       .returning();
     const cfg = parseRitualConfig(ritual!.config);
 
-    const outcome = await fireVoiceNote(ritual!, cfg);
+    const outcome = await fireJournal(ritual!, cfg);
 
     expect(outcome).toBe('fired');
     const [updated] = await db
@@ -174,7 +178,7 @@ describe('fireVoiceNote handler (Phase 26 VOICE-02 + VOICE-03)', () => {
     mockSendMessage.mockReset();
     mockSendMessage.mockRejectedValueOnce(new Error('Telegram unreachable'));
 
-    await expect(fireVoiceNote(ritual!, cfg)).rejects.toThrow(
+    await expect(fireJournal(ritual!, cfg)).rejects.toThrow(
       'Telegram unreachable',
     );
     const pending = await db.select().from(ritualPendingResponses);
@@ -182,7 +186,7 @@ describe('fireVoiceNote handler (Phase 26 VOICE-02 + VOICE-03)', () => {
   });
 });
 
-describe('recordRitualVoiceResponse atomic consume race (Phase 26 VOICE-01)', () => {
+describe('recordJournalResponse atomic consume race (Phase 26 VOICE-01)', () => {
   beforeEach(async () => {
     await cleanup();
   });
@@ -192,7 +196,7 @@ describe('recordRitualVoiceResponse atomic consume race (Phase 26 VOICE-01)', ()
     await sql.end({ timeout: 5 }).catch(() => {});
   });
 
-  it('2 concurrent recordRitualVoiceResponse calls on same pending → exactly 1 fulfilled, 1 rejected with ritual.pp5.race_lost (checker W6)', async () => {
+  it('2 concurrent recordJournalResponse calls on same pending → exactly 1 fulfilled, 1 rejected with ritual.pp5.race_lost (checker W6)', async () => {
     // Seed ritual + pending row.
     const [ritual] = await db
       .insert(rituals)
@@ -226,8 +230,8 @@ describe('recordRitualVoiceResponse atomic consume race (Phase 26 VOICE-01)', ()
 
     // Concrete Promise.allSettled body (per checker W6).
     const settled = await Promise.allSettled([
-      recordRitualVoiceResponse(pending!, chatId, 'reply 1'),
-      recordRitualVoiceResponse(pending!, chatId, 'reply 2'),
+      recordJournalResponse(pending!, chatId, 'reply 1'),
+      recordJournalResponse(pending!, chatId, 'reply 2'),
     ]);
 
     // Exactly 1 fulfilled, 1 rejected.

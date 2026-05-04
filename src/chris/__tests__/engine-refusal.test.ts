@@ -8,7 +8,7 @@ const {
   mockInsert,
   mockSelect,
   mockFindActivePendingResponse,
-  mockRecordRitualVoiceResponse,
+  mockRecordJournalResponse,
 } = vi.hoisted(() => {
   const mockReturning = vi.fn();
   const mockLimit = vi.fn();
@@ -22,7 +22,7 @@ const {
   const mockSelect = vi.fn(() => ({ from: mockFrom }));
   const mockCreate = vi.fn();
   const mockFindActivePendingResponse = vi.fn();
-  const mockRecordRitualVoiceResponse = vi.fn();
+  const mockRecordJournalResponse = vi.fn();
   return {
     mockCreate,
     mockReturning,
@@ -30,7 +30,7 @@ const {
     mockInsert,
     mockSelect,
     mockFindActivePendingResponse,
-    mockRecordRitualVoiceResponse,
+    mockRecordJournalResponse,
   };
 });
 
@@ -110,13 +110,13 @@ vi.mock('../../decisions/suppressions.js', () => ({
   isSuppressed: vi.fn().mockResolvedValue(false),
 }));
 
-// ── Mock voice-note module (Phase 26 PP#5 — HARD CO-LOC #5 / D-26-07) ─────
+// ── Mock journal module (Phase 26 PP#5 — HARD CO-LOC #5 / D-26-07) ─────────
 // Default findActivePendingResponse → null so PP#5 falls through to refusal
 // pre-processing. Without this mock, the new PP#5 import would pull in real
 // db/bot modules and break all tests (Pitfall 24 mock-chain regression class).
-vi.mock('../../rituals/voice-note.js', () => ({
+vi.mock('../../rituals/journal.js', () => ({
   findActivePendingResponse: mockFindActivePendingResponse,
-  recordRitualVoiceResponse: mockRecordRitualVoiceResponse,
+  recordJournalResponse: mockRecordJournalResponse,
 }));
 
 // ── Imports (after mocks) ─────────────────────────────────────────────────────

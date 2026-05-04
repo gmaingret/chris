@@ -7,7 +7,7 @@
  *   - fireWellbeing(ritual, cfg): called by dispatchRitualHandler at sweep
  *     time. Inserts a ritual_responses row, builds the inline keyboard (3
  *     rows of 1-5 buttons + skip row), sends via Telegram. Returns 'fired'
- *     RitualFireOutcome (matches Phase 26 fireVoiceNote contract — D-26-08).
+ *     RitualFireOutcome (matches Phase 26 fireJournal contract — D-26-08).
  *
  *   - handleWellbeingCallback(ctx, data): called by handleRitualCallback
  *     when a `r:w:*` callback arrives. Merges per-dim into metadata.partial
@@ -93,7 +93,7 @@ interface WellbeingMetadata {
  *
  * Conforms to Phase 26 D-26-08 dispatcher contract: takes (ritual, cfg) and
  * returns RitualFireOutcome. Currently unconditionally returns 'fired' — Phase
- * 28 may add a 'system_suppressed' branch (mirroring fireVoiceNote D-26-06)
+ * 28 may add a 'system_suppressed' branch (mirroring fireJournal D-26-06)
  * if anchor-day-suppression is desired; for v2.4 the wellbeing fire is
  * unconditional once the sweep tick claims it.
  *

@@ -7,10 +7,10 @@
  *
  * Cumulative afterAll: mockAnthropicCreate.not.toHaveBeenCalled() across ALL
  * 4 HIT-path tests — proves Pitfall 6 invariant preserved through every
- * PP#5 branch (voice-note default, adjustment_dialogue, adjustment_confirmation).
+ * PP#5 branch (journal default, adjustment_dialogue, adjustment_confirmation).
  *
- * Test 1: kind absent (default branch) → recordRitualVoiceResponse
- * Test 2: kind = null (defensive) → recordRitualVoiceResponse
+ * Test 1: kind absent (default branch) → recordJournalResponse
+ * Test 2: kind = null (defensive) → recordJournalResponse
  * Test 3: kind = adjustment_dialogue → handleAdjustmentReply called
  * Test 4: kind = adjustment_confirmation → handleConfirmationReply called
  *
@@ -130,7 +130,7 @@ describe('Phase 28 Plan 03 — PP#5 metadata.kind dispatch (Pitfall 6 carry-over
     mockHandleConfirmationReply.mockResolvedValue('');
   });
 
-  it('Test 1 (default branch — kind absent): voice-note path preserved when metadata = {} (no kind)', async () => {
+  it('Test 1 (default branch — kind absent): journal path preserved when metadata = {} (no kind)', async () => {
     const ritual = await createTestRitual();
     // metadata = {} (default after migration 0010) — kind is absent/undefined
     const [pending] = await db
@@ -141,7 +141,7 @@ describe('Phase 28 Plan 03 — PP#5 metadata.kind dispatch (Pitfall 6 carry-over
         firedAt: new Date(),
         expiresAt: new Date(Date.now() + 18 * 3600 * 1000),
         promptText: 'What mattered today?',
-        metadata: {}, // no kind — voice-note default branch
+        metadata: {}, // no kind — journal default branch
       })
       .returning();
 
@@ -149,7 +149,7 @@ describe('Phase 28 Plan 03 — PP#5 metadata.kind dispatch (Pitfall 6 carry-over
 
     expect(result).toBe('');
 
-    // Pensieve entry written (voice-note path)
+    // Pensieve entry written (journal path)
     const entries = await db.select().from(pensieveEntries);
     expect(entries).toHaveLength(1);
     expect(entries[0]!.epistemicTag).toBe('RITUAL_RESPONSE');
@@ -169,7 +169,7 @@ describe('Phase 28 Plan 03 — PP#5 metadata.kind dispatch (Pitfall 6 carry-over
     expect(consumed!.consumedAt).not.toBeNull();
   });
 
-  it('Test 2 (default branch — metadata IS NULL): voice-note path preserved when metadata is null', async () => {
+  it('Test 2 (default branch — metadata IS NULL): journal path preserved when metadata is null', async () => {
     const ritual = await createTestRitual();
     // metadata = null (defensive case — column default is {}, but testing null scenario)
     const [pending] = await db
@@ -188,7 +188,7 @@ describe('Phase 28 Plan 03 — PP#5 metadata.kind dispatch (Pitfall 6 carry-over
 
     expect(result).toBe('');
 
-    // Voice-note path: Pensieve entry written
+    // Journal path: Pensieve entry written
     const entries = await db.select().from(pensieveEntries);
     expect(entries).toHaveLength(1);
 

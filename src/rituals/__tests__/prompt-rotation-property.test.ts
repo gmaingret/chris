@@ -23,7 +23,7 @@
  *   npx vitest run src/rituals/__tests__/prompt-rotation-property.test.ts
  */
 import { describe, it, expect } from 'vitest';
-import { chooseNextPromptIndex, PROMPTS } from '../voice-note.js';
+import { chooseNextPromptIndex, PROMPTS } from '../journal.js';
 
 describe('chooseNextPromptIndex shuffled-bag invariants (VOICE-03)', () => {
   it('600 fires produce uniform distribution + no consecutive dupes + max-gap <= 11', () => {

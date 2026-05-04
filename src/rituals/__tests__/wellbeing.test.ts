@@ -46,7 +46,7 @@ import { eq } from 'drizzle-orm';
 
 // Mock bot.api.sendMessage to avoid real Telegram calls.
 // vi.hoisted ensures the mock fn is available when the vi.mock factory runs
-// (mirrors voice-note-handler.test.ts pattern).
+// (mirrors journal-handler.test.ts pattern).
 const { mockSendMessage } = vi.hoisted(() => ({
   mockSendMessage: vi.fn(),
 }));
@@ -144,7 +144,7 @@ afterEach(async () => {
 });
 
 afterAll(async () => {
-  // Final cleanup + close pool (mirrors voice-note-handler.test.ts pattern).
+  // Final cleanup + close pool (mirrors journal-handler.test.ts pattern).
   await db.delete(wellbeingSnapshots);
   await db.delete(ritualFireEvents);
   await db.delete(ritualResponses);
@@ -183,7 +183,7 @@ describe('wellbeing handler (Phase 27 WELL-01..05)', () => {
     expect(text).toBe('Wellbeing snapshot — tap energy, mood, anxiety:');
 
     // Grammy's InlineKeyboard exposes the rows array via reply_markup.inline_keyboard
-    // (Grammy 1.31+ — verified against voice-note-handler.test.ts patterns).
+    // (Grammy 1.31+ — verified against journal-handler.test.ts patterns).
     const keyboard = opts.reply_markup.inline_keyboard;
     expect(keyboard).toHaveLength(4); // 3 dim rows + 1 skip row
     expect(keyboard[0]).toHaveLength(5); // energy: 1-5

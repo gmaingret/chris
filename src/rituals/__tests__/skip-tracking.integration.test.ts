@@ -8,12 +8,12 @@
  *
  * 8 behaviors covered:
  *
- *   1. voice-note fire emit: exactly one ritualFireEvents row with
- *      outcome='fired' exists for the test ritual after fireVoiceNote.
- *   2. voice-note suppression emit: shouldSuppressVoiceNoteFire stub returns
- *      true; calling fireVoiceNote emits outcome='system_suppressed' and does
+ *   1. journal fire emit: exactly one ritualFireEvents row with
+ *      outcome='fired' exists for the test ritual after fireJournal.
+ *   2. journal suppression emit: shouldSuppressJournalFire stub returns
+ *      true; calling fireJournal emits outcome='system_suppressed' and does
  *      NOT increment skip_count.
- *   3. voice-note response resets: After recordRitualVoiceResponse (mocked
+ *   3. journal response resets: After recordJournalResponse (mocked
  *      storePensieveEntry), one outcome='responded' row exists AND
  *      rituals.skip_count is 0 even after pre-seeding skip_count=5.
  *   4. wellbeing skip preserves count: pre-seed skip_count=2; trigger
@@ -89,13 +89,13 @@ import {
   wellbeingSnapshots,
 } from '../../db/schema.js';
 import { RITUAL_OUTCOME, parseRitualConfig } from '../types.js';
-import { fireVoiceNote, recordRitualVoiceResponse } from '../voice-note.js';
+import { fireJournal, recordJournalResponse } from '../journal.js';
 import { fireWellbeing, handleWellbeingCallback } from '../wellbeing.js';
 import { ritualResponseWindowSweep } from '../scheduler.js';
 import { seedRitualWithFireEvents } from './fixtures/skip-tracking.js';
 
 // ── Fixture names (unique per handler to avoid inter-test FK collisions) ──────
-const VOICE_NOTE_FIXTURE = 'skip-tracking-test-voice-note';
+const JOURNAL_FIXTURE = 'skip-tracking-test-journal';
 // wellbeing.ts findOpenWellbeingRow() hard-codes ritual name 'daily_wellbeing',
 // so wellbeing tests must use the seeded production name.
 const WELLBEING_FIXTURE = 'daily_wellbeing';
@@ -118,7 +118,7 @@ async function cleanupAll(): Promise<void> {
     .delete(rituals)
     .where(
       inArray(rituals.name, [
-        VOICE_NOTE_FIXTURE,
+        JOURNAL_FIXTURE,
         SWEEP_FIXTURE,
         REPLAY_FIXTURE,
       ]),
@@ -167,12 +167,12 @@ describe('Phase 28 Plan 01 — skip-tracking substrate (SKIP-01 + SKIP-02)', () 
     await sql.end({ timeout: 5 }).catch(() => {});
   });
 
-  // ── Test 1 — voice-note fire emit ────────────────────────────────────────────
-  it('Test 1: fireVoiceNote emits exactly one fired event for the ritual', async () => {
+  // ── Test 1 — journal fire emit ───────────────────────────────────────────────
+  it('Test 1: fireJournal emits exactly one fired event for the ritual', async () => {
     const [ritual] = await db
       .insert(rituals)
       .values({
-        name: VOICE_NOTE_FIXTURE,
+        name: JOURNAL_FIXTURE,
         type: 'daily',
         nextRunAt: new Date(Date.now() + 86_400_000),
         enabled: true,
@@ -189,7 +189,7 @@ describe('Phase 28 Plan 01 — skip-tracking substrate (SKIP-01 + SKIP-02)', () 
       .returning();
 
     const cfg = parseRitualConfig(ritual!.config);
-    const outcome = await fireVoiceNote(ritual!, cfg);
+    const outcome = await fireJournal(ritual!, cfg);
 
     expect(outcome).toBe('fired');
 
@@ -209,12 +209,12 @@ describe('Phase 28 Plan 01 — skip-tracking substrate (SKIP-01 + SKIP-02)', () 
     expect(updated!.skipCount).toBe(0);
   });
 
-  // ── Test 2 — voice-note suppression emit ─────────────────────────────────────
-  it('Test 2: fireVoiceNote under suppression emits system_suppressed; skip_count not incremented', async () => {
+  // ── Test 2 — journal suppression emit ───────────────────────────────────────
+  it('Test 2: fireJournal under suppression emits system_suppressed; skip_count not incremented', async () => {
     const [ritual] = await db
       .insert(rituals)
       .values({
-        name: VOICE_NOTE_FIXTURE,
+        name: JOURNAL_FIXTURE,
         type: 'daily',
         nextRunAt: new Date(Date.now() + 86_400_000),
         enabled: true,
@@ -232,7 +232,7 @@ describe('Phase 28 Plan 01 — skip-tracking substrate (SKIP-01 + SKIP-02)', () 
       .returning();
 
     // Seed 5+ JOURNAL pensieve entries to trigger suppression.
-    // shouldSuppressVoiceNoteFire counts telegram-source JOURNAL entries for today.
+    // shouldSuppressJournalFire counts telegram-source JOURNAL entries for today.
     // We insert directly into the real DB table (imported at top of file)
     // bypassing the mocked storePensieveEntry, which wouldn't write to the DB.
     for (let i = 0; i < 5; i++) {
@@ -245,7 +245,7 @@ describe('Phase 28 Plan 01 — skip-tracking substrate (SKIP-01 + SKIP-02)', () 
     }
 
     const cfg = parseRitualConfig(ritual!.config);
-    const outcome = await fireVoiceNote(ritual!, cfg);
+    const outcome = await fireJournal(ritual!, cfg);
 
     expect(outcome).toBe('system_suppressed');
 
@@ -269,11 +269,11 @@ describe('Phase 28 Plan 01 — skip-tracking substrate (SKIP-01 + SKIP-02)', () 
     await db.delete(pensieveEntries);
   });
 
-  // ── Test 3 — voice-note response resets skip_count ───────────────────────────
-  it('Test 3: recordRitualVoiceResponse emits responded event and resets skip_count to 0', async () => {
+  // ── Test 3 — journal response resets skip_count ─────────────────────────────
+  it('Test 3: recordJournalResponse emits responded event and resets skip_count to 0', async () => {
     // Pre-seed ritual with skip_count=5 to prove the reset works regardless.
     const { ritualId } = await seedRitualWithFireEvents({
-      ritualName: VOICE_NOTE_FIXTURE,
+      ritualName: JOURNAL_FIXTURE,
       cadence: 'daily',
       outcomes: [],
     });
@@ -287,9 +287,9 @@ describe('Phase 28 Plan 01 — skip-tracking substrate (SKIP-01 + SKIP-02)', () 
     await db.insert(pensieveEntries).values({
       id: MOCK_PENSIEVE_UUID,
       source: 'telegram',
-      content: 'My voice note response text',
+      content: 'My journal response text',
       epistemicTag: 'RITUAL_RESPONSE',
-      metadata: { source_subtype: 'ritual_voice_note', ritual_id: ritualId },
+      metadata: { source_subtype: 'ritual_journal', ritual_id: ritualId },
     });
 
     // Insert an open pending row to simulate a prior fire.
@@ -306,10 +306,10 @@ describe('Phase 28 Plan 01 — skip-tracking substrate (SKIP-01 + SKIP-02)', () 
       })
       .returning();
 
-    const result = await recordRitualVoiceResponse(
+    const result = await recordJournalResponse(
       pending!,
       BigInt(12345678),
-      'My voice note response text',
+      'My journal response text',
     );
 
     expect(result.pensieveEntryId).toBe(MOCK_PENSIEVE_UUID);

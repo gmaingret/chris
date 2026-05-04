@@ -11,7 +11,7 @@
  *     firing them (catch-up ceiling),
  *   - claims the fire slot atomically via tryFireRitualAtomic (RIT-10),
  *   - dispatches to a SKELETON handler that throws — Phases 26-29 fill in
- *     real handlers (voice note, wellbeing, weekly review).
+ *     real handlers (journal, wellbeing, weekly review).
  *
  * Phase 25 substrate contract: against a clean DB (no enabled ritual rows),
  * runRitualSweep returns [] without throwing (ROADMAP success criterion 3).
@@ -42,7 +42,7 @@ import {
 } from './types.js';
 import { autoReEnableExpiredMutes, shouldFireAdjustmentDialogue } from './skip-tracking.js';
 import { fireAdjustmentDialogue } from './adjustment-dialogue.js';
-import { fireVoiceNote } from './voice-note.js';
+import { fireJournal } from './journal.js';
 import { fireWeeklyReview } from './weekly-review.js';
 import { fireWellbeing } from './wellbeing.js';
 
@@ -61,7 +61,7 @@ import { fireWellbeing } from './wellbeing.js';
  * mode.
  *
  * Phase 25 ships SKELETON dispatch — handlers throw 'not implemented for ' +
- * ritual.type. Phases 26-29 fill in the per-cadence handlers (voice note,
+ * ritual.type. Phases 26-29 fill in the per-cadence handlers (journal,
  * wellbeing, weekly review). The atomic UPDATE...RETURNING (RIT-10) still
  * runs to mark next_run_at advanced, ensuring the skeleton dispatch doesn't
  * loop.
@@ -78,7 +78,7 @@ import { fireWellbeing } from './wellbeing.js';
  * (next_run_at advanced after fire), (3) 3/day channel ceiling.
  *
  * The 3/day ceiling cleanly accommodates the worst case (Sunday: wellbeing
- * 09:00 + voice note 21:00 + weekly review 20:00 — all three on the same
+ * 09:00 + journal 21:00 + weekly review 20:00 — all three on the same
  * calendar day). Counter resets at local Europe/Paris midnight via the
  * proactive_state KV table key 'ritual_daily_count'.
  */
@@ -331,7 +331,7 @@ function cadencePeriodMs(type: 'daily' | 'weekly' | 'monthly' | 'quarterly'): nu
  * fact; fired_no_response is the policy classification. Downstream projections
  * (Plan 28-02's computeSkipCount) can filter on either independently.
  *
- * Atomic-consume race-safety: mirrors voice-note.ts:184-204 (RIT-10
+ * Atomic-consume race-safety: mirrors journal.ts:184-204 (RIT-10
  * idempotency precedent). UPDATE...WHERE consumedAt IS NULL RETURNING ensures
  * at most ONE sweep tick wins per pending row. A concurrent PP#5 deposit that
  * already consumed the row causes this sweep to silently skip that iteration.
@@ -372,7 +372,7 @@ export async function ritualResponseWindowSweep(now: Date = new Date()): Promise
   let emittedCount = 0;
 
   for (const row of expired) {
-    // STEP 2: Atomic-consume via UPDATE...RETURNING (mirrors voice-note.ts:184-204).
+    // STEP 2: Atomic-consume via UPDATE...RETURNING (mirrors journal.ts:184-204).
     // If no row returned, a concurrent sweep or PP#5 deposit consumed it first.
     // Race is handled silently — continue to next iteration.
     const [consumed] = await db
@@ -435,12 +435,12 @@ export async function ritualResponseWindowSweep(now: Date = new Date()): Promise
 /**
  * dispatchRitualHandler — name-keyed dispatch (D-26-08 / D-29-08).
  *
- * Phase 26 filled in daily_voice_note. Phase 27 filled in daily_wellbeing.
+ * Phase 26 filled in daily_journal (renamed from daily_voice_note in Phase 31). Phase 27 filled in daily_wellbeing.
  * Phase 29 (this commit) fills in weekly_review — the Sunday 20:00 Paris
  * Sonnet-driven observation ritual.
  *
  * Keying by ritual.name (not ritual.type / cadence) is intentional —
- * multiple rituals can share a cadence (e.g. daily_voice_note and
+ * multiple rituals can share a cadence (e.g. daily_journal and
  * daily_wellbeing are both 'daily'), so cadence is not unique enough.
  *
  * Default branch preserved as a safety belt for unimplemented handlers
@@ -454,8 +454,8 @@ async function dispatchRitualHandler(
   cfg: RitualConfig,
 ): Promise<RitualFireOutcome> {
   switch (ritual.name) {
-    case 'daily_voice_note':
-      return fireVoiceNote(ritual, cfg);
+    case 'daily_journal':
+      return fireJournal(ritual, cfg);
     case 'daily_wellbeing':
       return fireWellbeing(ritual, cfg);
     case 'weekly_review':

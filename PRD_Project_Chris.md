@@ -313,7 +313,7 @@ The decision archive is the single most valuable addition. Personality profiles 
 
 Structured reflection at four timescales, each building on the next:
 
-- **Daily (2 min)** — single voice note, deposit-only, 6 rotating prompts. No Chris response. The substrate for everything else.
+- **Daily (2 min)** — single journal prompt, deposit-only, 6 rotating prompts. No Chris response. The substrate for everything else.
 - **Weekly (10 min)** — one observation + one Socratic question + one open slot. Max one question per turn, enforced at runtime.
 - **Monthly (30 min)** — values-vs-behavior reconciliation. Bookkeeping, not performance review.
 - **Quarterly (1 hour)** — Butler 4-step life-review protocol. Chapter-level meaning-making.
@@ -338,7 +338,7 @@ On top of the failure modes in Section 10, the soul system adds three hard const
 
 ### Execution order
 
-Strictly sequential except where noted, governed by the MVP principle (ship the decision archive and daily voice note *before* the profile layer):
+Strictly sequential except where noted, governed by the MVP principle (ship the decision archive and daily journal *before* the profile layer):
 
 **M006** Trustworthy Chris — fix the four Telegram-observed failures (refusal ignoring, language mismatching, performative apologies, interrogation pattern) + constitutional preamble + structured fact retrieval + contradiction false-positive audit. **URGENT** — nothing else ships until this is solid.
 

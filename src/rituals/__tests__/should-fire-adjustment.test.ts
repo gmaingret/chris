@@ -58,15 +58,15 @@ vi.mock('../../pensieve/tagger.js', () => ({
 }));
 
 // ── Spy on fire handlers to verify NOT called on in_dialogue branch ───────────
-const { mockFireVoiceNote, mockFireWellbeing, mockFireWeeklyReview } = vi.hoisted(() => ({
-  mockFireVoiceNote: vi.fn().mockResolvedValue('fired'),
+const { mockFireJournal, mockFireWellbeing, mockFireWeeklyReview } = vi.hoisted(() => ({
+  mockFireJournal: vi.fn().mockResolvedValue('fired'),
   mockFireWellbeing: vi.fn().mockResolvedValue('fired'),
   mockFireWeeklyReview: vi.fn().mockResolvedValue('fired'),
 }));
-vi.mock('../voice-note.js', () => ({
-  fireVoiceNote: mockFireVoiceNote,
-  recordRitualVoiceResponse: vi.fn(),
-  shouldSuppressVoiceNoteFire: vi.fn().mockResolvedValue(false),
+vi.mock('../journal.js', () => ({
+  fireJournal: mockFireJournal,
+  recordJournalResponse: vi.fn(),
+  shouldSuppressJournalFire: vi.fn().mockResolvedValue(false),
 }));
 vi.mock('../wellbeing.js', () => ({
   fireWellbeing: mockFireWellbeing,
@@ -117,7 +117,7 @@ async function cleanFixtures(): Promise<void> {
   // Reset channel counter
   await db.delete(proactiveState).where(eq(proactiveState.key, COUNTER_KEY));
   // Reset mock call counts
-  mockFireVoiceNote.mockClear();
+  mockFireJournal.mockClear();
   mockFireWellbeing.mockClear();
   mockFireWeeklyReview.mockClear();
   mockSendMessage.mockClear();
@@ -154,7 +154,7 @@ describe('shouldFireAdjustmentDialogue predicate dispatch in runRitualSweep', ()
     expect(results[0]!.outcome).toBe('in_dialogue');
 
     // Dispatch handlers must NOT be called on the in_dialogue branch
-    expect(mockFireVoiceNote).not.toHaveBeenCalled();
+    expect(mockFireJournal).not.toHaveBeenCalled();
     expect(mockFireWellbeing).not.toHaveBeenCalled();
     expect(mockFireWeeklyReview).not.toHaveBeenCalled();
 

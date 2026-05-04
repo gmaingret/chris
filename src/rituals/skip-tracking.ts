@@ -7,7 +7,7 @@
  * with self-protective-pause + audit-trail helpers.
  *
  * Built ON TOP OF Plan 28-01 substrate:
- *   - ritual_fire_events writes from all 3 ritual handlers (voice-note,
+ *   - ritual_fire_events writes from all 3 ritual handlers (journal,
  *     wellbeing, weekly-review) — provides the event log this module reads.
  *   - ritualResponseWindowSweep in scheduler.ts — emits 'fired_no_response'
  *     events + increments rituals.skip_count denormalized counter.
@@ -20,7 +20,7 @@
  *
  * Per RESEARCH Landmine 4 — NO migration writes from Plan 28-02. Seed
  * migrations 0007/0008/0009 already have correct skip_threshold values:
- *   - 0007_daily_voice_note_seed.sql: skip_threshold=3 ✓ (daily default = 3)
+ *   - 0007_daily_voice_note_seed.sql: skip_threshold=3 ✓ (daily default = 3; ritual renamed to daily_journal by migration 0011)
  *   - 0008_wellbeing_seed.sql: skip_threshold=3 ✓ (daily default = 3)
  *   - 0009_weekly_review_seed.sql: skip_threshold=2 ✓ (weekly default = 2)
  * The regression detector is in __tests__/skip-tracking.test.ts Task 1 audit.
@@ -205,7 +205,7 @@ export async function shouldFireAdjustmentDialogue(
  * the load-bearing invariant for SKIP-06: refusals never count as evasive.
  *
  * Query scoped by metadata.kind='adjustment_dialogue_response' to avoid
- * false positives from voice-note ritual_responses rows (T-28-T4 mitigation).
+ * false positives from journal ritual_responses rows (T-28-T4 mitigation).
  *
  * @param ritualId - UUID of the ritual to check.
  * @returns true if >= 2 evasive responses exist within the last 14 days.

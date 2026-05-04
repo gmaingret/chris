@@ -1,8 +1,8 @@
 /**
- * src/rituals/__tests__/voice-note.test.ts — Phase 26 Plan 01 Task 4
+ * src/rituals/__tests__/journal.test.ts — Phase 26 Plan 01 Task 4 (renamed Phase 31)
  * (VOICE-02 + VOICE-03 smoke tests)
  *
- * Unit tests for src/rituals/voice-note.ts substrate (constants + the
+ * Unit tests for src/rituals/journal.ts substrate (constants + the
  * chooseNextPromptIndex rotation primitive). Pure-function (no DB, no
  * network), runs in microseconds. Asserts:
  *
@@ -19,7 +19,7 @@
  * 5000-fire stress) live in prompt-rotation-property.test.ts (sibling).
  *
  * Run in isolation:
- *   npx vitest run src/rituals/__tests__/voice-note.test.ts
+ *   npx vitest run src/rituals/__tests__/journal.test.ts
  */
 import { describe, it, expect } from 'vitest';
 import {
@@ -28,9 +28,9 @@ import {
   RESPONSE_WINDOW_HOURS,
   RITUAL_SUPPRESS_DEPOSIT_THRESHOLD,
   chooseNextPromptIndex,
-} from '../voice-note.js';
+} from '../journal.js';
 
-describe('voice-note constants (VOICE-02)', () => {
+describe('journal constants (VOICE-02)', () => {
   it('PROMPTS contains 6 strings in D-26-01 spec order', () => {
     expect(PROMPTS).toHaveLength(6);
     expect(PROMPTS[0]).toBe('What mattered today?');
