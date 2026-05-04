@@ -78,6 +78,13 @@
       "when": 1777538253770,
       "tag": "0010_adjustment_dialogue",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1746576000000,
+      "tag": "0011_rename_daily_voice_note_to_journal",
+      "breakpoints": true
     }
   ]
 }
