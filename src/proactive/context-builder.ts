@@ -3,10 +3,13 @@
  *
  * Queries relational memory, pensieve entries, and conversations to build
  * a bounded analytical context string for Opus consumption. Enforces a
- * character budget (maxTokens × 4) allocated across three sections:
- *   - Relational Memory (40%)
- *   - Pensieve Entries (40%)
- *   - Conversation Gap Analysis (20%)
+ * character budget (maxTokens × 4) allocated across four sections:
+ *   - Relational Memory (30%)
+ *   - Pensieve Entries (30%)
+ *   - Conversation Gap Analysis (15%)
+ *   - Recent Conversation tail (25%) — verbatim recent messages so the
+ *     LLM can SEE what was actually discussed and never frames outreach
+ *     as "you've disappeared" when there was a substantive recent exchange.
  *
  * Observability: Logs section sizes and total context length. Returns
  * a fallback string when all data sources are empty.
@@ -21,7 +24,16 @@ import {
 } from '../db/schema.js';
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
+const MS_PER_HOUR = 1000 * 60 * 60;
 const EMPTY_CONTEXT = 'No relational memory or recent activity to analyze.';
+
+// Recent Conversation section: pull the last RECENT_CONVO_HOURS of messages
+// (both sides) so the LLM can read the actual exchange, not just gap stats.
+// This is the load-bearing fix for "Chris claims silence after a conversation
+// last evening": the model literally cannot know about the evening unless
+// the messages are in its prompt.
+const RECENT_CONVO_HOURS = 48;
+const RECENT_CONVO_MAX_MESSAGES = 20;
 
 /**
  * Truncate a string to `maxChars`, appending "…" if truncated.
@@ -46,27 +58,40 @@ function formatDate(d: Date): string {
  */
 export async function buildSweepContext(maxTokens: number): Promise<string> {
   const charBudget = maxTokens * 4;
-  const memoryBudget = Math.floor(charBudget * 0.4);
-  const pensieveBudget = Math.floor(charBudget * 0.4);
-  const gapBudget = Math.floor(charBudget * 0.2);
+  const memoryBudget = Math.floor(charBudget * 0.3);
+  const pensieveBudget = Math.floor(charBudget * 0.3);
+  const gapBudget = Math.floor(charBudget * 0.15);
+  const recentConvoBudget = Math.floor(charBudget * 0.25);
 
-  // Query all three data sources in parallel
-  const [memoryRows, pensieveRows, conversationRows] = await Promise.all([
-    queryRelationalMemory(),
-    queryPensieveEntries(),
-    queryConversationGapData(),
-  ]);
+  // Query four data sources in parallel
+  const [memoryRows, pensieveRows, conversationRows, recentConvoRows] =
+    await Promise.all([
+      queryRelationalMemory(),
+      queryPensieveEntries(),
+      queryConversationGapData(),
+      queryRecentConversation(),
+    ]);
 
   // If all empty, return minimal fallback
   if (
     memoryRows.length === 0 &&
     pensieveRows.length === 0 &&
-    conversationRows.length === 0
+    conversationRows.length === 0 &&
+    recentConvoRows.length === 0
   ) {
     return EMPTY_CONTEXT;
   }
 
   const sections: string[] = [];
+
+  // ── Recent Conversation Section (FIRST so the LLM sees it before gap stats) ──
+  const recentConvoSection = buildRecentConversation(
+    recentConvoRows,
+    recentConvoBudget,
+  );
+  if (recentConvoSection) {
+    sections.push(recentConvoSection);
+  }
 
   // ── Relational Memory Section ──
   if (memoryRows.length > 0) {
@@ -154,6 +179,20 @@ async function queryConversationGapData() {
     .limit(100);
 }
 
+async function queryRecentConversation() {
+  const cutoff = new Date(Date.now() - RECENT_CONVO_HOURS * MS_PER_HOUR);
+  return db
+    .select({
+      createdAt: conversations.createdAt,
+      role: conversations.role,
+      content: conversations.content,
+    })
+    .from(conversations)
+    .where(gte(conversations.createdAt, cutoff))
+    .orderBy(desc(conversations.createdAt))
+    .limit(RECENT_CONVO_MAX_MESSAGES);
+}
+
 // ── Gap Analysis ─────────────────────────────────────────────────────────
 
 function buildGapAnalysis(
@@ -189,10 +228,60 @@ function buildGapAnalysis(
   const raw = [
     '## Conversation Gap Analysis',
     '',
-    `- Last message from John: ${formatDate(lastMessageDate)} (${daysSinceLast} days ago)`,
+    `- Last message from Greg: ${formatDate(lastMessageDate)} (${daysSinceLast} days ago)`,
     `- Messages in last 30 days: ${recentCount}`,
     `- Average gap between messages: ${avgGapDays} days`,
+    '',
+    'NOTE: Gap stats are statistical only. The Recent Conversation section above shows what was actually discussed. If a substantive exchange happened recently, frame outreach as a continuation, NOT as "you disappeared".',
   ].join('\n');
 
   return truncateSection(raw, budget);
+}
+
+// ── Recent Conversation ──────────────────────────────────────────────────
+
+function buildRecentConversation(
+  rows: { createdAt: Date | null; role: string; content: string }[],
+  budget: number,
+): string | null {
+  if (rows.length === 0) return null;
+
+  // rows are DESC (newest first); render OLDEST FIRST so the LLM reads
+  // the conversation in natural order
+  const ordered = [...rows].reverse();
+
+  const lines = ordered.map((r) => {
+    const ts = formatTimestamp(new Date(r.createdAt!));
+    const speaker = r.role === 'USER' ? 'Greg' : 'Chris';
+    return `[${ts}] ${speaker}: ${r.content}`;
+  });
+
+  const newestTime = formatTimestamp(new Date(rows[0]!.createdAt!));
+  const oldestTime = formatTimestamp(new Date(ordered[0]!.createdAt!));
+  const hoursSinceNewest =
+    (Date.now() - new Date(rows[0]!.createdAt!).getTime()) / MS_PER_HOUR;
+
+  const header = [
+    `## Recent Conversation (last ${RECENT_CONVO_HOURS}h, ${rows.length} messages, ${oldestTime} → ${newestTime})`,
+    '',
+    `Last message: ${hoursSinceNewest.toFixed(1)}h ago. This is the actual recent exchange — read it before deciding how to open.`,
+    '',
+  ].join('\n');
+
+  const raw = header + lines.join('\n');
+  return truncateSection(raw, budget);
+}
+
+function formatTimestamp(d: Date): string {
+  // YYYY-MM-DD HH:MM in Europe/Paris (the user's timezone) for natural reading
+  const parts = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Europe/Paris',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).formatToParts(d);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}`;
 }

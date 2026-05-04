@@ -57,7 +57,7 @@ export const config = {
   // Proactive messaging — D-03 cron.validate fail-fast at config load
   proactiveSweepCron: validatedCron('PROACTIVE_SWEEP_CRON', '0 10 * * *'),
   proactiveTimezone: process.env.PROACTIVE_TIMEZONE || 'Europe/Paris',
-  proactiveSilenceThresholdMultiplier: parseFloat(process.env.PROACTIVE_SILENCE_THRESHOLD_MULTIPLIER || '2'),
+  proactiveSilenceThresholdMultiplier: parseFloat(process.env.PROACTIVE_SILENCE_THRESHOLD_MULTIPLIER || '3'),
   proactiveSilenceBaselineDays: parseInt(process.env.PROACTIVE_SILENCE_BASELINE_DAYS || '14', 10),
   proactiveCommitmentStaleDays: parseInt(process.env.PROACTIVE_COMMITMENT_STALE_DAYS || '7', 10),
   proactiveSweepContextMaxTokens: parseInt(process.env.PROACTIVE_SWEEP_CONTEXT_MAX_TOKENS || '10000', 10),
