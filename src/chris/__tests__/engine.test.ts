@@ -77,17 +77,17 @@ vi.mock('../../pensieve/store.js', () => ({
   storePensieveEntry: mockStorePensieveEntry,
 }));
 
-// ── Mock voice-note module (Phase 26 PP#5 — HARD CO-LOC #5 / D-26-07) ─────
+// ── Mock journal module (Phase 26 PP#5 — HARD CO-LOC #5 / D-26-07) ─────────
 // Default: findActivePendingResponse → null so PP#5 falls through and the
 // existing PP#0..PP#4 + mode-detect tests continue to exercise their original
 // code paths. Without this update, the new PP#5 call site would invoke the
 // unmocked module → real DB query → test failures (Phase 14 v2.1 regression
 // class — Pitfall 24).
 const mockFindActivePendingResponse = vi.fn();
-const mockRecordRitualVoiceResponse = vi.fn();
-vi.mock('../../rituals/voice-note.js', () => ({
+const mockRecordJournalResponse = vi.fn();
+vi.mock('../../rituals/journal.js', () => ({
   findActivePendingResponse: mockFindActivePendingResponse,
-  recordRitualVoiceResponse: mockRecordRitualVoiceResponse,
+  recordJournalResponse: mockRecordJournalResponse,
 }));
 
 // ── Mock tagger (fire-and-forget) ──────────────────────────────────────────

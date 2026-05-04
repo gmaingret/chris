@@ -20,8 +20,8 @@
  * runRitualSweep — registered separately in cron-registration.ts with a
  * '* * * * *' schedule.
  *
- * Per RESEARCH Landmine 6: PP#5 voice-note path preserved — NULL/undefined
- * metadata.kind falls through to existing voice-note handling.
+ * Per RESEARCH Landmine 6: PP#5 journal path preserved — NULL/undefined
+ * metadata.kind falls through to existing journal handling.
  */
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
@@ -46,7 +46,7 @@ import { RITUAL_OUTCOME, parseRitualConfig, type RitualFireOutcome } from './typ
 
 // ── Constants (D-28-05 + D-28-06 locked spec) ─────────────────────────────
 
-const RESPONSE_WINDOW_HOURS = 18; // mirrors voice-note.ts RESPONSE_WINDOW_HOURS
+const RESPONSE_WINDOW_HOURS = 18; // mirrors journal.ts RESPONSE_WINDOW_HOURS
 const CONFIRMATION_WINDOW_SECONDS = 60; // D-28-06 locked spec
 const HAIKU_MAX_RETRIES = 2; // D-28-05 retry cap (mirrors Phase 29 pattern)
 const CONFIDENCE_DEFAULT_EVASIVE_THRESHOLD = 0.7; // CONTEXT.md "default-evasive on low confidence"
@@ -268,7 +268,7 @@ async function classifyAdjustmentReply(
  * fireAdjustmentDialogue — fire-side handler (SKIP-04).
  *
  * Called by scheduler.ts when shouldFireAdjustmentDialogue predicate hits.
- * Mirrors fireVoiceNote (voice-note.ts:289-365) in structure:
+ * Mirrors fireJournal (journal.ts:289-365) in structure:
  *   1. Compose + send Telegram message
  *   2. Insert ritual_pending_responses with metadata.kind='adjustment_dialogue'
  *   3. Insert ritual_fire_events with outcome=IN_DIALOGUE
@@ -288,7 +288,7 @@ export async function fireAdjustmentDialogue(
   const chatId = BigInt(config.telegramAuthorizedUserId);
 
   // Send BEFORE inserting pending row — if Telegram fails, no stale binding
-  // (mirrors voice-note.ts:340 sequencing)
+  // (mirrors journal.ts:340 sequencing)
   await bot.api.sendMessage(Number(chatId), messageText);
 
   const firedAt = new Date();
@@ -344,7 +344,7 @@ export async function handleAdjustmentReply(
   chatId: number,
   text: string,
 ): Promise<string> {
-  // STEP 1: Atomic-consume (mirrors voice-note.ts:184-204).
+  // STEP 1: Atomic-consume (mirrors journal.ts:184-204).
   const [consumed] = await db
     .update(ritualPendingResponses)
     .set({ consumedAt: new Date() })
@@ -625,7 +625,7 @@ export async function confirmConfigPatch(
  * when nothing pending (uses partial index
  * ritual_pending_responses_adjustment_confirmation_idx).
  *
- * Atomic-consume race-safety: mirrors voice-note.ts:184-204. Both this sweep
+ * Atomic-consume race-safety: mirrors journal.ts:184-204. Both this sweep
  * and engine.ts PP#5 handleConfirmationReply use the consumed_at IS NULL guard
  * — whichever consumes first wins; the other returns silently (T-28-03
  * mitigation).
@@ -727,7 +727,7 @@ async function queueConfigPatchConfirmation(
   const firedAt = new Date();
   const expiresAt = new Date(firedAt.getTime() + CONFIRMATION_WINDOW_SECONDS * 1000);
 
-  // Send confirmation echo before inserting pending row (mirrors voice-note sequencing)
+  // Send confirmation echo before inserting pending row (mirrors journal sequencing)
   await bot.api.sendMessage(
     chatId,
     `Change ${proposedChange.field} to ${proposedChange.new_value} — OK? (auto-applies in 60s if no reply)`,

@@ -1,15 +1,15 @@
 /**
- * src/rituals/__tests__/voice-note-suppression.test.ts — Phase 26 Plan 03
+ * src/rituals/__tests__/journal-suppression.test.ts — Phase 26 Plan 03 (renamed Phase 31)
  * (VOICE-04 — pre-fire suppression on heavy-deposit days; D-26-04 + D-26-05 + D-26-06)
  *
  * Real-DB integration test for the pre-fire suppression layer added in Plan
- * 26-03. Asserts both helper-direct semantics (shouldSuppressVoiceNoteFire)
+ * 26-03. Asserts both helper-direct semantics (shouldSuppressJournalFire)
  * and runRitualSweep integration (full fire-vs-suppress branching at 21:00
  * Paris).
  *
  * Coverage:
  *
- *   shouldSuppressVoiceNoteFire helper (D-26-05 query mechanism):
+ *   shouldSuppressJournalFire helper (D-26-05 query mechanism):
  *     1. ≥5 telegram JOURNAL Pensieve entries today  → returns true
  *     2. <5 telegram JOURNAL Pensieve entries today  → returns false
  *     3. Yesterday's entries don't count (dayBoundaryUtc respects local Paris day)
@@ -24,14 +24,14 @@
  *        pending row inserted
  *
  * Run via canonical Docker harness:
- *   bash scripts/test.sh src/rituals/__tests__/voice-note-suppression.test.ts
+ *   bash scripts/test.sh src/rituals/__tests__/journal-suppression.test.ts
  */
 import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
 
 // Mock bot.api.sendMessage to avoid real Telegram calls.
 // vi.hoisted ensures the mock fn is available when the vi.mock factory runs
-// (factories hoist above all imports — matches voice-note-handler.test.ts).
+// (factories hoist above all imports — matches journal-handler.test.ts).
 const { mockSendMessage } = vi.hoisted(() => ({
   mockSendMessage: vi.fn(),
 }));
@@ -49,12 +49,12 @@ import {
 } from '../../db/schema.js';
 import { runRitualSweep } from '../scheduler.js';
 import {
-  shouldSuppressVoiceNoteFire,
+  shouldSuppressJournalFire,
   RITUAL_SUPPRESS_DEPOSIT_THRESHOLD,
-} from '../voice-note.js';
+} from '../journal.js';
 
 const COUNTER_KEY = 'ritual_daily_count';
-const RITUAL_NAME = 'daily_voice_note';
+const RITUAL_NAME = 'daily_journal';
 
 async function cleanup(): Promise<void> {
   // Ordered cleanup: child tables first (FK constraints), then state + rituals
@@ -105,7 +105,7 @@ async function seedJournalEntry(
   return row!;
 }
 
-describe('shouldSuppressVoiceNoteFire helper (Phase 26 VOICE-04 — D-26-05)', () => {
+describe('shouldSuppressJournalFire helper (Phase 26 VOICE-04 — D-26-05)', () => {
   beforeEach(async () => {
     await cleanup();
   });
@@ -114,7 +114,7 @@ describe('shouldSuppressVoiceNoteFire helper (Phase 26 VOICE-04 — D-26-05)', (
     await cleanup();
     // NOTE: do NOT call sql.end() here — pool must stay alive for the sibling
     // sweep-integration describe below. File-level pool close happens in the
-    // last describe's afterAll (matches voice-note-handler.test.ts pattern).
+    // last describe's afterAll (matches journal-handler.test.ts pattern).
   });
 
   it('returns true when >=5 telegram JOURNAL entries exist today', async () => {
@@ -122,7 +122,7 @@ describe('shouldSuppressVoiceNoteFire helper (Phase 26 VOICE-04 — D-26-05)', (
     for (let i = 0; i < RITUAL_SUPPRESS_DEPOSIT_THRESHOLD; i++) {
       await seedJournalEntry(now);
     }
-    expect(await shouldSuppressVoiceNoteFire(now)).toBe(true);
+    expect(await shouldSuppressJournalFire(now)).toBe(true);
   });
 
   it('returns false when <5 telegram JOURNAL entries today', async () => {
@@ -130,7 +130,7 @@ describe('shouldSuppressVoiceNoteFire helper (Phase 26 VOICE-04 — D-26-05)', (
     for (let i = 0; i < RITUAL_SUPPRESS_DEPOSIT_THRESHOLD - 1; i++) {
       await seedJournalEntry(now);
     }
-    expect(await shouldSuppressVoiceNoteFire(now)).toBe(false);
+    expect(await shouldSuppressJournalFire(now)).toBe(false);
   });
 
   it('does NOT count entries from yesterday (dayBoundaryUtc respects local Paris day)', async () => {
@@ -141,7 +141,7 @@ describe('shouldSuppressVoiceNoteFire helper (Phase 26 VOICE-04 — D-26-05)', (
     for (let i = 0; i < 10; i++) {
       await seedJournalEntry(yesterday);
     }
-    expect(await shouldSuppressVoiceNoteFire(now)).toBe(false);
+    expect(await shouldSuppressJournalFire(now)).toBe(false);
   });
 
   it('does NOT count non-telegram source entries (e.g., gmail)', async () => {
@@ -154,7 +154,7 @@ describe('shouldSuppressVoiceNoteFire helper (Phase 26 VOICE-04 — D-26-05)', (
         createdAt: now,
       });
     }
-    expect(await shouldSuppressVoiceNoteFire(now)).toBe(false);
+    expect(await shouldSuppressJournalFire(now)).toBe(false);
   });
 
   it('does NOT count entries without metadata.mode = JOURNAL (e.g., REFLECT)', async () => {
@@ -167,11 +167,11 @@ describe('shouldSuppressVoiceNoteFire helper (Phase 26 VOICE-04 — D-26-05)', (
         createdAt: now,
       });
     }
-    expect(await shouldSuppressVoiceNoteFire(now)).toBe(false);
+    expect(await shouldSuppressJournalFire(now)).toBe(false);
   });
 });
 
-describe('runRitualSweep + daily_voice_note suppression integration (Phase 26 VOICE-04 — D-26-04 + D-26-06)', () => {
+describe('runRitualSweep + daily_journal suppression integration (Phase 26 VOICE-04 — D-26-04 + D-26-06)', () => {
   beforeEach(async () => {
     await cleanup();
     mockSendMessage.mockReset();

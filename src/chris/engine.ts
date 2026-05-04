@@ -73,8 +73,19 @@ import { config } from '../config.js';
 import { LLMError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 import { stripFences } from '../utils/text.js';
-import { findActivePendingResponse, recordRitualVoiceResponse } from '../rituals/voice-note.js';
+import { findActivePendingResponse, recordJournalResponse } from '../rituals/journal.js';
 import { handleAdjustmentReply, handleConfirmationReply } from '../rituals/adjustment-dialogue.js';
+
+// ── D-31-03 backward-compat: journal source_subtype dual-accept ────────────
+// Pensieve entries written between Phase 26 ship (2026-04-28) and Phase 31
+// rename (2026-05-04) carry `metadata.source_subtype = 'ritual_voice_note'`.
+// Entries written after Phase 31 carry `'ritual_journal'`. Any code that
+// filters Pensieve entries by source_subtype MUST accept both values.
+// Phase 31 D-31-03: accept both legacy ('ritual_voice_note') and new
+// ('ritual_journal') subtypes; historical Pensieve entries written before
+// 2026-05-04 use the legacy value.
+export const RITUAL_JOURNAL_SUBTYPES = ['ritual_voice_note', 'ritual_journal'] as const;
+export type RitualJournalSubtype = typeof RITUAL_JOURNAL_SUBTYPES[number];
 
 // ── Abort acknowledgment (PP#0) ──────────────────────────────────────────
 
@@ -169,16 +180,16 @@ export async function processMessage(
     // Runs FIRST. State-table lookup against ritual_pending_responses;
     // on hit, write Pensieve as RITUAL_RESPONSE + return empty string
     // (IN-02 silent-skip via src/bot/bot.ts:54).
-    // HARD CO-LOC #1 (Pitfall 6 mitigation): co-located with voice-note
+    // HARD CO-LOC #1 (Pitfall 6 mitigation): co-located with journal
     // handler in Plan 26-02. Splitting them = guaranteed Chris-responds-
     // to-rituals regression for the gap window.
     const chatIdStrPP5 = chatId.toString();
     const pending = await findActivePendingResponse(chatIdStrPP5, new Date());
     if (pending) {
       // Phase 28 Plan 03 SKIP-04 + SKIP-05 — metadata.kind dispatch (RESEARCH Landmine 6).
-      // Voice-note pending rows had no metadata pre-Phase-28 (column did not exist).
+      // Journal pending rows had no metadata pre-Phase-28 (column did not exist).
       // After migration 0010, rows default to '{}'::jsonb so metadata->>'kind'
-      // returns undefined, falling through to the voice-note path (Pitfall 6 invariant).
+      // returns undefined, falling through to the journal path (Pitfall 6 invariant).
       // NULL metadata (defensive) also falls through.
       const kind = (pending.metadata as { kind?: string } | null)?.kind;
       try {
@@ -192,9 +203,9 @@ export async function processMessage(
           logger.info({ pendingId: pending.id, kind }, 'chris.engine.pp5.adjustment_confirmation');
           return '';
         }
-        // Default branch (kind === undefined / null) — existing voice-note path.
+        // Default branch (kind === undefined / null) — existing journal path.
         // Preserves Phase 26 VOICE-01 / VOICE-06 contract (RESEARCH Landmine 6).
-        const result = await recordRitualVoiceResponse(pending, chatId, text);
+        const result = await recordJournalResponse(pending, chatId, text);
         logger.info(
           {
             pendingId: pending.id,

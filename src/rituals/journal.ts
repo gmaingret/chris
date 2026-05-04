@@ -1,14 +1,14 @@
 /**
- * src/rituals/voice-note.ts — Phase 26 Plans 26-01..26-03
+ * src/rituals/journal.ts — Phase 26 Plans 26-01..26-03 (renamed Phase 31)
  *
- * Voice note ritual handler + PP#5 deposit-only mechanism + shuffled-bag
+ * Journal ritual handler + PP#5 deposit-only mechanism + shuffled-bag
  * prompt rotation primitive. Owns:
  *   - PROMPTS array + PROMPT_SET_VERSION (VOICE-02 — Plan 26-01)
  *   - chooseNextPromptIndex shuffled-bag rotation (VOICE-03 — Plan 26-01)
- *   - fireVoiceNote handler dispatched from scheduler.ts (VOICE-02..04 — Plan 26-02)
+ *   - fireJournal handler dispatched from scheduler.ts (VOICE-02..04 — Plan 26-02)
  *   - findActivePendingResponse PP#5 query helper (VOICE-01 — Plan 26-02)
- *   - recordRitualVoiceResponse PP#5 deposit helper (VOICE-01, VOICE-06 — Plan 26-02)
- *   - shouldSuppressVoiceNoteFire pre-fire suppression check (VOICE-04 — Plan 26-03)
+ *   - recordJournalResponse PP#5 deposit helper (VOICE-01, VOICE-06 — Plan 26-02)
+ *   - shouldSuppressJournalFire pre-fire suppression check (VOICE-04 — Plan 26-03)
  *
  * HARD CO-LOC #1 (Pitfall 6): PP#5 detector + handler MUST land in same plan
  * (26-02). Splitting them = guaranteed Chris-responds-to-rituals regression.
@@ -162,14 +162,14 @@ export async function findActivePendingResponse(
 }
 
 /**
- * recordRitualVoiceResponse — PP#5 deposit helper (VOICE-01, VOICE-06; D-26-02).
+ * recordJournalResponse — PP#5 deposit helper (VOICE-01, VOICE-06; D-26-02).
  *
  * Three-step atomic-ish flow:
  *   1. Atomic consume — UPDATE ... SET consumed_at WHERE consumed_at IS NULL
  *      RETURNING id, prompt_text. Mutual exclusion against concurrent PP#5
  *      invocations.
  *   2. Pensieve write with explicit RITUAL_RESPONSE tag (D-26-03 epistemicTag
- *      parameter) and metadata.source_subtype = 'ritual_voice_note' (VOICE-06).
+ *      parameter) and metadata.source_subtype = 'ritual_journal' (VOICE-06).
  *   3. ritual_responses link row insert with prompt_text from the consumed
  *      pending row (per amended D-26-02 — no empty-string placeholder, no
  *      NOT NULL violation; checker B4 fix).
@@ -177,7 +177,7 @@ export async function findActivePendingResponse(
  * Throws StorageError('ritual.pp5.race_lost') on race-loss (concurrent consume
  * already won) — engine PP#5 catches and returns '' silently.
  */
-export async function recordRitualVoiceResponse(
+export async function recordJournalResponse(
   pending: typeof ritualPendingResponses.$inferSelect,
   chatId: bigint,
   text: string,
@@ -210,7 +210,7 @@ export async function recordRitualVoiceResponse(
     'telegram',
     {
       telegramChatId: Number(chatId),
-      source_subtype: 'ritual_voice_note', // VOICE-06
+      source_subtype: 'ritual_journal', // VOICE-06 (Phase 31: renamed from ritual_voice_note)
       ritual_id: pending.ritualId,
       ritual_pending_response_id: pending.id,
     },
@@ -249,12 +249,12 @@ export async function recordRitualVoiceResponse(
 // ── Pre-fire suppression (VOICE-04 — Plan 26-03; D-26-05 + D-26-06) ───────
 
 /**
- * shouldSuppressVoiceNoteFire — Pitfall 9 mitigation (D-26-05).
+ * shouldSuppressJournalFire — Pitfall 9 mitigation (D-26-05).
  *
  * Returns true if today (local Europe/Paris day, computed via the canonical
  * `dayBoundaryUtc` Luxon helper from src/episodic/sources.ts) already has
  * `RITUAL_SUPPRESS_DEPOSIT_THRESHOLD` (default 5) or more telegram-source
- * JOURNAL-mode Pensieve entries. When true, fireVoiceNote skips firing with
+ * JOURNAL-mode Pensieve entries. When true, fireJournal skips firing with
  * the 'system_suppressed' outcome (D-26-06) — Greg has clearly journaled
  * enough today that another prompt would feel redundant.
  *
@@ -269,7 +269,7 @@ export async function recordRitualVoiceResponse(
  * `{ start, end }` (NOT a single Date with a 'start'|'end' selector). We
  * destructure `start` for the local-Paris day-start UTC instant.
  */
-export async function shouldSuppressVoiceNoteFire(now: Date): Promise<boolean> {
+export async function shouldSuppressJournalFire(now: Date): Promise<boolean> {
   const { start: dayStart } = dayBoundaryUtc(now, config.proactiveTimezone);
   const result = await db
     .select({ count: sql<number>`COUNT(*)::int` })
@@ -285,25 +285,25 @@ export async function shouldSuppressVoiceNoteFire(now: Date): Promise<boolean> {
   return count >= RITUAL_SUPPRESS_DEPOSIT_THRESHOLD;
 }
 
-// ── fireVoiceNote handler (VOICE-02 + VOICE-03 — Plan 26-02) ───────────────
+// ── fireJournal handler (VOICE-02 + VOICE-03 — Plan 26-02) ─────────────────
 
 /**
- * fireVoiceNote — daily voice note ritual handler (D-26-04, D-26-08).
+ * fireJournal — daily journal ritual handler (D-26-04, D-26-08).
  *
  * Dispatched from src/rituals/scheduler.ts dispatchRitualHandler when
- * ritual.name === 'daily_voice_note'. Picks the next prompt from the
+ * ritual.name === 'daily_journal'. Picks the next prompt from the
  * shuffled bag, sends a Telegram message, and inserts a
  * ritual_pending_responses row binding the fire to the chat (which PP#5
  * will look up when Greg replies via STT).
  *
  * Persists prompt_text on the pending row per amended D-26-02 — PP#5's
- * recordRitualVoiceResponse will read it back to populate
+ * recordJournalResponse will read it back to populate
  * ritual_responses.prompt_text (longitudinal trail).
  *
  * Returns the RitualFireOutcome string. Plan 26-03 will add the
  * 'system_suppressed' branch (pre-fire suppression for high-deposit days).
  */
-export async function fireVoiceNote(
+export async function fireJournal(
   ritual: typeof rituals.$inferSelect,
   cfg: RitualConfig,
 ): Promise<RitualFireOutcome> {
@@ -315,7 +315,7 @@ export async function fireVoiceNote(
   //
   // Why we advance via `computeNextRunAt(endOfToday, 'daily', cfg)` and NOT
   // `computeNextRunAt(now, ...)`: in production the cron sweep dispatches
-  // fireVoiceNote at the configured fire_at (21:00 Paris), so `now ≈ today's
+  // fireJournal at the configured fire_at (21:00 Paris), so `now ≈ today's
   // 21:00 Paris` and `computeNextRunAt(now, 'daily', cfg)` lands on tomorrow's
   // 21:00 Paris (target <= now → +1 day). But a manual `runRitualSweep` (or
   // an `npx tsx scripts/manual-sweep.ts` invocation) at any earlier wall-clock
@@ -323,7 +323,7 @@ export async function fireVoiceNote(
   // the suppression's "skip today entirely" semantic. Anchoring to the local
   // end-of-day instant guarantees tomorrow's slot under both timing patterns.
   const now = new Date();
-  if (await shouldSuppressVoiceNoteFire(now)) {
+  if (await shouldSuppressJournalFire(now)) {
     const { end: endOfTodayLocal } = dayBoundaryUtc(now, cfg.time_zone);
     const tomorrow = computeNextRunAt(endOfTodayLocal, 'daily', cfg);
     await db
@@ -332,7 +332,7 @@ export async function fireVoiceNote(
       .where(eq(rituals.id, ritual.id));
     logger.info(
       { ritualId: ritual.id, nextRunAt: tomorrow.toISOString() },
-      'rituals.voice_note.suppressed',
+      'rituals.journal.suppressed',
     );
     // Phase 28 SKIP-01: emit ritual_fire_events on suppression path.
     // system_suppressed does NOT increment skip_count (per SKIP-01 rules).
@@ -387,7 +387,7 @@ export async function fireVoiceNote(
 
   logger.info(
     { ritualId: ritual.id, promptIdx, prompt },
-    'rituals.voice_note.fired',
+    'rituals.journal.fired',
   );
   // Phase 28 SKIP-01: emit ritual_fire_events on successful fire path.
   // 'fired' does NOT increment skip_count. firedAt uses the local var

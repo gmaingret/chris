@@ -102,7 +102,7 @@ export function parseRitualConfig(input: unknown): RitualConfig {
  *   - 'config_invalid'    — RitualConfigSchema.parse threw ZodError; sweep skips.
  *   - 'system_suppressed' — Phase 26 VOICE-04 (D-26-06): pre-fire check skipped
  *                           firing (e.g., heavy-deposit-day suppression for daily
- *                           voice note). Distinct from 'fired_no_response' (Phase
+ *                           journal). Distinct from 'fired_no_response' (Phase
  *                           28 skip-tracking) — does NOT increment skip_count.
  *
  * **Phase 27 variants homogenized in Phase 28 (2):**
@@ -119,7 +119,7 @@ export function parseRitualConfig(input: unknown): RitualConfig {
  *
  * **Phase 28 SKIP-01 new variants (3):**
  *   - 'responded'           — Phase 28 SKIP-01. Greg replied to a ritual prompt
- *                             within the response window (PP#5 voice-note deposit,
+ *                             within the response window (PP#5 journal deposit,
  *                             or future reply-capable rituals). Resets skip_count.
  *   - 'window_missed'       — Phase 28 SKIP-01. ritual_pending_responses.expires_at
  *                             passed with consumed_at IS NULL. Emitted by

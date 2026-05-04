@@ -80,20 +80,20 @@ async function cleanupTask2Fixtures(): Promise<void> {
  * predicate logic, this test catches the drift before runtime mis-firing.
  *
  * Seeds audited:
- *   0007_daily_voice_note_seed.sql  → skip_threshold: 3 (daily default = 3)
+ *   0007_daily_voice_note_seed.sql  → row renamed to daily_journal by migration 0011; skip_threshold: 3 (daily default = 3)
  *   0008_wellbeing_seed.sql         → skip_threshold: 3 (daily default = 3)
  *   0009_weekly_review_seed.sql     → skip_threshold: 2 (weekly default = 2)
  *
  * NO migration 0010 is shipped from Plan 28-02 — seeds are already correct.
  */
 describe('Phase 28 SKIP-03 — Seed skip_threshold audit (RESEARCH Landmine 4)', () => {
-  it('daily_voice_note has skip_threshold = 3 (daily cadence default)', async () => {
+  it('daily_journal has skip_threshold = 3 (daily cadence default; renamed from daily_voice_note by migration 0011)', async () => {
     const [row] = await db
       .select({
         skipThreshold: drizzleSql<number>`(${rituals.config}->>'skip_threshold')::int`,
       })
       .from(rituals)
-      .where(eq(rituals.name, 'daily_voice_note'))
+      .where(eq(rituals.name, 'daily_journal'))
       .limit(1);
 
     expect(row).toBeDefined();

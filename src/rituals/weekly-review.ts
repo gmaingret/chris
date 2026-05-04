@@ -512,7 +512,7 @@ export async function generateWeeklyObservation(
  * The cfg parameter is currently unused (the weekly review has no per-fire
  * config knobs beyond the cron's fire_dow/fire_at, which are read from
  * ritual.config by the scheduler before dispatch). It is accepted to match
- * the dispatcher signature uniformly with fireVoiceNote + fireWellbeing.
+ * the dispatcher signature uniformly with fireJournal + fireWellbeing.
  *
  * Phase 28 ritual_fire_events instrumentation note:
  * Weekly review has NO user-reply window. ritual_fire_events from this handler
@@ -650,8 +650,8 @@ export async function fireWeeklyReview(
 
   // 8. Update ritual_responses with pensieve_entry_id back-reference + respondedAt.
   // respondedAt here marks the system's response (Pensieve write completed),
-  // not Greg's textual reply (which would set it via PP#5 in voice-note.ts —
-  // but PP#5 is voice-note-specific, NOT used by the weekly review).
+  // not Greg's textual reply (which would set it via PP#5 in journal.ts —
+  // but PP#5 is journal-specific, NOT used by the weekly review).
   const respondedAt = new Date();
   await db
     .update(ritualResponses)

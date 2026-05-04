@@ -97,7 +97,7 @@ describe('PP#5 HIT path (Phase 26 VOICE-01, VOICE-06) — Pitfall 6 contract', (
     mockAnthropicParse.mockReset();
   });
 
-  it('voice-note response writes Pensieve entry as RITUAL_RESPONSE + source_subtype + prompt_text persisted', async () => {
+  it('journal response writes Pensieve entry as RITUAL_RESPONSE + source_subtype + prompt_text persisted', async () => {
     const [ritual] = await db
       .insert(rituals)
       .values({
@@ -144,7 +144,7 @@ describe('PP#5 HIT path (Phase 26 VOICE-01, VOICE-06) — Pitfall 6 contract', (
     expect(entries).toHaveLength(1);
     expect(entries[0]!.epistemicTag).toBe('RITUAL_RESPONSE');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect((entries[0]!.metadata as any)?.source_subtype).toBe('ritual_voice_note');
+    expect((entries[0]!.metadata as any)?.source_subtype).toBe('ritual_journal');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((entries[0]!.metadata as any)?.ritual_id).toBe(ritual!.id);
     // 4. Pending row consumed.

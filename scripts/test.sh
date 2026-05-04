@@ -16,6 +16,7 @@ MIGRATION_7_SQL="src/db/migrations/0007_daily_voice_note_seed.sql"
 MIGRATION_8_SQL="src/db/migrations/0008_wellbeing_seed.sql"
 MIGRATION_9_SQL="src/db/migrations/0009_weekly_review_seed.sql"
 MIGRATION_10_SQL="src/db/migrations/0010_adjustment_dialogue.sql"
+MIGRATION_11_SQL="src/db/migrations/0011_rename_daily_voice_note_to_journal.sql"
 
 cleanup() {
   echo "🧹 Stopping test postgres..."
@@ -68,6 +69,8 @@ docker compose -f "$COMPOSE_FILE" exec -T postgres \
   psql -U chris -d chris -v ON_ERROR_STOP=1 -q < "$MIGRATION_9_SQL"
 docker compose -f "$COMPOSE_FILE" exec -T postgres \
   psql -U chris -d chris -v ON_ERROR_STOP=1 -q < "$MIGRATION_10_SQL"
+docker compose -f "$COMPOSE_FILE" exec -T postgres \
+  psql -U chris -d chris -v ON_ERROR_STOP=1 -q < "$MIGRATION_11_SQL"
 
 # Phase 25 (M009 v2.4) — post-migration substrate smoke gate.
 # Per HARD CO-LOCATION CONSTRAINT #7 + Pitfall 28: the SQL migration, the
@@ -95,17 +98,17 @@ docker compose -f "$COMPOSE_FILE" exec -T postgres \
 grep -q "^6|1|3$" /tmp/m009_smoke.txt || { echo "❌ Migration 0006 substrate incomplete"; exit 1; }
 echo "✓ Migration 0006 substrate verified (6 tables + 1 enum value + 3 indexes)"
 
-# Phase 26 (M009 v2.4) — voice note seed insert + PP#5 partial index +
-# prompt_text column gate (D-26-01, amended D-26-02 2026-04-27). Mirrors the
-# Phase 25 6|1|3 gate shape: failure exits BEFORE vitest so a missing seed
-# row / partial index / column blocks the test suite (catches lineage mismatches
-# before any false-positive type-checked tests).
+# Phase 26 (M009 v2.4) + Phase 31 (D-31-05) — journal seed row + PP#5 partial
+# index + prompt_text column gate. Migration 0007 seeds daily_voice_note;
+# migration 0011 renames it to daily_journal. Gate asserts the renamed row
+# post-0011. Failure exits BEFORE vitest (catches lineage mismatches before any
+# false-positive type-checked tests).
 SEED_CHECK=$(docker compose -f "$COMPOSE_FILE" exec -T postgres \
   psql -U chris -d chris -tAc \
-  "SELECT name FROM rituals WHERE name = 'daily_voice_note' LIMIT 1;")
+  "SELECT name FROM rituals WHERE name = 'daily_journal' LIMIT 1;")
 
-if [[ "$SEED_CHECK" != "daily_voice_note" ]]; then
-  echo "❌ FAIL: voice note seed row missing after migration 0007 (got: '$SEED_CHECK')"
+if [[ "$SEED_CHECK" != "daily_journal" ]]; then
+  echo "❌ FAIL: daily_journal seed row missing after migration 0011 (got: '$SEED_CHECK')"
   exit 1
 fi
 
@@ -129,10 +132,10 @@ if [[ "$PROMPT_TEXT_CHECK" != "prompt_text" ]]; then
   exit 1
 fi
 
-echo "PASS: Phase 26 migration 0007 substrate verified (seed + partial index + prompt_text column)"
+echo "PASS: Phase 26/31 migration 0007+0011 substrate verified (daily_journal + partial index + prompt_text column)"
 
 # Phase 27 (M009 v2.4) — wellbeing seed assertion (D-27-01). Single-line gate
-# mirrors Phase 26 voice-note seed shape: failure exits BEFORE vitest so a
+# mirrors Phase 26 journal seed shape: failure exits BEFORE vitest so a
 # missing daily_wellbeing seed row blocks the test suite.
 psql_seed_count=$(docker compose -f "$COMPOSE_FILE" exec -T postgres \
   psql -U chris -d chris -tAc "SELECT count(*) FROM rituals WHERE name = 'daily_wellbeing'")
@@ -143,7 +146,7 @@ fi
 echo "✓ Migration 0008 substrate verified (daily_wellbeing seeded)"
 
 # Phase 29 (M009 v2.4) — weekly_review seed assertion (D-09 / WEEK-01 fire-side).
-# Single-line gate mirrors Phase 26 voice-note + Phase 27 wellbeing seed shapes:
+# Single-line gate mirrors Phase 26 journal + Phase 27 wellbeing seed shapes:
 # failure exits BEFORE vitest so a missing weekly_review seed row blocks the test
 # suite (catches lineage mismatches before any false-positive type-checked tests).
 # The gate runs after migration 0009 apply.

@@ -4,7 +4,7 @@
  *
  * Manually fire a ritual by name. Used for staging UAT (ROADMAP §Phase 26
  * success criterion 1: "operator can `npx tsx scripts/fire-ritual.ts
- * daily_voice_note`").
+ * daily_journal`").
  *
  * Sets the named ritual's next_run_at to now() - 1 minute (so the sweep
  * picks it up), runs runRitualSweep once, prints the result, exits 0 on
@@ -20,9 +20,9 @@
  *   npx tsx scripts/fire-ritual.ts <ritual_name>
  *
  * Examples:
- *   npx tsx scripts/fire-ritual.ts daily_voice_note
+ *   npx tsx scripts/fire-ritual.ts daily_journal
  *   DATABASE_URL='postgresql://chris:localtest123@localhost:5433/chris' \
- *     npx tsx scripts/fire-ritual.ts daily_voice_note
+ *     npx tsx scripts/fire-ritual.ts daily_journal
  *
  * Behavior:
  *   - Hard-fails (exit 1) if ritual_name argument missing.
@@ -41,7 +41,7 @@ async function main(): Promise<void> {
   const ritualName = process.argv[2];
   if (!ritualName) {
     console.error('Usage: npx tsx scripts/fire-ritual.ts <ritual_name>');
-    console.error('Example: npx tsx scripts/fire-ritual.ts daily_voice_note');
+    console.error('Example: npx tsx scripts/fire-ritual.ts daily_journal');
     process.exit(1);
   }
 

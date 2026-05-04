@@ -16,7 +16,7 @@ const {
   mockLogInfo,
   mockLogWarn,
   mockFindActivePendingResponse,
-  mockRecordRitualVoiceResponse,
+  mockRecordJournalResponse,
 } = vi.hoisted(() => ({
   mockDetectMuteIntent: vi.fn(),
   mockGenerateMuteAcknowledgment: vi.fn(),
@@ -31,7 +31,7 @@ const {
   mockLogInfo: vi.fn(),
   mockLogWarn: vi.fn(),
   mockFindActivePendingResponse: vi.fn(),
-  mockRecordRitualVoiceResponse: vi.fn(),
+  mockRecordJournalResponse: vi.fn(),
 }));
 
 // ── Module mocks ───────────────────────────────────────────────────────────
@@ -86,13 +86,13 @@ vi.mock('../modes/interrogate.js', () => ({
   handleInterrogate: mockHandleInterrogate,
 }));
 
-// ── Mock voice-note module (Phase 26 PP#5 — HARD CO-LOC #5 / D-26-07) ─────
+// ── Mock journal module (Phase 26 PP#5 — HARD CO-LOC #5 / D-26-07) ─────────
 // Default findActivePendingResponse → null so PP#5 falls through to the
 // existing mute pre-processing tests' code paths. Without this mock, the
 // new PP#5 import would pull in real db/bot modules and break all tests.
-vi.mock('../../rituals/voice-note.js', () => ({
+vi.mock('../../rituals/journal.js', () => ({
   findActivePendingResponse: mockFindActivePendingResponse,
-  recordRitualVoiceResponse: mockRecordRitualVoiceResponse,
+  recordJournalResponse: mockRecordJournalResponse,
 }));
 
 // ── Mock decision-capture modules (engine.ts PP#0/PP#1; Plan 26-02 fix) ────

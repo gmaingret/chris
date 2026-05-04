@@ -349,7 +349,7 @@ describe('runRitualSweep', () => {
   it('Phase 29 D-29-08: default branch throws for unmapped ritual.name (safety belt)', async () => {
     // Insert a ritual whose name is NOT in the dispatcher switch (no
     // 'monthly_retro' handler exists yet — Phase 25/26/27/29 only wire
-    // weekly_review + daily_voice_note + daily_wellbeing). The atomic
+    // weekly_review + daily_journal + daily_wellbeing). The atomic
     // UPDATE in runRitualSweep advances nextRunAt regardless, so 'fired'
     // is the correct outcome from the substrate's perspective; the handler
     // error is captured in results[0].error.
