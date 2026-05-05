@@ -31,7 +31,9 @@ vi.mock('../../utils/logger.js', () => ({
 }));
 
 const baseConfig = {
-  ritualSweepCron: '0 21 * * *',
+  // Per-minute cadence (revised 2026-05-05): catches all fire_at times within
+  // ≤60s. Was '0 21 * * *' (Phase-25-era). See src/config.ts comment.
+  ritualSweepCron: '* * * * *',
   proactiveSweepCron: '0 10 * * *',
   episodicCron: '0 23 * * *',
   syncIntervalCron: '0 */6 * * *',
@@ -43,7 +45,7 @@ describe('registerCrons', () => {
     scheduleSpy.mockClear();
   });
 
-  it('registers the ritual cron at 21:00 Europe/Paris (RIT-11)', async () => {
+  it('registers the ritual sweep cron at the configured cadence (RIT-11; revised per-minute 2026-05-05)', async () => {
     const { registerCrons } = await import('../../cron-registration.js');
 
     const status = registerCrons({
@@ -55,7 +57,7 @@ describe('registerCrons', () => {
     });
 
     expect(scheduleSpy).toHaveBeenCalledWith(
-      '0 21 * * *',
+      baseConfig.ritualSweepCron,
       expect.any(Function),
       { timezone: 'Europe/Paris' },
     );
@@ -105,7 +107,7 @@ describe('registerCrons', () => {
     });
 
     // Find the ritual cron handler from the spy calls
-    const ritualCall = scheduleSpy.mock.calls.find((c) => c[0] === '0 21 * * *');
+    const ritualCall = scheduleSpy.mock.calls.find((c) => c[0] === baseConfig.ritualSweepCron);
     expect(ritualCall).toBeDefined();
     const ritualHandler = ritualCall![1] as () => Promise<void>;
 

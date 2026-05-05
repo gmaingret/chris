@@ -62,9 +62,15 @@ export const config = {
   proactiveCommitmentStaleDays: parseInt(process.env.PROACTIVE_COMMITMENT_STALE_DAYS || '7', 10),
   proactiveSweepContextMaxTokens: parseInt(process.env.PROACTIVE_SWEEP_CONTEXT_MAX_TOKENS || '10000', 10),
 
-  // Ritual sweep (M009 Phase 25 RIT-12) — second cron tick at 21:00 Paris
-  // peer to the proactive sweep above. D-03 cron.validate fail-fast.
-  ritualSweepCron: validatedCron('RITUAL_SWEEP_CRON', '0 21 * * *'),
+  // Ritual sweep (M009 Phase 25 RIT-12, revised post-deploy 2026-05-05).
+  // Was '0 21 * * *' (Phase-25-era assumption that all rituals fire at 21:00).
+  // M009 ships rituals at multiple fire times: daily_wellbeing 09:00,
+  // weekly_review Sun 20:00, daily_journal 21:00. A single 21:00 cron
+  // only catches 21:00 rituals on time; others fire late. Per-minute
+  // cadence catches all fire_at times within ≤60s of the intended moment.
+  // Cost: cheap WHERE next_run_at <= now() AND enabled query against ~3
+  // rows once/min. Mirrors Phase 28's ritualConfirmationSweep cadence.
+  ritualSweepCron: validatedCron('RITUAL_SWEEP_CRON', '* * * * *'),
 
   // Episodic consolidation (M008 Phase 20)
   // EPI-04: Episodic consolidation cron — fires at 23:00 in config.proactiveTimezone by default.
