@@ -58,6 +58,33 @@ import { db } from '../db/connection.js';
 import { formatTodayLine, getTodayInTimezone } from '../utils/today.js';
 
 
+// ── Abstention guard ───────────────────────────────────────────────────────
+// Sonnet occasionally produces meta-commentary instead of an outbound message
+// (e.g. "I don't have access to the Recent Conversation section..."). These
+// outputs must NEVER be sent to Telegram. Patterns are intentionally narrow
+// to favor false negatives over false positives — the cost of suppressing one
+// real message is much lower than the cost of leaking system-prompt names.
+// Observed in prod 2026-05-06 at 10:00 Paris (silence trigger, 2.1d gap).
+const ABSTENTION_PATTERNS: ReadonlyArray<{ readonly name: string; readonly pattern: RegExp }> = [
+  { name: 'no_access_meta', pattern: /^I (don't|do not|cannot|can't) (have access|have visibility|see) (to|the)/i },
+  { name: 'will_stay_silent', pattern: /^I ?(will|'ll) (stay|remain) silent/i },
+  { name: 'as_an_ai', pattern: /^(As an AI|I'?m an AI|I am an AI)\b/i },
+  { name: 'meta_section_reference', pattern: /(without|don'?t have).{0,40}(access to|visibility into).{0,80}(Recent Conversation|Pensieve|conversation history|guidelines|system prompt)/i },
+  { name: 'meta_guidelines', pattern: /violat(e|ing) (the |my )?guidelines/i },
+  { name: 'avoid_silent', pattern: /^(Rather than risk|To avoid (sending|fabricating))/i },
+];
+
+export function detectAbstention(text: string): { matched: boolean; pattern?: string } {
+  const trimmed = text.trim();
+  for (const { name, pattern } of ABSTENTION_PATTERNS) {
+    if (pattern.test(trimmed)) {
+      return { matched: true, pattern: name };
+    }
+  }
+  return { matched: false };
+}
+
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export interface ChannelResult {
@@ -136,6 +163,22 @@ export async function runSweep(): Promise<SweepResult> {
             } else {
               const decisionId = evidenceEntry.replace('Decision ID: ', '');
 
+              const abstention = detectAbstention(messageText);
+              if (abstention.matched) {
+                logger.warn(
+                  {
+                    triggerType: 'decision-deadline',
+                    pattern: abstention.pattern,
+                    preview: messageText.slice(0, 200),
+                    messageLength: messageText.length,
+                    decisionId,
+                  },
+                  'proactive.sweep.model_abstained',
+                );
+                // Skip send + save + cap update + AWAITING_RESOLUTION write.
+                // Daily cap NOT consumed so a re-trigger today can retry.
+              } else {
+
               // Write AWAITING_RESOLUTION row BEFORE sending the message
               await upsertAwaitingResolution(BigInt(config.telegramAuthorizedUserId), decisionId);
 
@@ -171,6 +214,7 @@ export async function runSweep(): Promise<SweepResult> {
                 triggerType: 'decision-deadline',
                 message: messageText,
               };
+              }
             }
           }
         }
@@ -310,6 +354,22 @@ export async function runSweep(): Promise<SweepResult> {
           const messageText = firstBlock?.type === 'text' ? firstBlock.text : '';
 
           if (messageText) {
+            const abstention = detectAbstention(messageText);
+            if (abstention.matched) {
+              logger.warn(
+                {
+                  triggerType: 'decision-deadline-followup',
+                  pattern: abstention.pattern,
+                  preview: messageText.slice(0, 200),
+                  messageLength: messageText.length,
+                  decisionId: row.decisionId,
+                },
+                'proactive.sweep.model_abstained',
+              );
+              // Skip send + save + escalation state bump. Escalation will be
+              // re-attempted on the next sweep tick after the 48h delta lands.
+              continue;
+            }
             // WR-03: Intentional — escalation follow-ups bypass the daily accountability cap
             // per D-17/D-18. This whole escalation block runs outside the
             // hasSentTodayAccountability gate (see the comment at the top of this try-block).
@@ -488,6 +548,23 @@ async function runReflectiveChannel(
 
   if (!messageText) {
     logger.error({ response }, 'proactive.sweep.error');
+    return { triggered: false };
+  }
+
+  const abstention = detectAbstention(messageText);
+  if (abstention.matched) {
+    logger.warn(
+      {
+        triggerType: winner.triggerType,
+        pattern: abstention.pattern,
+        preview: messageText.slice(0, 200),
+        messageLength: messageText.length,
+      },
+      'proactive.sweep.model_abstained',
+    );
+    // Daily cap NOT consumed. Skip send + save. The next reflective trigger
+    // (or tomorrow's natural fire) gets a fresh attempt with possibly
+    // different context.
     return { triggered: false };
   }
 
