@@ -87,14 +87,14 @@ After M009 ships, Greg has the full reflection loop: M006 trust + M007 decision 
 
 ### Synthetic Fixture Test (M009 acceptance)
 
-- [ ] **TEST-23**: 14-day synthetic fixture in `src/rituals/__tests__/synthetic-fixture.test.ts` using `vi.setSystemTime` mock-clock + `loadPrimedFixture('m009-21days')`. Tests run through full `processMessage` engine pipeline (NOT bypassing PP#5 — Pitfall 24).
-- [ ] **TEST-24**: Assertion 1 — daily prompts fire on schedule with correct rotation (no consecutive duplicates floor; no-repeat-in-last-6 strong invariant). Property-test pattern.
-- [ ] **TEST-25**: Assertion 2 — voice note responses store correctly as Pensieve entries with `epistemic_tag = RITUAL_RESPONSE` + `metadata.source_subtype = 'ritual_voice_note'`. **Cumulative `expect(mockAnthropicCreate).not.toHaveBeenCalled()` assertion** — proves PP#5 short-circuited engine response (Pitfall 6 regression test).
-- [ ] **TEST-26**: Assertion 3 — skip tracking increments on missed days (`fired_no_response` outcome) but NOT on `system_suppressed` or `window_missed` outcomes.
-- [ ] **TEST-27**: Assertion 4 — adjustment dialogue triggers after 3 consecutive daily skips OR 2 consecutive weekly skips. Cadence-aware threshold honored.
-- [ ] **TEST-28**: Assertion 5 — wellbeing snapshots store correctly when Greg responds via simulated `callback_query` (via `simulateCallbackQuery` test helper — first use of inline keyboards in test fixtures).
-- [ ] **TEST-29**: Assertion 6 — weekly review fires at week boundary with exactly **one observation** + **one Socratic question**. Both Stage-1 Zod refine AND Stage-2 Haiku judge invoked; templated fallback exercised in at least one fixture week.
-- [ ] **TEST-30**: Assertion 7 — weekly review references specific episodic summaries AND decisions from the simulated week. Date-grounding post-check passes; no out-of-window references in the observation text.
+- [x] **TEST-23**: 14-day synthetic fixture in `src/rituals/__tests__/synthetic-fixture.test.ts` using `vi.setSystemTime` mock-clock + `loadPrimedFixture('m009-21days')`. Tests run through full `processMessage` engine pipeline (NOT bypassing PP#5 — Pitfall 24).
+- [x] **TEST-24**: Assertion 1 — daily prompts fire on schedule with correct rotation (no consecutive duplicates floor; no-repeat-in-last-6 strong invariant). Property-test pattern.
+- [x] **TEST-25**: Assertion 2 — voice note responses store correctly as Pensieve entries with `epistemic_tag = RITUAL_RESPONSE` + `metadata.source_subtype = 'ritual_voice_note'`. **Cumulative `expect(mockAnthropicCreate).not.toHaveBeenCalled()` assertion** — proves PP#5 short-circuited engine response (Pitfall 6 regression test).
+- [x] **TEST-26**: Assertion 3 — skip tracking increments on missed days (`fired_no_response` outcome) but NOT on `system_suppressed` or `window_missed` outcomes.
+- [x] **TEST-27**: Assertion 4 — adjustment dialogue triggers after 3 consecutive daily skips OR 2 consecutive weekly skips. Cadence-aware threshold honored.
+- [x] **TEST-28**: Assertion 5 — wellbeing snapshots store correctly when Greg responds via simulated `callback_query` (via `simulateCallbackQuery` test helper — first use of inline keyboards in test fixtures).
+- [x] **TEST-29**: Assertion 6 — weekly review fires at week boundary with exactly **one observation** + **one Socratic question**. Both Stage-1 Zod refine AND Stage-2 Haiku judge invoked; templated fallback exercised in at least one fixture week.
+- [x] **TEST-30**: Assertion 7 — weekly review references specific episodic summaries AND decisions from the simulated week. Date-grounding post-check passes; no out-of-window references in the observation text.
 - [ ] **TEST-31**: Live integration — anti-flattery resistance against real Sonnet for weekly review observation (3-of-3 atomic, gated on `ANTHROPIC_API_KEY`, mirrors M008 TEST-22 / D038). Adversarial week fixture designed to bait flattery ("Greg crushed it this week, demonstrating his characteristic discipline"); assert generated observation contains NONE of the 17 forbidden flattery markers from M006 conventions.
 - [ ] **TEST-32**: Cron registration regression test in separate file `src/rituals/__tests__/cron-registration.test.ts` (HARD CO-LOCATION #4 — distinct from fixture test). Asserts `registerRitualCron()` called in `src/index.ts:main()` with the correct cron expression + timezone.
 
