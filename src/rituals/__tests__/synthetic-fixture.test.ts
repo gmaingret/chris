@@ -434,4 +434,128 @@ skipIfAbsent('M009 synthetic fixture (14 days; TEST-23..30)', () => {
     // Cumulative invariant in afterAll: mockAnthropicCreate.not.toHaveBeenCalled()
     // — TEST-25's contribution to the file-scope Pitfall 6 regression test.
   });
+
+  it('TEST-26: skip_count increments only on fired_no_response (not system_suppressed / window_missed)', async () => {
+    // Find the daily_journal ritual row (Phase 31 rename).
+    const [journalRitual] = await db
+      .select()
+      .from(rituals)
+      .where(eq(rituals.name, 'daily_journal'));
+    expect(journalRitual).toBeDefined();
+    const ritualId = journalRitual!.id;
+
+    const baseTime = dateAtLocalHour(fixtureDates[0]!, FIXTURE_TZ, 21, 0);
+    const dayMs = 24 * 60 * 60 * 1000;
+
+    // Insert 3 system_suppressed rows + 3 window_missed rows.
+    // computeSkipCount filters on outcome = FIRED_NO_RESPONSE, so neither
+    // of these counts should affect the projection.
+    const nonCountingRows = [
+      ...['system_suppressed', 'system_suppressed', 'system_suppressed'].map((outcome, i) => ({
+        ritualId,
+        firedAt: new Date(baseTime.getTime() + i * dayMs),
+        outcome: outcome as 'system_suppressed',
+        metadata: {},
+      })),
+      ...['window_missed', 'window_missed', 'window_missed'].map((outcome, i) => ({
+        ritualId,
+        firedAt: new Date(baseTime.getTime() + (i + 3) * dayMs),
+        outcome: outcome as 'window_missed',
+        metadata: {},
+      })),
+    ];
+    await db.insert(ritualFireEvents).values(nonCountingRows);
+
+    // Verify skip_count is 0 — non-counting outcomes don't increment.
+    const { computeSkipCount } = await import('../skip-tracking.js');
+    const skipCountBefore = await computeSkipCount(ritualId);
+    expect(
+      skipCountBefore,
+      'system_suppressed + window_missed must NOT increment skip_count',
+    ).toBe(0);
+
+    // Insert 3 fired_no_response rows.
+    await db.insert(ritualFireEvents).values(
+      ['fired_no_response', 'fired_no_response', 'fired_no_response'].map((outcome, i) => ({
+        ritualId,
+        firedAt: new Date(baseTime.getTime() + (i + 6) * dayMs),
+        outcome: outcome as 'fired_no_response',
+        metadata: {},
+      })),
+    );
+
+    const skipCountAfter = await computeSkipCount(ritualId);
+    expect(skipCountAfter, 'fired_no_response MUST increment skip_count').toBe(3);
+  });
+
+  it('TEST-27: adjustment dialogue fires after 3 daily skips (cadence-aware threshold; daily=3 per migration 0007)', async () => {
+    await parkOtherRituals();
+
+    const [journalRitual] = await db
+      .select()
+      .from(rituals)
+      .where(eq(rituals.name, 'daily_journal'));
+    expect(journalRitual).toBeDefined();
+    const ritualId = journalRitual!.id;
+
+    // Pre-set the denormalized skipCount to 3 (the threshold). Per
+    // skip-tracking.ts:188, shouldFireAdjustmentDialogue reads
+    // ritual.skipCount directly, NOT computeSkipCount(ritualId). The
+    // denormalized counter is the production hot-path; tests can either
+    // (a) emit 3 fired_no_response events through ritualResponseWindowSweep
+    // which would auto-increment, or (b) set the counter directly. (b) is
+    // simpler and isolates the predicate test from the window-sweep
+    // mechanism (which has its own test in skip-tracking.integration.test.ts).
+    await db
+      .update(rituals)
+      .set({
+        skipCount: 3,
+        nextRunAt: dateAtLocalHour(fixtureDates[3]!, FIXTURE_TZ, 21, 0),
+        lastRunAt: null,
+      })
+      .where(eq(rituals.id, ritualId));
+
+    // Day 4 sweep — should dispatch adjustment dialogue instead of journal.
+    const day4 = dateAtLocalHour(fixtureDates[3]!, FIXTURE_TZ, 21, 0);
+    vi.setSystemTime(day4);
+    await db
+      .delete(proactiveState)
+      .where(eq(proactiveState.key, 'ritual_daily_count'));
+
+    mockSendMessage.mockClear();
+    await runRitualSweep(new Date());
+
+    // Verify the sweep dispatched the adjustment dialogue path:
+    //   1. ritual_pending_responses row with metadata.kind = 'adjustment_dialogue'
+    //   2. ritual_fire_events with outcome = 'in_dialogue'
+    //   3. mockSendMessage called with the adjustment-dialogue text (NOT a
+    //      journal prompt).
+    const recentPending = await db
+      .select()
+      .from(ritualPendingResponses)
+      .orderBy(drizzleSql`fired_at DESC`)
+      .limit(1);
+    expect(recentPending[0], 'pending response row must exist').toBeDefined();
+    const meta = (recentPending[0]!.metadata as Record<string, unknown>) ?? {};
+    expect(
+      meta.kind,
+      `expected metadata.kind = 'adjustment_dialogue'; got: ${JSON.stringify(meta)}`,
+    ).toBe('adjustment_dialogue');
+
+    const inDialogueEvents = await db
+      .select()
+      .from(ritualFireEvents)
+      .where(eq(ritualFireEvents.outcome, 'in_dialogue'));
+    expect(
+      inDialogueEvents.length,
+      'ritual_fire_events emitted with outcome=in_dialogue',
+    ).toBeGreaterThanOrEqual(1);
+
+    expect(mockSendMessage, 'adjustment dialogue sent telegram message').toHaveBeenCalled();
+    const sendCalls = mockSendMessage.mock.calls;
+    const sentText = String(sendCalls[0]?.[1] ?? '');
+    expect(sentText, 'adjustment-dialogue text contains the canonical phrasing').toContain(
+      "isn't working — what should change?",
+    );
+  });
 });
