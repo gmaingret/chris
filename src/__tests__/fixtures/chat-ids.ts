@@ -26,3 +26,6 @@ export const CHAT_ID_LIVE_ACCOUNTABILITY = BigInt(99919);
 
 /** Phase 18 TEST-14 live vague-validator (src/decisions/__tests__/vague-validator-live.test.ts). */
 export const CHAT_ID_VAGUE_VALIDATOR_LIVE = BigInt(99920);
+
+/** Phase 30 TEST-23..30 M009 synthetic fixture (src/rituals/__tests__/synthetic-fixture.test.ts). */
+export const CHAT_ID_M009_SYNTHETIC_FIXTURE = BigInt(99921);

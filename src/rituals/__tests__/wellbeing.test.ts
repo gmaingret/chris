@@ -64,26 +64,7 @@ import {
 } from '../../db/schema.js';
 import { fireWellbeing, handleWellbeingCallback } from '../wellbeing.js';
 import { parseRitualConfig } from '../types.js';
-
-// ── Mock Grammy Context builder ────────────────────────────────────────────
-
-interface MockCtx {
-  callbackQuery?: { data: string; message?: { message_id: number } };
-  answerCallbackQuery: ReturnType<typeof vi.fn>;
-  editMessageReplyMarkup: ReturnType<typeof vi.fn>;
-  editMessageText: ReturnType<typeof vi.fn>;
-}
-
-function buildMockCtx(callbackData?: string, messageId = 12345): MockCtx {
-  return {
-    callbackQuery: callbackData
-      ? { data: callbackData, message: { message_id: messageId } }
-      : undefined,
-    answerCallbackQuery: vi.fn().mockResolvedValue(true),
-    editMessageReplyMarkup: vi.fn().mockResolvedValue(true),
-    editMessageText: vi.fn().mockResolvedValue(true),
-  };
-}
+import { simulateCallbackQuery } from './fixtures/simulate-callback-query.js';
 
 // ── Fixture lifecycle ──────────────────────────────────────────────────────
 
@@ -279,7 +260,7 @@ describe('wellbeing handler (Phase 27 WELL-01..05)', () => {
 
     // First tap: energy=3
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await handleWellbeingCallback(buildMockCtx('r:w:e:3') as any, 'r:w:e:3');
+    await handleWellbeingCallback(simulateCallbackQuery({ callbackData: 'r:w:e:3' }) as any, 'r:w:e:3');
     let [row] = await db
       .select()
       .from(ritualResponses)
@@ -288,7 +269,7 @@ describe('wellbeing handler (Phase 27 WELL-01..05)', () => {
 
     // Second tap: mood=4
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await handleWellbeingCallback(buildMockCtx('r:w:m:4') as any, 'r:w:m:4');
+    await handleWellbeingCallback(simulateCallbackQuery({ callbackData: 'r:w:m:4' }) as any, 'r:w:m:4');
     [row] = await db
       .select()
       .from(ritualResponses)
@@ -308,11 +289,11 @@ describe('wellbeing handler (Phase 27 WELL-01..05)', () => {
     // Docker postgres" requirement.
     await Promise.all([
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      handleWellbeingCallback(buildMockCtx('r:w:e:3') as any, 'r:w:e:3'),
+      handleWellbeingCallback(simulateCallbackQuery({ callbackData: 'r:w:e:3' }) as any, 'r:w:e:3'),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      handleWellbeingCallback(buildMockCtx('r:w:m:4') as any, 'r:w:m:4'),
+      handleWellbeingCallback(simulateCallbackQuery({ callbackData: 'r:w:m:4' }) as any, 'r:w:m:4'),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      handleWellbeingCallback(buildMockCtx('r:w:a:2') as any, 'r:w:a:2'),
+      handleWellbeingCallback(simulateCallbackQuery({ callbackData: 'r:w:a:2' }) as any, 'r:w:a:2'),
     ]);
 
     // After Promise.all, metadata.partial must have ALL 3 keys (no overwrites).
@@ -337,10 +318,10 @@ describe('wellbeing handler (Phase 27 WELL-01..05)', () => {
     await fireWellbeing(ritual!, cfg);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await handleWellbeingCallback(buildMockCtx('r:w:e:3') as any, 'r:w:e:3');
+    await handleWellbeingCallback(simulateCallbackQuery({ callbackData: 'r:w:e:3' }) as any, 'r:w:e:3');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await handleWellbeingCallback(buildMockCtx('r:w:m:4') as any, 'r:w:m:4');
-    const completionCtx = buildMockCtx('r:w:a:2');
+    await handleWellbeingCallback(simulateCallbackQuery({ callbackData: 'r:w:m:4' }) as any, 'r:w:m:4');
+    const completionCtx = simulateCallbackQuery({ callbackData: 'r:w:a:2' });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await handleWellbeingCallback(completionCtx as any, 'r:w:a:2');
 
@@ -371,7 +352,7 @@ describe('wellbeing handler (Phase 27 WELL-01..05)', () => {
     const cfg = parseRitualConfig(ritual!.config);
     await fireWellbeing(ritual!, cfg);
 
-    const skipCtx = buildMockCtx('r:w:skip');
+    const skipCtx = simulateCallbackQuery({ callbackData: 'r:w:skip' });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await handleWellbeingCallback(skipCtx as any, 'r:w:skip');
 
@@ -414,13 +395,13 @@ describe('wellbeing handler (Phase 27 WELL-01..05)', () => {
     await fireWellbeing(ritual!, cfg);
 
     // Invalid: out-of-range value (1-5 only).
-    const ctx1 = buildMockCtx('r:w:e:6');
+    const ctx1 = simulateCallbackQuery({ callbackData: 'r:w:e:6' });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await handleWellbeingCallback(ctx1 as any, 'r:w:e:6');
     expect(ctx1.answerCallbackQuery).toHaveBeenCalled();
 
     // Invalid: unknown dim (e/m/a only).
-    const ctx2 = buildMockCtx('r:w:x:3');
+    const ctx2 = simulateCallbackQuery({ callbackData: 'r:w:x:3' });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await handleWellbeingCallback(ctx2 as any, 'r:w:x:3');
     expect(ctx2.answerCallbackQuery).toHaveBeenCalled();
