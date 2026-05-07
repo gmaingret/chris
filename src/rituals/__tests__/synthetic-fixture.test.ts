@@ -143,9 +143,21 @@ void CHAT_ID_M009_SYNTHETIC_FIXTURE;
 
 // 14-day mock-clock window anchored to 2026-04-15 (Wed) → 2026-04-28 (Tue).
 // Contains exactly 2 Sundays (2026-04-19 + 2026-04-26) inside the m009-21days
-// fixture's organic date range (2026-04-15 .. 2026-05-10), so substrate +
-// fixture data align for TEST-29 weekly-review fires.
+// fixture's organic date range (2026-04-15 .. 2026-05-10).
+// (TEST-29 separately uses 2026-05-10 — the only Sunday with substrate
+// available — see WEEKLY_REVIEW_SUNDAY_ISO below.)
 const FIXTURE_WINDOW_START_ISO = '2026-04-15';
+// TEST-29 weekly-review fire date: 2026-05-10 is the only Sunday with
+// fixture-substrate availability (4 episodic_summaries 2026-05-07..2026-05-10
+// + 5 decisions resolved 2026-05-06..2026-05-07 are all in the past-7-day
+// window of a 2026-05-10 fire, so loadWeeklyReviewContext returns non-empty
+// → fireWeeklyReview does NOT short-circuit on no_data). The 2026-04-19 /
+// 2026-04-26 Sundays in the main fixture window have zero substrate in their
+// past-7-day windows and would short-circuit. TEST-29 exercises both
+// happy-path (week 1) and fallback path (week 2) on the SAME 2026-05-10
+// fire by resetting state between, since the fixture only contains one
+// usable Sunday — see Plan 30-02 SUMMARY for the executor-level decision.
+const WEEKLY_REVIEW_SUNDAY_ISO = '2026-05-10';
 
 // Skip the entire describe block if the fixture is missing (Plan 30-01
 // dependency — print a regeneration hint per primed-sanity.test.ts:43-49).
@@ -566,6 +578,21 @@ skipIfAbsent('M009 synthetic fixture (14 days; TEST-23..30)', () => {
     );
   });
 
+  /**
+   * Helper — reset weekly_review's lastRunAt to null so a second sweep tick
+   * on the same Sunday can re-fire (production lock prevents same-day repeat;
+   * test bypasses by clearing the lock).
+   */
+  async function resetWeeklyReviewForReFire(when: Date): Promise<void> {
+    await db
+      .update(rituals)
+      .set({ nextRunAt: when, lastRunAt: null })
+      .where(eq(rituals.name, 'weekly_review'));
+    await db
+      .delete(proactiveState)
+      .where(eq(proactiveState.key, 'ritual_daily_count'));
+  }
+
   it('TEST-28: wellbeing snapshots persist via simulateCallbackQuery callback_query handler', { timeout: 30_000 }, async () => {
     // Park journal + weekly so the sweep picks daily_wellbeing exclusively.
     await parkRituals('daily_journal', 'weekly_review');
@@ -663,4 +690,150 @@ skipIfAbsent('M009 synthetic fixture (14 days; TEST-23..30)', () => {
     expect(day1Snap?.mood, 'day1 mood').toBe(1);
     expect(day1Snap?.anxiety, 'day1 anxiety').toBe(5);
   });
+
+  it(
+    'TEST-29 + TEST-30: weekly review Stage-1 + Stage-2 + date-grounding (happy path) + templated fallback (compound-question retry path)',
+    { timeout: 30_000 },
+    async () => {
+      // Park journal + wellbeing so the sweep picks weekly_review exclusively.
+      await parkRituals('daily_journal', 'daily_wellbeing');
+
+      // Verify the weekly_review fire date is a Sunday (Pitfall 9 — ISO 7).
+      expect(
+        isSunday(WEEKLY_REVIEW_SUNDAY_ISO),
+        `${WEEKLY_REVIEW_SUNDAY_ISO} must be a Sunday (ISO weekday 7)`,
+      ).toBe(true);
+
+      const sundayAt2000 = dateAtLocalHour(WEEKLY_REVIEW_SUNDAY_ISO, FIXTURE_TZ, 20, 0);
+      vi.setSystemTime(sundayAt2000);
+
+      // ── Week 1: happy path ────────────────────────────────────────────
+      // Queue 3 mockResolvedValueOnce calls per RESEARCH §Pattern 4 + D-30-06:
+      //   1. Stage-1 Sonnet — single-question observation
+      //   2. Stage-2 Haiku judge — { question_count: 1, questions: [...] }
+      //   3. Date-grounding Haiku — { references_outside_window: false,
+      //      dates_referenced: [WEEKLY_REVIEW_SUNDAY_ISO] }
+      mockAnthropicParse.mockReset();
+      // Sonnet returns its zod-parsed structured output as `parsed_output`.
+      // The observation must be ≥20 chars (WeeklyReviewSchema.observation
+      // min(20)) and the question must be exactly 1 '?' + ≤1 interrogative
+      // leading word for Stage-1 to pass.
+      const week1Observation = `This week (${WEEKLY_REVIEW_SUNDAY_ISO}) you wrestled with a hard refactoring stretch.`;
+      mockAnthropicParse.mockResolvedValueOnce({
+        parsed_output: {
+          observation: week1Observation,
+          question: 'What stood out to you?',
+        },
+      });
+      mockAnthropicParse.mockResolvedValueOnce({
+        parsed_output: { question_count: 1, questions: ['What stood out to you?'] },
+      });
+      mockAnthropicParse.mockResolvedValueOnce({
+        parsed_output: {
+          references_outside_window: false,
+          dates_referenced: [WEEKLY_REVIEW_SUNDAY_ISO],
+        },
+      });
+
+      await resetWeeklyReviewForReFire(sundayAt2000);
+      mockSendMessage.mockClear();
+      mockLoggerWarn.mockClear();
+      await runRitualSweep(new Date());
+
+      // Assert Stage-1 + Stage-2 + date-grounding all invoked (3 parse calls).
+      expect(
+        mockAnthropicParse,
+        'Stage-1 + Stage-2 + date-grounding = 3 parse calls (week 1 happy path)',
+      ).toHaveBeenCalledTimes(3);
+
+      // Assert message sent contains the observation text (renders into the
+      // user-facing payload via WEEKLY_REVIEW_HEADER + observation + question).
+      const week1SendCalls = mockSendMessage.mock.calls;
+      expect(
+        week1SendCalls.length,
+        'weekly review sent ≥1 telegram message in happy path',
+      ).toBeGreaterThanOrEqual(1);
+      const week1MessageText = String(week1SendCalls[0]?.[1] ?? '');
+      expect(week1MessageText, 'rendered message contains observation').toContain(
+        'refactoring stretch',
+      );
+
+      // TEST-30: assert pensieve_entries row with metadata.kind='weekly_review'
+      // exists, and the persisted observation text references the in-window
+      // date (the date-grounding mock returned references_outside_window:false
+      // proving the post-check ran).
+      const weeklyReviewEntries = await db
+        .select()
+        .from(pensieveEntries)
+        .where(eq(pensieveEntries.epistemicTag, 'RITUAL_RESPONSE'));
+      const weeklyEntry = weeklyReviewEntries.find((e) => {
+        const meta = (e.metadata as Record<string, unknown>) ?? {};
+        return meta.kind === 'weekly_review';
+      });
+      expect(
+        weeklyEntry,
+        "TEST-30: pensieve_entries row with metadata.kind='weekly_review'",
+      ).toBeDefined();
+      const obsText = String(weeklyEntry?.content ?? '');
+      expect(
+        obsText,
+        `TEST-30: observation references in-window date (${WEEKLY_REVIEW_SUNDAY_ISO})`,
+      ).toContain(WEEKLY_REVIEW_SUNDAY_ISO);
+
+      // ── Week 2: templated fallback path ───────────────────────────────
+      // Re-fire on the SAME Sunday (the m009-21days fixture only has one
+      // Sunday with substrate availability — 2026-05-10 — see
+      // WEEKLY_REVIEW_SUNDAY_ISO docblock for the executor-level decision).
+      // Queue 3 compound-question Sonnet responses — each fails Stage-1
+      // INTERROGATIVE_REGEX (2 leading words) → ZodError → retry. After
+      // MAX_RETRIES (=2) the loop exits with attempts === 3 → fallback fires.
+      // Stage-2 / date-grounding are NEVER invoked in the fallback path
+      // because Stage-1 throws first; only 3 parse calls total.
+      mockAnthropicParse.mockReset();
+      for (let attempt = 0; attempt < 3; attempt++) {
+        mockAnthropicParse.mockResolvedValueOnce({
+          parsed_output: {
+            observation: `Week ${WEEKLY_REVIEW_SUNDAY_ISO} compound observation #${attempt}.`,
+            question: 'What surprised you? Or what felt familiar?',
+          },
+        });
+      }
+
+      // Cleanup the week-1 ritual_responses + pensieve_entries so week-2
+      // assertions read fresh state. Preserve fixture organic data.
+      await db.delete(ritualResponses);
+      await db
+        .delete(pensieveEntries)
+        .where(eq(pensieveEntries.epistemicTag, 'RITUAL_RESPONSE'));
+      await db.delete(ritualFireEvents);
+
+      await resetWeeklyReviewForReFire(sundayAt2000);
+      mockSendMessage.mockClear();
+      mockLoggerWarn.mockClear();
+      await runRitualSweep(new Date());
+
+      // Assert fallback log line emitted exactly once (per
+      // src/rituals/weekly-review.ts:467-470: logger.warn with
+      // 'chris.weekly-review.fallback-fired' and { attempts: MAX_RETRIES + 1 }).
+      const fallbackLogCalls = mockLoggerWarn.mock.calls.filter(
+        (c) => c[1] === 'chris.weekly-review.fallback-fired',
+      );
+      expect(fallbackLogCalls.length, 'fallback log line emitted exactly once').toBe(1);
+      const fallbackLogObj = fallbackLogCalls[0]?.[0] as { attempts?: number } | undefined;
+      expect(fallbackLogObj?.attempts, 'attempts === MAX_RETRIES + 1 (3)').toBe(3);
+
+      // Assert sent message contains the templated fallback question per
+      // weekly-review.ts:358 TEMPLATED_FALLBACK_EN constant.
+      const week2SendCalls = mockSendMessage.mock.calls;
+      expect(
+        week2SendCalls.length,
+        'fallback path still sends a telegram message',
+      ).toBeGreaterThanOrEqual(1);
+      const week2MessageText = String(week2SendCalls[0]?.[1] ?? '');
+      expect(
+        week2MessageText,
+        'fallback message uses TEMPLATED_FALLBACK_EN question',
+      ).toContain('What stood out to you about this week?');
+    },
+  );
 });
