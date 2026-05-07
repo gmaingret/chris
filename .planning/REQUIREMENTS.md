@@ -81,9 +81,9 @@ After M009 ships, Greg has the full reflection loop: M006 trust + M007 decision 
 
 ### HARN-03 Fixture Refresh (Carry-In #2)
 
-- [ ] **HARN-04**: Run `scripts/regenerate-primed.ts --milestone m009 --target-days 21 --force` against fresh prod data. Resulting `tests/fixtures/primed/m009-21days/MANIFEST.json` materialized. HARN-03 4 sanity assertions flip from 2/4 fail to 4/4 pass (≥7 summaries → easily ≥21; ≥200 entries → easily met by 21-day window).
-- [ ] **HARN-05**: Document VCR cost model — bumping `--target-days` without reseeding VCR cache → runaway Anthropic spend. Add explicit `--reseed-vcr` flag to `regenerate-primed.ts` that clears VCR cache before re-run; default behavior preserves cache + warns on missing entries. Add note to `.planning/codebase/TESTING.md`.
-- [ ] **HARN-06**: HARN-03 5th sanity invariant — assert `wellbeing_snapshots` table populated with ≥14 days of synthetic data (will become "≥14 actual days" once M009 ships and cron fires). Codifies the new M009 substrate as a fixture invariant.
+- [x] **HARN-04**: Run `scripts/regenerate-primed.ts --milestone m009 --target-days 21 --force` against fresh prod data. Resulting `tests/fixtures/primed/m009-21days/MANIFEST.json` materialized. HARN-03 4 sanity assertions flip from 2/4 fail to 4/4 pass (≥7 summaries → easily ≥21; ≥200 entries → easily met by 21-day window).
+- [x] **HARN-05**: Document VCR cost model — bumping `--target-days` without reseeding VCR cache → runaway Anthropic spend. Add explicit `--reseed-vcr` flag to `regenerate-primed.ts` that clears VCR cache before re-run; default behavior preserves cache + warns on missing entries. Add note to `.planning/codebase/TESTING.md`.
+- [x] **HARN-06**: HARN-03 5th sanity invariant — assert `wellbeing_snapshots` table populated with ≥14 days of synthetic data (will become "≥14 actual days" once M009 ships and cron fires). Codifies the new M009 substrate as a fixture invariant.
 
 ### Synthetic Fixture Test (M009 acceptance)
 
