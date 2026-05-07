@@ -53,6 +53,7 @@ export interface Args {
   seed: number;
   force: boolean;
   noRefresh: boolean;
+  reseedVcr: boolean; // HARN-05
 }
 
 export function parseCliArgs(argv: string[]): Args {
@@ -62,6 +63,7 @@ export function parseCliArgs(argv: string[]): Args {
     seed?: string;
     force?: boolean;
     'no-refresh'?: boolean;
+    'reseed-vcr'?: boolean;
     help?: boolean;
   };
   try {
@@ -73,6 +75,7 @@ export function parseCliArgs(argv: string[]): Args {
         seed: { type: 'string', default: '42' },
         force: { type: 'boolean', default: false },
         'no-refresh': { type: 'boolean', default: false },
+        'reseed-vcr': { type: 'boolean', default: false },
         help: { type: 'boolean', default: false },
       },
       strict: true,
@@ -116,12 +119,13 @@ export function parseCliArgs(argv: string[]): Args {
     seed,
     force: values.force ?? false,
     noRefresh: values['no-refresh'] ?? false,
+    reseedVcr: values['reseed-vcr'] ?? false, // HARN-05
   };
 }
 
 function printUsage(): void {
   console.log(
-    'Usage: npx tsx scripts/regenerate-primed.ts --milestone <name> [--target-days 14] [--seed 42] [--force] [--no-refresh]',
+    'Usage: npx tsx scripts/regenerate-primed.ts --milestone <name> [--target-days 14] [--seed 42] [--force] [--no-refresh] [--reseed-vcr]',
   );
   console.log(
     '  Composer: fetch-prod-data.ts → synthesize-delta.ts → synthesize-episodic.ts.',
@@ -131,6 +135,9 @@ function printUsage(): void {
   );
   console.log(
     '  --no-refresh passes through to synthesize-delta.ts only (FRESH-02).',
+  );
+  console.log(
+    '  --reseed-vcr clears tests/fixtures/.vcr before re-run (HARN-05).',
   );
 }
 
@@ -195,6 +202,18 @@ export async function main(): Promise<void> {
     const { isSnapshotStale } = await import(
       '../src/__tests__/fixtures/freshness.js'
     );
+
+    // HARN-05: --reseed-vcr wipes the entire VCR cache BEFORE the fetch +
+    // synth-delta + synth-episodic chain runs. Plain `rm` of the directory —
+    // do NOT manipulate the SDK reference (vcr.ts:46-47 snapshots
+    // ORIGINAL_PARSE / ORIGINAL_CREATE at module load; tampering with the
+    // SDK property triggers the recursive-self-call infinite loop documented
+    // at vcr.ts:38-45). RESEARCH Pitfall 11.
+    if (args.reseedVcr) {
+      logger.info({}, 'regenerate-primed.vcr.reseed');
+      const { rm } = await import('node:fs/promises');
+      await rm('tests/fixtures/.vcr', { recursive: true, force: true });
+    }
 
     // Step 1: fetch (force OR stale)
     const latestPath = 'tests/fixtures/prod-snapshot/LATEST';
