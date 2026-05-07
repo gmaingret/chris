@@ -1,14 +1,11 @@
 /**
- * src/rituals/__tests__/live-weekly-review.test.ts — Phase 29 Plan 04 SCAFFOLD
+ * src/rituals/__tests__/live-weekly-review.test.ts — Phase 29 Plan 04 +
+ * Phase 30 Plan 04 (TEST-31, HARD CO-LOC #6, dual-gated live execution).
  *
- * PHASE-30: enable in TEST-31 (HARD CO-LOC #6).
- *
- * Phase 29 Plan 04 ships this test FILE with skipIf(!ANTHROPIC_API_KEY) gating.
- * Phase 30 TEST-31 owns LIVE EXECUTION:
- *   1. Add 'src/rituals/__tests__/live-weekly-review.test.ts' to the
- *      excluded-suite list in scripts/test.sh (becomes 6-file from 5-file)
- *   2. Set ANTHROPIC_API_KEY in CI env
- *   3. Optionally remove the // PHASE-30 marker comment
+ * Phase 29 Plan 04 shipped this test FILE with single-gate `skipIf(!ANTHROPIC_API_KEY)`.
+ * Phase 30 Plan 04 (commit 4b25cb98ish) flipped the gate to dual-gate per D-30-03
+ * cost discipline: `skipIf(!RUN_LIVE_TESTS || !ANTHROPIC_API_KEY)` — see active block
+ * below at the `describe.skipIf(...)` call site.
  *
  * Per Pitfall 17 + 26 + HARD CO-LOC #6:
  *   - 3-of-3 atomic against real Sonnet (mirrors M008 TEST-22 / D038)
