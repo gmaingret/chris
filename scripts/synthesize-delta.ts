@@ -423,15 +423,28 @@ async function generateWellbeingIfTableExists(
       return [];
     }
 
-    // Generate N rows with 1..5 distribution via Mulberry32
+    // Generate N rows with 1..5 distribution via Mulberry32. Schema must
+    // match `wellbeing_snapshots` columns landed in Phase 25 migration 0006:
+    // (id, snapshot_date, energy, mood, anxiety, notes, created_at). Phase 24
+    // (this script's original author) wrote against the speculative
+    // {score, note, recorded_at} shape that never shipped. Phase 30-01
+    // discovered the drift while running `loadPrimedFixture('m009-21days')`
+    // for the HARN-04/HARN-06 sanity gate; this fix is part of the Phase 32
+    // synth-substrate hardening backlog (ROADMAP.md Phase 32 items #3-#5).
     const rng = mulberry32((seed + 44000) >>> 0);
     const rows: Record<string, unknown>[] = [];
     for (let d = 0; d < days; d++) {
+      const snapshotDate = new Date(Date.UTC(2026, 3, 20 + d));
+      // Format as YYYY-MM-DD (Postgres `date` column accepts ISO YMD).
+      const isoDate = snapshotDate.toISOString().slice(0, 10);
       rows.push({
         id: deterministicUuid(seed + 55000 + d),
-        score: 1 + Math.floor(rng() * 5),
-        note: `synthetic wellbeing day ${d}`,
-        recorded_at: new Date(Date.UTC(2026, 3, 20 + d, 12, 0, 0)).toISOString(),
+        snapshot_date: isoDate,
+        energy: 1 + Math.floor(rng() * 5),
+        mood: 1 + Math.floor(rng() * 5),
+        anxiety: 1 + Math.floor(rng() * 5),
+        notes: `synthetic wellbeing day ${d}`,
+        created_at: new Date(Date.UTC(2026, 3, 20 + d, 12, 0, 0)).toISOString(),
       });
     }
     return rows;
