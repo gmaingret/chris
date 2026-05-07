@@ -114,10 +114,12 @@ import {
   proactiveState,
 } from '../../db/schema.js';
 import { runRitualSweep } from '../scheduler.js';
+import { handleWellbeingCallback } from '../wellbeing.js';
 import { processMessage } from '../../chris/engine.js';
 import { loadPrimedFixture } from '../../__tests__/fixtures/load-primed.js';
 import { CHAT_ID_M009_SYNTHETIC_FIXTURE } from '../../__tests__/fixtures/chat-ids.js';
 import { config } from '../../config.js';
+import { simulateCallbackQuery } from './fixtures/simulate-callback-query.js';
 
 // ── 4. Constants ────────────────────────────────────────────────────────
 const FIXTURE_NAME = 'm009-21days';
@@ -264,16 +266,21 @@ skipIfAbsent('M009 synthetic fixture (14 days; TEST-23..30)', () => {
   });
 
   /**
-   * Helper — park wellbeing + weekly_review rituals in the far future so
-   * runRitualSweep's "oldest due ritual first" SELECT picks daily_journal
-   * (the test focus). Per-test invocation; preserves journal's next_run_at.
+   * Helper — park named rituals in the far future so runRitualSweep's
+   * "oldest due ritual first" SELECT picks the test's intended ritual.
+   * Resets lastRunAt to null so the parked rituals can re-fire if the
+   * test later un-parks them.
    */
-  async function parkOtherRituals(): Promise<void> {
+  async function parkRituals(...names: string[]): Promise<void> {
     const farFuture = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
     await db
       .update(rituals)
-      .set({ nextRunAt: farFuture })
-      .where(inArray(rituals.name, ['daily_wellbeing', 'weekly_review']));
+      .set({ nextRunAt: farFuture, lastRunAt: null })
+      .where(inArray(rituals.name, names));
+  }
+  /** Convenience: park everything except daily_journal (Tasks 3-4 callsites). */
+  async function parkOtherRituals(): Promise<void> {
+    await parkRituals('daily_wellbeing', 'weekly_review');
   }
 
   it('TEST-24: prompt rotation across 14 journal fires (no consecutive duplicates; no-repeat-in-last-6)', { timeout: 60_000 }, async () => {
@@ -557,5 +564,103 @@ skipIfAbsent('M009 synthetic fixture (14 days; TEST-23..30)', () => {
     expect(sentText, 'adjustment-dialogue text contains the canonical phrasing').toContain(
       "isn't working — what should change?",
     );
+  });
+
+  it('TEST-28: wellbeing snapshots persist via simulateCallbackQuery callback_query handler', { timeout: 30_000 }, async () => {
+    // Park journal + weekly so the sweep picks daily_wellbeing exclusively.
+    await parkRituals('daily_journal', 'weekly_review');
+
+    const [wbRitual] = await db
+      .select()
+      .from(rituals)
+      .where(eq(rituals.name, 'daily_wellbeing'));
+    expect(wbRitual).toBeDefined();
+    const wbId = wbRitual!.id;
+
+    // Day 0: fire wellbeing at 09:00, then simulate 3 callback taps.
+    const day0 = fixtureDates[0]!;
+    vi.setSystemTime(dateAtLocalHour(day0, FIXTURE_TZ, 9, 0));
+    await db
+      .update(rituals)
+      .set({ nextRunAt: new Date(), lastRunAt: null })
+      .where(eq(rituals.id, wbId));
+    await db
+      .delete(proactiveState)
+      .where(eq(proactiveState.key, 'ritual_daily_count'));
+    await runRitualSweep(new Date());
+
+    // Verify the open ritual_responses row was inserted by fireWellbeing.
+    const [day0OpenRow] = await db
+      .select()
+      .from(ritualResponses)
+      .where(eq(ritualResponses.ritualId, wbId))
+      .orderBy(drizzleSql`fired_at DESC`)
+      .limit(1);
+    expect(day0OpenRow, 'fireWellbeing inserted ritual_responses row for day 0').toBeDefined();
+
+    // Simulate 3 button taps (energy=3, mood=4, anxiety=2).
+    // Callback data shape per Phase 27 wellbeing.ts: 'r:w:e:N' / 'r:w:m:N' / 'r:w:a:N'.
+    // The 3rd tap completes the snapshot → wellbeing_snapshots row written.
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    await handleWellbeingCallback(
+      simulateCallbackQuery({ callbackData: 'r:w:e:3' }) as any,
+      'r:w:e:3',
+    );
+    await handleWellbeingCallback(
+      simulateCallbackQuery({ callbackData: 'r:w:m:4' }) as any,
+      'r:w:m:4',
+    );
+    await handleWellbeingCallback(
+      simulateCallbackQuery({ callbackData: 'r:w:a:2' }) as any,
+      'r:w:a:2',
+    );
+    /* eslint-enable @typescript-eslint/no-explicit-any */
+
+    // Day 1: same flow with different values (e=5, m=1, a=5).
+    const day1 = fixtureDates[1]!;
+    vi.setSystemTime(dateAtLocalHour(day1, FIXTURE_TZ, 9, 0));
+    await db
+      .update(rituals)
+      .set({ nextRunAt: new Date(), lastRunAt: null })
+      .where(eq(rituals.id, wbId));
+    await db
+      .delete(proactiveState)
+      .where(eq(proactiveState.key, 'ritual_daily_count'));
+    await runRitualSweep(new Date());
+
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    await handleWellbeingCallback(
+      simulateCallbackQuery({ callbackData: 'r:w:e:5' }) as any,
+      'r:w:e:5',
+    );
+    await handleWellbeingCallback(
+      simulateCallbackQuery({ callbackData: 'r:w:m:1' }) as any,
+      'r:w:m:1',
+    );
+    await handleWellbeingCallback(
+      simulateCallbackQuery({ callbackData: 'r:w:a:5' }) as any,
+      'r:w:a:5',
+    );
+    /* eslint-enable @typescript-eslint/no-explicit-any */
+
+    // Assert: 2 wellbeing_snapshots rows (one per day) with correct values.
+    // Drizzle `date` columns return strings ('YYYY-MM-DD') under postgres-js;
+    // String() coercion handles both Date and string return shapes.
+    const snapshots = await db
+      .select()
+      .from(wellbeingSnapshots)
+      .orderBy(wellbeingSnapshots.snapshotDate);
+    expect(snapshots.length, 'expected ≥2 wellbeing_snapshots rows').toBeGreaterThanOrEqual(2);
+
+    const day0Snap = snapshots.find((s) => String(s.snapshotDate) === day0);
+    const day1Snap = snapshots.find((s) => String(s.snapshotDate) === day1);
+    expect(day0Snap, `day0 (${day0}) snapshot exists`).toBeDefined();
+    expect(day1Snap, `day1 (${day1}) snapshot exists`).toBeDefined();
+    expect(day0Snap?.energy, 'day0 energy').toBe(3);
+    expect(day0Snap?.mood, 'day0 mood').toBe(4);
+    expect(day0Snap?.anxiety, 'day0 anxiety').toBe(2);
+    expect(day1Snap?.energy, 'day1 energy').toBe(5);
+    expect(day1Snap?.mood, 'day1 mood').toBe(1);
+    expect(day1Snap?.anxiety, 'day1 anxiety').toBe(5);
   });
 });
