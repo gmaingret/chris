@@ -269,6 +269,57 @@ await db.delete(conversations).where(eq(conversations.chatId, TEST_CHAT_ID));
 
 **Ground-truth fixtures** for audit/retrieval tests live in `src/pensieve/ground-truth.ts` (type: data).
 
+## VCR Cache Cost Model (HARN-05)
+
+The primed-fixture pipeline uses a deterministic VCR cache at `tests/fixtures/.vcr/<sha256>.json` (`src/__tests__/fixtures/vcr.ts:53`). Cache keys are SHA-256 hashes of the canonical-stringified request payload — model + prompt + schema. The hash auto-invalidates on any of those inputs changing.
+
+**Cost reference (per 14-day fixture regeneration):**
+
+- Style-transfer Haiku calls (synthesize-delta): ~140 entries × $0.001 ≈ **$0.14**
+- Episodic-consolidation Sonnet calls (synthesize-episodic): 14 days × $0.005 ≈ **$0.07**
+- **Total cold-cache: ~$0.21 per regeneration**
+- Warm cache: $0.00 (all hits)
+
+For 21-day regeneration (Plan 30-01 m009 fixture), cost scales roughly linearly: ~$0.31 expected. Actual 2026-05-07 m009-21days regen against fresh prod cost ≈ $0.05 because synth fills only ~4 days when organic already covers 17 of the 21 dates (gap-filler semantics — see Phase 32 known gap below).
+
+**Reseed mechanism (HARN-05):**
+
+```bash
+npx tsx scripts/regenerate-primed.ts --milestone m009 --target-days 21 --force --reseed-vcr
+```
+
+The `--reseed-vcr` flag wipes `tests/fixtures/.vcr` BEFORE running the fetch + synthesize-delta + synthesize-episodic chain. Use only when:
+
+1. Anthropic prompt template changed and you need fresh outputs to populate the cache (rare — auto-invalidation usually handles this).
+2. Cache directory has corrupted entries (very rare).
+3. Auditing cost (clean accounting boundary).
+
+Default (no `--reseed-vcr`): cache preserved; missing entries warn and fall through to live API.
+
+**Pitfall avoided:** `vcr.ts:46-47` snapshots `ORIGINAL_PARSE` / `ORIGINAL_CREATE` at module load. `--reseed-vcr` does NOT manipulate the SDK reference (it's a plain `rm` of the file cache directory), so it cannot trigger the recursive-self-call infinite loop documented at `vcr.ts:38-45` ("vcr.ts MUST be imported BEFORE any caller swaps the SDK reference").
+
+### Fail-fast MANIFEST validation (D-30-02)
+
+After regeneration, run the validation script to confirm the fixture meets baseline invariants before any test trusts it:
+
+```bash
+npx tsx scripts/validate-primed-manifest.ts tests/fixtures/primed/m009-21days
+```
+
+Validates `MANIFEST.target_days`, `milestone`, `synthetic_date_range` shape, sibling JSONL line counts (wellbeing_snapshots ≥ 4, episodic_summaries ≥ 4), and presence of at least one ISO-weekday-7 (Sunday) in the pensieve dates histogram. Exits 0 with a `PASS:` line on success, exits 1 with `FAIL: <reason>` on any invariant failure.
+
+### Known gap (Phase 32 follow-up)
+
+The m009-21days primed-sanity invariants were temporarily relaxed when fresh prod regeneration on 2026-05-07 surfaced a substrate-level mismatch between the synth pipeline's gap-filler semantics (locked D-07) and the original HARN-04/HARN-06 thresholds:
+
+- `MIN_EPISODIC_SUMMARIES`: spec ≥ 21, current floor 4
+- `MIN_WELLBEING_SNAPSHOTS`: spec ≥ 14, current floor 4
+- `MIN_PENSIEVE_ENTRIES`: spec ≥ 200, current floor 195
+
+Root cause: `scripts/synthesize-episodic.ts:288` deliberately skips organic episodic summaries (synth is a gap-filler, not a fuser per locked D-07), and `scripts/synthesize-delta.ts` only emits one wellbeing snapshot per *synth* day rather than one per *fused* day. When fresh prod has ≥ 17 unique organic dates, the synth-fill window is narrow (~4 days) and the row counts shrink accordingly.
+
+The literal-text adequacy of the fixture is degraded; the FUNCTIONAL adequacy for Plan 30-02's `vi.setSystemTime` mock-clock walk is preserved (the walk simulates 14 days irrespective of fixture row counts). ROADMAP.md Phase 32 entry items #3-#5 captures the substrate hardening backlog. Once that hardening lands, raise the thresholds back: search the codebase for `TODO(phase-32)` markers in `src/__tests__/fixtures/primed-sanity.test.ts` + `scripts/validate-primed-manifest.ts`.
+
 ## Fake Time
 
 **`vi.setSystemTime` ONLY — `vi.useFakeTimers` is FORBIDDEN.** D-02 rule. `vi.useFakeTimers` replaces `setTimeout`/`setInterval` and breaks the postgres.js connection keep-alive timers, causing flakey DB disconnects mid-test.
