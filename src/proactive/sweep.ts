@@ -45,6 +45,7 @@ import { createSilenceTrigger } from './triggers/silence.js';
 import { createCommitmentTrigger } from './triggers/commitment.js';
 import { createDeadlineTrigger } from './triggers/deadline.js';
 import { buildSweepContext } from './context-builder.js';
+import { buildMessageHistory } from '../memory/context-builder.js';
 import { runOpusAnalysis } from './triggers/opus-analysis.js';
 import { createPatternTrigger } from './triggers/pattern.js';
 import { createThreadTrigger } from './triggers/thread.js';
@@ -519,11 +520,35 @@ async function runReflectiveChannel(
     'proactive.sweep.trigger',
   );
 
-  // Generate message via Sonnet using PROACTIVE_SYSTEM_PROMPT
+  // Generate message via Sonnet using PROACTIVE_SYSTEM_PROMPT.
+  //
+  // Phase 32 #1: inject real conversation history as proper alternating-role
+  // messages instead of referring to a fictional "Recent Conversation section"
+  // in the system prompt. This gives Sonnet (a) ground truth about what was
+  // actually discussed (defeats the false-absence framing failure mode) and
+  // (b) visibility into its OWN past openers in the past 7d via the assistant
+  // turns, which the prompt's anti-repetition rule operates on.
+  //
+  // Conversation history is required to end with a `user` turn for the
+  // Anthropic API. The trigger context is appended as a synthetic `user`
+  // message. If history is empty or ends with `assistant`, this still works
+  // because the trigger context is the final user turn either way.
   const todayLine = formatTodayLine(getTodayInTimezone(config.proactiveTimezone));
   const systemPrompt = PROACTIVE_SYSTEM_PROMPT
     .replace('{today}', todayLine)
     .replace('{triggerContext}', winner.context);
+
+  const history = await buildMessageHistory(BigInt(config.telegramAuthorizedUserId), 20);
+  // Append the trigger context as the final user turn. If history already ends
+  // with a `user` turn, merge to keep the alternating-role contract (Anthropic
+  // API rejects two consecutive same-role messages).
+  const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [...history];
+  const lastTurn = messages[messages.length - 1];
+  if (lastTurn && lastTurn.role === 'user') {
+    lastTurn.content = `${lastTurn.content}\n\n${winner.context}`;
+  } else {
+    messages.push({ role: 'user', content: winner.context });
+  }
 
   const response = await anthropic.messages.create({
     model: SONNET_MODEL,
@@ -535,12 +560,7 @@ async function runReflectiveChannel(
         cache_control: { type: 'ephemeral' },
       },
     ],
-    messages: [
-      {
-        role: 'user',
-        content: winner.context,
-      },
-    ],
+    messages,
   });
 
   const firstBlock = response.content[0];

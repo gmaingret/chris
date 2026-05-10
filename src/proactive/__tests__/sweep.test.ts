@@ -14,6 +14,7 @@ const {
   mockSendMessage,
   mockCreate,
   mockSaveMessage,
+  mockGetRecentHistory,
   mockBuildSweepContext,
   mockRunOpusAnalysis,
   mockPatternDetect,
@@ -42,6 +43,7 @@ const {
   mockSendMessage: vi.fn(),
   mockCreate: vi.fn(),
   mockSaveMessage: vi.fn(),
+  mockGetRecentHistory: vi.fn().mockResolvedValue([]),
   mockBuildSweepContext: vi.fn(),
   mockRunOpusAnalysis: vi.fn(),
   mockPatternDetect: vi.fn(),
@@ -110,6 +112,7 @@ vi.mock('../../llm/client.js', () => ({
 
 vi.mock('../../memory/conversation.js', () => ({
   saveMessage: mockSaveMessage,
+  getRecentHistory: mockGetRecentHistory,
 }));
 
 vi.mock('../../config.js', () => ({
@@ -280,6 +283,7 @@ describe('proactive sweep', () => {
     mockSetLastSentAccountability.mockResolvedValue(undefined);
     mockSendMessage.mockResolvedValue(undefined);
     mockSaveMessage.mockResolvedValue(undefined);
+    mockGetRecentHistory.mockResolvedValue([]);
     mockUpsertAwaitingResolution.mockResolvedValue(undefined);
     // Default: deadline trigger doesn't fire
     mockDeadlineDetect.mockResolvedValue({
