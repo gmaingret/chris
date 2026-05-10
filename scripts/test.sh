@@ -41,6 +41,13 @@ if [ "$ready" -ne 1 ]; then
   exit 1
 fi
 
+# Phase 32 #3 — CI monotonic-`when` guardrail. Catches stale-`when` typos in
+# src/db/migrations/meta/_journal.json before they break drizzle apply order.
+# Runs BEFORE migrations apply so a journal-level mistake fails fast and does
+# not corrupt the test database with a half-applied or out-of-order schema.
+echo "🔍 Verifying migrations journal monotonicity (Phase 32 #3)..."
+npx tsx scripts/validate-journal-monotonic.ts
+
 echo "📦 Running migrations..."
 # -v ON_ERROR_STOP=1 forces psql to exit non-zero on SQL errors (without it,
 # psql exits 0 even on failure, which defeats `set -euo pipefail` and silently
