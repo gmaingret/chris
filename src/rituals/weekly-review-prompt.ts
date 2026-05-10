@@ -178,11 +178,12 @@ function buildRolePreamble(): string {
     '## Your Task',
     "You are generating a weekly review observation for Greg. Synthesize one prose observation about a PATTERN across the past 7 days — drawn from the episodic summaries and resolved decisions provided below. Then ask Greg ONE Socratic question demanding a verdict (force him to evaluate or commit, not to vent).",
     '',
-    'Constraints (binding):',
+    'Tone constraints (binding):',
     '- Do not flatter. Do not soften negative events. Do not characterize indecision as wisdom.',
     '- Do not re-surface individual decisions — observations must aggregate across multiple events.',
     '- Do not reference any date outside the window stated below.',
-    '- Output exactly one observation paragraph and exactly one question. Do not embed questions in the observation.',
+    '',
+    'The hard structural and vocabulary rules are listed in the Output Format section at the end of this prompt. Read them before generating; a draft that violates any of them is rejected and retried, and after two failed retries a static templated fallback ships instead of your work.',
   ].join('\n');
 }
 
@@ -272,8 +273,49 @@ function buildResolvedDecisionsBlock(
 }
 
 function buildStructuredOutputDirective(): string {
+  // NOTE: this section MUST be the LAST `\n\n`-separated section AND MUST NOT
+  // contain any `\n\n` internally — the split-section test in
+  // weekly-review-prompt.test.ts asserts `out.split('\n\n').at(-1)` starts with
+  // '## Output Format'. Use single-`\n` line separators only here.
   return [
     '## Output Format',
-    'Return JSON: { observation: string, question: string }. The observation is one prose paragraph (20-800 chars). The question is exactly ONE Socratic question demanding a verdict — not "how do you feel?", but a question that forces Greg to evaluate or commit. Do NOT include compound questions joined by "and"/"or"/"and also". Do NOT ask multiple questions. Do NOT include a question in your observation — the observation is a statement; the question is separate.',
+    'Return JSON: { observation: string, question: string }.',
+    'HARD RULES (a violation triggers retry; two retries exhaust the budget and ship a static templated fallback). Read all six before drafting; verify all six before submitting:',
+    "  R1. observation: 20–800 characters total. Aim ~500. Once the point lands, stop. Do not elaborate, do not restate, do not add a closing flourish.",
+    "  R2. observation is a STATEMENT — never embeds a '?'.",
+    "  R3. question: 5–300 characters, EXACTLY one '?' character.",
+    "  R4. question has AT MOST one wh-style interrogative-leading word (what / why / how / when / where / which / who; pourquoi / comment / quel / quelle / quels / quelles / quand / quoi / qui / où; почему / что / как / когда / где / кто / какой / какая / какое / какие / зачем).",
+    "  R5. question asks exactly ONE thing semantically. A downstream judge counts distinct propositions. Either/or framings (\"Is X, or is Y?\"), and-joined parallels (\"What did X cost, and what did it earn?\"), and any other shape that bundles two distinct queries are counted as 2 and rejected — even with one '?' and zero wh-words. Pick one proposition; ask it cleanly. The copular \"Is there X…?\" form is the safest shape; prefer it when wh-forms drift toward bundling.",
+    "  R6. forbidden substrings (case-insensitive substring scan over observation+question, INCLUDING inside other English words):",
+    "      TIER A flattery adjectives (drop entirely): great, amazing, wonderful, brilliant, beautiful, lovely, fantastic, awesome, incredible, remarkable, impressive, exceptional, outstanding.",
+    "      TIER B 2–3-letter traps (silent killers — they collide with common English): 'that', 'oh', 'aw', 'wow', 'aww'. Specific carrier words observed leaking from past runs and their REPLACEMENTS:",
+    "        — 'that' as determiner → 'the' / 'this' / 'such' (\"that pattern\" → \"the pattern\")",
+    "        — 'that' as relative pronoun → restructure (\"the pattern that emerged\" → \"the emerging pattern\" or \"the pattern: …\")",
+    "        — 'that' as complementizer → delete (\"evidence that the friction\" → \"evidence the friction\")",
+    "        — coherence/coherent/incoherent/cohesive/cohesion/cohort/alcohol/mohair (any …o-h… sequence) → consistency / consistent / inconsistent / unified / aligned / alignment",
+    "        — drawing/draw/drawn/drew → pulling / pull / pulled / attracted",
+    "        — away → absent / aside / restructure",
+    "        — awareness/aware → recognition / recognized / noticed",
+    "        — withdraw/withdrew/withdrawn → retreated / pulled back",
+    "        — saw → observed / noted",
+    "        — law / raw / jaw / thaw / awful / awkward → reword (no o-h or a-w pair anywhere)",
+    "PRE-SUBMISSION SELF-CHECK — before returning, walk through the six rules in order:",
+    "  [R1] Is observation between 20 and 800 chars? Count.",
+    "  [R2] Does observation contain a '?'? It must not.",
+    "  [R3] Does question contain exactly one '?'?",
+    "  [R4] Scan question for wh-words (any language) — count must be ≤ 1.",
+    "  [R5] Read the question aloud. Does it ask one thing or two? Any 'and' / 'or' joining two clauses where each could stand alone as its own question? Reject and rewrite.",
+    "  [R6] Search both fields for the substrings 'that', 'oh', 'aw', 'wow', 'aww' (case-insensitive, anywhere — even inside larger words like 'coherence' or 'drawing'). Search both fields for any TIER A adjective. If found, rewrite using the replacement guidance above.",
+    "If any check fails, rewrite. Submit only when all six pass.",
+    "REJECTED examples — do NOT produce output of these shapes:",
+    '✗ R3 fail: { "question": "What did you learn from holding the boundary? How will you apply it next week?" } — two ? chars.',
+    '✗ R4 fail: { "question": "What stood out to you this week. How will you adjust the cadence?" } — two wh-words.',
+    '✗ R5 fail: { "question": "Is this discipline becoming rigidity, or is it the support you have been needing?" } — either/or, semantic count = 2.',
+    '✗ R5 fail: { "question": "What did the consistency cost you, and what did it earn you?" } — and-joined parallel, semantic count = 2.',
+    '✗ R2 fail: { "observation": "…What does it say about your planning?", "question": "Is the cadence undercalibrated?" } — observation embeds ?.',
+    "✗ R6 fail: observation contains the word 'coherence' or 'drawing' or 'away' — substring scan rejects.",
+    "ACCEPTED example — produce output shaped like this:",
+    '✓ { "observation": "Across the week, every position held survived contact with pressure: the conference boundary, the Marc timing dispute, the deep-work block. The pattern is consistent — Monday\'s intent matched Sunday\'s record without revision. The consistency is rare enough to deserve scrutiny rather than approval.", "question": "Is there a stakeholder who absorbed the slack this week without showing up in your notes?" }',
+    "  Why accepted: ~330-char single-statement observation; one '?', zero wh-words, asks ONE thing in copular form; no forbidden substrings (no 'that' / 'oh' / 'aw' anywhere; no flattery adjectives).",
   ].join('\n');
 }
