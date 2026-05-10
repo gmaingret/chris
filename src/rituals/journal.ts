@@ -349,12 +349,18 @@ export async function fireJournal(
   }
 
   // STEP 1: Pop next prompt from bag (Plan 26-01 chooseNextPromptIndex).
-  // The "lastIdx" guard for the no-consecutive-duplicate invariant: if the
-  // current bag is empty (about to refill), check the trailing index of any
-  // previously-known sequence. With a steady-state empty bag from Plan 26-01
-  // seed, lastIdx is undefined for the very first fire.
+  //
+  // Phase 32 #8: lastIdx must be the index that was fired in the immediately
+  // PRIOR fire (the past) — not bag[bag.length - 1], which is just the last
+  // not-yet-used index in the CURRENT bag (the future). The previous code
+  // read the wrong end of the bag, so on cycle-boundary refill (bag.length
+  // === 0) it fell back to undefined and the no-consecutive-duplicate guard
+  // had no signal — producing a back-to-back duplicate ~1/PROMPTS.length
+  // (~17%) of the time. Persist the prior fired index in cfg.last_fired_prompt_idx
+  // and read it back here. First fire after migration sees undefined → no
+  // history → no guard, which is correct (no prior fire to duplicate).
   const bag = cfg.prompt_bag ?? [];
-  const lastIdx = bag.length === 0 ? undefined : bag[bag.length - 1];
+  const lastIdx = cfg.last_fired_prompt_idx;
   const { index: promptIdx, newBag } = chooseNextPromptIndex(
     bag,
     Math.random,
@@ -378,8 +384,14 @@ export async function fireJournal(
     promptText: prompt,
   });
 
-  // STEP 4: Update rituals.config.prompt_bag with the new bag.
-  const updatedCfg: RitualConfig = { ...cfg, prompt_bag: newBag };
+  // STEP 4: Update rituals.config.prompt_bag with the new bag, and persist
+  // last_fired_prompt_idx so the next fire's cycle-boundary refill (Phase 32 #8)
+  // can run the no-consecutive-duplicate guard.
+  const updatedCfg: RitualConfig = {
+    ...cfg,
+    prompt_bag: newBag,
+    last_fired_prompt_idx: promptIdx,
+  };
   await db
     .update(rituals)
     .set({ config: updatedCfg })

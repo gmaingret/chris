@@ -59,6 +59,16 @@ export const RitualConfigSchema = z
       .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'fire_at must be HH:mm'),
     fire_dow: z.number().int().min(1).max(7).optional(),
     prompt_bag: z.array(z.number().int().min(0).max(5)).max(6).optional(),
+    /**
+     * last_fired_prompt_idx — Phase 32 #8. The PROMPT index that was used in
+     * the immediately prior fire. Read on cycle-boundary refill (bag empty)
+     * to power the no-consecutive-duplicate guard in chooseNextPromptIndex.
+     * Without it, the guard had no signal when the previous bag emptied and
+     * a refill produced bag[0] === lastFiredIdx ~17% of the time (1/6 prompts).
+     * Optional for back-compat with seed rows that predate this field; first
+     * fire after migration will populate it.
+     */
+    last_fired_prompt_idx: z.number().int().min(0).max(5).optional(),
     skip_threshold: z.number().int().min(1).max(10),
     mute_until: z.string().datetime().nullable(),
     /**
