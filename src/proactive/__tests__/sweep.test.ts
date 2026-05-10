@@ -15,6 +15,7 @@ const {
   mockCreate,
   mockSaveMessage,
   mockGetRecentHistory,
+  mockCountMessagesSince,
   mockBuildSweepContext,
   mockRunOpusAnalysis,
   mockPatternDetect,
@@ -44,6 +45,7 @@ const {
   mockCreate: vi.fn(),
   mockSaveMessage: vi.fn(),
   mockGetRecentHistory: vi.fn().mockResolvedValue([]),
+  mockCountMessagesSince: vi.fn().mockResolvedValue(1),
   mockBuildSweepContext: vi.fn(),
   mockRunOpusAnalysis: vi.fn(),
   mockPatternDetect: vi.fn(),
@@ -113,6 +115,7 @@ vi.mock('../../llm/client.js', () => ({
 vi.mock('../../memory/conversation.js', () => ({
   saveMessage: mockSaveMessage,
   getRecentHistory: mockGetRecentHistory,
+  countMessagesSince: mockCountMessagesSince,
 }));
 
 vi.mock('../../config.js', () => ({
@@ -284,6 +287,7 @@ describe('proactive sweep', () => {
     mockSendMessage.mockResolvedValue(undefined);
     mockSaveMessage.mockResolvedValue(undefined);
     mockGetRecentHistory.mockResolvedValue([]);
+    mockCountMessagesSince.mockResolvedValue(1); // default: at least one user message in window (don't skip)
     mockUpsertAwaitingResolution.mockResolvedValue(undefined);
     // Default: deadline trigger doesn't fire
     mockDeadlineDetect.mockResolvedValue({
@@ -510,6 +514,42 @@ describe('proactive sweep', () => {
       );
       expect(mockSetLastSentReflective).toHaveBeenCalledTimes(1);
       expect(mockSetLastSentReflective).toHaveBeenCalledWith(expect.any(Date));
+    });
+
+    // Phase 32 #2: skip-when-no-USER-in-window guard
+    it('skips reflective channel when no USER message in last 48h (no Sonnet call, no send, no cap update)', async () => {
+      mockDeadlineNotFired();
+      mockSilenceFired();
+      mockCommitmentNotFired();
+      mockCountMessagesSince.mockResolvedValueOnce(0);
+
+      const result = await runSweep();
+
+      expect(result.triggered).toBe(false);
+      expect(result.reflectiveResult?.triggered).toBe(false);
+      // No Sonnet call, no Telegram send, no cap update — the next sweep gets
+      // a fresh chance with possibly fresh substrate.
+      expect(mockCreate).not.toHaveBeenCalled();
+      expect(mockSendMessage).not.toHaveBeenCalled();
+      expect(mockSaveMessage).not.toHaveBeenCalled();
+      expect(mockSetLastSentReflective).not.toHaveBeenCalled();
+      // Guard query was checked with the configured user id and 'USER' role.
+      expect(mockCountMessagesSince).toHaveBeenCalledWith(12345n, 'USER', expect.any(Date));
+    });
+
+    it('proceeds normally when at least one USER message exists in the window', async () => {
+      // Default mock returns 1 — explicit assertion that the guard does not skip.
+      mockCountMessagesSince.mockResolvedValueOnce(1);
+      mockDeadlineNotFired();
+      mockSilenceFired();
+      mockCommitmentNotFired();
+      mockLLMResponse('Hey, just thinking about your earlier note.');
+      mockSendMessage.mockResolvedValueOnce({ message_id: 999 });
+
+      const result = await runSweep();
+
+      expect(result.triggered).toBe(true);
+      expect(mockCreate).toHaveBeenCalledTimes(1);
     });
 
     it('passes trigger context into reflective system prompt for LLM', async () => {

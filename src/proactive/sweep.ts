@@ -46,6 +46,7 @@ import { createCommitmentTrigger } from './triggers/commitment.js';
 import { createDeadlineTrigger } from './triggers/deadline.js';
 import { buildSweepContext } from './context-builder.js';
 import { buildMessageHistory } from '../memory/context-builder.js';
+import { countMessagesSince } from '../memory/conversation.js';
 import { runOpusAnalysis } from './triggers/opus-analysis.js';
 import { createPatternTrigger } from './triggers/pattern.js';
 import { createThreadTrigger } from './triggers/thread.js';
@@ -519,6 +520,33 @@ async function runReflectiveChannel(
     },
     'proactive.sweep.trigger',
   );
+
+  // Phase 32 #2: skip-when-no-USER-in-window guard. Root-cause fix for the
+  // 2026-05-06 meta-commentary incident (28432bd was the symptom-patch via
+  // detectAbstention). When Greg has not sent any message in the last 48h the
+  // conversation thread we ship to Sonnet has no recent ground-truth substrate;
+  // Sonnet is more likely to produce hollow output ("I'll stay silent rather
+  // than risk fabricating context") than to produce a useful outreach. Better
+  // to stay silent ourselves: no message, no Telegram send, no daily-cap
+  // consumption — the next sweep gets a fresh chance.
+  const NO_USER_WINDOW_MS = 48 * 60 * 60 * 1000;
+  const noUserWindowStart = new Date(Date.now() - NO_USER_WINDOW_MS);
+  const recentUserCount = await countMessagesSince(
+    BigInt(config.telegramAuthorizedUserId),
+    'USER',
+    noUserWindowStart,
+  );
+  if (recentUserCount === 0) {
+    logger.info(
+      {
+        triggerType: winner.triggerType,
+        windowHours: 48,
+        latencyMs: Date.now() - startMs,
+      },
+      'proactive.sweep.skipped_no_user_in_window',
+    );
+    return { triggered: false };
+  }
 
   // Generate message via Sonnet using PROACTIVE_SYSTEM_PROMPT.
   //
