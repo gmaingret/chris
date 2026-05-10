@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v2.4
 milestone_name: M009 Ritual Infrastructure + Daily Note + Weekly Review
-status: executing
-stopped_at: Phase 30 Plan 01 complete - HARN fixture refresh + adapted thresholds + Phase 32 backlog filed
-last_updated: "2026-05-07T13:09:14.474Z"
-last_activity: 2026-05-07
+status: ready_to_close
+stopped_at: Phase 32 substrate-hardening complete — all 6 items shipped + deployed to prod (commit ef45e1b). Tonight's first weekly_review fire (2026-05-10 20:00 Paris) will use tightened prompt.
+last_updated: "2026-05-10T08:50:00.000Z"
+last_activity: 2026-05-10
 progress:
-  total_phases: 6
-  completed_phases: 6
+  total_phases: 7
+  completed_phases: 7
   total_plans: 23
   completed_plans: 23
   percent: 100
@@ -194,9 +194,21 @@ None. Ready to plan Phase 25 — pending todo resolved (verdict above).
 
 ## Session Continuity
 
-Last session: 2026-05-07T13:06:06Z
-Stopped at: Phase 30 Plan 02 complete — synthetic-fixture.test.ts ships M009 milestone gate (6/6 it() blocks green; cumulative PP#5 short-circuit invariant active across 14-day fixture week)
-Resume file: 30-03-PLAN.md (already complete; phase plans 01/02/03/04 all green — Phase 30 closed)
+Last session: 2026-05-10T08:50:00Z
+Stopped at: Phase 32 substrate-hardening — all 6 items shipped, committed, pushed, deployed to prod. Container HEAD = ef45e1b. Boot-time drift check fired clean (`migrations.journal_in_sync` count=12). Ready to close v2.4 milestone and open v2.5 / start M010.
+
+Phase 32 commits (in order):
+  - c0adb00 fix(32): tighten weekly_review prompt to prevent fallback under adversarial input  (#9 — deadline-critical, deployed first)
+  - 45ebbcc fix(32): proactive prompt — anti-repetition guard + section-name avoidance  (#1)
+  - 39a91cc fix(32): skip-when-no-USER-in-48h guard in runReflectiveChannel  (#2)
+  - 803b2f9 fix(32): journal lastIdx bag-empty branch — close cycle-boundary duplicate window  (#8)
+  - 86467b8 fix(32): CI monotonic-when guardrail for migrations meta/_journal.json  (#3)
+  - ef45e1b fix(32): boot-time __drizzle_migrations drift warning  (#4)
+
+Two deploy points (per handoff): after #9 (so tonight benefits) + after all 6 (final). Both executed.
+
+Prior: Phase 30 Plan 02 complete — synthetic-fixture.test.ts ships M009 milestone gate (6/6 it() blocks green; cumulative PP#5 short-circuit invariant active across 14-day fixture week)
+Resume file: none — HANDOFF.json + .continue-here.md deleted as one-shot artifacts per format spec.
 
 None
 
