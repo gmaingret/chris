@@ -96,20 +96,46 @@ describe('tryFireRitualAtomic — idempotency under concurrency (RIT-10)', () =>
     expect(loser.row).toBeUndefined();
   });
 
-  it('subsequent call with same lastObserved returns fired=false (race lost — equality fails the lt predicate)', async () => {
+  it('subsequent call with the freshly-observed lastObserved returns fired=true (regression test for 2026-05-09 stuck-ritual bug)', async () => {
     const future = new Date(Date.now() + 24 * 60 * 60 * 1000);
     const first = await tryFireRitualAtomic(ritualId, null, future);
     expect(first.fired).toBe(true);
 
+    // Production scenario: a sweep selects the row, sees lastRunAt = T1
+    // (from `first`), then calls tryFire(id, T1, futureN+1). The WHERE
+    // predicate `lastRunAt <= T1` evaluates against the current row where
+    // lastRunAt = T1, so `T1 <= T1` is TRUE and the second fire succeeds.
+    // Before the 2026-05-09 fix this used strict `<` and returned fired=false,
+    // permanently sticking every ritual after its first fire. See
+    // src/rituals/idempotency.ts docstring contract item 2.
     const observedLastRunAt = first.row!.lastRunAt!;
-    // lt(rituals.lastRunAt, observedLastRunAt) is FALSE when they're equal,
-    // so the WHERE-guard fails → fired=false.
+    const futureN1 = new Date(Date.now() + 48 * 60 * 60 * 1000);
     const second = await tryFireRitualAtomic(
       ritualId,
       observedLastRunAt,
-      future,
+      futureN1,
     );
-    expect(second.fired).toBe(false);
+    expect(second.fired).toBe(true);
+    expect(second.row!.lastRunAt!.getTime()).toBeGreaterThan(
+      observedLastRunAt.getTime(),
+    );
+    expect(second.row!.nextRunAt.getTime()).toBe(futureN1.getTime());
+  });
+
+  it('successive fires at production cadence all succeed (10 sequential fires, each observing the previous lastRunAt)', async () => {
+    // Production-shaped regression test: simulates 10 successive sweep ticks
+    // firing the same ritual, with each tick observing the lastRunAt set by
+    // the previous tick. This is exactly the daily-ritual production loop
+    // (sweep → fire → wait → sweep → fire → ...). Before the 2026-05-09
+    // fix, this loop would succeed exactly ONCE then stick at
+    // `fired: false` for all subsequent iterations.
+    let observed: Date | null = null;
+    for (let i = 0; i < 10; i++) {
+      const future = new Date(Date.now() + (24 + i) * 60 * 60 * 1000);
+      const result = await tryFireRitualAtomic(ritualId, observed, future);
+      expect(result.fired, `iteration ${i + 1} of 10`).toBe(true);
+      observed = result.row!.lastRunAt!;
+    }
   });
 
   it('call with lastObserved older than current last_run_at returns fired=false (race lost — peer already advanced)', async () => {
