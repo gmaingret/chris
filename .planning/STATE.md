@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v2.4
 milestone_name: M009 Ritual Infrastructure + Daily Note + Weekly Review
 status: ready_to_close
-stopped_at: Phase 32 substrate-hardening complete — all 6 items shipped + deployed to prod (commit ef45e1b). Tonight's first weekly_review fire (2026-05-10 20:00 Paris) will use tightened prompt.
-last_updated: "2026-05-10T08:50:00.000Z"
-last_activity: 2026-05-10
+stopped_at: Phase 32 substrate-hardening complete + first-ever weekly_review fire succeeded 2026-05-10 20:00 Paris (real Sonnet observation, isFallback=false, 620 chars, 1 date-grounding retry). All 3 rituals firing healthy. Phase 29 SC-1 resolved. Ready for /gsd-complete-milestone v2.4.
+last_updated: "2026-05-11T01:55:00.000Z"
+last_activity: 2026-05-11
 progress:
   total_phases: 7
   completed_phases: 7
