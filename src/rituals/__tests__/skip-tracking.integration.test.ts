@@ -82,6 +82,7 @@ vi.mock('../../pensieve/tagger.js', () => ({
 import { db, sql } from '../../db/connection.js';
 import {
   pensieveEntries,
+  pensieveEmbeddings,
   rituals,
   ritualFireEvents,
   ritualPendingResponses,
@@ -112,6 +113,10 @@ async function cleanupAll(): Promise<void> {
   await db.delete(ritualResponses);
   await db.delete(ritualPendingResponses);
   // Delete test-inserted pensieve entries (Test 2 + Test 3).
+  // FK-safe: wipe pensieve_embeddings first (fire-and-forget embed lands
+  // rows after primary writes; pensieve_embeddings_entry_id_fk trips on
+  // parent-first delete). #2026-05-11.
+  await db.delete(pensieveEmbeddings);
   await db.delete(pensieveEntries);
   // Delete only the ephemeral test-created ritual rows (not the seeded ones).
   await db
