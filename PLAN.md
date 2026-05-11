@@ -336,7 +336,29 @@ Chris is deployed on self-hosted Proxmox (192.168.1.50) with both containers hea
 
 Archived detail: `.planning/milestones/v2.0-*`, `.planning/milestones/v2.1-*`, `.planning/milestones/v2.2-*`, `.planning/milestones/v2.3-*`, `.planning/milestones/v2.X-phases/` (phase directories for v2.0–v2.2; v2.3 phase archival pending).
 
-## Current Milestone: v2.4 M009 Ritual Infrastructure + Daily Note + Weekly Review *(MVP shipping point)*
+## Current Milestone: v2.5 M010 Operational Profiles
+
+**Goal:** Build the four operational profile dimensions that capture Greg's situational state — jurisdictional (location + residency + tax statuses), capital (FI phase + trajectory), health (clinical case file with open hypotheses), and family formation arc. Operational profiles update from observable facts rather than inferred traits, so they have stronger ground truth and faster validation cycles than the M011 HEXACO / M012 mental-models layer that comes after. Builds directly on M008 episodic summaries + M007 resolved decisions + new M009 daily journal + wellbeing substrate.
+
+**Target features:**
+- Four new Drizzle tables: `profile_jurisdictional`, `profile_capital`, `profile_health`, `profile_family` — each with id, last_updated, confidence (0.0–1.0), plus profile-specific jsonb columns per the M010 spec
+- Weekly cron updates all four operational profiles from the previous week's episodic summaries + FACT/RELATIONSHIP/INTENTION/EXPERIENCE-tagged Pensieve entries; one focused Sonnet prompt per profile (never a mega-prompt)
+- Confidence scores reflect data volume + consistency; minimum 10 distinct Pensieve entries threshold before any profile populates (below threshold → "insufficient data" markers + confidence 0)
+- New module `src/memory/profiles.ts` exposing `getOperationalProfiles()` returning structured data (not narrative summaries); REFLECT, COACH, and PSYCHOLOGY mode handlers call this and format the result into their system prompts as grounded context
+- `/profile` Telegram command returns a read-only summary of all four operational profiles with confidence ranges; psychological-profile section reads "not yet available — see M011" until M011 lands
+- Synthetic fixture test: 30+ days of synthetic episodic summaries covering all four profile dimensions, weekly update job runs, all four populate with calibrated confidence; sparse 5-entry fixture must produce no populated profile (threshold enforcement)
+
+**Key context:**
+- **D041 supersedes the M010 spec's "30 days of real M009 data" pause** — primed-fixture pipeline is the validation gate, not calendar wait
+- M010 spec text uses "John" as a legacy artifact (Phase 11 unified John→Greg in the codebase); requirements + code will use Greg
+- v2.4 carryover items (synth-pipeline organic+synth fusion, weekly_review FR/RU localization, Phase 28 60s real-clock UAT) are NOT in M010 scope — they remain backlog for v2.5.1 substrate cleanup or M013
+
+**Kickoff command:** `/gsd-new-milestone` (in progress 2026-05-11).
+
+---
+
+<details>
+<summary>Previous milestone (v2.4 M009 Ritual Infrastructure + Daily Note + Weekly Review — shipped 2026-05-11)</summary>
 
 **Goal:** Build scheduling + tracking infrastructure for rituals plus the three lightest rituals — daily journal, daily wellbeing snapshot, weekly review. After M009 ships, Greg has the full frictionless reflection loop: M006 trust + M007 decisions + M008 episodic + M009 daily prompts + weekly observations. Everything from M010 onward builds on real data this milestone produces.
 
@@ -358,7 +380,9 @@ Archived detail: `.planning/milestones/v2.0-*`, `.planning/milestones/v2.1-*`, `
 - **Recency-window symptom** ("feels like we didn't talk since yesterday") was fixed 2026-04-25 by date-extraction Haiku JSON-fences fix, not a v2.4 phase.
 - **D029/D030/D034/D035/D036 in force.** Weekly review reads via `retrieveContext` two-dim routing (D036).
 
-**Kickoff command:** `/gsd-new-milestone "M009 Ritual Infrastructure + Daily Note + Weekly Review"` (in progress).
+**Shipped 2026-05-11** as v2.4 (23 plans, 52/52 requirements, 6 phases + Phase 31 terminology cleanup + Phase 32 substrate hardening). See `.planning/milestones/v2.4-ROADMAP.md` for full phase details.
+
+</details>
 
 <details>
 <summary>v2.3 Test Data Infrastructure (shipped 2026-04-20, archived 2026-04-25 — historical)</summary>

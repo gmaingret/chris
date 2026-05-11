@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.4
-milestone_name: M009 Ritual Infrastructure + Daily Note + Weekly Review
-status: Awaiting next milestone
-stopped_at: Phase 32 substrate-hardening — all 6 items shipped, committed, pushed, deployed to prod. Container HEAD = ef45e1b. Boot-time drift check fired clean (`migrations.journal_in_sync` count=12). Ready to close v2.4 milestone and open v2.5 / start M010.
-last_updated: "2026-05-11T03:14:57.769Z"
-last_activity: 2026-05-11 — Milestone v2.4 completed and archived
+milestone: v2.5
+milestone_name: M010 Operational Profiles
+status: planning
+last_updated: "2026-05-11T03:30:28.906Z"
+last_activity: 2026-05-11
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 23
-  completed_plans: 23
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -26,10 +25,10 @@ See: .planning/PROJECT.md (symlink to /home/claude/chris/PLAN.md, updated 2026-0
 
 ## Current Position
 
-Phase: Milestone v2.4 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-05-11 — Milestone v2.4 completed and archived
+Status: Defining requirements
+Last activity: 2026-05-11 — Milestone v2.5 started
 
 ## Shipped Milestones
 
