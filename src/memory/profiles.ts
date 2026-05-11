@@ -86,7 +86,8 @@ async function readOneProfile<T>(
   try {
     const rows = await db.select().from(table).where(eq(table.name, 'primary')).limit(1);
     if (rows.length === 0) return null;
-    const row = rows[0];
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const row = rows[0]!;
 
     // Pitfall 6: explicit undefined check before `.safeParse` access.
     const parser = PROFILE_SCHEMAS[dimension][row.schemaVersion as number];
