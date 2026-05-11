@@ -272,8 +272,16 @@ if [ -f .env ]; then
   source .env
   set +a
 fi
+# Redirect HuggingFace transformers cache to a user-writable dir. The bundled
+# node_modules/@huggingface/transformers/.cache path is owned by root in
+# read-only sandbox installs and trips EACCES on first bge-m3 model load,
+# crashing tests that exercise pensieve.embed (2026-05-11 fix).
+HF_CACHE_DIR="${HF_HOME:-/tmp/hf-cache-$USER}"
+mkdir -p "$HF_CACHE_DIR" 2>/dev/null || true
 DATABASE_URL="$DB_URL" \
   ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-test-key}" \
   TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-test-token}" \
   TELEGRAM_AUTHORIZED_USER_ID="${TELEGRAM_AUTHORIZED_USER_ID:-99999}" \
+  HF_HOME="$HF_CACHE_DIR" \
+  TRANSFORMERS_CACHE="$HF_CACHE_DIR" \
   npx vitest run "$@"

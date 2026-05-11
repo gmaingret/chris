@@ -250,7 +250,13 @@ import { CHAT_ID_SYNTHETIC_FIXTURE } from '../../__tests__/fixtures/chat-ids.js'
 /** Unique chat ID for this file — avoids collision with other test files' cleanup. */
 const TEST_CHAT_ID = CHAT_ID_SYNTHETIC_FIXTURE;
 
-const BASE_DATE = new Date('2026-04-01T10:00:00Z');
+// 2026-05-11: anchor BASE_DATE to "14 days ago" rather than a hardcoded
+// 2026-04-01. fetchStatsData filters by PG `now() - interval '30 days'` (real
+// server time, NOT the vi.setSystemTime fake clock), so a hardcoded BASE_DATE
+// far in the past produces resolved_at values outside the 30-day rolling
+// window and statsRows.length comes back 0. Anchoring to today-14d keeps the
+// 14-day fixture's Day 8 resolution comfortably inside the 30-day window.
+const BASE_DATE = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
 
 function advanceDays(n: number): Date {
   return new Date(BASE_DATE.getTime() + n * DAY_MS);

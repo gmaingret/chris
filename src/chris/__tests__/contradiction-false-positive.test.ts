@@ -202,7 +202,10 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Contradiction false-positive au
 
           // Must produce 0 false positives
           expect(results).toHaveLength(0);
-        }, 30_000);
+        }, 90_000); // 2026-05-11: bumped 30s→90s. detectContradictions makes
+                    // an embed call + Haiku candidate-filter + Sonnet judgment
+                    // serially; under real Anthropic load (and bge-m3 fp32
+                    // on CPU at ~5s embed) the 30s ceiling was insufficient.
       }
     });
   }
