@@ -76,6 +76,16 @@ export type WeeklyReviewPromptInput = {
   weekStart: string; // ISO 'YYYY-MM-DD' in tz below
   weekEnd: string;   // ISO 'YYYY-MM-DD' in tz below
   tz: string;        // IANA tz (e.g., 'Europe/Paris')
+  /**
+   * Display-name language (e.g., 'English', 'French', 'Russian') in which
+   * Sonnet must respond. Threaded through fireWeeklyReview from
+   * getLastUserLanguageFromDb. Falls back to 'French' when the conversation
+   * history has no USER message (Phase 32 weekly_review prompt fix
+   * 2026-05-11: prevents the production regression where Sonnet defaulted
+   * to English because the cron-context session map was empty after the
+   * morning container restart).
+   */
+  language: string;
   summaries: Array<{
     summaryDate: string;     // ISO 'YYYY-MM-DD'
     summary: string;         // verbatim M008 summary text
@@ -146,6 +156,12 @@ export function assembleWeeklyReviewPrompt(
   // 2. Role preamble — anti-flattery for weekly review specifically.
   sections.push(buildRolePreamble());
 
+  // 2a. Language Directive (Phase 32 weekly_review prompt fix 2026-05-11).
+  // Placed RIGHT AFTER the role preamble so Sonnet sees the language anchor
+  // before any substrate text in foreign languages can drag the output toward
+  // English by salience. Mirrors src/chris/personality.ts:157 ordering.
+  sections.push(buildLanguageDirective(input.language));
+
   // 3. Date-window block — Pitfall 16 (stale-date) prompt-level mitigation.
   sections.push(buildDateWindowBlock(input.weekStart, input.weekEnd, input.tz));
 
@@ -176,7 +192,12 @@ export function assembleWeeklyReviewPrompt(
 function buildRolePreamble(): string {
   return [
     '## Your Task',
-    "You are generating a weekly review observation for Greg. Synthesize one prose observation about a PATTERN across the past 7 days — drawn from the episodic summaries and resolved decisions provided below. Then ask Greg ONE Socratic question demanding a verdict (force him to evaluate or commit, not to vent).",
+    "You are Chris, writing a Sunday-evening weekly review message directly TO Greg. This is a one-direction Telegram message — you address Greg in second person and ask one question; he does not need to reply for the message to do its work.",
+    '',
+    'Audience and addressing — REQUIRED:',
+    "- Address Greg in second person throughout: 'you', 'your', 'you have', 'you decided'. The observation is a direct message from you (Chris) to Greg.",
+    "- NEVER refer to Greg in third person. Do not write 'Greg has reached…', 'Greg's pattern…', 'he is withholding…', or any other third-person construction. The substrate below uses 'Greg' as a label, but in YOUR output Greg becomes 'you'.",
+    "- The question is asked OF Greg. It should be the kind of question a close friend asks face-to-face: 'Is there a cost you are not accounting for…?', not 'Is there a cost Greg is not accounting for…?'.",
     '',
     'Tone constraints (binding):',
     '- Do not flatter. Do not soften negative events. Do not characterize indecision as wisdom.',
@@ -184,6 +205,24 @@ function buildRolePreamble(): string {
     '- Do not reference any date outside the window stated below.',
     '',
     'The hard structural and vocabulary rules are listed in the Output Format section at the end of this prompt. Read them before generating; a draft that violates any of them is rejected and retried, and after two failed retries a static templated fallback ships instead of your work.',
+  ].join('\n');
+}
+
+/**
+ * Language directive — Phase 32 weekly_review prompt fix 2026-05-11.
+ *
+ * The 2026-05-10 first-ever weekly_review fire shipped English output to a
+ * French-speaking user because the prompt had no language directive and the
+ * in-memory `sessionLanguage` map in src/chris/language.ts was empty after
+ * the morning container restart. The DB-backed `getLastUserLanguageFromDb`
+ * helper now reads the most recent USER message and runs franc on it; the
+ * result is threaded through fireWeeklyReview → assembleWeeklyReviewPrompt →
+ * this directive. Mirrors the pattern at src/chris/personality.ts:157.
+ */
+function buildLanguageDirective(language: string): string {
+  return [
+    '## Language Directive (MANDATORY)',
+    `Write the entire output — both the observation paragraph and the question — in ${language}. This overrides any language signal in the substrate below (the episodic summaries and decision text may be in English even when Greg speaks ${language}; you still respond in ${language}). Do not mix languages; do not default to English.`,
   ].join('\n');
 }
 
@@ -281,7 +320,7 @@ function buildStructuredOutputDirective(): string {
     '## Output Format',
     'Return JSON: { observation: string, question: string }.',
     'HARD RULES (a violation triggers retry; two retries exhaust the budget and ship a static templated fallback). Read all six before drafting; verify all six before submitting:',
-    "  R1. observation: 20–800 characters total. Aim ~500. Once the point lands, stop. Do not elaborate, do not restate, do not add a closing flourish.",
+    "  R1. observation: 20–800 characters total. AIM FOR 400–500. The 800 ceiling is a hard schema limit — going over means the entire response is discarded and retried. Second-person addressing ('you have', 'your record') adds length quickly; budget for it by being briefer with the analysis. Once the point lands, stop. Do not elaborate, do not restate, do not add a closing flourish or a 'tells you something' coda.",
     "  R2. observation is a STATEMENT — never embeds a '?'.",
     "  R3. question: 5–300 characters, EXACTLY one '?' character.",
     "  R4. question has AT MOST one wh-style interrogative-leading word (what / why / how / when / where / which / who; pourquoi / comment / quel / quelle / quels / quelles / quand / quoi / qui / où; почему / что / как / когда / где / кто / какой / какая / какое / какие / зачем).",
@@ -314,8 +353,10 @@ function buildStructuredOutputDirective(): string {
     '✗ R5 fail: { "question": "What did the consistency cost you, and what did it earn you?" } — and-joined parallel, semantic count = 2.',
     '✗ R2 fail: { "observation": "…What does it say about your planning?", "question": "Is the cadence undercalibrated?" } — observation embeds ?.',
     "✗ R6 fail: observation contains the word 'coherence' or 'drawing' or 'away' — substring scan rejects.",
-    "ACCEPTED example — produce output shaped like this:",
-    '✓ { "observation": "Across the week, every position held survived contact with pressure: the conference boundary, the Marc timing dispute, the deep-work block. The pattern is consistent — Monday\'s intent matched Sunday\'s record without revision. The consistency is rare enough to deserve scrutiny rather than approval.", "question": "Is there a stakeholder who absorbed the slack this week without showing up in your notes?" }',
-    "  Why accepted: ~330-char single-statement observation; one '?', zero wh-words, asks ONE thing in copular form; no forbidden substrings (no 'that' / 'oh' / 'aw' anywhere; no flattery adjectives).",
+    "ACCEPTED example — produce output shaped like this (note: second-person 'you' throughout — observation addresses Greg directly, not 'Greg'):",
+    '✓ { "observation": "Across the week, every position you held survived contact with pressure: the conference boundary, the Marc timing dispute, the deep-work block. The pattern is consistent — your Monday intent matched the Sunday record without revision. The consistency is rare enough to deserve scrutiny rather than approval.", "question": "Is there a stakeholder who absorbed the slack this week without showing up in your notes?" }',
+    "  Why accepted: ~340-char single-statement observation written TO Greg in second person ('you', 'your' — never 'Greg' or 'he'); one '?', zero wh-words, asks ONE thing in copular form; no forbidden substrings (no 'that' / 'oh' / 'aw' anywhere; no flattery adjectives).",
+    "✗ R-addressing fail (regression from 2026-05-10 first-fire): { \"observation\": \"Across the week, Greg has reached a private verdict but is withholding it from the one person it directly concerns…\", \"question\": \"Is there a cost Greg is not accounting for in the delay?\" }",
+    "  Why rejected: third-person ('Greg has reached…', 'Greg is not accounting for…') — reads as a detached report ABOUT Greg rather than Chris speaking TO Greg. Rewrite with 'you have reached…', 'is there a cost you are not accounting for…'.",
   ].join('\n');
 }

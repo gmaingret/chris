@@ -52,6 +52,37 @@ export function getLastUserLanguage(chatId: string): string | null {
   return sessionLanguage.get(chatId) ?? null;
 }
 
+/**
+ * DB-backed language detection for cron-context handlers (Phase 32 weekly_review
+ * follow-up 2026-05-11). The in-memory `sessionLanguage` map resets on process
+ * restart; cron handlers that fire infrequently (e.g., weekly_review once/week)
+ * usually find it empty even when the user has a clear language signal in the
+ * conversation history. This helper queries the conversations table for the
+ * most recent USER message and runs franc on it.
+ *
+ * Returns 'English' | 'French' | 'Russian' or null when no USER message exists
+ * (fresh chat). Callers should fall back to a sensible default — for Greg, French.
+ */
+export async function getLastUserLanguageFromDb(
+  chatId: bigint,
+): Promise<string | null> {
+  const { db } = await import('../db/connection.js');
+  const { conversations } = await import('../db/schema.js');
+  const { and, eq, desc } = await import('drizzle-orm');
+
+  const rows = await db
+    .select({ content: conversations.content })
+    .from(conversations)
+    .where(
+      and(eq(conversations.chatId, chatId), eq(conversations.role, 'USER')),
+    )
+    .orderBy(desc(conversations.createdAt))
+    .limit(1);
+
+  if (rows.length === 0 || !rows[0]!.content) return null;
+  return detectLanguage(rows[0]!.content, null);
+}
+
 export function setLastUserLanguage(chatId: string, language: string): void {
   sessionLanguage.set(chatId, language);
 }

@@ -38,6 +38,7 @@ function buildFixture(
     weekStart: '2026-04-20',
     weekEnd: '2026-04-26',
     tz: 'Europe/Paris',
+    language: 'English',
     summaries: [
       {
         summaryDate: '2026-04-20',
@@ -144,6 +145,30 @@ describe('assembleWeeklyReviewPrompt — pure prompt assembler (Phase 29 Plan 01
     expect(out).toContain('2026-04-26');
     expect(out).toContain('Europe/Paris');
     expect(out).toContain('## Date Window');
+  });
+
+  it('Language Directive — output contains "## Language Directive (MANDATORY)" + the requested language (Phase 32 weekly_review fix 2026-05-11)', () => {
+    // The directive's first sentence is the load-bearing instruction:
+    // "Write the entire output — both the observation paragraph and the question — in {language}."
+    const enOut = assembleWeeklyReviewPrompt(buildFixture({ language: 'English' }));
+    expect(enOut).toContain('## Language Directive (MANDATORY)');
+    expect(enOut).toContain('the question — in English.');
+
+    const frOut = assembleWeeklyReviewPrompt(buildFixture({ language: 'French' }));
+    expect(frOut).toContain('the question — in French.');
+
+    const ruOut = assembleWeeklyReviewPrompt(buildFixture({ language: 'Russian' }));
+    expect(ruOut).toContain('the question — in Russian.');
+  });
+
+  it('Second-person addressing directive — role preamble explicitly bans third-person "Greg has…" constructions (Phase 32 weekly_review fix 2026-05-11)', () => {
+    const out = assembleWeeklyReviewPrompt(buildFixture());
+    // The role preamble must explicitly direct Sonnet to address Greg in
+    // second person AND explicitly ban the third-person regression pattern
+    // observed in the 2026-05-10 first-fire ("Greg has reached…", "is
+    // withholding…", "Greg knows what he thinks").
+    expect(out).toContain('second person');
+    expect(out).toContain("NEVER refer to Greg in third person");
   });
 
   it('structured-output directive last — final \\n\\n-separated section starts with "## Output Format"', () => {

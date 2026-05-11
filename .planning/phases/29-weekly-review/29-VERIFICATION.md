@@ -5,11 +5,28 @@ status: human_needed
 status_history:
   - 2026-04-29T01:00:00Z: human_needed (4/4 SCs structural; 3 items flagged for UAT)
   - 2026-04-29T02:00:00Z: human_needed (reduced — Greg post-verification dropped SC-2/3 to automated skipIf gate; SC-4 confirmed Phase 30 deferral; only SC-1 first-Sunday visual remains)
-score: 4/4 ROADMAP success criteria structurally verified (SC-1 awaiting first-Sunday post-deploy check; SC-2/3 promoted to automated skipIf-gated test; SC-4 deferred to Phase 30 TEST-31)
+  - 2026-05-10T20:00:18Z: code-level pass (real Sonnet observation produced, Pensieve persisted, Telegram send completed without throwing) BUT user-facing UX failure surfaced 2026-05-11 — Greg did not recognize the delivered message as a weekly-review check-in; third-person framing ("Greg has reached a private verdict...", "Is there a cost Greg is not accounting for...") reads as a detached report rather than a direct prompt. Prompt-design gap.
+score: 4/4 ROADMAP SCs structurally verified at code level; SC-1 UX gap surfaced post-fire — third-person framing + "Observation (interpretation, not fact):" header reads as documentation rather than conversation
 overrides_applied: 2  # SC-2/3 → automated; SC-4 → Phase 30 deferral
 re_verification:
-  scheduled: 2026-05-03 (first Sunday post-deploy)
-  scope: SC-1 only — verify weekly_review fire occurred + Pensieve persist + Telegram delivery
+  attempted: 2026-05-10T20:00:18Z (first-ever weekly_review fire post-deploy)
+  scope: SC-1 — weekly_review fire + Pensieve persist + Telegram delivery + Greg recognizes as check-in
+  code_level: passed (fire executed, real observation generated, Pensieve persisted, Telegram send completed)
+  ux_level: failed (Greg did not register the message as a weekly-review prompt — third-person framing)
+  remediation: prompt fix in src/rituals/weekly-review-prompt.ts to address Greg in second person ("you") + clearer conversational framing; not yet scoped (post-2026-05-11 follow-up)
+  evidence: |
+    ritualId edd793ce-8d0e-47a7-a652-f9bf5e2d6984
+    pensieveEntryId 4f8a032c-0304-4197-ab64-8b8d46fd3c71
+    isFallback false
+    observationLen 620
+    durationMs 18024
+    1 retry (date-grounding caught 'September' out-of-window on attempt 0; attempt 1 clean)
+    wellbeing variance gate correctly omitted block (count=2 < threshold=4)
+    next_run_at advanced to 2026-05-17 20:00 Paris
+    Generated text:
+      Observation (interpretation, not fact):
+      Across the week, two distinct deferral moves appear: in the Karyna situation, Greg has reached a private verdict — no attraction, no future — but is withholding it from the one person it directly concerns; in the Batumi situation, a live relocation question is parked until September with no interim steps taken. The surface-level reason differs in each case, but the underlying structure is identical: a conclusion exists internally, no external commitment follows. The friction is not indecision — Greg knows what he thinks. The friction is the gap between the internal verdict and the spoken or enacted version of it.
+      Is there a cost Greg is not accounting for in the delay between reaching a private verdict and communicating it?
 gaps: []
 deferred:
   - truth: "SC4 — Cron-context CONSTITUTIONAL_PREAMBLE injection holds end-to-end against real Sonnet under adversarial input"

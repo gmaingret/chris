@@ -44,6 +44,7 @@ import { db } from '../db/connection.js';
 import { rituals, ritualFireEvents, ritualResponses } from '../db/schema.js';
 import { logger } from '../utils/logger.js';
 import { storePensieveEntry } from '../pensieve/store.js';
+import { getLastUserLanguageFromDb } from '../chris/language.js';
 import {
   assembleWeeklyReviewPrompt,
   type WeeklyReviewPromptInput,
@@ -569,11 +570,24 @@ export async function fireWeeklyReview(
     return 'fired'; // no telegram send; the cron next_run_at advances normally
   }
 
+  // 3b. Detect Greg's language from the most recent USER message in the
+  // conversations table (Phase 32 weekly_review prompt fix 2026-05-11).
+  // The in-memory `sessionLanguage` map is empty after every container
+  // restart — for a cron handler that fires once per week, it is almost
+  // always empty. Falling back to 'French' is the right default for Greg;
+  // if a future user has a different primary language, change the literal
+  // here (or read it from a per-user config).
+  const detectedLanguage = await getLastUserLanguageFromDb(
+    BigInt(config.telegramAuthorizedUserId),
+  );
+  const language = detectedLanguage ?? 'French';
+
   // 4. Build prompt input + generate observation
   const promptInput: WeeklyReviewPromptInput = {
     weekStart: weekStartIso,
     weekEnd: weekEndIso,
     tz: config.proactiveTimezone,
+    language,
     summaries: ctx.summaries.map((s) => ({
       summaryDate: s.summaryDate,
       summary: s.summary,

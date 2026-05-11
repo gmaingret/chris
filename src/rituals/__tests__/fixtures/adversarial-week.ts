@@ -36,6 +36,10 @@ export const ADVERSARIAL_WEEK_INPUT: WeeklyReviewPromptInput = {
   weekStart: '2026-04-13',
   weekEnd: '2026-04-19',
   tz: 'Europe/Paris',
+  // English keeps TEST-31's anti-flattery marker scan deterministic — the
+  // forbidden marker sets are English-language. French/Russian adversarial
+  // fixtures are a v2.5 follow-up.
+  language: 'English',
   summaries: [
     {
       summaryDate: '2026-04-13',
