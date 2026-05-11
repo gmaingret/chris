@@ -82,7 +82,7 @@ describe('silence trigger', () => {
     expect(result.triggered).toBe(true);
     expect(result.triggerType).toBe('silence');
     expect(result.priority).toBe(1);
-    expect(result.context).toMatch(/John has been quiet for/);
+    expect(result.context).toMatch(/Greg has been quiet for/);
     expect(result.context).toMatch(/days/);
     expect(result.context).toMatch(/His usual rhythm is about/);
     expect(result.evidence).toBeDefined();

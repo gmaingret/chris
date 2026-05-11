@@ -119,7 +119,10 @@ export async function buildSweepContext(maxTokens: number): Promise<string> {
     sections.push(gapSection);
   }
 
-  return sections.join('\n\n');
+  // Per-section truncation lets each block fill its share of the budget, but
+  // the "\n\n" join separators add ~6 chars of overhead on top. Final-stage
+  // truncate enforces the documented contract: total ≤ maxTokens × 4.
+  return truncateSection(sections.join('\n\n'), charBudget);
 }
 
 // ── Data Queries ─────────────────────────────────────────────────────────

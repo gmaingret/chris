@@ -43,6 +43,7 @@ import { DateTime } from 'luxon';
 import { db, sql as pgSql } from '../../db/connection.js';
 import {
   pensieveEntries,
+  pensieveEmbeddings,
   episodicSummaries,
   decisions,
   decisionEvents,
@@ -454,8 +455,21 @@ async function cleanupFixture(): Promise<void> {
     ),
   );
   await db.delete(decisions).where(eq(decisions.chatId, FIXTURE_CHAT_ID));
-  // Pensieve entries by source.
-  await db.delete(pensieveEntries).where(eq(pensieveEntries.source, 'telegram'));
+  // Pensieve entries by source. FK-safe: delete pensieve_embeddings first
+  // (fire-and-forget embed in handleJournal etc. lands rows after primary
+  // writes; deleting parent first hits pensieve_embeddings_entry_id_fk).
+  const orphanIds = (
+    await db
+      .select({ id: pensieveEntries.id })
+      .from(pensieveEntries)
+      .where(eq(pensieveEntries.source, 'telegram'))
+  ).map((r) => r.id);
+  if (orphanIds.length > 0) {
+    await db
+      .delete(pensieveEmbeddings)
+      .where(inArray(pensieveEmbeddings.entryId, orphanIds));
+    await db.delete(pensieveEntries).where(eq(pensieveEntries.source, 'telegram'));
+  }
 }
 
 // ════════════════════════════════════════════════════════════════════════════

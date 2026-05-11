@@ -27,6 +27,7 @@ import {
   decisionEvents,
   decisionCaptureState,
   pensieveEntries,
+  pensieveEmbeddings,
 } from '../../db/schema.js';
 
 // ── Hoisted mocks (vi.hoisted runs at hoist-time, before module imports) ────
@@ -129,6 +130,12 @@ vi.mock('../../utils/logger.js', () => ({
 
 vi.mock('../../memory/conversation.js', () => ({
   saveMessage: mockSaveMessage,
+  // 2026-05-11: sweep.ts:534 added a 48h no-user-window guard via
+  // countMessagesSince; mock returns 1 to bypass the guard so TEST-12 paths
+  // exercise the reflective channel as intended.
+  countMessagesSince: vi.fn().mockResolvedValue(1),
+  // sweep.ts:569 also pulls recent conversation history.
+  getRecentHistory: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('../../proactive/context-builder.js', () => ({
@@ -296,7 +303,22 @@ async function cleanup(): Promise<void> {
     .delete(decisionCaptureState)
     .where(eq(decisionCaptureState.chatId, TEST_CHAT_ID));
   // pensieve_entries has no chatId column; scope by source='telegram' as best-effort filter.
-  await db.delete(pensieveEntries).where(eq(pensieveEntries.source, 'telegram'));
+  // FK-safe: delete dependent rows (pensieve_embeddings) before parent. The
+  // fire-and-forget embed in handleJournal etc. can land embedding rows after
+  // the test's primary writes, and deleting parent first hits the FK constraint
+  // pensieve_embeddings_entry_id_pensieve_entries_id_fk (#2026-05-11).
+  const orphanIds = (
+    await db
+      .select({ id: pensieveEntries.id })
+      .from(pensieveEntries)
+      .where(eq(pensieveEntries.source, 'telegram'))
+  ).map((r) => r.id);
+  if (orphanIds.length > 0) {
+    await db
+      .delete(pensieveEmbeddings)
+      .where(inArray(pensieveEmbeddings.entryId, orphanIds));
+    await db.delete(pensieveEntries).where(eq(pensieveEntries.source, 'telegram'));
+  }
 }
 
 // ════════════════════════════════════════════════════════════════════════════

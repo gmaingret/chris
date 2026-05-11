@@ -36,10 +36,14 @@
  * not from Date.now(), so no time-travel is needed.
  */
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 import { db, sql } from '../../db/connection.js';
-import { episodicSummaries, pensieveEntries } from '../../db/schema.js';
+import {
+  episodicSummaries,
+  pensieveEntries,
+  pensieveEmbeddings,
+} from '../../db/schema.js';
 import { runConsolidate } from '../consolidate.js';
 import { config } from '../../config.js';
 
@@ -212,7 +216,22 @@ async function cleanupAdversarialSummary(): Promise<void> {
  */
 async function cleanupFixture(): Promise<void> {
   await cleanupAdversarialSummary();
-  await db.delete(pensieveEntries).where(eq(pensieveEntries.source, FIXTURE_SOURCE));
+  // FK-safe: delete pensieve_embeddings before pensieve_entries (fire-and-forget
+  // embed lands rows after primary writes; parent-first delete trips FK).
+  const orphanIds = (
+    await db
+      .select({ id: pensieveEntries.id })
+      .from(pensieveEntries)
+      .where(eq(pensieveEntries.source, FIXTURE_SOURCE))
+  ).map((r) => r.id);
+  if (orphanIds.length > 0) {
+    await db
+      .delete(pensieveEmbeddings)
+      .where(inArray(pensieveEmbeddings.entryId, orphanIds));
+    await db
+      .delete(pensieveEntries)
+      .where(eq(pensieveEntries.source, FIXTURE_SOURCE));
+  }
 }
 
 /**

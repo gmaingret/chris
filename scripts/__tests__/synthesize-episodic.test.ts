@@ -86,12 +86,17 @@ function makeMockSonnetResponse(summaryDate: string): unknown {
 // Narrow to source='telegram' for pensieve_entries so we don't stomp on
 // data written by other concurrent suites.
 async function cleanup(): Promise<void> {
-  await db.delete(pensieveEmbeddings);
   await db.delete(episodicSummaries);
   await db.delete(decisionEvents);
   await db.delete(decisionCaptureState);
   await db.delete(decisions);
   await db.delete(contradictions);
+  // Delete pensieve_embeddings IMMEDIATELY before pensieve_entries — anything
+  // earlier risks the fire-and-forget embed from a prior test landing a new
+  // row between the embeddings delete and the parent delete, tripping the
+  // FK constraint pensieve_embeddings_entry_id_pensieve_entries_id_fk
+  // (#2026-05-11).
+  await db.delete(pensieveEmbeddings);
   await db
     .delete(pensieveEntries)
     .where(eq(pensieveEntries.source, 'telegram'));

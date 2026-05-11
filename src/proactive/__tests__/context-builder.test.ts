@@ -126,7 +126,7 @@ describe('context-builder', () => {
     expect(result).toContain('PATTERN');
     expect(result).toContain('John cycles between');
     expect(result).toContain('Thinking about changing careers');
-    expect(result).toContain('Last message from John');
+    expect(result).toContain('Last message from Greg');
   });
 
   it('respects character budget — output length ≤ maxTokens × 4', async () => {
