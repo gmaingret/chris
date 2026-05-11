@@ -85,6 +85,13 @@
       "when": 1778041174550,
       "tag": "0011_rename_daily_voice_note_to_journal",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1778482284254,
+      "tag": "0012_operational_profiles",
+      "breakpoints": true
     }
   ]
 }
