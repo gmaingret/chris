@@ -37,7 +37,7 @@ bot.command('summary', handleSummaryCommand as any);
 export async function handleTextMessage(ctx: {
   chat: { id: number };
   from: { id: number };
-  message: { text: string };
+  message: { text: string; reply_to_message?: { message_id: number } };
   reply: (text: string) => Promise<unknown>;
 }): Promise<void> {
   // Intercept OAuth code if we're waiting for one from this chat
@@ -49,9 +49,12 @@ export async function handleTextMessage(ctx: {
   const chatId = BigInt(ctx.chat.id);
   const userId = ctx.from.id;
   const text = ctx.message.text;
+  // User-initiated messages get a Chris reply; only explicit Telegram replies
+  // route to PP#5 ritual capture (silent). See engine.ts PP#5 gate.
+  const replyToMessageId = ctx.message.reply_to_message?.message_id;
 
   try {
-    const response = await processMessage(chatId, userId, text);
+    const response = await processMessage(chatId, userId, text, { replyToMessageId });
     // IN-02: guard empty-string reply from processMessage. Reachable only on a
     // narrow race inside Phase 14 capture flow (e.g. capture cleared between
     // engine's PP#0 check and handleCapture's own state read). Telegram

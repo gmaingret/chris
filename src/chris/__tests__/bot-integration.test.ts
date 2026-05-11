@@ -50,11 +50,18 @@ function mockCtx(overrides?: {
   chatId?: number;
   userId?: number;
   text?: string;
+  replyToMessageId?: number;
 }) {
+  const message: { text: string; reply_to_message?: { message_id: number } } = {
+    text: overrides?.text ?? 'I had coffee with Dad today',
+  };
+  if (overrides?.replyToMessageId !== undefined) {
+    message.reply_to_message = { message_id: overrides.replyToMessageId };
+  }
   return {
     chat: { id: overrides?.chatId ?? 12345 },
     from: { id: overrides?.userId ?? 67890 },
-    message: { text: overrides?.text ?? 'I had coffee with Dad today' },
+    message,
     reply: vi.fn().mockResolvedValue(undefined),
   };
 }
@@ -75,6 +82,26 @@ describe('bot-integration: handleTextMessage', () => {
       BigInt(99999),
       42,
       'Hello Chris',
+      { replyToMessageId: undefined },
+    );
+  });
+
+  it('passes replyToMessageId when ctx.message.reply_to_message is set', async () => {
+    mockProcessMessage.mockResolvedValueOnce('');
+    const ctx = mockCtx({
+      chatId: 99999,
+      userId: 42,
+      text: 'today was the team meeting',
+      replyToMessageId: 4242,
+    });
+
+    await handleTextMessage(ctx);
+
+    expect(mockProcessMessage).toHaveBeenCalledWith(
+      BigInt(99999),
+      42,
+      'today was the team meeting',
+      { replyToMessageId: 4242 },
     );
   });
 
@@ -128,6 +155,7 @@ describe('bot-integration: handleTextMessage', () => {
       BigInt(-1001234567890),
       expect.any(Number),
       expect.any(String),
+      expect.objectContaining({}),
     );
   });
 

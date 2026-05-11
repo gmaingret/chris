@@ -133,6 +133,7 @@ describe('PP#5 HIT path (Phase 26 VOICE-01, VOICE-06) — Pitfall 6 contract', (
       chatId,
       99999,
       'today was about the team meeting',
+      { replyToMessageId: 12345 }, // hotfix 2026-05-11: PP#5 requires explicit reply_to
     );
 
     // 1. Empty string return (IN-02 silent-skip).
@@ -235,6 +236,58 @@ describe('PP#5 MISS path (Phase 26 — fall-through to normal pipeline)', () => 
       .where(eq(ritualPendingResponses.id, expiredPending!.id));
     expect(unchanged!.consumedAt).toBeNull();
     // No ritual-response Pensieve entry written.
+    const entries = await db
+      .select()
+      .from(pensieveEntries)
+      .where(eq(pensieveEntries.epistemicTag, 'RITUAL_RESPONSE'));
+    expect(entries).toHaveLength(0);
+  });
+
+  // 2026-05-11 hotfix: active pending row + NO replyToMessageId ⇒ PP#5 skipped,
+  // engine path runs (Chris always replies to user-initiated messages).
+  it('active pending row + no replyToMessageId → PP#5 SKIPPED, engine runs', async () => {
+    const [ritual] = await db
+      .insert(rituals)
+      .values({
+        name: FIXTURE_RITUAL_NAME,
+        type: 'daily',
+        nextRunAt: new Date(),
+        enabled: true,
+        config: {
+          fire_at: '21:00',
+          prompt_bag: [1, 2, 3, 4, 5],
+          skip_threshold: 3,
+          mute_until: null,
+          time_zone: 'Europe/Paris',
+          prompt_set_version: 'v1',
+          schema_version: 1,
+        },
+      })
+      .returning();
+    const chatId = BigInt(555555);
+    const [activePending] = await db
+      .insert(ritualPendingResponses)
+      .values({
+        ritualId: ritual!.id,
+        chatId,
+        firedAt: new Date(Date.now() - 30 * 60 * 1000),
+        expiresAt: new Date(Date.now() + 6 * 3600 * 1000), // still active
+        promptText: "What's still on your mind?",
+      })
+      .returning();
+
+    // No replyToMessageId — Greg sent a fresh freeform message, not a Telegram reply.
+    // Should bypass PP#5 entirely and hit the engine (which throws via mocked Anthropic).
+    await expect(
+      processMessage(chatId, 99999, 'Bon pour Batumi, je pense que...'),
+    ).rejects.toThrow();
+    // Active pending row NOT consumed — preserved for a future explicit reply.
+    const [unchanged] = await db
+      .select()
+      .from(ritualPendingResponses)
+      .where(eq(ritualPendingResponses.id, activePending!.id));
+    expect(unchanged!.consumedAt).toBeNull();
+    // No RITUAL_RESPONSE Pensieve entry written.
     const entries = await db
       .select()
       .from(pensieveEntries)

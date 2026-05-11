@@ -163,7 +163,7 @@ export async function processMessage(
   chatId: bigint,
   userId: number,
   text: string,
-  opts?: { pensieveSource?: string },
+  opts?: { pensieveSource?: string; replyToMessageId?: number },
 ): Promise<string> {
   // Input validation
   if (!text || text.trim().length === 0) {
@@ -183,8 +183,16 @@ export async function processMessage(
     // HARD CO-LOC #1 (Pitfall 6 mitigation): co-located with journal
     // handler in Plan 26-02. Splitting them = guaranteed Chris-responds-
     // to-rituals regression for the gap window.
+    //
+    // 2026-05-11 hotfix: gate PP#5 on explicit Telegram reply. User-initiated
+    // freeform messages (no reply_to_message) skip PP#5 entirely and route
+    // through the normal engine — Chris always replies when Greg initiates.
+    // Only messages that are Telegram-native replies (Greg tapped reply on a
+    // Chris ritual prompt) are eligible for silent ritual capture.
     const chatIdStrPP5 = chatId.toString();
-    const pending = await findActivePendingResponse(chatIdStrPP5, new Date());
+    const pending = opts?.replyToMessageId !== undefined
+      ? await findActivePendingResponse(chatIdStrPP5, new Date())
+      : null;
     if (pending) {
       // Phase 28 Plan 03 SKIP-04 + SKIP-05 — metadata.kind dispatch (RESEARCH Landmine 6).
       // Journal pending rows had no metadata pre-Phase-28 (column did not exist).

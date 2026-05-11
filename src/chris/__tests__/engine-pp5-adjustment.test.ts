@@ -145,7 +145,9 @@ describe('Phase 28 Plan 03 — PP#5 metadata.kind dispatch (Pitfall 6 carry-over
       })
       .returning();
 
-    const result = await processMessage(TEST_CHAT_ID, 99999, 'today was great');
+    const result = await processMessage(TEST_CHAT_ID, 99999, 'today was great', {
+      replyToMessageId: 12345, // 2026-05-11 hotfix: PP#5 requires explicit reply_to
+    });
 
     expect(result).toBe('');
 
@@ -184,7 +186,9 @@ describe('Phase 28 Plan 03 — PP#5 metadata.kind dispatch (Pitfall 6 carry-over
       })
       .returning();
 
-    const result = await processMessage(TEST_CHAT_ID, 99999, 'null metadata test');
+    const result = await processMessage(TEST_CHAT_ID, 99999, 'null metadata test', {
+      replyToMessageId: 12346,
+    });
 
     expect(result).toBe('');
 
@@ -209,7 +213,9 @@ describe('Phase 28 Plan 03 — PP#5 metadata.kind dispatch (Pitfall 6 carry-over
         metadata: { kind: 'adjustment_dialogue', cadence: 'daily', ritualName: FIXTURE_RITUAL_NAME },
       });
 
-    const result = await processMessage(TEST_CHAT_ID, 99999, 'change the time to 19:30');
+    const result = await processMessage(TEST_CHAT_ID, 99999, 'change the time to 19:30', {
+      replyToMessageId: 12347,
+    });
 
     expect(result).toBe('');
 
@@ -239,7 +245,9 @@ describe('Phase 28 Plan 03 — PP#5 metadata.kind dispatch (Pitfall 6 carry-over
         },
       });
 
-    const result = await processMessage(TEST_CHAT_ID, 99999, 'yes');
+    const result = await processMessage(TEST_CHAT_ID, 99999, 'yes', {
+      replyToMessageId: 12348,
+    });
 
     expect(result).toBe('');
 
