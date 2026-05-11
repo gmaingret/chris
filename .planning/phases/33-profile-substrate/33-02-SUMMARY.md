@@ -176,6 +176,15 @@ None - no new network endpoints, auth paths, or external trust boundaries. `getO
 - **D-13 schema mismatch**: schema_version=999 → null + `chris.profile.read.schema_mismatch` warn; invalid jsonb shape → same ✅
 - **GEN-05 substrate**: `computeProfileConfidence` + `isAboveThreshold` boundary tests pass (9 threshold, 0 returns 0, 10 returns 0.3, 50 returns 1.0 at consistency=1.0) ✅
 
+## Self-Check: PASSED
+
+- All 5 new files exist: `confidence.ts`, `profiles.ts`, `confidence.test.ts`, `profiles.test.ts`, `schemas.test.ts`
+- All 7 commits exist: `f0cafe2`, `4d56180`, `2619f23`, `8b0e2e1`, `b82ec82`, `4993b53`, `1b9341e`
+- 35 tests pass in isolation (vitest run)
+- 4 boundary-audit tests pass (D035 invariant)
+- TypeScript compiles clean (`npx tsc --noEmit` exits 0, no output)
+- D035: zero `episodic_summaries` references in new files
+
 ---
 *Phase: 33-profile-substrate*
 *Completed: 2026-05-11*
