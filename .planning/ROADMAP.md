@@ -47,7 +47,9 @@ See `.planning/milestones/v2.4-ROADMAP.md` for full phase details + `.planning/m
   3. Initial profile rows exist in all four tables after migration (seeded from `ground-truth.ts`): jurisdictional + capital at confidence 0.2–0.3 from known facts; health + family row-present at confidence=0 with "insufficient data" markers
   4. Zod v3 + v4 dual schemas for all four profile shapes parse valid shapes and reject invalid ones (wrong confidence range, missing required fields, schema_version=999 returns null without throwing)
   5. `computeProfileConfidence(entryCount, dataConsistency)` pure-function unit tests confirm: below-threshold (< 10 entries) returns 0.0; at-saturation (50+ entries) caps correctly; `isAboveThreshold(9)` is false, `isAboveThreshold(10)` is true
-**Plans**: TBD
+**Plans**: 2 plans
+- [ ] 33-01-PLAN.md — Atomic substrate migration (PROF-01/02/03 + Never-Retrofit Checklist)
+- [ ] 33-02-PLAN.md — Reader API + Zod schemas + confidence helpers (PROF-04/05 + GEN-05 substrate)
 
 **HARD CO-LOCATION #M10-1**: Migration SQL + drizzle meta snapshot + `scripts/test.sh` psql apply line ship in ONE atomic plan. `schema_version` + `substrate_hash` columns ship in the SAME migration as table creation — never retrofitted.
 
