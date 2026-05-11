@@ -585,6 +585,8 @@ async function cleanup(): Promise<void> {
   // pensieve_entries; pensieve_entries cascades cleanly.
   await db.delete(ritualFireEvents);
   await db.delete(ritualResponses);
+  // Wipe pensieve_embeddings rows for entries we're about to delete (FK-safe).
+  await db.execute(sql`DELETE FROM pensieve_embeddings WHERE entry_id IN (SELECT id FROM pensieve_entries WHERE source = ${FIXTURE_SOURCE} OR metadata->>'source_subtype' = 'weekly_observation')`);
   await db.execute(sql`DELETE FROM pensieve_entries WHERE source = ${FIXTURE_SOURCE}`);
   await db.execute(sql`DELETE FROM pensieve_entries WHERE metadata->>'source_subtype' = 'weekly_observation'`);
   await db.delete(rituals).where(eq(rituals.name, FIXTURE_RITUAL_NAME));

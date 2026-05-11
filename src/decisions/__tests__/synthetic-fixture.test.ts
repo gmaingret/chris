@@ -28,6 +28,7 @@ import {
   decisionCaptureState,
   pensieveEntries,
   pensieveEmbeddings,
+  contradictions,
 } from '../../db/schema.js';
 
 // ── Hoisted mocks (vi.hoisted runs at hoist-time, before module imports) ────
@@ -140,6 +141,17 @@ vi.mock('../../memory/conversation.js', () => ({
 
 vi.mock('../../proactive/context-builder.js', () => ({
   buildSweepContext: mockBuildSweepContext,
+}));
+
+// 2026-05-11: sweep.ts:569 calls buildMessageHistory from
+// src/memory/context-builder.ts which internally calls getRecentHistory.
+// Mocking memory/conversation.js's getRecentHistory wasn't propagating
+// through the nested import chain in this test; direct-mock the wrapper.
+const { mockBuildMessageHistory } = vi.hoisted(() => ({
+  mockBuildMessageHistory: vi.fn().mockResolvedValue([]),
+}));
+vi.mock('../../memory/context-builder.js', () => ({
+  buildMessageHistory: mockBuildMessageHistory,
 }));
 
 vi.mock('../../proactive/triggers/opus-analysis.js', () => ({
@@ -314,6 +326,14 @@ async function cleanup(): Promise<void> {
       .where(eq(pensieveEntries.source, 'telegram'))
   ).map((r) => r.id);
   if (orphanIds.length > 0) {
+    // contradictions.entry_b_id (and entry_a_id) FK pensieve_entries.id —
+    // also a dependent that must clear before the parent delete.
+    await db
+      .delete(contradictions)
+      .where(inArray(contradictions.entryBId, orphanIds));
+    await db
+      .delete(contradictions)
+      .where(inArray(contradictions.entryAId, orphanIds));
     await db
       .delete(pensieveEmbeddings)
       .where(inArray(pensieveEmbeddings.entryId, orphanIds));
