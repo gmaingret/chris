@@ -30,7 +30,7 @@ See `.planning/milestones/v2.4-ROADMAP.md` for full phase details + `.planning/m
 
 ### 📋 v2.5 M010 Operational Profiles (Phases 33-36)
 
-- [ ] **Phase 33: Profile Substrate** — Migration 0012 + 4 profile tables + history table + reader API + Zod schemas
+- [x] **Phase 33: Profile Substrate** — Migration 0012 + 4 profile tables + history table + reader API + Zod schemas (completed 2026-05-11)
 - [ ] **Phase 34: Inference Engine** — Shared prompt builder + 4 generators + orchestrator + Sunday 22:00 cron + idempotency
 - [ ] **Phase 35: Surfaces** — buildSystemPrompt refactor + REFLECT/COACH/PSYCHOLOGY injection + /profile command + formatter
 - [ ] **Phase 36: Tests** — m010-30days primed fixture + real-DB integration + two-cycle idempotency + sparse + live 3-of-3
@@ -49,7 +49,7 @@ See `.planning/milestones/v2.4-ROADMAP.md` for full phase details + `.planning/m
   5. `computeProfileConfidence(entryCount, dataConsistency)` pure-function unit tests confirm: below-threshold (< 10 entries) returns 0.0; at-saturation (50+ entries) caps correctly; `isAboveThreshold(9)` is false, `isAboveThreshold(10)` is true
 **Plans**: 2 plans
 - [x] 33-01-PLAN.md — Atomic substrate migration (PROF-01/02/03 + Never-Retrofit Checklist)
-- [ ] 33-02-PLAN.md — Reader API + Zod schemas + confidence helpers (PROF-04/05 + GEN-05 substrate)
+- [x] 33-02-PLAN.md — Reader API + Zod schemas + confidence helpers (PROF-04/05 + GEN-05 substrate)
 
 **HARD CO-LOCATION #M10-1**: Migration SQL + drizzle meta snapshot + `scripts/test.sh` psql apply line ship in ONE atomic plan. `schema_version` + `substrate_hash` columns ship in the SAME migration as table creation — never retrofitted.
 
@@ -111,7 +111,7 @@ See `.planning/milestones/v2.4-ROADMAP.md` for full phase details + `.planning/m
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 25-32 | v2.4 | 23/23 + Phase 32 inline | Complete | 2026-05-11 |
-| 33 — Profile Substrate | v2.5 | 1/2 | In Progress|  |
+| 33 — Profile Substrate | v2.5 | 2/2 | Complete   | 2026-05-11 |
 | 34 — Inference Engine | v2.5 | 0/4 | Not started | — |
 | 35 — Surfaces | v2.5 | 0/3 | Not started | — |
 | 36 — Tests | v2.5 | 0/2 | Not started | — |
