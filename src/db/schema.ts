@@ -18,6 +18,13 @@ import {
 } from 'drizzle-orm/pg-core';
 import { vector } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
+import type {
+  JurisdictionalProfileData,
+  CapitalProfileData,
+  HealthProfileData,
+  FamilyProfileData,
+  ProfileSnapshot,
+} from '../memory/profiles/schemas.js';
 
 // ── Enums ──────────────────────────────────────────────────────────────────
 
@@ -507,5 +514,145 @@ export const ritualPendingResponses = pgTable(
     index('ritual_pending_responses_adjustment_confirmation_idx')
       .on(table.expiresAt)
       .where(sql`${table.consumedAt} IS NULL AND ${table.metadata}->>'kind' = 'adjustment_confirmation'`),
+  ],
+);
+
+// ── M010 Phase 33: Operational profile tables (PROF-01/PROF-02) ──────────
+// HARD CO-LOCATION #M10-1: these table defs + migration 0012 SQL +
+// meta/0012_snapshot.json + _journal.json entry + scripts/test.sh psql
+// apply line + scripts/regen-snapshots.sh cleanup-flag bump ALL ship in
+// Plan 33-01 atomically. See .planning/STATE.md hard co-location constraints.
+//
+// Non-retrofittable columns (PITFALLS M010-09/10/11):
+//   - schemaVersion / schema_version int NOT NULL DEFAULT 1
+//   - substrateHash / substrate_hash text NOT NULL DEFAULT ''
+//   - name text NOT NULL UNIQUE DEFAULT 'primary'
+//   - dataConsistency / data_consistency real NOT NULL DEFAULT 0 with CHECK
+//
+// Field names locked against FEATURES.md §2.1-2.4 per Open Question 1.
+// .$type<T>() compile-time inference: NEW pattern in this codebase
+// (drizzle-orm 0.45.2 supports it; runtime validation via Zod in profiles.ts).
+
+export const profileJurisdictional = pgTable(
+  'profile_jurisdictional',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`).notNull(),
+    name: text('name').notNull().default('primary').unique(),
+    schemaVersion: integer('schema_version').notNull().default(1),
+    substrateHash: text('substrate_hash').notNull().default(''),
+    confidence: real('confidence').notNull().default(0),
+    dataConsistency: real('data_consistency').notNull().default(0),
+    currentCountry: jsonb('current_country').$type<JurisdictionalProfileData['current_country']>().notNull().default(sql`'null'::jsonb`),
+    physicalLocation: jsonb('physical_location').$type<JurisdictionalProfileData['physical_location']>().notNull().default(sql`'null'::jsonb`),
+    residencyStatus: jsonb('residency_status').$type<JurisdictionalProfileData['residency_status']>().notNull().default(sql`'[]'::jsonb`),
+    taxResidency: jsonb('tax_residency').$type<JurisdictionalProfileData['tax_residency']>().notNull().default(sql`'null'::jsonb`),
+    activeLegalEntities: jsonb('active_legal_entities').$type<JurisdictionalProfileData['active_legal_entities']>().notNull().default(sql`'[]'::jsonb`),
+    nextPlannedMove: jsonb('next_planned_move').$type<JurisdictionalProfileData['next_planned_move']>().notNull().default(sql`'{}'::jsonb`),
+    plannedMoveDate: jsonb('planned_move_date').$type<JurisdictionalProfileData['planned_move_date']>().notNull().default(sql`'null'::jsonb`),
+    passportCitizenships: jsonb('passport_citizenships').$type<JurisdictionalProfileData['passport_citizenships']>().notNull().default(sql`'[]'::jsonb`),
+    lastUpdated: timestamp('last_updated', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('profile_jurisdictional_confidence_bounds', sql`${table.confidence} >= 0 AND ${table.confidence} <= 1`),
+    check('profile_jurisdictional_data_consistency_bounds', sql`${table.dataConsistency} >= 0 AND ${table.dataConsistency} <= 1`),
+  ],
+);
+
+export const profileCapital = pgTable(
+  'profile_capital',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`).notNull(),
+    name: text('name').notNull().default('primary').unique(),
+    schemaVersion: integer('schema_version').notNull().default(1),
+    substrateHash: text('substrate_hash').notNull().default(''),
+    confidence: real('confidence').notNull().default(0),
+    dataConsistency: real('data_consistency').notNull().default(0),
+    fiPhase: jsonb('fi_phase').$type<CapitalProfileData['fi_phase']>().notNull().default(sql`'null'::jsonb`),
+    fiTargetAmount: jsonb('fi_target_amount').$type<CapitalProfileData['fi_target_amount']>().notNull().default(sql`'null'::jsonb`),
+    estimatedNetWorth: jsonb('estimated_net_worth').$type<CapitalProfileData['estimated_net_worth']>().notNull().default(sql`'null'::jsonb`),
+    runwayMonths: jsonb('runway_months').$type<CapitalProfileData['runway_months']>().notNull().default(sql`'null'::jsonb`),
+    nextSequencingDecision: jsonb('next_sequencing_decision').$type<CapitalProfileData['next_sequencing_decision']>().notNull().default(sql`'null'::jsonb`),
+    incomeSources: jsonb('income_sources').$type<CapitalProfileData['income_sources']>().notNull().default(sql`'[]'::jsonb`),
+    majorAllocationDecisions: jsonb('major_allocation_decisions').$type<CapitalProfileData['major_allocation_decisions']>().notNull().default(sql`'[]'::jsonb`),
+    taxOptimizationStatus: jsonb('tax_optimization_status').$type<CapitalProfileData['tax_optimization_status']>().notNull().default(sql`'null'::jsonb`),
+    activeLegalEntities: jsonb('active_legal_entities').$type<CapitalProfileData['active_legal_entities']>().notNull().default(sql`'[]'::jsonb`),
+    lastUpdated: timestamp('last_updated', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('profile_capital_confidence_bounds', sql`${table.confidence} >= 0 AND ${table.confidence} <= 1`),
+    check('profile_capital_data_consistency_bounds', sql`${table.dataConsistency} >= 0 AND ${table.dataConsistency} <= 1`),
+  ],
+);
+
+export const profileHealth = pgTable(
+  'profile_health',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`).notNull(),
+    name: text('name').notNull().default('primary').unique(),
+    schemaVersion: integer('schema_version').notNull().default(1),
+    substrateHash: text('substrate_hash').notNull().default(''),
+    confidence: real('confidence').notNull().default(0),
+    dataConsistency: real('data_consistency').notNull().default(0),
+    openHypotheses: jsonb('open_hypotheses').$type<HealthProfileData['open_hypotheses']>().notNull().default(sql`'[]'::jsonb`),
+    pendingTests: jsonb('pending_tests').$type<HealthProfileData['pending_tests']>().notNull().default(sql`'[]'::jsonb`),
+    activeTreatments: jsonb('active_treatments').$type<HealthProfileData['active_treatments']>().notNull().default(sql`'[]'::jsonb`),
+    recentResolved: jsonb('recent_resolved').$type<HealthProfileData['recent_resolved']>().notNull().default(sql`'[]'::jsonb`),
+    caseFileNarrative: jsonb('case_file_narrative').$type<HealthProfileData['case_file_narrative']>().notNull().default(sql`'null'::jsonb`),
+    wellbeingTrend: jsonb('wellbeing_trend').$type<HealthProfileData['wellbeing_trend']>().notNull().default(sql`'{}'::jsonb`),
+    lastUpdated: timestamp('last_updated', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('profile_health_confidence_bounds', sql`${table.confidence} >= 0 AND ${table.confidence} <= 1`),
+    check('profile_health_data_consistency_bounds', sql`${table.dataConsistency} >= 0 AND ${table.dataConsistency} <= 1`),
+  ],
+);
+
+export const profileFamily = pgTable(
+  'profile_family',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`).notNull(),
+    name: text('name').notNull().default('primary').unique(),
+    schemaVersion: integer('schema_version').notNull().default(1),
+    substrateHash: text('substrate_hash').notNull().default(''),
+    confidence: real('confidence').notNull().default(0),
+    dataConsistency: real('data_consistency').notNull().default(0),
+    relationshipStatus: jsonb('relationship_status').$type<FamilyProfileData['relationship_status']>().notNull().default(sql`'null'::jsonb`),
+    partnershipCriteriaEvolution: jsonb('partnership_criteria_evolution').$type<FamilyProfileData['partnership_criteria_evolution']>().notNull().default(sql`'[]'::jsonb`),
+    childrenPlans: jsonb('children_plans').$type<FamilyProfileData['children_plans']>().notNull().default(sql`'null'::jsonb`),
+    parentCareResponsibilities: jsonb('parent_care_responsibilities').$type<FamilyProfileData['parent_care_responsibilities']>().notNull().default(sql`'{}'::jsonb`),
+    activeDatingContext: jsonb('active_dating_context').$type<FamilyProfileData['active_dating_context']>().notNull().default(sql`'null'::jsonb`),
+    milestones: jsonb('milestones').$type<FamilyProfileData['milestones']>().notNull().default(sql`'[]'::jsonb`),
+    constraints: jsonb('constraints').$type<FamilyProfileData['constraints']>().notNull().default(sql`'[]'::jsonb`),
+    lastUpdated: timestamp('last_updated', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('profile_family_confidence_bounds', sql`${table.confidence} >= 0 AND ${table.confidence} <= 1`),
+    check('profile_family_data_consistency_bounds', sql`${table.dataConsistency} >= 0 AND ${table.dataConsistency} <= 1`),
+  ],
+);
+
+/**
+ * profile_history — shared discriminator table (D-17).
+ * Internal idempotency primitive: Phase 34's generator writes a snapshot
+ * row before each upsert. Phase 33 is write-only (no reader). No FK on
+ * profile_id (polymorphic across 4 profile tables — Postgres doesn't
+ * support polymorphic FK; app-level discipline only).
+ * Index ships now per OQ-3 (marginal cost on zero rows; simplifies Phase 34).
+ */
+export const profileHistory = pgTable(
+  'profile_history',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`).notNull(),
+    profileTableName: text('profile_table_name').notNull(),
+    profileId: uuid('profile_id').notNull(),
+    snapshot: jsonb('snapshot').$type<ProfileSnapshot>().notNull(),
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('profile_history_table_recorded_idx').on(table.profileTableName, table.recordedAt.desc()),
   ],
 );

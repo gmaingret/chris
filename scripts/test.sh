@@ -17,6 +17,7 @@ MIGRATION_8_SQL="src/db/migrations/0008_wellbeing_seed.sql"
 MIGRATION_9_SQL="src/db/migrations/0009_weekly_review_seed.sql"
 MIGRATION_10_SQL="src/db/migrations/0010_adjustment_dialogue.sql"
 MIGRATION_11_SQL="src/db/migrations/0011_rename_daily_voice_note_to_journal.sql"
+MIGRATION_12_SQL="src/db/migrations/0012_operational_profiles.sql"
 
 cleanup() {
   echo "🧹 Stopping test postgres..."
@@ -78,6 +79,8 @@ docker compose -f "$COMPOSE_FILE" exec -T postgres \
   psql -U chris -d chris -v ON_ERROR_STOP=1 -q < "$MIGRATION_10_SQL"
 docker compose -f "$COMPOSE_FILE" exec -T postgres \
   psql -U chris -d chris -v ON_ERROR_STOP=1 -q < "$MIGRATION_11_SQL"
+docker compose -f "$COMPOSE_FILE" exec -T postgres \
+  psql -U chris -d chris -v ON_ERROR_STOP=1 -q < "$MIGRATION_12_SQL"
 
 # Phase 25 (M009 v2.4) — post-migration substrate smoke gate.
 # Per HARD CO-LOCATION CONSTRAINT #7 + Pitfall 28: the SQL migration, the
@@ -211,6 +214,52 @@ if grep -E "select.*wellbeingSnapshots|from.*wellbeingSnapshots" src/rituals/wel
   exit 1
 fi
 echo "✓ Anchor-bias defeat regression guard verified (D-27-04 prong 1)"
+
+# Phase 33 (M010 v2.5) — operational profiles substrate smoke gate.
+# HARD CO-LOCATION #M10-1: this gate ships in the SAME plan as the migration
+# SQL + drizzle meta snapshot + schema.ts table defs. Failure exits BEFORE
+# vitest (mirrors Phase 25 0006 substrate gate at line ~88).
+#
+# Asserts (matched format ^5|1|1|1|1|0|0.3|0.2|0|0$):
+#   - 5 tables exist (4 profile_* + 1 profile_history)
+#   - Each of 4 profile_* tables has exactly 1 row WHERE name='primary'
+#   - profile_history has 0 rows (write-only in Phase 33; D-18)
+#   - Seed confidence values match D-10 mapping (jur=0.3, cap=0.2, hea/fam=0)
+echo "🔍 Verifying migration 0012 substrate..."
+docker compose -f "$COMPOSE_FILE" exec -T postgres \
+  psql -U chris -d chris -v ON_ERROR_STOP=1 -tAq -c "
+    SELECT
+      (SELECT COUNT(*) FROM information_schema.tables
+       WHERE table_schema = 'public'
+       AND table_name IN ('profile_jurisdictional', 'profile_capital',
+                          'profile_health', 'profile_family',
+                          'profile_history')) AS table_count,
+      (SELECT COUNT(*) FROM profile_jurisdictional WHERE name = 'primary') AS jur_seed,
+      (SELECT COUNT(*) FROM profile_capital WHERE name = 'primary') AS cap_seed,
+      (SELECT COUNT(*) FROM profile_health WHERE name = 'primary') AS hea_seed,
+      (SELECT COUNT(*) FROM profile_family WHERE name = 'primary') AS fam_seed,
+      (SELECT COUNT(*) FROM profile_history) AS hist_count,
+      (SELECT confidence::text FROM profile_jurisdictional WHERE name = 'primary') AS jur_conf,
+      (SELECT confidence::text FROM profile_capital WHERE name = 'primary') AS cap_conf,
+      (SELECT confidence::text FROM profile_health WHERE name = 'primary') AS hea_conf,
+      (SELECT confidence::text FROM profile_family WHERE name = 'primary') AS fam_conf;
+  " | tee /tmp/m010_smoke.txt
+grep -q "^5|1|1|1|1|0|0.3|0.2|0|0$" /tmp/m010_smoke.txt || { echo "❌ Migration 0012 substrate incomplete or seed values wrong"; cat /tmp/m010_smoke.txt; exit 1; }
+echo "✓ Migration 0012 substrate verified (5 tables + 4 seed rows + 0 history rows + correct confidence values)"
+
+# Phase 33 also asserts: schema_version + substrate_hash + data_consistency
+# present on all 4 profile tables. Catches a forgetful retrofit.
+echo "🔍 Verifying migration 0012 non-retrofittable columns..."
+docker compose -f "$COMPOSE_FILE" exec -T postgres \
+  psql -U chris -d chris -v ON_ERROR_STOP=1 -tAq -c "
+    SELECT COUNT(*) FROM information_schema.columns
+     WHERE table_schema = 'public'
+     AND table_name IN ('profile_jurisdictional', 'profile_capital', 'profile_health', 'profile_family')
+     AND column_name IN ('schema_version', 'substrate_hash', 'data_consistency', 'name', 'confidence');
+  " | tee /tmp/m010_cols.txt
+# 4 tables × 5 required columns = 20 rows
+grep -q "^20$" /tmp/m010_cols.txt || { echo "❌ Migration 0012 non-retrofittable columns incomplete"; cat /tmp/m010_cols.txt; exit 1; }
+echo "✓ Migration 0012 non-retrofittable columns verified (schema_version + substrate_hash + data_consistency + name + confidence on all 4 profile tables)"
 
 echo "🧪 Running tests..."
 DATABASE_URL="$DB_URL" \
