@@ -126,6 +126,8 @@ vi.mock('../../config.js', () => ({
   config: {
     anthropicApiKey: 'test-key',
     proactiveTimezone: 'Europe/Paris',
+    telegramBotToken: 'test-token', // grammy Bot() rejects empty token at module load (#2026-05-11)
+    telegramAuthorizedUserId: 99999,
   },
 }));
 

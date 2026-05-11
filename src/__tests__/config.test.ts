@@ -41,9 +41,12 @@ describe('config: cron.validate fail-fast (RIT-12)', () => {
     await expect(import('../config.js?reload=' + Date.now())).resolves.toBeDefined();
   });
 
-  it('default RITUAL_SWEEP_CRON is "0 21 * * *" when env unset', async () => {
+  it('default RITUAL_SWEEP_CRON is "* * * * *" when env unset', async () => {
+    // Default changed from '0 21 * * *' to '* * * * *' in commit 4d95285
+    // (M009 ships rituals at 3 distinct times; single-fire-time default
+    // missed daily_wellbeing 09:00 and weekly_review Sun 20:00 by hours).
     delete process.env.RITUAL_SWEEP_CRON;
     const mod = await import('../config.js?reload=' + Date.now());
-    expect(mod.config.ritualSweepCron).toBe('0 21 * * *');
+    expect(mod.config.ritualSweepCron).toBe('* * * * *');
   });
 });

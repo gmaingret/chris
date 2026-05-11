@@ -460,34 +460,12 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => 
       }
     }, 90_000);
 
-    it('grounds response in seeded location fact', async () => {
-      for (let i = 0; i < 3; i++) {
-        const [entry] = await db.insert(pensieveEntries).values({
-          content: 'Greg is currently in Saint Petersburg, Russia until April 28, 2026, then moving to Batumi, Georgia for about a month',
-          source: TEST_SOURCE,
-        }).returning();
-        await embedAndStore(entry!.id, entry!.content);
-
-        const response = await processMessage(TEST_CHAT_ID, TEST_USER_ID, "Where am I living right now and where am I going next?", { pensieveSource: TEST_SOURCE });
-        const consistent = await haikuJudge('Greg is in Saint Petersburg, Russia until April 28, 2026, then moving to Batumi, Georgia', response);
-        expect(consistent).toBe(true);
-
-        // Cleanup between iterations
-        await db.delete(conversations).where(eq(conversations.chatId, TEST_CHAT_ID));
-        const iterIds = (
-          await db
-            .select({ id: pensieveEntries.id })
-            .from(pensieveEntries)
-            .where(eq(pensieveEntries.source, TEST_SOURCE))
-        ).map(e => e.id);
-        if (iterIds.length > 0) {
-          await db.delete(pensieveEmbeddings).where(inArray(pensieveEmbeddings.entryId, iterIds));
-          await db.delete(pensieveEntries).where(eq(pensieveEntries.source, TEST_SOURCE));
-        }
-        clearDeclinedTopics(TEST_CHAT_ID.toString());
-        clearLanguageState(TEST_CHAT_ID.toString());
-      }
-    }, 90_000);
+    // Removed 2026-05-11: "grounds response in seeded location fact" — embedded
+    // time-bound boundary ("Saint Petersburg until April 28, 2026, then Batumi")
+    // went stale once today's date crossed it; rigid haikuJudge then flagged
+    // any accurate "in Batumi" response as inconsistent. Grounding capability
+    // remains covered by the nationality and business seeded-fact tests, both
+    // of which assert stable biographical anchors.
 
     it('grounds response in seeded business fact', async () => {
       for (let i = 0; i < 3; i++) {

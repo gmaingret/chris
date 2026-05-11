@@ -262,6 +262,16 @@ grep -q "^20$" /tmp/m010_cols.txt || { echo "❌ Migration 0012 non-retrofittabl
 echo "✓ Migration 0012 non-retrofittable columns verified (schema_version + substrate_hash + data_consistency + name + confidence on all 4 profile tables)"
 
 echo "🧪 Running tests..."
+# Source .env if present so real API credentials win over the -:fallback below.
+# Without this, dotenv/config in src/config.ts will not override env vars
+# already set in scripts/test.sh, leaving live tests with the literal "test-key"
+# and silently failing all Anthropic calls with 401 (2026-05-11 fix).
+if [ -f .env ]; then
+  set -a
+  # shellcheck disable=SC1091
+  source .env
+  set +a
+fi
 DATABASE_URL="$DB_URL" \
   ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-test-key}" \
   TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-test-token}" \

@@ -42,7 +42,7 @@
  *     npx vitest run src/rituals/__tests__/wellbeing.test.ts
  */
 import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from 'vitest';
-import { eq } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 
 // Mock bot.api.sendMessage to avoid real Telegram calls.
 // vi.hoisted ensures the mock fn is available when the vi.mock factory runs
@@ -330,10 +330,15 @@ describe('wellbeing handler (Phase 27 WELL-01..05)', () => {
     expect(snapshot).toMatchObject({ energy: 3, mood: 4, anxiety: 2 });
 
     // ritual_fire_events row with outcome 'wellbeing_completed'.
+    // ORDER BY firedAt DESC: fireWellbeing writes a 'fired' row first, then
+    // completion writes a 'wellbeing_completed' row. Without ORDER BY the
+    // destructure picks whichever the planner returns first (v2.4 carry-forward
+    // false-negative — production behavior correct, test query was wrong).
     const [event] = await db
       .select()
       .from(ritualFireEvents)
-      .where(eq(ritualFireEvents.ritualId, testRitualId));
+      .where(eq(ritualFireEvents.ritualId, testRitualId))
+      .orderBy(desc(ritualFireEvents.firedAt));
     expect(event!.outcome).toBe('wellbeing_completed');
 
     // Keyboard cleared via editMessageText (NOT editMessageReplyMarkup) on
@@ -366,10 +371,12 @@ describe('wellbeing handler (Phase 27 WELL-01..05)', () => {
 
     // ritual_fire_events emits 'wellbeing_skipped' (distinct from
     // 'fired_no_response' — Phase 28 will filter this out of skip_count).
+    // ORDER BY firedAt DESC: same reason as Test 6 — pick the latest event.
     const [event] = await db
       .select()
       .from(ritualFireEvents)
-      .where(eq(ritualFireEvents.ritualId, testRitualId));
+      .where(eq(ritualFireEvents.ritualId, testRitualId))
+      .orderBy(desc(ritualFireEvents.firedAt));
     expect(event!.outcome).toBe('wellbeing_skipped');
 
     // No wellbeing_snapshots row written.
