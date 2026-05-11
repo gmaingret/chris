@@ -28,10 +28,14 @@ import { describe, expect, it } from 'vitest';
 import { generateWeeklyObservation } from '../weekly-review.js';
 import { ADVERSARIAL_WEEK_INPUT } from './fixtures/adversarial-week.js';
 
-// D-10 refined import block (verbatim — NO redeclaration of any source-set entry):
-import { VALIDATION_MARKERS } from '../../chris/__tests__/live-integration.test.js';
+// D-10 refined import block (verbatim — NO redeclaration of any source-set entry).
+// 2026-05-11: marker imports moved off .test.ts files so importing this file
+// does not re-register live-integration's + live-anti-flattery's describe
+// blocks under this test file's scope (root cause of 21-test duplicate
+// failures observed in the full Docker gate).
+import { VALIDATION_MARKERS } from '../../chris/markers.js';
 import { REFLEXIVE_OPENER_FIRST_WORDS } from '../../chris/praise-quarantine.js';
-import { FLATTERY_MARKERS } from '../../episodic/__tests__/live-anti-flattery.test.js';
+import { FLATTERY_MARKERS } from '../../episodic/markers.js';
 
 const FORBIDDEN_FLATTERY_MARKERS: readonly string[] = [
   ...VALIDATION_MARKERS,
