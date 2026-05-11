@@ -1,5 +1,35 @@
 # Milestones
 
+## v2.4 M009 Ritual Infrastructure + Daily Note + Weekly Review (Shipped: 2026-05-11)
+
+**Phases completed:** 6 phases, 23 plans, 85 tasks
+
+**Key accomplishments:**
+
+- 6 ritual/wellbeing tables + RITUAL_RESPONSE epistemic_tag value + drizzle meta lineage 0..6 + 6|1|3 substrate smoke gate — landed as ONE atomic plan per HARD CO-LOCATION CONSTRAINT #7.
+- Three pure-function modules under `src/rituals/` (types, cadence, idempotency) with 24 TDD-built tests proving Zod strict-mode rejection (RIT-07), DST-safe wall-clock cadence advancement across both 2026 Europe/Paris transitions (RIT-08), and SQL-level exactly-once ritual fire under concurrency (RIT-10).
+- Wires Phase 25's substrate (Wave 1 schema + Wave 2 helpers) into the running container: the 21:00 Paris ritual cron, the runRitualSweep orchestrator with all three Pitfall 1 defenses (per-tick max-1 + per-ritual cadence advancement + 3/day channel ceiling), the cron.validate fail-fast at config load, /health reports ritual_cron_registered, and `npx tsx scripts/manual-sweep.ts` returns [] against a clean DB.
+- Hand-authored migration 0007 seeds the `daily_voice_note` ritual + adds NOT NULL `prompt_text` column to `ritual_pending_responses` (DEFAULT-then-DROP-DEFAULT pattern) + creates PP#5 hot-path partial index; new `src/rituals/voice-note.ts` exports the frozen 6-prompt array + 4 SCREAMING_SNAKE_CASE tunables + `chooseNextPromptIndex` pure shuffled-bag rotation with deterministic no-consecutive-duplicate invariant proven empirically across 5600 simulated fires.
+- Highest-risk plan in M009 lands atomically: PP#5 detector at top of `processMessage`, `fireVoiceNote` handler dispatched via name-keyed switch, `storePensieveEntry` extended with `epistemicTag` parameter, and mock-chain coverage update across 3 engine test files. Cumulative `expect(mockAnthropicCreate).not.toHaveBeenCalled()` afterAll invariant in `engine-pp5.test.ts` empirically proves Pitfall 6 mitigation; `Promise.allSettled` race test in `voice-note-handler.test.ts` empirically proves atomic-consume mutual exclusion via `UPDATE ... WHERE consumed_at IS NULL RETURNING`.
+- VOICE-04 lands as a 4-commit lineage: `'system_suppressed'` literal appended to `RitualFireOutcome` union (D-26-06), `shouldSuppressVoiceNoteFire` Pensieve-direct query helper added (D-26-05), `fireVoiceNote` STEP 0 suppression branch with `dayBoundaryUtc(now, tz).end`-anchored cadence advancement (D-26-04 + Rule 1 fix), and 7-test real-DB integration coverage (helper-direct + scheduler-integration). Pitfall 9 (heavy-deposit-day redundancy) mitigated; the suppression branch advances `next_run_at` to tomorrow's 21:00 Paris with NO Telegram send, NO pending row insert, NO `prompt_bag` update, NO `skip_count` touch (Phase 28 boundary preserved).
+- Telegram message:voice handler replying in EN/FR/RU per M006 stickiness suggesting Android STT keyboard mic icon — no Whisper transcription, no Pensieve write, no engine-pipeline invocation, peer to existing message:text + message:document handlers via bot.on() registration.
+- Thin operator CLI script (~80 LoC including header docstring) that backdates a named ritual's `next_run_at` to one minute in the past, then invokes `runRitualSweep` once, prints JSON-formatted results, and exits cleanly — satisfies ROADMAP §Phase 26 success criterion 1 manual UAT shape against staging.
+- Plan 27-02 unblocked.
+- ATOMIC plan per D-27-06: migration 0008 + REPLACED wellbeing.ts (fireWellbeing + handleWellbeingCallback) + dispatchRitualHandler switch wiring all ship together. Closes the runtime gap where seed-without-handler would dispatch to Phase 25's throwing skeleton. All 5 WELL requirements (WELL-01..05) terminate in this plan; Plan 27-03 lands operator UAT + integration tests.
+- Operator UAT script (`scripts/fire-wellbeing.ts`) + 8 real-DB integration tests covering all 5 WELL requirements + scripts/test.sh anchor-bias regression guard. Closes Phase 27 with triple-layer D-27-04 prong-1 regression defense + Rule 1 fix to a latent postgres-js jsonb-binding bug exposed by the new tests.
+- 12-variant RitualFireOutcome union + RITUAL_OUTCOME const map + fire-side ritual_fire_events writes across all 3 ritual handlers + ritualResponseWindowSweep atomic-consume helper with paired window_missed/fired_no_response emits
+- Cadence-aware skip-threshold predicate (daily=3, weekly=2) wired into runRitualSweep as gate before standard handler dispatch, with replay-projection computeSkipCount and adjustment_mute_until 7-day deferral honored
+- 1. [Rule 1 - Bug] drizzle-kit snapshot where clause format mismatch
+- One-liner:
+- Pure-function substrate for the M009 Sunday weekly review: 8-section prompt assembler with explicit CONSTITUTIONAL_PREAMBLE injection (HARD CO-LOC #3 prep), Luxon DST-safe 7-day window helper, parallel-fetch loader (M008 first production consumer of getEpisodicSummariesRange), and the WEEK-09 wellbeing variance gate (per-dim stddev with ANY-dim-flat rule + insufficient-data short-circuit) — all enforced at prompt-assembly time so Sonnet never sees wellbeing data when the gate fails.
+- The load-bearing M009 quality plan: Sonnet observation generator wired through Stage-1 Zod refine (regex `?` + EN/FR/RU interrogative-leading-word ≤1) + Stage-2 Haiku judge ({question_count, questions[]}) + date-grounding Haiku post-check + retry cap=2 + English-only templated fallback + Pensieve persist as RITUAL_RESPONSE — all atomic in a single plan to prevent Pitfall 14 (compound questions) and Pitfall 17 (sycophantic flattery) from regressing on the first weekly review.
+- WEEK-01 fire-side substrate ships: migration 0009_weekly_review_seed.sql is idempotent + applies cleanly to fresh Docker postgres (Sunday 20:00 Europe/Paris next_run_at via deterministic SQL CASE), drizzle-kit acceptance gate green, dispatchRitualHandler routes 'weekly_review' → fireWeeklyReview from Plan 29-02, scripts/test.sh exits with the seed-row gate green, and 2 new scheduler.test.ts tests prove the dispatch path end-to-end. The full pipeline (cron tick → runRitualSweep → tryFireRitualAtomic → dispatchRitualHandler → fireWeeklyReview) is now invocable for the first time at the next Sunday 20:00 Paris cron tick.
+- One-liner:
+- Refreshed m009-21days primed fixture + adapted sanity invariants to actual synth pipeline output (D-07 gap-filler semantics) + added --reseed-vcr flag + filed Phase 32 substrate-hardening TODOs.
+- 14-day synthetic fixture integration test ships M009's milestone-shipping gate — vi.setSystemTime walk + cumulative PP#5 short-circuit assertion across all 7 TEST-23..30 spec behaviors in 6 it() blocks.
+
+---
+
 ## v2.3 Test Data Infrastructure (Shipped: 2026-04-20)
 
 **Phases completed:** 1 phase (24), 4 plans

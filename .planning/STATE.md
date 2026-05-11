@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v2.4
 milestone_name: M009 Ritual Infrastructure + Daily Note + Weekly Review
-status: ready_to_close
-stopped_at: Phase 32 substrate-hardening complete + first-ever weekly_review fire succeeded 2026-05-10 20:00 Paris (real Sonnet observation, isFallback=false, 620 chars, 1 date-grounding retry). All 3 rituals firing healthy. Phase 29 SC-1 resolved. Ready for /gsd-complete-milestone v2.4.
-last_updated: "2026-05-11T01:55:00.000Z"
-last_activity: 2026-05-11
+status: Awaiting next milestone
+stopped_at: Phase 32 substrate-hardening — all 6 items shipped, committed, pushed, deployed to prod. Container HEAD = ef45e1b. Boot-time drift check fired clean (`migrations.journal_in_sync` count=12). Ready to close v2.4 milestone and open v2.5 / start M010.
+last_updated: "2026-05-11T03:14:57.769Z"
+last_activity: 2026-05-11 — Milestone v2.4 completed and archived
 progress:
-  total_phases: 7
-  completed_phases: 7
+  total_phases: 6
+  completed_phases: 6
   total_plans: 23
   completed_plans: 23
   percent: 100
@@ -26,38 +26,10 @@ See: .planning/PROJECT.md (symlink to /home/claude/chris/PLAN.md, updated 2026-0
 
 ## Current Position
 
-Phase: 30 (test-infrastructure-harn-03-refresh) — EXECUTING
-Plan: 3 of 4
-
-  - `src/rituals/weekly-review.ts` (39 → 652 LoC, +613) — Plan 29-01's skeleton replaced with full impl: `stage1Check` + `INTERROGATIVE_REGEX` (EN+FR+RU per D-03) + `WeeklyReviewSchema` (v3 with .refine) + `WeeklyReviewSchemaV4` (v4 SDK boundary mirror) + `StageTwoJudgeSchema` v3+v4 + `DateGroundingSchema` v3+v4 + `MultiQuestionError` + `DateOutOfWindowError` + `runStage2HaikuJudge` (D-04 Haiku question-counter) + `runDateGroundingCheck` (D-05 Haiku date-window auditor) + `MAX_RETRIES = 2` + `TEMPLATED_FALLBACK_EN` (English-only v1; FR/RU deferred to v2.5 per W-4 lock) + `generateWeeklyObservation` retry-loop + `fireWeeklyReview(ritual, cfg) → Promise<RitualFireOutcome>` orchestrator (substrate fetch → sparse-data guard → generation w/retry+fallback → D031 header render → ritual_responses write → Pensieve persist `epistemicTag: 'RITUAL_RESPONSE'` → Telegram send).
-  - `src/rituals/__tests__/weekly-review.test.ts` (NEW, 775 LoC) — 8 describe blocks; 31 tests: 9 Stage-1 unit + 1 schema sanity + 4 Stage-2 mocked + 4 Date-grounding mocked + 6 retry-loop mocked + 2 templated fallback + 1 SDK-boundary CONSTITUTIONAL_PREAMBLE assertion + 4 fireWeeklyReview real-DB integration. All real-DB tests use `test-29-02-` source discriminator for fixture isolation per D041.
-  - **HARD CO-LOC #2 (Pitfall 14): closed.** Stage-1 + Stage-2 + retry + generator all in same plan-scope commits. Documented Pitfall 14 failure modes (multi-`?`, FR period-terminated multi-question, RU period-terminated multi-question) deterministically caught by `stage1Check` regex.
-  - **HARD CO-LOC #3 (Pitfall 17): closed.** Unit test asserts `mockAnthropicParse.mock.calls[0][0].system[0].text.startsWith('## Core Principles (Always Active)')` — regression detector active. CONSTITUTIONAL_PREAMBLE flows through assembleWeeklyReviewPrompt → fireWeeklyReview → buildSonnetRequest → anthropic.messages.parse system arg verbatim.
-  - Task 5 SKIPPED — Phase 26 commit `6c7210d` already shipped `storePensieveEntry opts.epistemicTag` parameter (cross-phase coordination per D-07; Plan 29-02 reuses verbatim with camelCase signature, NOT plan brief's snake_case `options.epistemic_tag`).
-  - 3 deviations auto-fixed: (1) Rule 1 — `MultiQuestionError` constructor reshaped from `{count, questions}` → `{question_count, questions}` to match retry-loop semantics (TS2345 type fix); (2) Rule 3 cosmetic — reworded `vi.useFakeTimers` literal-token in test file docstring to satisfy grep guard (same defect class as 29-01 #3); (3) Rule 1 — replaced broken `db.execute(sql\`...\`).rows` accessor with typed Drizzle select (postgres-js driver returns row arrays, not `{rows}`).
-  - Verification: `npx tsc --noEmit` exits 0 attributable to modified files; `bash scripts/test.sh src/rituals/__tests__/weekly-review.test.ts` reports 31/31 green in <850ms; full rituals suite 131/131 across 13 files in 9.22s.
-  - All 7 plan requirements (WEEK-02..WEEK-08) terminate. WEEK-09 already terminated in Plan 29-01. Phase 29 needs Plan 29-03 (migration 0009 seed + dispatcher case wire-up + scripts/test.sh psql line) and Plan 29-04 (live anti-flattery test scaffolding for Phase 30 TEST-31) before phase verification.
-
-Prior context — Plan 27-02 complete (3 commits: bdc924a + 2d451f3 + 3fff9a1) — wellbeing handler + seed migration ATOMIC per D-27-06:
-
-  - `src/db/migrations/0008_wellbeing_seed.sql` (NEW) — single idempotent INSERT seeding `daily_wellbeing` ritual at next 09:00 Europe/Paris (CASE date math sidesteps catch-up ceiling on first sweep tick). RitualConfigSchema-conformant 6-of-8 field config (omits optional fire_dow + prompt_bag for daily-no-bag ritual). ON CONFLICT (name) DO NOTHING idempotent re-apply.
-  - `src/db/migrations/meta/0008_snapshot.json` (NEW) — cloned from 0007 (pure-DML migration → no schema delta → schema content byte-identical) with re-chained id/prevId. `_journal.json` extended with `idx:8 tag:0008_wellbeing_seed`.
-  - `src/rituals/wellbeing.ts` (REPLACED — STUB → ~330 LOC real). Exports `fireWellbeing(ritual, cfg) → Promise<RitualFireOutcome>` (initial-fire: insert ritual_responses with empty partial, send 4-row keyboard via bot.api.sendMessage, persist message_id via jsonb_set, return 'fired') + `handleWellbeingCallback(ctx, data) → Promise<void>` (parseCallbackData server-side validates dim ∈ {e,m,a} + value ∈ [1,5]; findOpenWellbeingRow filters responded_at IS NULL + fired_at::date = today; per-tap merge via atomic jsonb_set; completion-gated wellbeing_snapshots upsert when isComplete(partial) — single atomic write, all 3 NOT NULL cols populated; skip writes adjustment_eligible:false + emits 'wellbeing_skipped' outcome distinct from fired_no_response).
-  - `src/rituals/scheduler.ts` (MODIFIED, +3 LOC) — added `import { fireWellbeing } from './wellbeing.js';` + `case 'daily_wellbeing': return fireWellbeing(ritual, cfg);` branch alongside Phase 26's `daily_voice_note`. Only `// case 'weekly_review'` comment remains as Phase 29 placeholder.
-  - `scripts/test.sh` (MODIFIED) — applies migration 0008 + asserts `SELECT count(*) FROM rituals WHERE name = 'daily_wellbeing' = 1` BEFORE vitest fires. Failure exits with `❌ MIGRATION 0008: daily_wellbeing seed missing` (mirrors Phase 25 6|1|3 + Phase 26 voice-note seed gate shape).
-  - `scripts/regen-snapshots.sh` (MODIFIED) — declared MIGRATION_8 const + applied in acceptance gate chain + bumped acceptance-check cleanup names from 0008 to 0009 (next sequence after 0008). Acceptance gate prints "No schema changes, nothing to migrate" — confirms 0008 is pure DML.
-  - 2 deviations (both Rule 3 auto-fix-blocking): (1) `fireWellbeing` signature conformed to live (ritual, cfg) → Promise<RitualFireOutcome> per Phase 26 D-26-08 dispatcher contract (plan was authored against pre-Phase-26 1-arg void-returning shape). (2) hand-cloned 0008_snapshot.json from 0007 because pure-DML migration produces no new snapshot from drizzle-kit regen (acceptance gate "No schema changes"); journal-snapshot 1:1 invariant preserved.
-  - All 5 WELL requirements (WELL-01..05) terminate in this plan. Anchor-bias defeat (D-27-04) two-pronged enforced: (prong 1) module reads ZERO data from wellbeing_snapshots — verified by negative grep `! grep -E "select.*wellbeingSnapshots|from.*wellbeingSnapshots" src/rituals/wellbeing.ts`; (prong 2) constant prompt 'Wellbeing snapshot — tap energy, mood, anxiety:' has no historical numeric reference.
-  - Verification: `npx tsc --noEmit` exits 0; `npx vitest run src/rituals/ src/bot/` reports 15/15 files / 123/123 tests passing in isolation; `npx tsx scripts/manual-sweep.ts` against test DB seeded with 0008 returns `[]` cleanly without throwing; live DB verifies `next_run_at = 2026-04-29 07:00:00+00` (UTC = 09:00 Europe/Paris CEST in April).
-  - Pre-existing full-suite test isolation issues (113 fails) continue to surface in `bash scripts/test.sh` but are NOT caused by this plan — categories match Plan 27-01's deferred-items.md (live-integration 401 + HuggingFace EACCES + DB cross-contamination). Substrate gates (0006 + 0007 + 0008) all passed (test.sh exited 0; gates exit 1 on failure).
-
-Prior context — Plan 27-01 complete (3 commits: 380a481 + 4ba31a1 + 0e1b5b0) — first inline-keyboard callback dispatcher in codebase. Routes r:w:* → handleWellbeingCallback (now real after Plan 27-02); silently acks unknown prefixes per Telegram's 30s contract.
-
-Status: Ready to execute
-Progress: [██████████] 100%
-Last activity: 2026-05-07
-
-Prior deploy state: v2.3 + date-extraction Haiku JSON-fences fix (eedce33, deployed 42a7eed 2026-04-25) live on Proxmox (192.168.1.50). Daily 23:00 Europe/Paris episodic cron + 6h sync cron + 10:00 proactive sweep cron all healthy. M009 will ADD a second 21:00 evening cron tick (RIT-11) for ritual firing.
+Phase: Milestone v2.4 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-05-11 — Milestone v2.4 completed and archived
 
 ## Shipped Milestones
 
@@ -192,12 +164,32 @@ Evidence:
 
 None. Ready to plan Phase 25 — pending todo resolved (verdict above).
 
+## Deferred Items
+
+Items acknowledged and deferred at milestone close on 2026-05-11:
+
+| Category | Item | Status |
+|----------|------|--------|
+| debug_session | m009-rituals-no-fire | root_caused (fix shipped commit c76cb86) |
+| verification_gap | Phase 28 (28-VERIFICATION.md) | human_needed — 60s confirmation window real-clock UAT + 7d+7d evasive trigger spacing test; deferred to post-close observation |
+| verification_gap | Phase 29 (29-VERIFICATION.md) | human_needed — SC-1 code-level pass 2026-05-10 20:00 Paris fire; UX-level retry awaiting 2026-05-17 20:00 Paris fire (post-second-person + language fix in commit 0626713) |
+| verification_gap | Phase 30 (30-VERIFICATION.md) | human_needed — HARN-04 floor restoration (≥21) + HARN-06 floor (≥14) blocked on synth-pipeline organic+synth fusion (Phase 32 #6/#7 dropped → v2.5.1 substrate cleanup) |
+
+Carried forward to v2.5 backlog:
+
+- Synth-pipeline organic+synth fusion (synthesize-episodic.ts:288 + synthesize-delta.ts wellbeing-per-fused-day generation)
+- wellbeing.test.ts Tests 6+7 ORDER BY bug (pre-existing test-only false negative; prod behavior correct)
+- Stale callback prefix comments in src/bot/handlers/ritual-callback.ts:31-32 (doc noise)
+- Forensic investigation of __drizzle_migrations row loss (cold trail)
+- FR/RU localization of templated weekly_review fallback
+
 ## Session Continuity
 
 Last session: 2026-05-10T08:50:00Z
 Stopped at: Phase 32 substrate-hardening — all 6 items shipped, committed, pushed, deployed to prod. Container HEAD = ef45e1b. Boot-time drift check fired clean (`migrations.journal_in_sync` count=12). Ready to close v2.4 milestone and open v2.5 / start M010.
 
 Phase 32 commits (in order):
+
   - c0adb00 fix(32): tighten weekly_review prompt to prevent fallback under adversarial input  (#9 — deadline-critical, deployed first)
   - 45ebbcc fix(32): proactive prompt — anti-repetition guard + section-name avoidance  (#1)
   - 39a91cc fix(32): skip-when-no-USER-in-48h guard in runReflectiveChannel  (#2)
@@ -218,3 +210,7 @@ None
 - **v2.3 process gaps (process-gate + SUMMARY frontmatter)** — folded into Phase 25 of v2.4 as PROC-01/02.
 - **Upstream `gsd-sdk milestone.complete` bug** — file upstream issue; not in M009 scope.
 - **process.exit() in non-try/finally scripts** — safe today but worth post-M009 audit.
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone
