@@ -23,103 +23,107 @@
 -- (Pitfall 8 in 33-RESEARCH.md.)
 
 CREATE TABLE IF NOT EXISTS "profile_jurisdictional" (
-    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-    "name" text NOT NULL UNIQUE DEFAULT 'primary',
-    "schema_version" integer NOT NULL DEFAULT 1,
-    "substrate_hash" text NOT NULL DEFAULT '',
-    "confidence" real NOT NULL DEFAULT 0,
-    "data_consistency" real NOT NULL DEFAULT 0,
-    "current_country" jsonb NOT NULL DEFAULT 'null'::jsonb,
-    "physical_location" jsonb NOT NULL DEFAULT 'null'::jsonb,
-    "residency_status" jsonb NOT NULL DEFAULT '[]'::jsonb,
-    "tax_residency" jsonb NOT NULL DEFAULT 'null'::jsonb,
-    "active_legal_entities" jsonb NOT NULL DEFAULT '[]'::jsonb,
-    "next_planned_move" jsonb NOT NULL DEFAULT '{}'::jsonb,
-    "planned_move_date" jsonb NOT NULL DEFAULT 'null'::jsonb,
-    "passport_citizenships" jsonb NOT NULL DEFAULT '[]'::jsonb,
-    "last_updated" timestamp with time zone NOT NULL DEFAULT now(),
-    "created_at" timestamp with time zone NOT NULL DEFAULT now(),
-    CONSTRAINT "profile_jurisdictional_confidence_bounds" CHECK ("confidence" >= 0 AND "confidence" <= 1),
-    CONSTRAINT "profile_jurisdictional_data_consistency_bounds" CHECK ("data_consistency" >= 0 AND "data_consistency" <= 1)
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"name" text DEFAULT 'primary' NOT NULL,
+	"schema_version" integer DEFAULT 1 NOT NULL,
+	"substrate_hash" text DEFAULT '' NOT NULL,
+	"confidence" real DEFAULT 0 NOT NULL,
+	"data_consistency" real DEFAULT 0 NOT NULL,
+	"current_country" jsonb DEFAULT 'null'::jsonb NOT NULL,
+	"physical_location" jsonb DEFAULT 'null'::jsonb NOT NULL,
+	"residency_status" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"tax_residency" jsonb DEFAULT 'null'::jsonb NOT NULL,
+	"active_legal_entities" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"next_planned_move" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"planned_move_date" jsonb DEFAULT 'null'::jsonb NOT NULL,
+	"passport_citizenships" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"last_updated" timestamp with time zone DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "profile_jurisdictional_name_unique" UNIQUE("name"),
+	CONSTRAINT "profile_jurisdictional_confidence_bounds" CHECK ("profile_jurisdictional"."confidence" >= 0 AND "profile_jurisdictional"."confidence" <= 1),
+	CONSTRAINT "profile_jurisdictional_data_consistency_bounds" CHECK ("profile_jurisdictional"."data_consistency" >= 0 AND "profile_jurisdictional"."data_consistency" <= 1)
 );
 --> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS "profile_capital" (
-    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-    "name" text NOT NULL UNIQUE DEFAULT 'primary',
-    "schema_version" integer NOT NULL DEFAULT 1,
-    "substrate_hash" text NOT NULL DEFAULT '',
-    "confidence" real NOT NULL DEFAULT 0,
-    "data_consistency" real NOT NULL DEFAULT 0,
-    "fi_phase" jsonb NOT NULL DEFAULT 'null'::jsonb,
-    "fi_target_amount" jsonb NOT NULL DEFAULT 'null'::jsonb,
-    "estimated_net_worth" jsonb NOT NULL DEFAULT 'null'::jsonb,
-    "runway_months" jsonb NOT NULL DEFAULT 'null'::jsonb,
-    "next_sequencing_decision" jsonb NOT NULL DEFAULT 'null'::jsonb,
-    "income_sources" jsonb NOT NULL DEFAULT '[]'::jsonb,
-    "major_allocation_decisions" jsonb NOT NULL DEFAULT '[]'::jsonb,
-    "tax_optimization_status" jsonb NOT NULL DEFAULT 'null'::jsonb,
-    "active_legal_entities" jsonb NOT NULL DEFAULT '[]'::jsonb,
-    "last_updated" timestamp with time zone NOT NULL DEFAULT now(),
-    "created_at" timestamp with time zone NOT NULL DEFAULT now(),
-    CONSTRAINT "profile_capital_confidence_bounds" CHECK ("confidence" >= 0 AND "confidence" <= 1),
-    CONSTRAINT "profile_capital_data_consistency_bounds" CHECK ("data_consistency" >= 0 AND "data_consistency" <= 1)
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"name" text DEFAULT 'primary' NOT NULL,
+	"schema_version" integer DEFAULT 1 NOT NULL,
+	"substrate_hash" text DEFAULT '' NOT NULL,
+	"confidence" real DEFAULT 0 NOT NULL,
+	"data_consistency" real DEFAULT 0 NOT NULL,
+	"fi_phase" jsonb DEFAULT 'null'::jsonb NOT NULL,
+	"fi_target_amount" jsonb DEFAULT 'null'::jsonb NOT NULL,
+	"estimated_net_worth" jsonb DEFAULT 'null'::jsonb NOT NULL,
+	"runway_months" jsonb DEFAULT 'null'::jsonb NOT NULL,
+	"next_sequencing_decision" jsonb DEFAULT 'null'::jsonb NOT NULL,
+	"income_sources" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"major_allocation_decisions" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"tax_optimization_status" jsonb DEFAULT 'null'::jsonb NOT NULL,
+	"active_legal_entities" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"last_updated" timestamp with time zone DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "profile_capital_name_unique" UNIQUE("name"),
+	CONSTRAINT "profile_capital_confidence_bounds" CHECK ("profile_capital"."confidence" >= 0 AND "profile_capital"."confidence" <= 1),
+	CONSTRAINT "profile_capital_data_consistency_bounds" CHECK ("profile_capital"."data_consistency" >= 0 AND "profile_capital"."data_consistency" <= 1)
 );
 --> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS "profile_health" (
-    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-    "name" text NOT NULL UNIQUE DEFAULT 'primary',
-    "schema_version" integer NOT NULL DEFAULT 1,
-    "substrate_hash" text NOT NULL DEFAULT '',
-    "confidence" real NOT NULL DEFAULT 0,
-    "data_consistency" real NOT NULL DEFAULT 0,
-    "open_hypotheses" jsonb NOT NULL DEFAULT '[]'::jsonb,
-    "pending_tests" jsonb NOT NULL DEFAULT '[]'::jsonb,
-    "active_treatments" jsonb NOT NULL DEFAULT '[]'::jsonb,
-    "recent_resolved" jsonb NOT NULL DEFAULT '[]'::jsonb,
-    "case_file_narrative" jsonb NOT NULL DEFAULT 'null'::jsonb,
-    "wellbeing_trend" jsonb NOT NULL DEFAULT '{}'::jsonb,
-    "last_updated" timestamp with time zone NOT NULL DEFAULT now(),
-    "created_at" timestamp with time zone NOT NULL DEFAULT now(),
-    CONSTRAINT "profile_health_confidence_bounds" CHECK ("confidence" >= 0 AND "confidence" <= 1),
-    CONSTRAINT "profile_health_data_consistency_bounds" CHECK ("data_consistency" >= 0 AND "data_consistency" <= 1)
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"name" text DEFAULT 'primary' NOT NULL,
+	"schema_version" integer DEFAULT 1 NOT NULL,
+	"substrate_hash" text DEFAULT '' NOT NULL,
+	"confidence" real DEFAULT 0 NOT NULL,
+	"data_consistency" real DEFAULT 0 NOT NULL,
+	"open_hypotheses" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"pending_tests" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"active_treatments" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"recent_resolved" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"case_file_narrative" jsonb DEFAULT 'null'::jsonb NOT NULL,
+	"wellbeing_trend" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"last_updated" timestamp with time zone DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "profile_health_name_unique" UNIQUE("name"),
+	CONSTRAINT "profile_health_confidence_bounds" CHECK ("profile_health"."confidence" >= 0 AND "profile_health"."confidence" <= 1),
+	CONSTRAINT "profile_health_data_consistency_bounds" CHECK ("profile_health"."data_consistency" >= 0 AND "profile_health"."data_consistency" <= 1)
 );
 --> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS "profile_family" (
-    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-    "name" text NOT NULL UNIQUE DEFAULT 'primary',
-    "schema_version" integer NOT NULL DEFAULT 1,
-    "substrate_hash" text NOT NULL DEFAULT '',
-    "confidence" real NOT NULL DEFAULT 0,
-    "data_consistency" real NOT NULL DEFAULT 0,
-    "relationship_status" jsonb NOT NULL DEFAULT 'null'::jsonb,
-    "partnership_criteria_evolution" jsonb NOT NULL DEFAULT '[]'::jsonb,
-    "children_plans" jsonb NOT NULL DEFAULT 'null'::jsonb,
-    "parent_care_responsibilities" jsonb NOT NULL DEFAULT '{}'::jsonb,
-    "active_dating_context" jsonb NOT NULL DEFAULT 'null'::jsonb,
-    "milestones" jsonb NOT NULL DEFAULT '[]'::jsonb,
-    "constraints" jsonb NOT NULL DEFAULT '[]'::jsonb,
-    "last_updated" timestamp with time zone NOT NULL DEFAULT now(),
-    "created_at" timestamp with time zone NOT NULL DEFAULT now(),
-    CONSTRAINT "profile_family_confidence_bounds" CHECK ("confidence" >= 0 AND "confidence" <= 1),
-    CONSTRAINT "profile_family_data_consistency_bounds" CHECK ("data_consistency" >= 0 AND "data_consistency" <= 1)
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"name" text DEFAULT 'primary' NOT NULL,
+	"schema_version" integer DEFAULT 1 NOT NULL,
+	"substrate_hash" text DEFAULT '' NOT NULL,
+	"confidence" real DEFAULT 0 NOT NULL,
+	"data_consistency" real DEFAULT 0 NOT NULL,
+	"relationship_status" jsonb DEFAULT 'null'::jsonb NOT NULL,
+	"partnership_criteria_evolution" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"children_plans" jsonb DEFAULT 'null'::jsonb NOT NULL,
+	"parent_care_responsibilities" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"active_dating_context" jsonb DEFAULT 'null'::jsonb NOT NULL,
+	"milestones" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"constraints" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"last_updated" timestamp with time zone DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "profile_family_name_unique" UNIQUE("name"),
+	CONSTRAINT "profile_family_confidence_bounds" CHECK ("profile_family"."confidence" >= 0 AND "profile_family"."confidence" <= 1),
+	CONSTRAINT "profile_family_data_consistency_bounds" CHECK ("profile_family"."data_consistency" >= 0 AND "profile_family"."data_consistency" <= 1)
 );
 --> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS "profile_history" (
-    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-    "profile_table_name" text NOT NULL,
-    "profile_id" uuid NOT NULL,
-    "snapshot" jsonb NOT NULL,
-    "recorded_at" timestamp with time zone NOT NULL DEFAULT now()
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"profile_table_name" text NOT NULL,
+	"profile_id" uuid NOT NULL,
+	"snapshot" jsonb NOT NULL,
+	"recorded_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 
 -- Index ships now (OQ-3): zero-row marginal cost; simplifies Phase 34
 CREATE INDEX IF NOT EXISTS "profile_history_table_recorded_idx"
-    ON "profile_history" USING btree ("profile_table_name", "recorded_at" DESC);
+	ON "profile_history" USING btree ("profile_table_name","recorded_at" DESC NULLS LAST);
 --> statement-breakpoint
 
 -- Seed-row INSERTs — idempotent via ON CONFLICT (name) DO NOTHING (Pitfall 3).
