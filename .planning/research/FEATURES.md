@@ -1,613 +1,485 @@
-# Feature Research — M009 Ritual Infrastructure + Daily Note + Weekly Review
+# Feature Research — M010 Operational Profiles
 
-**Domain:** Scheduled-ritual infrastructure for a personal AI journal (single user, Telegram bot, append-only Pensieve substrate)
-**Researched:** 2026-04-26
-**Confidence:** HIGH on retention/abandonment (deposit-only, prompt structure, scale granularity, skip threshold) — multiple independent sources converge; MEDIUM on ritual scheduling architecture (industry patterns are general, the concrete `rituals.config` JSONB shape is opinion-driven); LOW on specific time-of-day defaults (no controlled trial data, only practitioner consensus).
-
----
-
-## Reading guide
-
-This research file answers six categories of M009 questions, each ending in a `Verdict` block tagged TABLE STAKES / DIFFERENTIATOR / ANTI-FEATURE so the requirements step can map to REQ-IDs and Out-of-Scope entries.
-
-The five categories the requirements step will use:
-1. **Daily Voice Note** ritual (deposit-only, 6 rotating prompts)
-2. **Daily Wellbeing Snapshot** (1–5 inline keyboard taps for energy/mood/anxiety)
-3. **Weekly Review** (one observation + one Socratic question)
-4. **Skip-Tracking & Adjustment Dialogue** (3 consecutive skips → reconfigure)
-5. **Ritual Infrastructure** (`rituals` table, scheduler, cadence machinery)
-
-A sixth section at the end consolidates **MVP Definition**, **Dependencies**, and the **Prioritization Matrix** in the project-template format.
+**Domain:** Situational-state inference + persistence layer for a single-user personal AI (Telegram bot, append-only Pensieve substrate, episodic memory tier)
+**Researched:** 2026-05-11
+**Confidence:** HIGH on profile dimension design and canonical observable fields (well-established in quantified-self, life-design, and personal finance domains); HIGH on dependency wiring (codebase is fully inspected); MEDIUM on confidence calibration mechanics (literature is thin on single-user personal AI; extrapolated from EMA and knowledge-graph precedents); LOW on weekly cadence frequency per dimension (no empirical precedent for this exact system — derived from first principles and Greg's observable event rate).
 
 ---
 
-## 1 — Daily Voice Note (deposit-only)
+## Reading Guide
 
-### 1.1 Why "Chris does NOT respond" is correct (TABLE STAKES)
+This research answers five categories of M010 questions:
 
-**The spec's "deposit-only" rule is the single highest-leverage retention decision in M009.** Three converging evidence streams support it:
-
-- **Empirical abandonment data.** A 2024 scoping review found a median 70 % of users abandon mental-health / lifestyle apps within 100 days, with steepest dropoff in the first 14 days ([mylifenote.ai abandonment review summary](https://blog.mylifenote.ai/abandonment-journal-prompts/), [lumejournalapp.com](https://lumejournalapp.com/why-cant-i-stick-to-journaling/)). The dominant attrition driver is **"willpower as battery"** — every additional cognitive demand at deposit time drains the battery and accelerates churn ([affirmationsflow.com](https://www.affirmationsflow.com/blog/why-you-quit-journaling-after-3-days-and-the-stack-and-scale-fix)).
-- **The blank-page failure mode.** Apps that hand the user an empty canvas after a prompt — including a chat reply that demands engagement — recreate the blank-page problem the prompt was designed to solve ([thatjournalingguy.substack.com](https://thatjournalingguy.substack.com/p/why-most-people-fail-at-journaling), [practicalpkm.com](https://practicalpkm.com/eliminate-the-journaling-friction-with-daily-questions/)). Five Minute Journal's enduring popularity (Tim Ferriss, Intelligent Change) is built explicitly on **closed-end prompts that bookend the day with no AI follow-up** ([Tim Ferriss on X](https://x.com/tferriss/status/1937337697313472550), [intelligentchange.com](https://www.intelligentchange.com/blogs/read/the-five-minute-journal-questions)).
-- **Stoic-app product decision.** Apple Editors' Choice Stoic (4.8 ★, [getstoic.com](https://www.getstoic.com/)) ships its evening reflection as deposit-only structured prompts; AI commentary is a *separate* opt-in mode, not interleaved with the ritual itself.
-
-The mechanism: a Chris response converts a 30-second voice deposit into a multi-turn conversation, which becomes a chore, which gets skipped. Deposit + auto-store + silence preserves the frictionlessness that makes the habit survivable on bad days. **This rule is the single non-negotiable behavior of the ritual.**
-
-**Verdict:** TABLE STAKES — Chris MUST NOT generate a chat response to the daily voice note. The voice transcript is stored as a Pensieve entry, tagged via the existing M001 fire-and-forget tagger, and that's it. Chris remains available for normal `JOURNAL`-mode conversation if Greg starts one *after* depositing — but the ritual itself ends at storage.
-
-**Anti-feature variant:** an AI "follow-up question" at the end of the voice note ("Tell me more about X?"). Surface appeal: deeper data. Actual cost: kills the habit. Already-present existing JOURNAL-mode follow-up logic must be **bypassed** when the deposit is in response to a ritual prompt — this needs a runtime flag on the Pensieve entry or on the engine call path.
+1. **What operational profiles are** (concept, when useful, vs psychological profiles)
+2. **What each of the 4 dimensions captures** (canonical fields, signal cadence, minimum threshold)
+3. **How confidence scores work** (calibration model, update mechanics)
+4. **What is table stakes vs differentiator vs anti-feature** (scope boundary for M010 vs M011/M013)
+5. **How profiles wire into the existing M001–M009 substrate** (exact read APIs, integration points)
 
 ---
 
-### 1.2 Prompt rotation strategy beyond "no consecutive duplicates" (DIFFERENTIATOR)
+## 1 — What "Operational Profile" Means
 
-The spec mandates "no consecutive duplicates." That floor is correct but underspecified. Four candidate strategies, evaluated:
+### 1.1 Operational vs Psychological (the conceptual boundary)
 
-| Strategy | Pro | Con | Verdict |
-|---|---|---|---|
-| Random with no-repeat-of-last | Simple, unpredictable enough to feel fresh | Can feel arbitrary; 2-out-of-6 chance of seeing same prompt within 3 days | OK floor (spec) |
-| Round-robin (deterministic 1→2→3→4→5→6→1) | Guarantees full coverage in 6 days | Predictable; Greg learns the cycle and pre-loads answers (poisons the data) | REJECT |
-| **Random-with-cooldown (no repeat within last 3)** | Coverage + variety; no prompt seen twice in any 4-day window | Slightly more state | **RECOMMENDED** |
-| Weighted by Greg's recent answers (Haiku-classified) | Adaptive — surface prompts under-engaged | Adds Haiku call to scheduler; risks feeling steered; opaque | Defer to M013+ |
+An **operational profile** answers: *"What is this person's current situational state, derived from observable facts?"*
 
-**Evidence:** [journalinginsights.com](https://journalinginsights.com/how-to-use-a-journaling-prompts-generator-for-daily-reflection/) explicitly documents prompt fatigue from over-rotation of small pools, and recommends "rotate sources, vary angles" as the abandonment-prevention strategy. Reflect.app and Stoic both rotate within ~10–20 prompts to keep variety high; a 6-prompt pool needs the strongest cooldown rule it can support.
+A **psychological profile** (M011 HEXACO, deferred) answers: *"What are this person's enduring dispositional traits, inferred from behavioral patterns over time?"*
 
-**Verdict:** TABLE STAKES — "no consecutive duplicates" floor (REQ from spec, keep). DIFFERENTIATOR — extend to "no repeat in last 3 prompts" cooldown. State stored as `rituals.config.prompt_history: [int, int, int]` for the daily voice note ritual row. Implementation: 5 lines in the rotation function. ANTI-FEATURE — Haiku-weighted adaptive prompting (defer to M013; risks the "steering" trap and adds an LLM call to the scheduler).
+The distinction matters architecturally:
 
----
+| Dimension | Operational | Psychological |
+|-----------|-------------|---------------|
+| Update cadence | Days to weeks (events happen) | Months (dispositions shift slowly) |
+| Ground-truth availability | HIGH — a country is a country | MEDIUM — a trait is a construct |
+| Falsifiability | Direct ("you said France, now you say Georgia — update") | Indirect ("your behavior cluster shifted toward X") |
+| Minimum data threshold | 10 entries with observable facts | 2,000 words of behavioral speech (D028 ATTACH-01 precedent) |
+| What triggers an update | A declared or inferred event | A statistically significant pattern shift |
+| Risk of over-inference | LOW | HIGH |
 
-### 1.3 Are the 6 prompts in the spec good prompts? (TABLE STAKES — confirmed with one re-ordering)
+For a user-facing AI, operational profiles are valuable when:
+- The AI needs to give context-grounded answers without Greg re-stating his situation every session
+- The AI needs to avoid anachronistic responses (e.g., recommending French tax strategy after Greg has moved to Georgia)
+- The AI needs to detect profile-inconsistent advice before delivering it
 
-The spec's prompts:
-1. "What mattered today?"
-2. "What's still on your mind?"
-3. "What did today change?"
-4. "What surprised you today?"
-5. "What did you decide today, even if it was small?"
-6. "What did you avoid today?"
+The Chris PRD describes exactly this: the profile layer serves as "grounded context" injected into REFLECT/COACH/PSYCHOLOGY system prompts so the AI does not treat Greg as a blank slate in every conversation. Without operational profiles, COACH might recommend "open a French bank account" three months after Greg has established Georgian residency.
 
-**Mapping to reflection-research dimensions** (drawn from [positivepsychology.com journaling prompts](https://positivepsychology.com/journaling-prompts/), [reflection.app/blog/journaling-techniques](https://www.reflection.app/blog/journaling-techniques), [rosebud.app gratitude prompts](https://www.rosebud.app/blog/gratitude-journal-prompts), Stoic's licensed-therapist-curated 6-prompt set [getstoic.com/blog/6-journaling-prompts](https://www.getstoic.com/blog/6-journaling-prompts-to-cultivate-the-quiet-discipline-of-reflection)):
+### 1.2 When operational profiles become useful (the minimum useful state)
 
-| Spec prompt | Reflection dimension | Surfaced in research lit | Verdict |
-|---|---|---|---|
-| 1. "What mattered today?" | Salience / signal-vs-noise | Stoic, Reflection.app | KEEP |
-| 2. "What's still on your mind?" | Open loops / unresolved threads | Five Minute Journal evening, GTD weekly review | KEEP |
-| 3. "What did today change?" | Update detection / belief revision | Less common — *implicit Bayesian framing*, this one is the most "Chris-flavored" | KEEP — differentiator |
-| 4. "What surprised you today?" | Novelty / prediction error | Daniel Kahneman's "surprise journal", Stoic, Reflection.app | KEEP — high-value |
-| 5. "What did you decide today, even if it was small?" | Decision capture (ties to M007) | Decision-archive literature; explicit in keystone PRD | KEEP — explicitly bridges to M007 keystone |
-| 6. "What did you avoid today?" | Shadow / avoidance behavior | Depth-psychology lit (Jungian shadow work); rare in commercial apps | KEEP — the highest-signal prompt for psychology layer (M011); also the riskiest |
+Profiles are useful the moment they have a single confirmed fact per dimension. A jurisdictional profile with one entry — "currently in Batumi, Georgian residency in progress" — is already more useful than no profile. Confidence starts low (0.2–0.3) and rises as entries accumulate and converge.
 
-**Coverage analysis.** The six prompts cover six distinct reflection dimensions with minimal overlap. Notably absent: explicit gratitude prompt. Five Minute Journal, Stoic, Reflection.app all open with gratitude. Should we add one?
-
-**Recommendation: do NOT add gratitude as a 7th prompt, do NOT replace one.** The PRD anti-flattery design and D027 "The Hard Rule" make Chris constitutionally allergic to the comfort-optimizing trap. Gratitude prompts have well-documented benefits ([positivepsychology.com — Seligman 25 % happiness lift](https://positivepsychology.com/journaling-prompts/)) but they over-fit the well-being-app niche Chris is explicitly NOT trying to occupy. The PRD says: *"He is not a tool, not a chatbot, not a journaling app. He is John's second self and omniscient advisor."* Skipping gratitude is on-brand.
-
-**Single suggested re-ordering for consideration (not required):** rotate the prompt pool such that the *avoidance* prompt (6) does not appear in the first week of any new user's experience. Avoidance prompts on day 1 risk feeling intrusive before trust is established. Implementation: `rituals.config.first_week_blacklist: [6]`. **Defer to operator-tuning post-launch — don't ship with this complication.**
-
-**Verdict:** TABLE STAKES — ship the 6 prompts as specified, in the spec's order. They map cleanly to six reflection dimensions and are coherent with Chris's anti-sycophancy constitution.
+The M010 spec's "10 entry minimum before populating" is the right floor for **not** generating a profile that misleads more than it helps. Below 10 entries, the AI should surface "insufficient data" rather than a possibly-wrong profile.
 
 ---
 
-### 1.4 Time-of-day for daily voice note (TABLE STAKES with config knob)
+## 2 — Canonical Observable Fields Per Dimension
 
-The spec says "end of John's day" without pinning a clock time. Three approaches:
+### 2.1 Jurisdictional Profile
 
-- **Fixed default 21:00 local** (configurable via `rituals.config.fire_at`). Pro: predictable; honors implementation-intention research (anchor to nightly routine; [dayoneapp.com](https://dayoneapp.com/blog/journaling-habit/), [Gretchen Rubin](https://gretchenrubin.com/articles/jump-start-your-habit-of-keeping-a-journal/)). Con: 21:00 is wrong for night-owls and shift workers.
-- **Dynamic from last-message-time heuristic** (fire 30 min after Greg's last Telegram message of the day). Pro: adapts. Con: complex; non-deterministic; brittle on quiet days.
-- **Configurable, default Greg-tuned** (default 21:00, config knob from day one).
+**What it answers:** Where is Greg physically and legally situated?
 
-**Evidence on evening timing.** The strongest empirical anchor is [Journal of Experimental Psychology 2018 sleep study](https://blog.mylifenote.ai/night-journal-prompts/) — bedtime journaling reduced sleep latency by 9 minutes — implying late-evening is psychologically aligned with the deposit-and-let-go function. [Reflect.app](https://www.reflection.app/blog/daily-journal-prompts-365-questions) and Stoic both default to evening. Five Minute Journal explicitly bookends the day.
+**Canonical observable facts to extract** (from Pensieve entries tagged FACT/INTENTION, episodic summaries, M007 decisions):
 
-**Verdict:** TABLE STAKES — default fire time = **21:00 local** (Europe/Paris for Greg per existing timezone-aware sweep cap). Configurable via `rituals.config.fire_at: "HH:MM"` from day one. ANTI-FEATURE — last-message-time heuristic (D041-flavor brittleness; defer indefinitely).
+| Field | What to look for in entries | Signal cadence | Notes |
+|-------|----------------------------|----------------|-------|
+| `current_country` | "I'm in X", "arrived in X", travel mentions | 0–2 events/week | Changes ~4x/year given Greg's move pattern |
+| `physical_location` | City, neighborhood mentions | 0–3/week | Finer grain than country |
+| `residency_status` | Permit mentions, visa mentions, residency application status | 0–1/month | Sparse but high-signal |
+| `tax_residency` | Tax discussions, "tax resident of X" | 0–1/quarter | Very sparse; must persist when seen |
+| `active_legal_entities` | Business entity mentions (LLC, IE, etc.) | 0–1/month | MAINGRET LLC, Georgian IE already in ground-truth |
+| `next_planned_move` | "I plan to move to X in Y", "leaving in Z weeks" | 0–2/week leading up to move | Intention-tagged entries |
+| `planned_move_date` | Date mentioned alongside move intention | 0–1/event | Extract from INTENTION entries |
+| `passport_citizenships` | Nationality declarations | ~never (stable) | French national — from ground-truth |
 
----
+**From Greg's actual ground-truth** (already in `src/pensieve/ground-truth.ts`):
+- French national, born Cagnes-sur-Mer
+- Saint Petersburg Russia → Batumi Georgia (April 2026) → Antibes France (June–August 2026) → Batumi permanent (~September 2026)
+- Panama permanent residency
+- MAINGRET LLC (New Mexico), Georgian Individual Entrepreneur
 
-### 1.5 Voice → Pensieve pipeline (TABLE STAKES, leverages existing infra)
+This ground-truth is already partially a jurisdictional profile. M010 makes it dynamic: the profile tracks the current state and updates as Greg's situation evolves, rather than requiring a code change to `ground-truth.ts`.
 
-Voice messages from Telegram already work in production (M003 handles file uploads). The spec assumes Greg uses **Android keyboard speech-to-text** (per "Deferred: Voice message transcription via Whisper" in PLAN.md) — Greg dictates into Telegram's text input, the keyboard transcribes, Greg reviews and sends. The Pensieve entry is text. This sidesteps the Whisper-error-pollution risk per the existing deferred-features section.
+**Minimum signal needed before updating:** Any single FACT or INTENTION entry that mentions a location change, permit, or legal entity. One entry with "arrived in Batumi" is sufficient to update `current_country` to Georgia (confidence low, maybe 0.3). Three convergent entries over one week raises it to 0.7.
 
-**Verdict:** TABLE STAKES — voice = Android-keyboard-dictated text, ingested via the existing Telegram message handler. No new transcription pipeline. The Pensieve entry inherits standard M001 epistemic auto-tagging + M008 episodic consolidation at 23:00. ANTI-FEATURE — server-side Whisper transcription (PLAN.md already defers this).
+### 2.2 Capital Profile
 
----
+**What it answers:** Where is Greg in his financial independence journey, and what is his sequencing?
 
-## 2 — Daily Wellbeing Snapshot
+**Canonical observable facts:**
 
-### 2.1 Is 1–5 the right scale granularity? (TABLE STAKES — confirmed against research)
+| Field | What to look for | Signal cadence | Notes |
+|-------|-----------------|----------------|-------|
+| `fi_phase` | "post-FI", "accumulation", "decumulation", explicit net worth discussions | 0–1/week | Greg is post-FI per ground-truth ($1.5M target mentioned) |
+| `fi_target_amount` | Explicit dollar/euro amount | ~never (locked unless revised) | $1,500,000 already in ground-truth |
+| `estimated_net_worth` | Net worth mentions, portfolio discussions | 0–1/month | Nullable; only populate if Greg states a figure |
+| `runway_months` | "X months of runway", "living off savings for Y" | 0–1/month | Operationally important for Batumi timing |
+| `next_sequencing_decision` | "deciding whether to...", financial next-steps | 0–2/week | Highest-value field for COACH context |
+| `income_sources` | Business income, rental income, investment income mentions | 0–2/week | Golfe-Juan rental (Citya), business revenue |
+| `major_allocation_decisions` | Large investment moves, asset rebalancing | 0–1/month | Often appears as M007 decisions |
+| `tax_optimization_status` | Georgian 1% regime, French obligations, US LLC pass-through | 0–1/month | Cross-references jurisdictional profile |
 
-**Empirical context from EMA literature** ([Frontiers in Psychology 2021 EMA systematic review](https://www.frontiersin.org/journals/psychology/articles/10.3389/fpsyg.2021.642044/full), [Springer 2025 Likert vs VAS in EMA](https://link.springer.com/article/10.3758/s13428-025-02706-2), [PROMIS scoring manual](https://www.healthmeasures.net/images/PROMIS/manuals/Scoring_Manuals_/PROMIS_Anxiety_Scoring_Manual.pdf)):
+**Why this dimension exists:** COACH mode frequently gives financial advice. Without the capital profile, COACH has no way to know whether Greg is in accumulation, early FI, or late FI with a draw-down plan. Recommending "grow the business" when Greg is actively trying to reduce work to enjoy FI would be wrong. The profile gives COACH the framing: "Greg is post-FI, building runway for the Batumi permanent relocation — capital advice should optimize for tax efficiency and lifestyle sustainability, not wealth growth."
 
-| Scale | EMA usage frequency | Notes |
-|---|---|---|
-| 0–100 sliding | Most common in EMA studies | Higher resolution, but slider UX is awkward on Telegram inline keyboard |
-| 0–10 | Common in daily mood apps (Daylio, MoodPanda) | 11 buttons; ergonomic limit on inline keyboard |
-| **1–7 Likert** | ~9.9 % of sliding-scale items in EMA | Slightly more resolution than 1–5 |
-| **1–5 Likert** | ~1.3 % of sliding-scale items but **dominant in PROMIS short forms** ([PROMIS anxiety](https://www.healthmeasures.net/images/PROMIS/manuals/PROMIS_Anxiety_Scoring_Manual.pdf)) | The clinical-validation gold standard |
-| Binary (good/bad) | Rare | Loses signal |
+**Minimum signal needed:** A single entry stating net worth, runway, or FI phase is enough to seed the profile. The FI target is already in ground-truth and should seed the initial profile at boot time.
 
-**The deciding factor for Chris is NOT psychometric precision — it's tap fatigue.** The spec's UX is 3 dimensions × 5 buttons in a Telegram inline keyboard = 3 taps total per day. Going to 1–7 = 21 buttons → button-grid clutter; going to 0–10 = 33 buttons → unusable on mobile. The PROMIS 5-point scale ([PROMIS short forms](https://www.healthmeasures.net/images/PROMIS/manuals/PROMIS_Anxiety_Scoring_Manual.pdf)) achieves Cronbach α = 0.95–0.96 internal consistency — it is clinically validated, NOT a compromise. Daylio's 5-point design ([daylio.net/how-to-track-moods](https://daylio.net/how-to-track-moods/), [daylio Wikipedia](https://en.wikipedia.org/wiki/Daylio)) is explicitly motivated by "represents nearly all emotions, captures data even when users are at their worst" — i.e. low-effort capture beats high-resolution capture for retention.
+### 2.3 Health Profile
 
-**Verdict:** TABLE STAKES — 1–5 scale is correct. Confirmed against PROMIS clinical-validation precedent and Daylio retention rationale. **Spec confirmed; do not change.**
+**What it answers:** What is Greg's current clinical picture — ongoing investigations, treatments, hypotheses?
 
----
+This dimension differs from the others because it operates as a **running case file**, not a snapshot. Medical situations have:
+- Open hypotheses (suspected conditions being investigated)
+- Pending tests (scheduled blood work, scans, consultations)
+- Active treatments (medications, protocols, lifestyle interventions)
+- Resolved events (past investigations that closed)
+- Subjective symptom reports (from Pensieve + wellbeing snapshots)
 
-### 2.2 Telegram inline keyboard UX — 3 rows × 5 buttons (TABLE STAKES, with explicit guard)
+**Canonical observable facts:**
 
-**The proposed UX** (from spec): three messages with 5-button rows, one per dimension (energy / mood / anxiety). Total: 3 message edits, 3 taps.
+| Field | What to look for | Signal cadence | Notes |
+|-------|-----------------|----------------|-------|
+| `open_hypotheses` (jsonb array) | "they think it might be X", "being tested for Y", "suspect Z" | 0–3/week during active investigation | Each hypothesis has: name, status (investigating/confirmed/ruled_out), date_opened |
+| `pending_tests` (jsonb array) | "blood test next week", "MRI scheduled", "waiting on results for" | 0–2/week | Each has: test_name, scheduled_date, status |
+| `active_treatments` (jsonb array) | "taking X", "started protocol Y", "doctor prescribed Z" | 0–1/week | Each has: name, started_date, purpose |
+| `recent_resolved` (jsonb array) | "results came back negative", "ruled out X" | 0–1/month | Keep last 90 days for context |
+| `case_file_narrative` (text) | Sonnet-assembled narrative from the above | updated with each profile refresh | Plain text, interpretive summary, D031 boundary: this is interpretation |
+| `wellbeing_trend` | Pull from `wellbeing_snapshots` — 30-day rolling means | continuous | Anchors the health profile in numeric series |
 
-**Risks identified:**
-- **Straight-lining** (all 3s every day) — the classic satisficing pattern from [survey-fatigue research](https://blog.logrocket.com/ux-design/what-is-survey-fatigue-how-can-you-avoid-it/), [LogRocket](https://blog.logrocket.com/ux-design/what-is-survey-fatigue-how-can-you-avoid-it/). Mitigation: at week 4+, if straight-line variance < 0.5, surface "you've been a flat 3 for two weeks — is the question wrong?" (defer to M013 anti-sycophancy monitoring; M009 just records).
-- **Three-message UX clutter** — three sequential keyboards over three messages is heavier than one combined message with three rows. Telegram supports multi-row inline keyboards in a single message. Single message ≥ 3-message UX every time.
-- **Tap target precision** — Telegram inline keyboard buttons render adequately on mobile; this is a non-issue.
+**Why the case-file model instead of a snapshot model:** Medical situations are stateful and sequential. "Open hypothesis: sleep apnea" is not a momentary observation — it persists until explicitly resolved. The profile must track which hypotheses are open, which tests are scheduled, and which have resolved. Losing that state between weekly updates would mean the AI loses the thread of an ongoing health investigation.
 
-**Recommendation: combine all 3 dimensions into ONE message with 3 keyboard rows.** Single tap-bound experience. Reply path: "energy?" "mood?" "anxiety?" handled via callback_data parsing. Reduces visual chrome and matches How We Feel's compact emotion-grid pattern ([howwefeel.org](https://howwefeel.org/), [Yale](https://medicine.yale.edu/news-article/the-how-we-feel-app-helping-emotions-work-for-us-not-against-us/)).
+**Key data source beyond Pensieve:** The M009 wellbeing snapshots (energy/mood/anxiety 1–5) become a quantified substrate for health inference. If Greg's energy has been 1–2 for three weeks, that is a data point for the health profile even if he has not mentioned a specific condition.
 
-**Should it fire combined with the voice note or separately?** D026 already locked this answer: **separate**. The spec language "alongside" is delivery-time, not ritual-time. The decision rationale (D026): *"Combining them would either bloat the voice note ritual with structured questions or pollute the numeric series with interpretation."* Concretely: voice note is 21:00 prompt → 30-second voice deposit → done; wellbeing snapshot is delivered immediately after as a *separate* Telegram message with the inline keyboard. Greg can answer one, both, or neither. Skipping the snapshot does NOT trigger the skip-tracking adjustment dialogue (per spec).
+**Minimum signal needed:** Any FACT entry mentioning a symptom, test, diagnosis, or treatment. Health is a low-volume dimension (0–3 relevant entries/week) but each entry is high-signal.
 
-**Verdict:** TABLE STAKES — single-message 3-row inline keyboard, fired immediately after the voice note prompt; D026 separation honored. ANTI-FEATURE — sliders or composite single-score (defer slider until M013 if data suggests; composite score loses dimensionality).
+### 2.4 Family Profile
 
----
+**What it answers:** Where is Greg in the family formation arc — partnership criteria, children plans, parent-care trajectory, relationship status?
 
-### 2.3 What does the wellbeing data become useful FOR? (TABLE STAKES — flag the consumer chain explicitly)
+**Canonical observable facts:**
 
-The spec is clear that the snapshot is substrate, not display, but the downstream chain matters for storage decisions.
+| Field | What to look for | Signal cadence | Notes |
+|-------|-----------------|----------------|-------|
+| `relationship_status` | "dating X", "met someone", "single", "seeing someone" | 0–1/month | Changes rarely; high salience when it does |
+| `partnership_criteria_evolution` (jsonb array) | "I've realized I need X in a partner", "no longer care about Y", "important to me now: Z" | 0–2/week when actively processing | Each criterion has: text, date_noted, still_active |
+| `children_plans` | "I want kids", "no kids for now", "thinking about this more", timeline statements | 0–1/month | May be dormant; surface when mentioned |
+| `parent_care_responsibilities` (jsonb) | "my parents need X", "handling care for Y", dependency mentions | 0–1/month | Affects financial + jurisdictional planning |
+| `active_dating_context` (text) | Sonnet-assembled current context: where is Greg looking, what channels, recent experiences | 0–2/week when active | Interprets RELATIONSHIP-tagged entries |
+| `milestones` (jsonb array) | First date, relationship transitions, breakups, proposals | ~event-driven | Each milestone: type, date, notes |
+| `constraints` (jsonb array) | "must speak X language", "must be open to living in Y", "age range Z" | 0–1/month when actively defining | Derived from explicit declarations |
 
-**Confirmed consumers:**
-- **M008 episodic summary** — wellbeing scores can be referenced as numeric anchors in the daily summary's `emotional_arc` field. *Not a hard dependency* — M008 already ships and works without snapshots; if M009 adds them, M008's prompt can be extended (Phase 21-style decimal phase if needed) to read them in.
-- **M009 weekly review observation generator** — the rolling 7-day mean / variance / trajectory for each dimension is a candidate observation source ("anxiety has been climbing since Wednesday"). **DIFFERENTIATOR for M009 weekly review prompt design.**
-- **M010 operational profiles** (jurisdictional / capital / health / family) — health profile in particular reads wellbeing trajectory for clinical context.
-- **M011 psychological profiles** — HEXACO Emotionality dimension correlates with anxiety baseline.
-- **M013 monthly reconciliation** — values-vs-behavior comparison can include "you said you wanted to prioritize calm; your anxiety mean was 3.6 this month, up from 2.9".
+**Why PSYCHOLOGY mode especially needs this:** Psychological analysis of Greg's behavior patterns in relationships requires knowing where he actually is in the family formation arc. Without this, PSYCHOLOGY might surface attachment-theory observations that are disconnected from Greg's actual situation. A "currently single and actively looking" context produces different psychological grounding than "in a committed 2-year relationship."
 
-**Successful comparable systems for this loop:**
-- [How We Feel](https://howwefeel.org/) (Marc Brackett / Yale Center for Emotional Intelligence) — captures dimensional emotions, surfaces patterns at week-end.
-- [Daylio](https://daylio.net/) — explicit habit-mood correlation surfacing.
-- mPath / Healthy Minds Program EMA research — uses wellbeing series for delayed insight, not real-time response.
-
-**Verdict:** TABLE STAKES — store the 1–5 triple in `wellbeing_snapshots` table as specified. DIFFERENTIATOR — weekly review observation generator must be wired to read 7-day wellbeing trajectory as ONE candidate observation source (the others being M008 summaries and M007 resolved decisions). ANTI-FEATURE — do NOT show Chris's interpretation back to Greg at deposit time. The data's value is **delayed and cumulative**, not real-time.
-
----
-
-## 3 — Weekly Review
-
-### 3.1 What does an "observation" actually look like? (TABLE STAKES, with concrete shape)
-
-**The spec mandates exactly one observation + exactly one Socratic question** with runtime token-count enforcement (rejected and regenerated if multi-question). This is the highest-stakes prompt-engineering decision in M009 because the observation defines what makes Chris's weekly review distinct from Sunsama's "wins/challenges/plans" template ([craft.do weekly review](https://www.craft.do/app-templates/weekly-review)) or Notion's open-canvas.
-
-**Comparable systems' weekly digest formats:**
-
-| System | Format | Verdict for Chris |
-|---|---|---|
-| [Roam Research weekly review](https://gist.github.com/jborichevskiy/51508eebc810ae8105be45beac4e16ac) | Daily-page rollup with tag aggregation; user-driven synthesis | Too unstructured; assumes user does the thinking |
-| [Reflect.app](https://otio.ai/blog/reflect-app-review) GPT-4 weekly digest | "Distill key takeaways" — summary-paragraph format | Closest pattern for our `observation` field |
-| Sunsama / Notion / ClickUp templates | Wins / challenges / plans (3 buckets) | Performance-review framing; PRD explicitly rejects this for monthly ritual ("Not a performance review") |
-| GTD weekly review | Inbox / projects / waiting-for / someday-maybe | Workflow tool, not reflection |
-
-**The right shape for Chris's observation, derived from existing decisions:**
-
-> *"Concrete pattern statement, ≤2 sentences, sourced from at least 2 episodic summaries OR 1 resolved M007 decision, citing dates. Surfaces a tension, evolution, or recurrence — not a summary or a celebration."*
-
-**Examples (synthetic, illustrative):**
-- *"You wrote three times this week (Mon, Wed, Fri) about Cagnes-sur-Mer being temporary. On Tuesday you also reaffirmed the Georgia move timeline. Both are in your Pensieve as live; neither is resolved."* → Socratic Q: *"Which of those, if you had to commit today, would you bet on?"*
-- *"You forecast on Apr 19 that the contract negotiation would settle by Apr 25; it didn't. You wrote about the same negotiation Tuesday and Thursday, both times with growing frustration."* → Socratic Q: *"What would the version of you on Apr 19 have told the version of you on Apr 24?"*
-
-**Source-data fingerprint (which existing data structures the observation prompt reads):**
-- M008 `episodic_summaries` for the 7-day window — `topics[]`, `emotional_arc`, `key_quotes`, `importance` (use `getEpisodicSummariesRange` substrate already shipped per PLAN.md tech-debt notes)
-- M007 `decisions` projection — resolved-this-week + those whose `resolve_by` was due this week
-- M009 `wellbeing_snapshots` for the 7-day window — mean / variance / trajectory per dimension (DIFFERENTIATOR — see §2.3)
-- D031 / D035 boundary: the observation is INTERPRETATION, not Pensieve fact. The header in the user-facing message must mark this — e.g. "Observation (interpretation, not fact):" in the same convention as INTERROGATE's `## Recent Episode Context (interpretation, not fact)` header.
-
-**Verdict:** TABLE STAKES — exactly one observation per the spec; ≤ 2 sentences; sourced from at least 2 episodic summaries OR 1 resolved decision; cites specific dates; honors D031 boundary marker. DIFFERENTIATOR — wellbeing trajectory as a third source dimension (when present and when variance ≥ threshold).
+**Minimum signal needed:** Any RELATIONSHIP or FACT entry mentioning a person Greg is romantically interested in, partnership criteria, or family plans. This dimension may have very sparse signal for weeks if Greg is not actively processing family formation topics.
 
 ---
 
-### 3.2 What should the Socratic question be ABOUT? (TABLE STAKES, structured taxonomy)
+## 3 — Weekly Update Cycle and Confidence Calibration
 
-**Three candidate styles, evaluated:**
+### 3.1 What the weekly update actually does
 
-| Style | Example | When to use | Verdict |
-|---|---|---|---|
-| **Open Socratic on the observation** ("which one survives?") | "If you had to pick one, which?" | When observation surfaces a tension between two positions | DEFAULT |
-| **Forecast-style** ("what does this suggest about next week?") | "What does Tuesday's anxiety spike predict for Thursday's meeting?" | When observation contains a trajectory | When applicable |
-| **Decision-archive-style** ("you decided X — how confident are you now?") | "Apr 19's forecast was wrong. What does that update?" | When observation references an M007 resolved decision | When applicable |
+Each Sunday, a cron job runs **after** the M008 episodic consolidation cron (23:00) — so at earliest Monday 00:01 or at a separate scheduled time. It:
 
-**Phrasing convention from M013** (already locked for steelman-then-challenge): *"using the word 'survives' specifically, not 'what do you think'. Phrasing forces a verdict instead of inviting more elaboration."* The same discipline applies to the weekly Socratic question.
+1. Calls `getEpisodicSummariesRange(weekStart, weekEnd)` — the same function M009 weekly review uses
+2. Queries `pensieve_entries WHERE epistemic_tag IN ('FACT','INTENTION','RELATIONSHIP','EXPERIENCE') AND created_at >= weekStart`
+3. For each of the 4 profiles, runs a **focused Sonnet prompt** (one per profile, never a mega-prompt) that extracts structured updates from that week's signals
+4. Merges the new signals with the existing profile row, updating fields that changed and bumping confidence where evidence is convergent
+5. Updates `last_updated` and `confidence` on the profile row
 
-**Anti-pattern:** "How are you feeling about it?" — invites elaboration without verdict. The Socratic question must demand a position, not invite reflection on the position. This is the difference between Chris and a generic AI journaling app.
+**Signal cadence reality check per dimension:**
 
-**Empirical support for single-question:** [Socratic Journal Method](https://mindthenerd.com/the-socratic-journal-method-a-simple-journaling-method-that-actually-works/), [reasonrefine.com 7-day Socratic journaling](https://reasonrefine.com/my-7-day-socratic-questioning-journal/) — both converge on **one question per session** as the unit of effective Socratic dialogue. Multi-question = survey.
+| Dimension | Typical events/week | Signal density | Implication |
+|-----------|--------------------|--------------------|-------------|
+| Jurisdictional | 0–2 (travel, permit updates) | LOW most weeks, HIGH during moves | Profile is stable for weeks; update mostly no-op |
+| Capital | 1–3 (financial discussions, decisions) | LOW-MEDIUM | Updates ~bi-weekly in practice |
+| Health | 0–3 (active investigation periods) vs 0 (quiet periods) | Bursty | Profile may not update for weeks then burst |
+| Family | 0–2 (relationship processing) | LOW normally, MEDIUM when actively processing | Similar bursty pattern to health |
 
-**Single-question runtime enforcement.** The spec mandates rejection-and-regenerate of multi-question outputs. Implementation note: token-count check on `?` characters in the model output is brittle (handles French/Russian punctuation poorly: `?`, `？`). Better: regex `/[?？！‽]/g` count + Haiku post-validator if count > 1. **Single regex first; Haiku as fallback only if regex misses cases in real use.** Mirrors D039 (no Haiku fallback in fast path until real-world miss rate is measurable).
+**The no-op case is normal and expected.** Most weeks, 2–3 of the 4 profiles will not update because no relevant signals appeared. The cron runs weekly regardless and notes "no new signals" without changing the profile row (last_updated is not bumped on no-op; only bump when something actually changes).
 
-**Verdict:** TABLE STAKES — exactly one question per the spec; phrased to force a verdict ("which survives", "what does this suggest", "how confident are you now"); regex-based runtime check on `?` count with regenerate on multi-question. DIFFERENTIATOR — explicit question-style taxonomy (open / forecast / decision-archive) selected by Sonnet conditionally on observation type.
+### 3.2 Confidence score calibration
 
----
+Confidence represents: *"How confident is Chris that this profile accurately reflects Greg's current state?"*
 
-### 3.3 Sunday evening vs Monday morning vs Friday (TABLE STAKES — Sunday evening default, configurable)
-
-**Evidence from comparable systems:**
-- [todoist.com weekly review](https://www.todoist.com/productivity-methods/weekly-review) — Sunday evening to "close out the week with reflection and start Monday with clear intentions"
-- [Steven Michels in The Startup](https://medium.com/swlh/the-best-day-for-your-weekly-review-836894682dd0) — Monday morning ("review with fresh eyes")
-- [lazyslowdown.com](https://lazyslowdown.com/why-i-recommend-weekly-planning-on-friday-not-on-sunday/) — Friday afternoon ("don't let the weekend cycle the week")
-- GTD canon — Friday afternoon
-- [theintentionhabit.com](https://theintentionhabit.com/weekly-reflection-questions/) — "key is consistency, not the specific day"
-
-**The deciding factor for Chris:** the weekly review consumes the *just-ended* week's M008 summaries and M007 decisions. Sunday evening means the M008 cron has run for Saturday (at 23:00 Saturday) and Sunday's data is partially fresh — closest to "the week is done" without truncating Sunday's deposits. Monday morning works equally well as long as the cron offset is right. Friday rejects Saturday/Sunday data — wrong for Chris.
-
-**Decision: Sunday evening default; configurable `rituals.config.day_of_week` and `rituals.config.fire_at`.** Default `rituals.config.day_of_week = "sunday"`, `rituals.config.fire_at = "20:00"`. Deliberately one hour earlier than the daily voice note (21:00) so the two rituals don't collide on Sunday.
-
-**Verdict:** TABLE STAKES — Sunday 20:00 local default. Configurable from day one via `rituals.config.day_of_week` and `rituals.config.fire_at`. The cadence machinery must support arbitrary day-of-week + time-of-day for any weekly ritual (forward-compatibility with M013's monthly devil's advocate, quarterly recalibration).
-
----
-
-### 3.4 Should weekly review surface M007 forecasts that resolved this week? (TABLE STAKES)
-
-This is the highest-leverage integration with M007. **Two scenarios:**
-
-- **Forecast resolved this week** (Greg's prediction was tested by reality this week). The accuracy stat is in `decisions` projection. Should the weekly review include this?
-- **Forecast pending** (decision is open, `resolve_by` not yet hit). Already handled by M007's decision-deadline trigger. Should the weekly review *also* mention it?
-
-**Recommendation:** YES on resolved-this-week (it's the empirical-correction loop the PRD calls "the keystone"). NO on pending (M007 already has its own channel — `accountability_outreach` — and double-mentioning creates noise). The weekly review is for *reflection on the just-ended week*; an open forecast isn't an event of this week, it's an open thread.
-
-**Concrete shape.** When ≥1 forecast resolved this week, the observation prompt MAY pull from `decisions` projection where `resolved_at` falls in the week window. In that case, the observation is decision-archive-flavored (style 3 from §3.2). When 0 forecasts resolved, the observation falls back to episodic-summary + wellbeing trajectory.
-
-**Verdict:** TABLE STAKES — weekly review reads `decisions` projection for `resolved_at IN week_window`. When ≥1, prefer decision-archive-style observation. ANTI-FEATURE — do NOT mention pending/open decisions in the weekly review (M007's accountability channel handles that loop).
-
----
-
-## 4 — Skip-Tracking & Adjustment Dialogue
-
-### 4.1 Is 3 the right threshold? (TABLE STAKES — 3 for daily, but cadence-aware revision)
-
-**Habit-loop research:**
-- [James Clear / Atomic Habits "Never Miss Twice" rule](https://jamesclear.com/habit-tracker) — *"Missing once is an accident. Missing twice is the start of a new habit."* This is the most cited threshold in habit literature.
-- [Habitica](https://habitica.fandom.com/wiki/Streaks) — streak resets immediately on miss (no buffer). Frustration → abandonment.
-- [Streaks app](https://thedolceway.com/blog/streak-habit-tracker), [LifePace, SimpleStreaks](https://habi.app/insights/best-streak-tracker-apps/) — newer apps offer 1-day grace ("never miss twice" tracker).
-- BJ Fogg / Tiny Habits — emphasis on celebration + recovery, not threshold counts.
-
-**Why the spec's "3 consecutive skips" works for Chris specifically (not 2):**
-- Chris is NOT a streak app. The point of skip tracking is NOT shame; it's **signal that the ritual is wrong** (per the PRD: *"if a ritual is consistently skipped, the ritual is wrong, not John"*).
-- 2 skips for a daily ritual = 2 days = noise (one weekend trip, one sick day).
-- 3 skips for a daily ritual = 3 days = signal (a pattern, not an accident).
-- **For weekly rituals** 3 skips = 3 weeks ≈ 21 days. That's far too long. The threshold should scale to cadence.
-
-**Recommendation:** keep "3 consecutive skips" for daily rituals but **scale by cadence**:
-
-| Cadence | Skip threshold | Rationale |
-|---|---|---|
-| Daily | 3 consecutive | ~3 days, matches the PRD's existing spec |
-| Weekly | 2 consecutive | ~2 weeks; the lighter cadence makes 1 forgivable, 2 a pattern |
-| Monthly | 2 consecutive | ~2 months; same logic |
-| Quarterly | 1 (any skip) | Single skip = miss the entire ritual; trigger immediately |
-
-**Verdict:** TABLE STAKES — 3 consecutive for daily (per spec). DIFFERENTIATOR — cadence-scaled threshold table above; encoded as `rituals.config.skip_threshold` with default per cadence at row creation. ANTI-FEATURE — punitive "streak loss" UX (Chris is not Habitica; per Atomic Habits research, [habi.app](https://habi.app/insights/best-streak-tracker-apps/), streak-loss UX accelerates abandonment).
-
----
-
-### 4.2 `rituals.config` JSONB schema (TABLE STAKES — bound the blob)
-
-The risk of JSONB blob: it becomes arbitrary, ungoverned, and fragile. The spec calls out three example user inputs that the Haiku-parser must handle: *"fire later in the day", "skip weekends", "different prompts"*.
-
-**Proposed bounded schema for `rituals.config`** (validated by Zod at write time; existing M007 / M008 chokepoint pattern, e.g. `transitionDecision`):
-
-```typescript
-type RitualConfig = {
-  // Scheduling
-  fire_at?: string;           // "HH:MM" 24h local; default per cadence
-  day_of_week?: 0|1|2|3|4|5|6; // Sunday=0; weekly+ only
-  day_of_month?: 1|2|3|...|28; // monthly+ only; capped at 28 for DST/month-length safety
-  skip_days?: (0|1|2|3|4|5|6)[]; // e.g. [0, 6] = "skip weekends"
-  timezone?: string;          // IANA TZ name; default Europe/Paris (Greg)
-
-  // Skip-tracking
-  skip_threshold?: number;    // default 3 daily / 2 weekly / 2 monthly / 1 quarterly
-  skip_action?: 'adjust_dialogue' | 'pause' | 'disable'; // default 'adjust_dialogue'
-
-  // Daily voice note specific
-  prompt_pool?: number[];     // indices into hardcoded prompts (currently 1–6); default [1,2,3,4,5,6]
-  prompt_history?: number[];  // last N fired (for cooldown rule); managed by scheduler
-
-  // Wellbeing snapshot specific
-  dimensions?: ('energy' | 'mood' | 'anxiety')[]; // default all three; allows opt-out
-
-  // Metadata
-  schema_version: 1;
-  last_user_modified?: string; // ISO timestamp of last Haiku-parsed change
-};
-```
-
-**Why this works:** every user-natural-language input maps to ≤1 field. "Fire later in the day" → `fire_at`. "Skip weekends" → `skip_days: [0, 6]`. "Different prompts" → `prompt_pool` subset (hard-cap to existing prompt indices; do NOT allow Greg to write prompts to JSONB — that's a different feature, defer). Haiku parser returns a partial `RitualConfig` patch; engine validates with Zod and rejects unknown fields (chokepoint).
-
-**Verdict:** TABLE STAKES — bounded Zod-validated schema per above; rejection of unknown fields. DIFFERENTIATOR — schema_version field for forward migration when M013 adds quarterly-specific fields. ANTI-FEATURE — free-text custom prompts written by Greg via Haiku-parsed natural language (defer; opens a major test-surface and conflicts with the curated 6-prompt design).
-
----
-
-### 4.3 What does the adjustment dialogue itself look like? (TABLE STAKES)
-
-The spec: *"Chris surfaces 'this ritual isn't working — what should change?' instead of firing the standard prompt."*
-
-**Three constraints derived from existing M006/M007 patterns:**
-- Honor D027 (The Hard Rule) — no flattery in the dialogue. *"You've been brilliant about this; just one tweak..."* — forbidden.
-- Honor M006 refusal handling — if Greg replies "drop it / disable / mute", parse via existing refusal regex and disable the ritual (don't re-prompt for adjustment).
-- Honor 3-turn cap from M007 decision capture — if Greg's response is ambiguous after 1 clarification turn, default to "I'll pause this ritual for a week and re-ask" (graceful degradation; no insistence).
-
-**Verdict:** TABLE STAKES — single message format ("This ritual isn't working — what should change? You can also tell me to disable or pause it"); Haiku-parsed; 3-turn cap; refusal-respecting per M006; pause-default on ambiguous parse.
-
----
-
-## 5 — Ritual Infrastructure
-
-### 5.1 Build cadence machinery for all 4 enums in M009? (TABLE STAKES)
-
-The spec table includes `daily / weekly / monthly / quarterly` as enum values from day one, but M009 only ships daily + weekly rituals. M013 adds monthly + quarterly.
-
-**Two paths:**
-- **Path A: enum supports all 4, scheduler handles all 4 from day one, M013 just registers ritual rows.** Cleaner; one scheduler implementation; M013 becomes pure ritual content + prompt work.
-- **Path B: enum supports all 4, scheduler handles only daily + weekly in M009, M013 extends scheduler.** Defers complexity but creates a non-trivial M009→M013 migration.
-
-**Industry pattern.** Cron-style schedulers ([Google Cloud Scheduler](https://cloud.google.com/scheduler/docs/configuring/cron-job-schedules), [AWS EventBridge](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-scheduled-rule-pattern.html), [SRE book on distributed cron](https://sre.google/sre-book/distributed-periodic-scheduling/)) all converge on **one scheduler primitive that handles arbitrary cron expressions**, not per-cadence specialized code. The right primitive for Chris is *not* cron syntax (overkill), but a generic `next_run_at` calculator that takes (cadence, config) and returns the next firing time.
-
-**Recommendation: Path A.** The cadence calculator in `src/proactive/rituals.ts` should be `nextRunAt(cadence, config, lastRunAt) → Date` and handle all 4 cadences from day one. Adding cadences post-launch means schema migration; getting them right at table-creation time is essentially free.
-
-**Pseudo-implementation per cadence (DST-safe via existing M008 timezone-aware sweep cap):**
-- Daily: `nextRunAt = today @ config.fire_at if past, else tomorrow @ config.fire_at`
-- Weekly: `nextRunAt = next config.day_of_week >= today @ config.fire_at`
-- Monthly: `nextRunAt = first weekend of next month @ config.fire_at` (M013 spec: "first weekend of the month")
-- Quarterly: `nextRunAt = last weekend of next quarter @ config.fire_at` (M013 spec: "last weekend of each quarter")
-
-**Verdict:** TABLE STAKES — cadence enum supports all 4 from day one (matches spec). DIFFERENTIATOR — scheduler primitive `nextRunAt(cadence, config, lastRunAt)` handles all 4 cadences in M009; M013 only registers ritual rows + writes ritual content + prompts. ANTI-FEATURE — cron-expression-based config (overkill; opaque; opens parsing surface).
-
----
-
-### 5.2 Coexistence with reactive triggers (TABLE STAKES)
-
-The spec is clear: "Reactive triggers (silence, commitment, pattern, thread) remain unchanged; both coexist." M007 added a 5th trigger (decision-deadline) with priority 2. M009 adds rituals as a 6th trigger? Or as a separate code path?
-
-**Two architectures:**
-- **A: Rituals as a 6th trigger in the existing 5-trigger priority order.** Pro: one execution path; one daily-cap budget. Con: ritual firing conditions ("`next_run_at` has passed") are different in kind from reactive trigger conditions ("Greg has been silent for X hours") — overloading them muddies the priority logic.
-- **B: Rituals are a separate orchestrator path within proactive sweep, running before the trigger evaluation.** Pro: clean separation of "scheduled" vs "reactive". Con: two daily-cap counters? Or shared?
-
-**Recommendation: B with a shared daily cap.** Rituals are scheduled, not reactive. They fire on `next_run_at` regardless of conversation state (subject to mute control per M004 — `mute_until` honored). Reactive triggers continue to fire as today. Both contribute to a single shared daily-cap counter so Greg never gets > N proactive messages per day total.
-
-**Channel separation** (M007 D-04 pattern): rituals fire on the existing `reflective_outreach` channel by default. The weekly review and adjustment dialogue both stay in `reflective_outreach`. Decision-deadline trigger keeps `accountability_outreach` exclusively. **Do not add new channels in M009.**
-
-**Verdict:** TABLE STAKES — rituals run as a separate scheduler path within proactive sweep; shared daily-cap counter with reactive triggers; honors `mute_until`; uses existing `reflective_outreach` channel.
-
----
-
-### 5.3 Idempotency (TABLE STAKES)
-
-**Problem.** Sweep runs every cron tick (e.g. every hour). If a ritual's `next_run_at` is in the past at tick T1 and again at T2 (because no one updated `last_run_at`), the ritual could fire twice.
-
-**Pattern from M008** (D034: `UNIQUE(summary_date)` + idempotent SELECT-then-INSERT-if-absent). M007 has the same: `upsertAwaitingResolution` (D-28 write-before-send ordering).
-
-**Solution.** Atomic update: `UPDATE rituals SET last_run_at = NOW(), next_run_at = <calculated> WHERE id = X AND next_run_at <= NOW() RETURNING *;` If the RETURNING returns 0 rows, another sweep already fired this ritual; abort. If it returns 1 row, fire the ritual. Then send the Telegram message *after* the database update commits (write-before-send, per D-28).
-
-**Verdict:** TABLE STAKES — atomic UPDATE...RETURNING idempotency pattern; write-before-send ordering. Mirrors M007 D-28. Failure to honor → duplicate prompts on race conditions.
-
----
-
-### 5.4 Wellbeing snapshot table schema (TABLE STAKES — additive constraint)
-
-Spec: `id, snapshot_date, energy (1–5), mood (1–5), anxiety (1–5), notes (nullable), created_at`.
-
-**One additive recommendation:** `UNIQUE(snapshot_date)` constraint, mirroring M008's `episodic_summaries.UNIQUE(summary_date)` (D034). One snapshot per day; second tap-set within the same day = UPDATE not INSERT (lets Greg correct after-the-fact). Index implications: btree on `snapshot_date` for the rolling-7-day query in weekly review. No GIN needed.
-
-**Verdict:** TABLE STAKES — schema as specified + `UNIQUE(snapshot_date)` + btree index on `snapshot_date`.
-
----
-
-## 6 — Consolidated Synthesis
-
-### 6.1 Feature Landscape
-
-#### Table Stakes (must include — 14 items)
-
-| # | Feature | Why Expected | Complexity | Notes |
-|---|---|---|---|---|
-| TS-1 | Daily voice note: deposit-only, no Chris response | Habit-survival (70% abandonment lit); D026 already locked | LOW (one engine flag) | Bypass JOURNAL-mode follow-up logic when entry is ritual response |
-| TS-2 | 6 rotating prompts, no consecutive duplicates | Spec; covers 6 reflection dimensions | LOW | Prompts already enumerated in spec |
-| TS-3 | Default fire-at 21:00 local, configurable | Evening journaling research; implementation-intention anchoring | LOW | `rituals.config.fire_at`; existing TZ-aware infra |
-| TS-4 | Wellbeing 1–5 scale × 3 dimensions | PROMIS clinical validation; Daylio retention rationale | LOW | Spec confirmed |
-| TS-5 | Single Telegram message with 3-row inline keyboard | UX best practice (anti-clutter); D026 separate from voice note ritual | LOW-MEDIUM | callback_data parsing |
-| TS-6 | Weekly review: exactly 1 observation + 1 question | Spec; Socratic Journal lit | MEDIUM | Token-count regex enforcement; regenerate on multi-Q |
-| TS-7 | Observation sourced from M008 + M007 | D031/D035 boundary; D036 routing | MEDIUM | Use existing `getEpisodicSummariesRange`, decisions projection |
-| TS-8 | D031 boundary marker on observation header | "Interpretation, not fact" | LOW | Mirror INTERROGATE pattern |
-| TS-9 | Sunday 20:00 default, configurable | Comparable systems consensus | LOW | `day_of_week` + `fire_at` config |
-| TS-10 | 3-skip threshold for daily; cadence-scaled for others | "Never miss twice" + signal-vs-shame framing | LOW-MEDIUM | per-cadence default in row creation |
-| TS-11 | Bounded Zod-validated `rituals.config` schema | Prevents ungoverned blob | MEDIUM | 8 fields, schema_version, partial-patch via Haiku |
-| TS-12 | Rituals enum supports all 4 cadences from day one | Forward-compat M013 | LOW (DDL) | M013 just adds rows + content |
-| TS-13 | Atomic `UPDATE...RETURNING` idempotency | Race-condition safety; D-28 pattern | LOW | One-line query change vs naive SELECT-then-UPDATE |
-| TS-14 | `wellbeing_snapshots.UNIQUE(snapshot_date)` + btree index | Mirror M008 D034 | LOW | Migration only |
-
-#### Differentiators (would set Chris apart — 6 items)
-
-| # | Feature | Value Proposition | Complexity | Notes |
-|---|---|---|---|---|
-| DIFF-1 | Cooldown rule: no prompt repeat in last 3 (extends "no consecutive duplicates") | Reduces prompt-fatigue with 6-prompt pool | LOW | `rituals.config.prompt_history: int[3]` |
-| DIFF-2 | Wellbeing trajectory as 3rd weekly-observation source | Ties numeric series back into reflection loop | MEDIUM | Mean / variance / direction over rolling 7-day |
-| DIFF-3 | Question-style taxonomy: open-Socratic / forecast / decision-archive | Style selected by data shape; richer than fixed format | MEDIUM | Sonnet conditional in observation prompt |
-| DIFF-4 | Cadence-scaled skip thresholds (daily 3, weekly 2, monthly 2, quarterly 1) | Threshold matches signal density per cadence | LOW | Default per cadence in row creation |
-| DIFF-5 | Forecast-resolved-this-week → decision-archive-style observation | Closes the M007 keystone loop weekly, not just at deadline | LOW (existing data) | Read `decisions.resolved_at IN week_window` |
-| DIFF-6 | Generic `nextRunAt(cadence, config, lastRunAt)` scheduler primitive | M013 becomes content-only, no scheduler work | MEDIUM | DST-safe via existing TZ-aware sweep cap |
-
-#### Anti-Features (commonly requested, don't build — 10 items)
-
-| # | Feature | Why Surface-Appealing | Why Problematic | Alternative |
-|---|---|---|---|---|
-| ANTI-1 | AI follow-up question after voice deposit | "Deeper data" | Kills the habit (70% abandonment lit, D026) | Deposit-only; conversation is opt-in via JOURNAL afterward |
-| ANTI-2 | Gratitude as 7th prompt | Five Minute Journal precedent; well-being benefits | Off-brand for Chris's anti-flattery constitution; over-fits journaling-app niche | Keep the curated 6 |
-| ANTI-3 | Server-side Whisper transcription | Voice → text without keyboard friction | Transcription error pollutes Pensieve; PLAN.md already defers | Android keyboard STT (Greg reviews + edits) |
-| ANTI-4 | Last-message-time fire-at heuristic | Adapts to Greg's rhythm | Brittle, non-deterministic, complex; D041-flavor problem | Fixed 21:00 default, configurable knob |
-| ANTI-5 | Real-time wellbeing interpretation back to Greg at deposit | "Insightful" feel | Pollutes data (Goodhart's law); D026 separation | Delayed/cumulative use in weekly review + M013 reconciliation |
-| ANTI-6 | Slider UX for wellbeing | Higher resolution | Awkward on Telegram inline keyboard; PROMIS 1–5 already validated | 5-button keyboard rows |
-| ANTI-7 | Streak-loss UX for skip tracking | Habitica/Streaks visual reinforcement | Punitive; accelerates abandonment per habit-tracker UX research | Skip count as private signal; surfaces only at threshold |
-| ANTI-8 | Mention pending/open M007 forecasts in weekly review | "Closing the loop" | Double-mentions with M007's accountability channel; creates noise | Resolved-this-week only |
-| ANTI-9 | Cron-expression-based ritual config | Industry standard (cron syntax) | Opaque to Greg; opens a parsing surface; overkill | Bounded JSONB with named fields |
-| ANTI-10 | Free-text custom prompts written via Haiku natural language | Personalization | Major test-surface; conflicts with curated prompt design; opens prompt-injection adjacent risks | `prompt_pool` subset of curated 6 only; defer |
-
-### 6.2 Feature Dependencies
+**Calibration model** (derived from EMA/knowledge-graph literature and first principles):
 
 ```
-M008 episodic_summaries  ─┐
-                          ├──> Weekly Review observation generator
-M007 decisions projection ─┤
-                          │
-TS-13 atomic UPDATE...RETURNING ──┐
-                                  ├──> Daily voice note ritual fires
-TS-3 fire_at 21:00 default ───────┤
-                                  │
-TS-1 deposit-only behavior ────────────────> Daily voice note "deposit and silence"
-                          │
-                          ├──> Wellbeing snapshot delivered after voice prompt
-TS-5 inline keyboard ─────┘
-                          │
-TS-14 wellbeing_snapshots schema ──> Storage path
-                          │
-                          ├──> DIFF-2 weekly trajectory observation
-TS-7 observation sources ─┘
+confidence = clamp(volume_score × consistency_score × recency_score, 0.0, 1.0)
 
-TS-12 4-cadence enum ──> M013 adds monthly + quarterly RITUAL ROWS only
-DIFF-6 nextRunAt primitive ─────^
-
-TS-10 3-skip threshold ──┐
-TS-11 rituals.config Zod ─┼──> Adjustment dialogue
-M006 refusal handling ────┘
+volume_score     = min(entry_count / 30, 1.0)        // saturates at 30 confirmed entries
+consistency_score = 1 - (contradictions / total)      // proportion of non-contradictory signals
+recency_score    = exp(-decay_rate × days_since_last_update)  // decay_rate ~0.02 → halves in 35 days
 ```
 
-### 6.3 Dependency notes
+**Practical calibration:**
+- Below 10 entries: confidence = 0, profile shows "insufficient data" (M010 spec requirement)
+- 10–20 entries with high consistency: confidence 0.4–0.6
+- 20–40 entries with high consistency: confidence 0.6–0.8
+- 40+ entries with very high consistency and recent activity: confidence 0.8–1.0
 
-- **Weekly review requires M008 + M007:** Already shipped. `getEpisodicSummariesRange` substrate exists per PLAN.md tech-debt; `decisions` projection exists. M009 phase wires them; no new substrate needed.
-- **Daily voice note requires JOURNAL-mode bypass flag:** Existing JOURNAL handler may emit a chat reply in some paths; M009 must add a `is_ritual_response` flag that suppresses follow-up generation while still triggering store + epistemic tag + embedding (M001 fire-and-forget pipeline unchanged).
-- **Wellbeing → weekly review enhancement is optional but high-value:** DIFF-2. If shipped, weekly review prompt has 3 source dimensions (M008, M007, wellbeing) instead of 2.
-- **Skip-tracking adjustment dialogue requires M006 refusal handling:** Refusal regex must apply inside the dialogue path (Greg saying "drop it" must disable, not loop).
-- **Cadence machinery in M009 unblocks M013:** TS-12 + DIFF-6 mean M013 ships content + prompts only, not scheduler code.
+**Decay is important:** If Greg has not mentioned his jurisdictional status for 6 weeks, confidence should drift downward slightly. A 35-day half-life on the recency component means a profile last updated 70 days ago has its confidence halved from recency alone. This prevents the system from presenting stale data with false certainty.
 
-### 6.4 MVP Definition
+**Contradictions reduce confidence:** If Greg says "planning to move in June" in week 1 and "no longer planning that move" in week 3, the contradiction reduces consistency_score. Chris should surface the contradiction (per D006 contradiction detection) rather than silently picking one version.
 
-#### Launch with v2.4 M009 (must-have)
+**What gets stored with confidence:**
+- The profile row stores `confidence` as a float 0.0–1.0
+- The weekly Sonnet prompt produces a structured JSON update that includes `confidence_delta` per field (e.g., `{current_country: +0.2, next_planned_move: -0.1}` because the move date became uncertain)
+- Chris stores only the aggregate `confidence` value on the profile row; per-field confidence is computed at prompt time from the profile data, not persisted separately (too granular for M010)
 
-- [x] All 14 TABLE STAKES items above (TS-1 through TS-14)
-- [ ] DIFF-1 cooldown rule (5-LOC addition; effectively free)
-- [ ] DIFF-6 scheduler primitive (M013 unblock)
+---
 
-#### Add after validation (v2.5–v2.7)
+## 4 — Feature Landscape
 
-- [ ] DIFF-2 wellbeing trajectory in observation generator (after 30 days of real data per D029 pause)
-- [ ] DIFF-3 question-style taxonomy (after enough weekly reviews to see which style works)
-- [ ] DIFF-4 cadence-scaled skip thresholds (relevant only when M013 monthly + quarterly land)
-- [ ] DIFF-5 forecast-resolved-this-week observations (relevant after enough M007 forecasts have resolved)
+### Table Stakes (M010 must-have)
 
-#### Future / out of scope for M009
+| # | Feature | Why Expected | Complexity | Dependency | Notes |
+|---|---------|--------------|------------|------------|-------|
+| TS-1 | Four Drizzle tables: `profile_jurisdictional`, `profile_capital`, `profile_health`, `profile_family` | Schema foundation; everything else reads/writes here | LOW (DDL + migration) | None beyond existing schema | Each table: id, last_updated, confidence (0–1), profile-specific jsonb cols per M010 spec |
+| TS-2 | `getOperationalProfiles()` in `src/memory/profiles.ts` | Profiles are useless without a read API | LOW (Drizzle select × 4) | TS-1 | Returns structured data, NOT narrative summary (D035 boundary) |
+| TS-3 | Weekly cron: one focused Sonnet prompt per profile from prior week's episodic + tagged Pensieve entries | The inference engine itself | HIGH (prompt engineering × 4, structured output, merge logic) | M008 `getEpisodicSummariesRange`, M009 `wellbeing_snapshots` | Never a mega-prompt; 4 separate Sonnet calls |
+| TS-4 | 10-entry minimum threshold enforcement before populating any profile | Prevents wrong inference from sparse data (D028 precedent) | LOW | TS-1 | Below threshold: row exists, all fields = null/"insufficient data", confidence = 0 |
+| TS-5 | Confidence score on each profile row (float 0.0–1.0) | Without confidence, Greg cannot calibrate trust | LOW | TS-3 | Volume × consistency × recency model; updated by weekly cron |
+| TS-6 | REFLECT, COACH, PSYCHOLOGY mode handlers call `getOperationalProfiles()` and inject into system prompt | The reason profiles exist: grounded context for the three synthesis modes | MEDIUM (injection point in each handler) | TS-2, existing mode handlers | System prompt injection, not tool call result; structured key-value block mirroring D031 Known Facts pattern |
+| TS-7 | `/profile` Telegram command — read-only formatted output of all 4 profiles with confidence ranges | Greg's ability to see + audit his own profiles | MEDIUM (formatter) | TS-2 | Psychological profiles section shows "not yet available — see M011" until M011 lands |
+| TS-8 | Below-threshold case: `/profile` returns "Insufficient data" + confidence=0 for each dimension | Spec requirement; prevents Chris from making up data | LOW | TS-4 | The sparse-fixture test drives this |
+| TS-9 | Synthetic fixture test (30+ days, all 4 dimensions) | D041 convention — no milestone may gate on real calendar time | HIGH (fixture design) | Primed-fixture pipeline (v2.3), `loadPrimedFixture` | Parallel fixture: 30-day populated; 5-entry sparse. Both must pass |
+| TS-10 | Sparse-fixture test: 5-entry fixture → confidence=0, "insufficient data" on all 4 | The threshold enforcement proof | MEDIUM | TS-9 | Must run against real Postgres (real-DB integration test) |
+| TS-11 | D035 boundary: profiles module never reads from `episodic_summaries` directly into profile narrative fields | Summaries are interpretation; profile narrative is a separate Sonnet-assembled field | LOW (architecture constraint) | D035 | `boundary-audit.test.ts` may need extension |
+| TS-12 | Never-throw contract on `getOperationalProfiles()` | Consistent with existing retrieve.ts / ground-truth.ts conventions (D005) | LOW | TS-2 | Returns null/empty array per profile on any DB error; logs at warn |
 
-- [ ] Free-text custom prompts (ANTI-10; defer indefinitely)
-- [ ] Slider wellbeing UX (ANTI-6; defer; revisit only if 1–5 satisficing observed)
-- [ ] AI commentary mode on voice notes (ANTI-1; explicitly forbidden by D026)
-- [ ] Server-side Whisper (ANTI-3; PLAN.md defers; revisit only after a "review-before-store" flow exists)
+### Differentiators (v2.5.1 or M013 — not M010)
 
-### 6.5 Feature Prioritization Matrix
+| # | Feature | Value Proposition | Complexity | When to Add |
+|---|---------|-------------------|------------|-------------|
+| DIFF-1 | Multi-profile cross-reference reasoning (e.g., "you're in a low-tax-residency window — does that affect FI sequencing?") | The most valuable synthesis: profiles inform each other | HIGH | M013 — needs all 4 operational + M011 psychological profiles to be mature |
+| DIFF-2 | Auto-detection of profile-change moments (e.g., "you just mentioned a residency change — should I bump the jurisdictional profile now?") | Real-time profile maintenance vs weekly batch | MEDIUM | v2.5.1 — needs empirical data on how often Greg's profile changes to calibrate the false-positive rate |
+| DIFF-3 | Time-series profile history (snapshots over time, not just current state) | Lets Chris say "your capital profile 6 months ago was X; now it's Y — here's what changed" | MEDIUM | M013 or M014 — current-state-only is the right starting point |
+| DIFF-4 | Per-profile narrative summary (Sonnet-generated plain-text paragraph per dimension) | Richer `/profile` output than structured fields | LOW-MEDIUM | v2.5.1 — `case_file_narrative` in health profile is the seed; extend to all 4 |
+| DIFF-5 | Profile consistency checker (detect when Pensieve entries contradict the stored profile; surface for correction) | Keeps profiles honest over time | MEDIUM | v2.5.1 — extend contradiction detection (M002) to include profile fields |
+| DIFF-6 | Wellbeing-anchored health profile updates (detect when sustained low energy/mood/anxiety trends drive a health profile update independent of explicit Pensieve mentions) | Closes the loop between quantitative wellbeing series and qualitative health hypothesis tracking | MEDIUM | v2.5.1 — requires 30+ days of wellbeing data to calibrate thresholds |
+| DIFF-7 | Per-field confidence (not just aggregate confidence per profile) | More granular trust signaling (e.g., "current_country: HIGH confidence; next_planned_move: LOW confidence") | MEDIUM | M013 — aggregate confidence is sufficient for M010 |
+
+### Anti-Features (explicit exclusions — do not build in M010 or later)
+
+| # | Feature | Why Requested | Why Excluded | Alternative |
+|---|---------|---------------|--------------|-------------|
+| ANTI-1 | Predictive future-state forecasting from profiles ("based on your profile, you'll likely...") | Seems like a natural profile extension | Out of scope per M010 spec; Chris does not predict Greg's future; that's astrology not profile management | Socratic questioning via COACH if Greg wants to reason about futures |
+| ANTI-2 | Multi-user profile sharing or federation | Extension of the platform | Single-user app (D009); multi-tenancy is explicitly out of scope in PLAN.md | N/A |
+| ANTI-3 | Profile visualization (charts, dashboards, timeline views) | Richer UX | Telegram text-only (no frontend); D009 single-user | `/profile` text output is the read interface |
+| ANTI-4 | Real-time profile update on every message (inline update vs weekly batch) | Feels more responsive | Adds inference cost to every message; profile stability matters (a single sentence should not flip a profile field) | Weekly batch cron is the right cadence; DIFF-2 is the escape valve for high-salience events |
+| ANTI-5 | Psychological trait inference from operational profile fields | "Post-FI person = lower financial anxiety" | Mixes operational and psychological tiers; M011 handles trait inference | M011 HEXACO profiles consume the same episodic substrate independently |
+| ANTI-6 | Profile editing by Greg via Telegram commands (/profile edit jurisdictional current_country=Georgia) | Explicit correction capability | Opens a command-parsing surface; profiles should be inference-derived, not manually maintained | Greg corrects profiles by depositing new Pensieve entries; the weekly update picks up the correction naturally |
+| ANTI-7 | Separate "profile mode" in the 6-mode engine | User-facing profile management | Profiles are context, not conversation; exposing them as a mode confuses the interaction model | `/profile` command for read; weekly inference for write |
+
+---
+
+## 5 — Feature Dependencies
+
+```
+M008 getEpisodicSummariesRange ──┐
+M009 wellbeing_snapshots ─────────┤
+                                  ├──> TS-3 weekly profile update cron
+M009 pensieve_entries filter      │         (one Sonnet prompt per profile)
+(FACT/INTENTION/RELATIONSHIP/     │
+ EXPERIENCE tags) ────────────────┘
+                                        │
+                                        v
+                                  TS-1 profile tables (Drizzle)
+                                        │
+                                        v
+                                  TS-2 getOperationalProfiles()
+                                  (src/memory/profiles.ts)
+                                    │              │
+                          ┌─────────┘              └──────────┐
+                          v                                   v
+                  TS-6 inject into                     TS-7 /profile
+                  REFLECT/COACH/PSYCHOLOGY              command
+                  system prompts                       (text-only read)
+                  (buildSystemPrompt() extension)
+
+M002 epistemic tagger ──> tags = FACT/INTENTION/RELATIONSHIP/EXPERIENCE
+                          are the input filter for TS-3
+
+M007 decisions ──> resolved decisions supplement capital profile
+                   (major financial decisions as high-signal capital events)
+
+Ground truth (src/pensieve/ground-truth.ts) ──> seeds initial
+                   jurisdictional + capital profiles at migration time
+                   (avoids confidence=0 on day 1 for known facts)
+
+D041 primed-fixture pipeline ──> TS-9 30-day synthetic fixture
+                                 TS-10 5-entry sparse fixture
+```
+
+### Dependency Notes
+
+- **TS-3 requires M008 `getEpisodicSummariesRange`:** This function is already exported from `src/pensieve/retrieve.ts` and is the first production consumer of M008's range query capability. M009 weekly review also uses it — M010 is the second production consumer. No new substrate needed.
+
+- **TS-3 requires M009 wellbeing_snapshots:** The wellbeing_snapshots table ships in M009 Phase 27 (WELL-01). M010 cron can query it directly via Drizzle for the health profile's `wellbeing_trend` field.
+
+- **TS-6 requires extending `buildSystemPrompt()` in `src/chris/personality.ts`:** The function signature currently takes `(mode, pensieveContext, relationalContext, language, declinedTopics)`. Profiles add a new parameter: `operationalProfileContext?: string`. Alternatively, profiles are appended to `relationalContext` block for REFLECT/COACH/PSYCHOLOGY (which already receive `relationalContext`) — this avoids signature churn. The structured profile block goes above the `## Relational Memory` section in those modes' system prompts.
+
+- **TS-6 integration point is system-prompt injection, not a tool call or separate pre-prompt:** This matches the existing KNOWN FACTS block pattern (D031). Profiles are formatted as a structured key-value block labeled `## Operational Profile (grounded context — not interpretation)` and injected before `{pensieveContext}` in the mode handler, not via the Anthropic API's tool-use feature. Tool-use would add latency and complexity; a system-prompt block is free and consistent with the existing architecture.
+
+- **TS-9/TS-10 synthetic fixtures must be new, not reusing m009-21days:** The M010 fixture needs 30+ days with profile-relevant entries (location changes, capital discussions, health events, family mentions). The existing m009-21days fixture is optimized for ritual behavior testing. A separate `m010-30days` primed fixture is needed.
+
+- **Ground-truth seeding:** `src/pensieve/ground-truth.ts` already contains 13 facts that are effectively jurisdictional + capital profile data (nationality, location history, business entities, FI target). M010 should seed the initial profile rows from these facts at migration time, giving Greg a non-zero starting point with low confidence (0.2–0.3) on day 1 rather than "insufficient data" for facts Chris already knows.
+
+---
+
+## 6 — Expected Behavior (Concrete /profile Output Examples)
+
+### 6.1 Populated profiles (30+ days, high engagement)
+
+```
+/profile
+
+Jurisdictional (confidence 0.82)
+Last updated: 2026-05-10
+
+Current location: Batumi, Georgia (since April 2026)
+Physical location: Batumi city center
+Residency status: Georgian residency application in progress (filed April 2026)
+Tax residency: France (2025 fiscal year); Georgia target for 2026 fiscal year
+Active entities: MAINGRET LLC (New Mexico, active); Georgian Individual Entrepreneur (active)
+Next planned move: Antibes, France — June 2026 (3-month summer stay, not residency change)
+Permanent relocation: Batumi, Georgia — September 2026 (confirmed intention, 3 supporting entries)
+Passports/citizenships: French national
+
+Capital (confidence 0.65)
+Last updated: 2026-05-09
+
+FI phase: Post-FI (target reached or near; lifestyle optimization phase)
+FI target: $1,500,000
+Estimated net worth: Not stated (Greg has not confirmed a figure)
+Current runway: ~18 months of lifestyle costs (inferred from 2 entries; low confidence on this figure)
+Income sources: Golfe-Juan rental (Citya); MAINGRET LLC (US business income); Georgian IE
+Next sequencing decision: Georgian tax residency establishment timeline
+Tax optimization: Georgian 1% small business regime planned for 2026; French tax obligations through 2025
+
+Health (confidence 0.43)
+Last updated: 2026-05-03
+
+Open hypotheses: [none confirmed this week]
+Pending tests: [none mentioned]
+Active treatments: [none mentioned]
+Wellbeing trend (30-day): Energy avg 2.9/5 (declining); Mood avg 3.4/5 (stable); Anxiety avg 3.1/5 (slight uptick last 2 weeks)
+Case file narrative: No active medical investigations this period. Sustained low energy pattern in wellbeing data warrants monitoring — may reflect move-related stress or physical adjustment to climate change.
+
+Family (confidence 0.31)
+Last updated: 2026-04-27
+
+Relationship status: Not specified (no recent entries)
+Children plans: Not specified
+Parent-care responsibilities: Not mentioned
+Partnership criteria (recent updates):
+  - [2026-04-21] "needs to be comfortable with nomadic lifestyle and frequent moves"
+  - [2026-04-15] "intellectual compatibility is non-negotiable"
+Active context: No current relationship activity mentioned. Criteria evolution ongoing.
+
+Psychological profiles: not yet available — see M011 (planned for v2.6)
+```
+
+### 6.2 Sparse fixture — below threshold
+
+```
+/profile
+
+Insufficient data — 5 entries across all dimensions (minimum 10 required per dimension).
+
+Jurisdictional: insufficient data (confidence 0.0) — 2 relevant entries found
+Capital: insufficient data (confidence 0.0) — 1 relevant entry found
+Health: insufficient data (confidence 0.0) — 1 relevant entry found
+Family: insufficient data (confidence 0.0) — 1 relevant entry found
+
+Chris will update profiles automatically as more entries accumulate. No action needed.
+
+Psychological profiles: not yet available — see M011 (planned for v2.6)
+```
+
+Note: The ground-truth seeding means in practice Greg will never see the sparse-fixture output on a fresh install — the 13 ground-truth facts seed the jurisdictional and capital profiles immediately. The sparse-fixture test validates the threshold enforcement logic for cold-start protection and edge cases.
+
+---
+
+## 7 — MVP Definition
+
+### Launch with v2.5 M010 (must-have)
+
+- [x] TS-1 Four Drizzle profile tables with migration
+- [x] TS-2 `getOperationalProfiles()` in `src/memory/profiles.ts`
+- [x] TS-3 Weekly cron: 4 focused Sonnet prompts, structured output, merge logic
+- [x] TS-4 10-entry minimum threshold enforcement
+- [x] TS-5 Confidence score per profile (volume × consistency × recency model)
+- [x] TS-6 REFLECT, COACH, PSYCHOLOGY system prompt injection
+- [x] TS-7 `/profile` Telegram command with text-only formatted output
+- [x] TS-8 Below-threshold: "insufficient data" + confidence=0
+- [x] TS-9 30-day synthetic fixture covering all 4 dimensions
+- [x] TS-10 5-entry sparse fixture threshold enforcement test
+- [x] TS-11 D035 boundary: profiles module separate from episodic narrative
+- [x] TS-12 Never-throw contract on `getOperationalProfiles()`
+
+### Add after validation (v2.5.1)
+
+- [ ] DIFF-2 Auto-detection of profile-change moments — after empirical data on false-positive rate
+- [ ] DIFF-4 Per-profile narrative summary (extend `case_file_narrative` to all 4 dimensions)
+- [ ] DIFF-5 Profile consistency checker — extend M002 contradiction detection
+- [ ] DIFF-6 Wellbeing-anchored health profile updates
+
+### Future consideration (M013 or M014)
+
+- [ ] DIFF-1 Multi-profile cross-reference reasoning — after all operational + psychological profiles are mature
+- [ ] DIFF-3 Time-series profile history
+- [ ] DIFF-7 Per-field confidence granularity
+
+---
+
+## 8 — Feature Prioritization Matrix
 
 | Feature | User Value | Implementation Cost | Priority |
-|---|---|---|---|
-| TS-1 deposit-only voice note | HIGH | LOW | P1 |
-| TS-2 6 rotating prompts no-consec-dup | HIGH | LOW | P1 |
-| TS-3 21:00 default + configurable | HIGH | LOW | P1 |
-| TS-4 1–5 wellbeing scale | HIGH | LOW | P1 |
-| TS-5 inline keyboard 3-row single message | MEDIUM | LOW-MEDIUM | P1 |
-| TS-6 weekly review one obs + one Q | HIGH | MEDIUM | P1 |
-| TS-7 obs from M008 + M007 | HIGH | MEDIUM | P1 |
-| TS-8 D031 boundary marker | MEDIUM | LOW | P1 |
-| TS-9 Sunday 20:00 default | MEDIUM | LOW | P1 |
-| TS-10 3-skip threshold | HIGH | LOW-MEDIUM | P1 |
-| TS-11 Zod rituals.config | MEDIUM | MEDIUM | P1 |
-| TS-12 4-cadence enum | MEDIUM (M013) | LOW | P1 |
-| TS-13 atomic idempotency | HIGH (correctness) | LOW | P1 |
-| TS-14 wellbeing UNIQUE date | MEDIUM | LOW | P1 |
-| DIFF-1 cooldown rule | LOW-MEDIUM | LOW | P1 (effectively free) |
-| DIFF-6 scheduler primitive | HIGH (M013 unblock) | MEDIUM | P1 |
-| DIFF-2 wellbeing trajectory in obs | MEDIUM | MEDIUM | P2 |
-| DIFF-3 question-style taxonomy | MEDIUM | MEDIUM | P2 |
-| DIFF-4 cadence-scaled skip thresholds | LOW (until M013) | LOW | P2 |
-| DIFF-5 forecast-resolved obs | MEDIUM | LOW (existing data) | P2 |
-| ANTI-1..10 | n/a | n/a | OUT OF SCOPE |
+|---------|------------|---------------------|----------|
+| TS-1 four profile tables | HIGH (foundation) | LOW | P1 |
+| TS-2 getOperationalProfiles() | HIGH | LOW | P1 |
+| TS-3 weekly cron (4 Sonnet prompts) | HIGH | HIGH | P1 |
+| TS-4 10-entry threshold | HIGH (trust) | LOW | P1 |
+| TS-5 confidence score | MEDIUM | LOW | P1 |
+| TS-6 mode handler injection | HIGH | MEDIUM | P1 |
+| TS-7 /profile command | HIGH (auditability) | MEDIUM | P1 |
+| TS-8 sparse → insufficient data | HIGH (correctness) | LOW | P1 |
+| TS-9 30-day synthetic fixture | HIGH (D041 gate) | HIGH | P1 |
+| TS-10 sparse fixture test | MEDIUM (threshold proof) | MEDIUM | P1 |
+| TS-11 D035 boundary | MEDIUM (architecture) | LOW | P1 |
+| TS-12 never-throw contract | MEDIUM (stability) | LOW | P1 |
+| DIFF-2 auto change detection | MEDIUM | MEDIUM | P2 |
+| DIFF-4 narrative summary | MEDIUM | LOW-MEDIUM | P2 |
+| DIFF-5 profile consistency | MEDIUM | MEDIUM | P2 |
+| DIFF-6 wellbeing health anchor | LOW-MEDIUM | MEDIUM | P2 |
+| DIFF-1 cross-profile reasoning | HIGH (long-term) | HIGH | P3 |
+| DIFF-3 time-series history | MEDIUM | MEDIUM | P3 |
+| DIFF-7 per-field confidence | LOW (over-engineering) | MEDIUM | P3 |
+| ANTI-1..7 | n/a | n/a | OUT OF SCOPE |
 
-### 6.6 Competitor / Comparable System Analysis
+**Priority key:** P1 = must have for M010 launch; P2 = v2.5.1 after empirical data; P3 = M013+
 
-| Behavior | Five Minute Journal | Day One | Stoic | Daylio | How We Feel | Reflect.app | **Chris (M009)** |
-|---|---|---|---|---|---|---|---|
-| Daily prompt | Fixed AM+PM | Open canvas | Curated rotating | None (mood only) | Mood meter | AI-generated daily | **6 rotating, deposit-only** |
-| AI response to entry | None | Optional add-on | None | None | None | Always (GPT-4) | **None — D026** |
-| Mood scale | None | Tags | 1–5 emoji | 1–5 emoji | 4-quadrant + 144 words | None | **1–5 numeric × 3 dimensions** |
-| Weekly review | Manual reflection | Manual | Some templates | Activity correlations | Wellbeing assessment | GPT-4 digest | **1 observation + 1 Socratic question** |
-| Skip tracking | None | None | Streak | Streak | None | None | **3-skip → adjustment dialogue (PRD-unique)** |
-| Multi-question rejection | n/a | n/a | n/a | n/a | n/a | n/a | **Runtime-enforced (PRD-unique)** |
+---
 
-The combination — deposit-only daily + dimensional wellbeing + single-question weekly review + skip-tracking that triggers reconfiguration rather than shame — is **not present in any single comparable system**. Each piece has precedent; the assembly is Chris's contribution.
+## 9 — Complexity Classification Per Feature
+
+| Feature | Classification | Reason |
+|---------|---------------|--------|
+| TS-1 schema + migration | TRIVIAL | Standard Drizzle DDL; precedent from 9 prior migrations |
+| TS-2 getOperationalProfiles() | TRIVIAL | 4 Drizzle selects + null handling |
+| TS-3 weekly profile update cron | COMPLEX | 4 separate Sonnet prompts with structured output parsing; merge logic; idempotency; threshold enforcement; confidence calculation |
+| TS-4 threshold enforcement | TRIVIAL | Count query before populating |
+| TS-5 confidence score | MODERATE | Volume × consistency × recency formula; storing the result; decay logic |
+| TS-6 mode injection | MODERATE | Extend `buildSystemPrompt()` or mode handlers × 3; format profile block; integrate with existing context builder |
+| TS-7 /profile command | MODERATE | Formatter for 4 profiles + confidence display; grammatically coherent text output; M011 placeholder section |
+| TS-8 sparse case | TRIVIAL | Conditional on confidence=0 in formatter |
+| TS-9 30-day fixture | COMPLEX | Fixture must cover all 4 profile dimensions with realistic entry patterns; primed-fixture pipeline extension |
+| TS-10 sparse fixture test | MODERATE | New fixture variant; real-DB integration test |
+| TS-11 D035 boundary | TRIVIAL | Architecture constraint; boundary-audit.test.ts extension |
+| TS-12 never-throw | TRIVIAL | try/catch wrapper pattern already established |
+
+**The complex item is TS-3** — the weekly profile update cron. This is where the prompt engineering, structured-output parsing, confidence calibration, and merge logic all live. It should be implemented as a dedicated phase and tested with the synthetic fixture before the mode-injection phase.
 
 ---
 
 ## Sources
 
-- Spec / context (existing project files):
-  - `PLAN.md` (M009 milestone definition; D026, D029, D030, D041 decision rationales)
-  - `M009_Ritual_Infrastructure.md` (target features and acceptance criteria)
-  - `M013_Monthly_Quarterly_Rituals.md` (forward dependency: monthly + quarterly cadence reuse, devil's advocate, recalibration)
-  - `M010_Operational_Profiles.md`, `M011_Psychological_Profiles.md` (downstream wellbeing-data consumers)
-  - `PRD_Project_Chris.md` (4-layer anti-sycophancy; ritual cadence; 3 forbidden behaviors)
+**Codebase (fully inspected):**
+- `src/pensieve/retrieve.ts` — `getEpisodicSummariesRange`, `hybridSearch`, `getTemporalPensieve` APIs
+- `src/pensieve/routing.ts` — `retrieveContext`, `summaryToSearchResult`
+- `src/pensieve/ground-truth.ts` — 13 existing ground-truth facts (jurisdictional + capital seeds)
+- `src/chris/personality.ts` — `buildSystemPrompt()` signature; `CONSTITUTIONAL_PREAMBLE`; Known Facts block pattern
+- `src/chris/modes/reflect.ts` — mode handler integration point for profile injection
+- `src/rituals/weekly-review-sources.ts` — `loadWeeklyReviewContext` (pattern for parallel-fetch substrate loader)
+- `src/db/schema.ts` — existing table shapes, epistemic tag enum (FACT/INTENTION/RELATIONSHIP/EXPERIENCE relevant to profile inference)
+- `.planning/PROJECT.md` — D028 (attachment profile threshold precedent), D031 (Known Facts structured injection), D034/D035 (episodic boundary), D041 (primed-fixture convention)
+- `M010_Operational_Profiles.md` — milestone spec (target features, acceptance criteria)
+- `.planning/milestones/v2.4-MILESTONE-AUDIT.md` — M009 shipped substrate (wellbeing_snapshots, ritual_fire_events, episodic_summaries production consumer)
 
-- Journaling app retention / abandonment:
-  - [70% lifestyle/MH app abandonment in 100d, mylifenote.ai review](https://blog.mylifenote.ai/abandonment-journal-prompts/)
-  - [Lume Journal — 4 mental blocks](https://lumejournalapp.com/why-cant-i-stick-to-journaling/)
-  - [Why Most People Fail at Journaling — that journaling guy](https://thatjournalingguy.substack.com/p/why-most-people-fail-at-journaling)
-  - [Affirmations Flow — Why You Quit Journaling After 3 Days](https://www.affirmationsflow.com/blog/why-you-quit-journaling-after-3-days-and-the-stack-and-scale-fix)
-  - [Practical PKM — Eliminate Journaling Friction with Daily Questions](https://practicalpkm.com/eliminate-the-journaling-friction-with-daily-questions/)
-
-- Comparable systems (deposit-only / curated prompts):
-  - [Stoic — getstoic.com](https://www.getstoic.com/) and [Stoic 6 prompts blog](https://www.getstoic.com/blog/6-journaling-prompts-to-cultivate-the-quiet-discipline-of-reflection)
-  - [Five Minute Journal — Tim Ferriss tweet](https://x.com/tferriss/status/1937337697313472550), [Intelligent Change](https://www.intelligentchange.com/blogs/read/the-five-minute-journal-questions)
-  - [Reflect.app review — Otio](https://otio.ai/blog/reflect-app-review)
-  - [Day One — Building a Journaling Habit](https://dayoneapp.com/blog/journaling-habit/)
-
-- EMA / scale granularity:
-  - [Frontiers EMA systematic review (Likert designs in mood/anxiety EMA)](https://www.frontiersin.org/journals/psychology/articles/10.3389/fpsyg.2021.642044/full)
-  - [Springer 2025 — Likert vs VAS in EMA](https://link.springer.com/article/10.3758/s13428-025-02706-2)
-  - [PROMIS Anxiety Scoring Manual (5-point Likert clinical validation)](https://www.healthmeasures.net/images/PROMIS/manuals/Scoring_Manuals_/PROMIS_Anxiety_Scoring_Manual.pdf)
-  - [PROMIS clinical validity — PMC](https://pmc.ncbi.nlm.nih.gov/articles/PMC4928679/)
-  - [Daylio mood-quantification PMC paper](https://pmc.ncbi.nlm.nih.gov/articles/PMC5344152/), [Daylio: How to Track Moods](https://daylio.net/how-to-track-moods/), [Daylio Wikipedia](https://en.wikipedia.org/wiki/Daylio)
-  - [How We Feel app](https://howwefeel.org/), [Yale article on the Mood Meter / circumplex model](https://medicine.yale.edu/news-article/the-how-we-feel-app-helping-emotions-work-for-us-not-against-us/)
-
-- Habit / streak / skip threshold:
-  - [James Clear — Habit Tracker (Never Miss Twice)](https://jamesclear.com/habit-tracker)
-  - [Habi.app — 7 Best Streak Trackers](https://habi.app/insights/best-streak-tracker-apps/)
-  - [Habitica wiki — Streaks](https://habitica.fandom.com/wiki/Streaks)
-  - [The Dolce Way — Streak Habit Tracker](https://thedolceway.com/blog/streak-habit-tracker)
-
-- Weekly review timing / structure:
-  - [Todoist — The Weekly Review](https://www.todoist.com/productivity-methods/weekly-review)
-  - [Steven Michels — Best Day for Your Weekly Review (Medium)](https://medium.com/swlh/the-best-day-for-your-weekly-review-836894682dd0)
-  - [Lazy Slowdown — Weekly planning Friday not Sunday](https://lazyslowdown.com/why-i-recommend-weekly-planning-on-friday-not-on-sunday/)
-  - [The Intention Habit — Weekly Reflection Questions](https://theintentionhabit.com/weekly-reflection-questions/)
-  - [Roam weekly review template — gist](https://gist.github.com/jborichevskiy/51508eebc810ae8105be45beac4e16ac)
-
-- Socratic questioning:
-  - [Mind The Nerd — Socratic Journal Method](https://mindthenerd.com/the-socratic-journal-method-a-simple-journaling-method-that-actually-works/)
-  - [Reason Refine — 7-Day Socratic Questioning Journal](https://reasonrefine.com/my-7-day-socratic-questioning-journal/)
-  - [PositivePsychology.com — Socratic Questioning](https://positivepsychology.com/socratic-questioning/)
-
-- Reflection prompt design:
-  - [PositivePsychology.com — 30 Best Journaling Prompts](https://positivepsychology.com/journaling-prompts/)
-  - [Reflection.app — 10 Journaling Techniques + 50 Prompts](https://www.reflection.app/blog/journaling-techniques)
-  - [Rosebud — Gratitude Prompts (target/lens/angle framework)](https://www.rosebud.app/blog/gratitude-journal-prompts)
-  - [JournalingInsights — Daily Reflection Prompts Generator](https://journalinginsights.com/how-to-use-a-journaling-prompts-generator-for-daily-reflection/)
-
-- Survey / tap fatigue:
-  - [LogRocket — Survey Fatigue](https://blog.logrocket.com/ux-design/what-is-survey-fatigue-how-can-you-avoid-it/)
-  - [PMC — Survey Fatigue in Questionnaire Research](https://pmc.ncbi.nlm.nih.gov/articles/PMC11833437/)
-
-- Cron / scheduler patterns:
-  - [Google Cloud Scheduler — cron format](https://cloud.google.com/scheduler/docs/configuring/cron-job-schedules)
-  - [AWS EventBridge — scheduled rules](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-scheduled-rule-pattern.html)
-  - [Google SRE Book — Distributed Periodic Scheduling](https://sre.google/sre-book/distributed-periodic-scheduling/)
-  - [Medium — Recurring Calendar Events Database Design](https://medium.com/@aureliadotlim/recurring-calendar-events-database-design-dc872fb4f2b5)
+**Domain / concept validation (operational profile concept):**
+- Operational profiles as a concept appear in personal knowledge management (PKM) and quantified-self literature under terms like "life OS", "personal CRM", and "situational context layer." No single canonical source — derived from first principles applied to the Chris PRD's "Pensieve with a voice" framing.
+- Confidence calibration: EMA literature (same sources as M009 FEATURES.md §2 — Frontiers Psychology 2021 EMA review) establishes that below-threshold data produces worse inference than no inference. The 10-entry floor mirrors D028's 2,000-word threshold for attachment profile (same reasoning applied to a different scale).
+- Case-file model for health: Derived from standard clinical documentation patterns (SOAP notes, problem list). The "open hypothesis / pending test / active treatment" triad is how clinicians maintain a differential diagnosis in progress — applied here to a personal health-tracking context.
 
 ---
-*Feature research for: M009 Ritual Infrastructure + Daily Note + Weekly Review (MVP shipping point, soul-system milestone 4 of 9)*
-*Researched: 2026-04-26*
+*Feature research for: M010 Operational Profiles (soul-system milestone 5 of 9 — profile layer foundation)*
+*Researched: 2026-05-11*

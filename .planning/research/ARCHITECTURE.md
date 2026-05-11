@@ -1,831 +1,520 @@
-# Architecture Research — M009 Ritual Infrastructure + Daily Note + Weekly Review
+# Architecture Research — M010 Operational Profiles
 
-**Domain:** M009 — Ritual Infrastructure + Daily Voice Note + Daily Wellbeing + Weekly Review
-**Type:** Subsequent-milestone integration mapping (NOT greenfield ecosystem research)
-**Researched:** 2026-04-26
-**Confidence:** HIGH (direct codebase inspection of every named module)
-
----
-
-## Section 0 — Reading-context summary
-
-The existing architecture is well-described in `/home/claude/chris/.planning/codebase/ARCHITECTURE.md`. M009 work concentrates in **two new modules** plus **focused edits** to four existing modules. The integration surface is small. The hard architectural questions are sequencing of pre-processors in `engine.ts`, ownership of the firing cron, and whether the daily voice-note response routes through the engine at all.
-
-**New modules introduced by M009:**
-
-| Path | Role |
-|------|------|
-| `src/rituals/index.ts` | Barrel — public surface: `runRitualSweep`, `recordRitualResponse`, `RitualType`, `Ritual` |
-| `src/rituals/types.ts` | `RitualType` enum, `RitualConfig` Zod v3 schema, internal types |
-| `src/rituals/scheduler.ts` | `runRitualSweep()` — query rituals.next_run_at <= now, dispatch per-type handler, advance cadence |
-| `src/rituals/cadence.ts` | `computeNextRunAt(ritual, lastFired)` — pure cadence math (daily/weekly/monthly/quarterly), DST-safe via Luxon |
-| `src/rituals/voice-note.ts` | Daily voice note ritual handler (fire + response binding) |
-| `src/rituals/wellbeing.ts` | Daily wellbeing snapshot handler (fire keyboard + callback parser) |
-| `src/rituals/weekly-review.ts` | Weekly review handler (Sonnet generation + single-question enforcement) |
-| `src/rituals/prompt-rotation.ts` | 6-prompt rotation state with no-consecutive-duplicates invariant |
-| `src/rituals/skip-tracking.ts` | Skip detection + 3-strike adjustment dialogue |
-| `src/rituals/__tests__/*` | Unit + integration tests (cadence math, rotation, skip tracking, wellbeing parser) |
-| `src/rituals/__tests__/m009-fixture.test.ts` | The 14-day mock-clock + primed-fixture integration test (7 spec assertions) |
-
-**Modified files:**
-
-| Path | Edit |
-|------|------|
-| `src/db/schema.ts` | Add `rituals`, `wellbeing_snapshots`, `ritual_responses` tables; add `RITUAL_RESPONSE` to `epistemicTagEnum` |
-| `src/db/migrations/0006_rituals.sql` | New migration |
-| `src/proactive/triggers/types.ts` | Add `'ritual-fire'` to `triggerType` union |
-| `src/proactive/sweep.ts` | Add ritual channel between accountability and reflective channels |
-| `src/chris/engine.ts` | Add **PP#-1** (ritual-response detection) BEFORE PP#0 |
-| `src/bot/bot.ts` | Register `bot.on('callback_query:data', handleRitualCallback)` for the wellbeing keyboard |
-| `src/bot/handlers/` | New file: `ritual-callback.ts` |
-| `src/index.ts` | NO new cron — ritual scheduler lives inside the existing proactive sweep cron (decision rationale Q6 below) |
-| `scripts/test.sh` | Add `psql` line for `0006_rituals.sql` |
-| `src/__tests__/fixtures/` | Add `m009-21days` fixture variant (or extend `m008-14days`) — Q8 below |
+**Domain:** Operational profile inference layer on top of existing append-only Pensieve + episodic consolidation + ritual substrate
+**Researched:** 2026-05-11
+**Confidence:** HIGH — all decisions anchored to direct codebase inspection of the named modules; no web sources required for this milestone (integrating with known code, not discovering new libraries)
 
 ---
 
-## Section 1 — `rituals` table: schema design and migration sequencing
+## Question 1: Profile-Update Cron — New Cron vs New Ritual Type
 
-### Migration number
+**Recommendation: Option A — 4th cron in `registerCrons`.**
 
-**Migration `0006_rituals.sql`.** D034 locked migration `0005` for `episodic_summaries` and shipped it; the next slot is 0006. M009 ships a **single combined migration** for both `rituals` and `wellbeing_snapshots` (and `ritual_responses` — see below) — they are co-introduced and reverting M009 reverts both together. Splitting them into 0006/0007 buys nothing.
+**Rationale:**
 
-### Confirmed schema
+The ritual subsystem (`src/rituals/`) has a load-bearing semantic: rituals fire via the existing sweep, emit `ritual_fire_events`, participate in skip-tracking, trigger adjustment dialogues, and interact with `ritual_pending_responses`. Every one of those behaviors is wrong for operational profile updates:
 
-```sql
-CREATE TYPE ritual_type AS ENUM ('daily_voice_note', 'daily_wellbeing', 'weekly_review');
-CREATE TYPE ritual_response_kind AS ENUM ('voice_note', 'wellbeing', 'weekly_observation');
+- Profiles update silently with no Telegram round-trip. There is no "response window" to track, no skip-count to accumulate, no adjustment dialogue to trigger. Adding a `rituals` row would force the scheduler to run `ritualResponseWindowSweep` against a row that can never produce a `fired_no_response` event — permanently dead infrastructure.
+- The `dispatchRitualHandler` switch in `src/rituals/scheduler.ts:452-468` keys on `ritual.name`. Adding `case 'operational_profile_update'` technically works, but the handler then returns `'fired'` with no response semantics — every skip-tracking invariant in `ritualResponseWindowSweep` becomes vacuously true for a row that has no pending response to scan.
+- The `rituals.config` Zod schema (`RitualConfigSchema` with `fire_at`, `skip_threshold`, `mute_until`, etc.) is strict-mode (`.strict()` — rejects unknown fields). Profiles need none of these fields. Storing a valid row requires a `skip_threshold` that has no meaning and a `fire_at` that is never validated against Greg's response behavior.
+- The catch-up ceiling in `runRitualSweep` (advance without firing if >1 cadence period stale) was built for interactive rituals where missing a fire is a user-visible skip. A profile update that was missed while the server was offline should simply run on restart — but the catch-up ceiling would swallow it silently, which is the wrong behavior for a data-pipeline step.
 
-CREATE TABLE rituals (
-  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  type            ritual_type NOT NULL,
-  cadence         text NOT NULL,                    -- 'daily' | 'weekly' | 'monthly' | 'quarterly'
-  enabled         boolean NOT NULL DEFAULT true,
-  last_run_at     timestamptz,                      -- nullable; null until first fire
-  next_run_at     timestamptz NOT NULL,             -- always UTC, never tz-anchored
-  skip_count      integer NOT NULL DEFAULT 0
-                   CHECK (skip_count >= 0),
-  config          jsonb NOT NULL DEFAULT '{}'::jsonb,
-  created_at      timestamptz NOT NULL DEFAULT now(),
-  updated_at      timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT rituals_type_unique UNIQUE (type)      -- exactly one row per ritual type for single-user
-);
-
-CREATE INDEX rituals_next_run_at_idx
-  ON rituals (next_run_at)
-  WHERE enabled = true;                             -- partial index: sweep only reads enabled rows
-
-CREATE TABLE wellbeing_snapshots (
-  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  snapshot_date   date NOT NULL,
-  energy          smallint NOT NULL CHECK (energy   BETWEEN 1 AND 5),
-  mood            smallint NOT NULL CHECK (mood     BETWEEN 1 AND 5),
-  anxiety         smallint NOT NULL CHECK (anxiety  BETWEEN 1 AND 5),
-  notes           text,
-  created_at      timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT wellbeing_snapshots_snapshot_date_unique UNIQUE (snapshot_date)  -- idempotent per day
-);
-
-CREATE INDEX wellbeing_snapshots_snapshot_date_idx
-  ON wellbeing_snapshots (snapshot_date);          -- M010 monthly aggregation
-
-CREATE TABLE ritual_responses (
-  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  ritual_id       uuid NOT NULL REFERENCES rituals(id),
-  fired_at        timestamptz NOT NULL,
-  responded_at    timestamptz,                      -- nullable: null = skipped
-  prompt_text     text NOT NULL,                    -- exact prompt sent (rotation memory)
-  pensieve_entry_id uuid REFERENCES pensieve_entries(id),  -- voice note → Pensieve link
-  metadata        jsonb,                            -- weekly: observation_id; wellbeing: snapshot_id
-  created_at      timestamptz NOT NULL DEFAULT now()
-);
-
-CREATE INDEX ritual_responses_ritual_id_fired_at_idx
-  ON ritual_responses (ritual_id, fired_at DESC);   -- skip-tracking + rotation memory
-```
-
-### Decision: separate `ritual_responses` table — YES
-
-The question text raised whether wellbeing snapshots should double-write to Pensieve as a `WELLBEING` epistemic-tag entry. **Answer: no, but voice notes DO write to Pensieve.** The clean separation:
-
-| Ritual | Where the data lives | Why |
-|--------|----------------------|-----|
-| Daily voice note | `pensieve_entries` (verbatim) + `ritual_responses` (fire/response link) | Voice-note text is **content**. Pensieve is authoritative (D004, D035). Tagged `RITUAL_RESPONSE` (new enum value, see below). |
-| Daily wellbeing | `wellbeing_snapshots` (numeric) + `ritual_responses` (fire/response link) | Numeric scores are **metric data**, not narrative. Pensieve is the wrong store — D031 forbids dumping prose into the context window, and 3 integers as text would actively pollute retrieval. M010 monthly review reads `wellbeing_snapshots` directly. |
-| Weekly review | `ritual_responses.metadata.observation_text` + Pensieve entry tagged `RITUAL_RESPONSE` | Observation persists for longitudinal "show me past weekly observations". Q5 below resolves this. |
-
-### Decision: add `RITUAL_RESPONSE` to `epistemicTagEnum` — YES
-
-Voice note responses are tagged `RITUAL_RESPONSE` (new enum value) so retrieval can filter them out of routine semantic search but include them when explicitly requested ("what have I been thinking about lately?"). The 12-existing-categories enum (`FACT`, `EMOTION`, `BELIEF`, `INTENTION`, `EXPERIENCE`, `PREFERENCE`, `RELATIONSHIP`, `DREAM`, `FEAR`, `VALUE`, `CONTRADICTION`, `OTHER`, `DECISION`) already has `DECISION` as the precedent for "ritual-system-generated tag". Following that precedent: `RITUAL_RESPONSE` joins as the 14th value.
-
-The migration adds the enum value with `ALTER TYPE epistemic_tag ADD VALUE 'RITUAL_RESPONSE';`. PostgreSQL allows enum extension without `RECREATE` since pg11; it must run **outside a transaction block** in psql, but `drizzle-kit` and `scripts/test.sh`'s `psql -v ON_ERROR_STOP=1` invocation handles each statement sequentially without an explicit BEGIN, so this works.
-
-### Column-by-column rationale
-
-| Column | Type | Rationale |
-|--------|------|-----------|
-| `next_run_at` | `timestamptz` (UTC) | Always UTC. Cadence math computes the next fire instant in `config.proactiveTimezone` via Luxon, then `.toUTC()` for storage. Querying `WHERE next_run_at <= now()` is timezone-agnostic and correct across DST. |
-| `last_run_at` | `timestamptz` nullable | Timestamp, not date. The skip-tracking logic ("3 consecutive skips") needs to know the last *fire* time, not the last calendar day; a Sunday weekly review fired at 19:00 Paris is a single tz-anchored instant. |
-| `cadence` | `text` ('daily'/'weekly'/'monthly'/'quarterly') | Stored as text not enum because cadence is a property of the **schedule**, while `type` is a property of the **ritual**. M013 will add monthly + quarterly rituals; their cadences are 'monthly'/'quarterly'. Keeping cadence separate from type allows reuse. |
-| `enabled` | `boolean` | Skip-tracking adjustment dialogue may temporarily disable a ritual. Soft-disable via flag, not delete (D004 spirit). |
-| `skip_count` | `integer` (consecutive) | **Resets to 0 on any response.** The "3 consecutive skips" trigger reads this directly — no need to scan `ritual_responses` history at sweep time. |
-| `config` | `jsonb` | See Zod shape below. |
-
-### Decision: lock `config` jsonb shape with Zod NOW
-
-Per the v2.2 lesson (Sonnet output schema drift), JSONB freedom causes downstream pain. Lock `RitualConfig` shape in `src/rituals/types.ts`:
+By contrast, a 4th cron in `registerCrons` is a 10-line addition that mirrors the exact shape of the episodic cron:
 
 ```typescript
-// src/rituals/types.ts
-import { z } from 'zod';
+// In RegisterCronsDeps interface:
+profileUpdateCron?: string;
+runProfileUpdate?: () => Promise<void>;
 
-export const RitualConfigSchema = z.object({
-  // Time-of-day for firing (HH:mm in proactiveTimezone). Daily voice note: '21:00'; weekly: '19:00'
-  fireTime: z.string().regex(/^\d{2}:\d{2}$/),
-  // Day-of-week for weekly cadence (0=Sunday, 6=Saturday). Required for cadence='weekly'.
-  dayOfWeek: z.number().int().min(0).max(6).optional(),
-  // Voice-note-specific: rotation state (last 2 prompt indices to enforce no-consecutive-duplicates)
-  recentPromptIndices: z.array(z.number().int().min(0).max(5)).max(2).default([]),
-  // Skip-tracking adjustment: when set, sweep skips firing until this instant.
-  muteUntil: z.string().datetime().nullable().default(null),
-  // Awaiting-response binding: voice-note response window (see Q3).
-  awaitingResponse: z.object({
-    fireRowId: z.string().uuid(),         // ritual_responses.id of the open prompt
-    firedAt: z.string().datetime(),       // ISO timestamp
-    expiresAt: z.string().datetime(),     // firedAt + RESPONSE_WINDOW_HOURS
-  }).nullable().default(null),
-});
-export type RitualConfig = z.infer<typeof RitualConfigSchema>;
-```
-
-Use `RitualConfigSchema.parse(row.config)` at every read boundary. The Zod schema is the contract; jsonb is the storage.
-
----
-
-## Section 2 — Proactive sweep extension: the ritual channel (NOT the 6th trigger)
-
-### Critical reframing: ritual firing is a CHANNEL, not a trigger
-
-The question framed ritual firing as "the 6th trigger". After tracing `runSweep`, the right model is **a third channel**, not a sixth trigger. Existing channels:
-
-1. **ACCOUNTABILITY channel** (deadline trigger) — fires AWAITING_RESOLUTION prompts. Dual-channel separation pattern from M007 / D-05.
-2. **REFLECTIVE channel** (silence + commitment + pattern + thread triggers, winner-take-all by priority)
-3. **(NEW) RITUAL channel** — fires user-promised cadence prompts.
-
-Why a channel, not a trigger:
-- Triggers compete for one outbound message slot in a winner-take-all priority sort. Rituals do **not** compete with reflective sweeps — they are user-promised cadence, not opportunistic.
-- The reflective channel has a daily cap (one message per day, `hasSentTodayReflective`). Rituals have **per-ritual** cadence and may legitimately produce multiple sends in one sweep tick (daily voice note **and** wellbeing snapshot fire together).
-- Skip tracking is per-ritual; it has no analog in the reflective channel.
-- The 5 existing triggers all share `PROACTIVE_SYSTEM_PROMPT` (Sonnet, generative). Rituals use **fixed prompts** (no Sonnet for voice-note delivery; only the weekly review uses Sonnet).
-
-### Concrete edit to `src/proactive/sweep.ts`
-
-Add a new section between the accountability channel (line ~94) and the escalation-scan section (line ~182), or — cleaner — between the escalation scan and the reflective channel (line ~338). Recommended placement: **after escalation, before reflective**, because both accountability and rituals are user-promised cadence and should fire together; reflective is opportunistic and runs last.
-
-```typescript
-// In src/proactive/sweep.ts after the escalation loop, before REFLECTIVE CHANNEL:
-
-// ── RITUAL CHANNEL (M009) ──────────────────────────────────────────────
-// Independent of the reflective daily cap. Each ritual has its own cadence;
-// firing the daily voice note does NOT consume the reflective channel slot.
-let ritualResults: RitualFireResult[] = [];
-try {
-  ritualResults = await runRitualSweep(); // src/rituals/scheduler.ts
-} catch (err) {
-  logger.error({ err }, 'proactive.sweep.ritual.error');
-  // Per-ritual isolation lives inside runRitualSweep — this catch is the last-line
-  // defence so a ritual-system bug does not block the reflective channel.
-}
-```
-
-### `runRitualSweep` shape (`src/rituals/scheduler.ts`)
-
-```typescript
-export interface RitualFireResult {
-  ritualId: string;
-  type: RitualType;
-  fired: boolean;
-  skippedReason?: 'muted' | 'in_adjustment_dialogue' | 'config_invalid';
-  error?: unknown;
-}
-
-export async function runRitualSweep(): Promise<RitualFireResult[]> {
-  // 1. CHEAP SQL gate: WHERE enabled = true AND next_run_at <= now()
-  //    Uses partial index `rituals_next_run_at_idx WHERE enabled = true`
-  const due = await db
-    .select()
-    .from(rituals)
-    .where(and(eq(rituals.enabled, true), lte(rituals.nextRunAt, new Date())))
-    .orderBy(asc(rituals.nextRunAt));
-
-  const results: RitualFireResult[] = [];
-  for (const ritual of due) {
-    try {
-      // 2. Per-ritual try/catch — one ritual error must not starve the others
-      //    (mirrors the WR-02 pattern in sweep.ts escalation loop)
-      const cfg = RitualConfigSchema.parse(ritual.config);
-
-      // 3. Per-ritual mute check (skip-tracking adjustment may have set this)
-      if (cfg.muteUntil && new Date(cfg.muteUntil) > new Date()) {
-        results.push({ ritualId: ritual.id, type: ritual.type, fired: false, skippedReason: 'muted' });
-        continue;
-      }
-
-      // 4. Skip-strike check: 3 consecutive skips → adjustment dialogue, not standard prompt
-      if (ritual.skipCount >= 3) {
-        await fireAdjustmentDialogue(ritual);
-        // Adjustment dialogue does NOT advance next_run_at — wait for Greg's response
-        // (handled by PP#-1 in engine.ts).
-        results.push({ ritualId: ritual.id, type: ritual.type, fired: true });
-        continue;
-      }
-
-      // 5. Type-dispatch to handler
-      switch (ritual.type) {
-        case 'daily_voice_note':  await fireVoiceNote(ritual, cfg); break;
-        case 'daily_wellbeing':    await fireWellbeing(ritual, cfg); break;
-        case 'weekly_review':      await fireWeeklyReview(ritual, cfg); break;
-      }
-
-      // 6. Advance cadence
-      const next = computeNextRunAt(ritual, new Date());
-      await db.update(rituals)
-        .set({ lastRunAt: new Date(), nextRunAt: next, updatedAt: new Date() })
-        .where(eq(rituals.id, ritual.id));
-
-      results.push({ ritualId: ritual.id, type: ritual.type, fired: true });
-    } catch (err) {
-      logger.error({ err, ritualId: ritual.id, type: ritual.type }, 'proactive.sweep.ritual.row.error');
-      results.push({ ritualId: ritual.id, type: ritual.type, fired: false, error: err });
-    }
-  }
-  return results;
-}
-```
-
-**Key point on priority:** there is no priority sort. Rituals fire in `nextRunAt ASC` order. A daily voice note and a daily wellbeing snapshot can BOTH fire in a single tick — that is desired behavior, and the spec confirms it ("delivered alongside the daily voice note").
-
-### Skip-tracking — how does Chris know Greg "skipped"?
-
-**Answer:** No timer, no scan. Skip is detected at fire time, not at response time.
-
-When `runRitualSweep` fires a ritual, it consults the most recent `ritual_responses` row for that `ritual_id`:
-- If `responded_at IS NOT NULL` → previous response received → reset `skip_count = 0`
-- If `responded_at IS NULL` AND prior fire's `expiresAt < now` → skipped → increment `skip_count`
-
-Concretely, before firing a new prompt:
-
-```typescript
-async function checkPriorResponse(ritualId: string): Promise<'responded' | 'skipped' | 'first_fire'> {
-  const [prior] = await db
-    .select()
-    .from(ritualResponses)
-    .where(eq(ritualResponses.ritualId, ritualId))
-    .orderBy(desc(ritualResponses.firedAt))
-    .limit(1);
-  if (!prior) return 'first_fire';
-  if (prior.respondedAt) return 'responded';
-  return 'skipped';  // fired but never responded
-}
-```
-
-This is **fire-and-forget for the response itself**: the ritual scheduler does not wait. Greg's window to respond is bounded by `awaitingResponse.expiresAt` (default 18h for daily, 36h for weekly). If a new fire happens before that window expires AND the prior is unresponded, that's still a skip — the awaiting binding gets cleared and replaced with the new one.
-
-### Channel: NEW `ritual_outreach` cap key in `proactive_state`?
-
-**No — rituals do NOT need a global daily cap.** The existing reflective + accountability daily caps are heuristic safety nets to prevent the random sweep from spamming Greg. Rituals are user-promised: he asked for a daily voice note, he gets one daily.
-
-What rituals need instead is **per-ritual idempotency**: a single sweep tick that runs twice (e.g., manual restart) must not double-fire. This is achieved by `last_run_at` + `next_run_at` advancement: after firing, `next_run_at` jumps forward by the cadence interval, so the next sweep's `WHERE next_run_at <= now()` query returns zero rows for that ritual. Idempotent without a separate cap.
-
----
-
-## Section 3 — Daily voice note handler & the PP#-1 problem
-
-### Module location
-
-`src/rituals/voice-note.ts`. Lives in the new `src/rituals/` module, NOT in `src/proactive/triggers/`. Reasoning: triggers in `src/proactive/triggers/` follow the `TriggerDetector` interface and return `TriggerResult`; voice-note firing is **not a detector**, it is an **action** dispatched by the ritual scheduler.
-
-### Fire-side: simple
-
-```typescript
-// src/rituals/voice-note.ts
-const PROMPTS = [
-  'What mattered today?',
-  "What's still on your mind?",
-  'What did today change?',
-  'What surprised you today?',
-  'What did you decide today, even if it was small?',
-  'What did you avoid today?',
-];
-const RESPONSE_WINDOW_HOURS = 18;
-
-export async function fireVoiceNote(ritual: Ritual, cfg: RitualConfig): Promise<void> {
-  const promptIndex = chooseNextPromptIndex(cfg.recentPromptIndices);
-  const prompt = PROMPTS[promptIndex]!;
-
-  // 1. Insert ritual_responses row BEFORE sending (write-before-send, mirrors M007 D-28)
-  const fireRow = await db.insert(ritualResponses).values({
-    ritualId: ritual.id,
-    firedAt: new Date(),
-    promptText: prompt,
-  }).returning();
-
-  // 2. Update config: rotation state + awaiting binding
-  const newCfg: RitualConfig = {
-    ...cfg,
-    recentPromptIndices: [promptIndex, ...cfg.recentPromptIndices].slice(0, 2),
-    awaitingResponse: {
-      fireRowId: fireRow[0]!.id,
-      firedAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + RESPONSE_WINDOW_HOURS * 3600_000).toISOString(),
+// In registerCrons():
+if (deps.runProfileUpdate) {
+  cron.schedule(
+    deps.config.profileUpdateCron ?? '0 21 * * 0',  // Sunday 21:00
+    async () => {
+      try { await deps.runProfileUpdate!(); }
+      catch (err) { logger.error({ err }, 'profiles.cron.error'); }
     },
-  };
-  await db.update(rituals).set({ config: newCfg }).where(eq(rituals.id, ritual.id));
-
-  // 3. Send via Telegram
-  await bot.api.sendMessage(config.telegramAuthorizedUserId, prompt);
-  // No saveMessage — the response (not the prompt) is what gets stored as a Pensieve entry
+    { timezone: deps.config.proactiveTimezone },
+  );
+  status.profileUpdate = 'registered';
 }
 ```
 
-### Response-side: PP#-1 in the engine — the hardest question
+`CronRegistrationStatus` gains one field (`profileUpdate`), the `/health` endpoint gains one status, and the wiring is testable via the same `vi.mock('node-cron')` pattern used by the existing cron unit tests.
 
-**The problem:** Greg responds via Telegram with a free-text message. The existing `handleTextMessage` → `processMessage` pipeline runs JOURNAL by default. JOURNAL stores to Pensieve AND generates a Sonnet response. The spec says **Chris does NOT respond to voice notes** — and we want the response stored without any LLM round-trip.
+**Timing:** Sunday 21:00 Paris (one hour after the Sunday 20:00 weekly review). The weekly review fires first, producing the most recent episodic summary for the week and any Sunday-resolved decisions before the profile update reads them. This is the correct dependency ordering.
 
-**The resolution: PP#-1 — ritual-response detection, runs BEFORE PP#0.**
+**Tradeoff accepted:** The profile update cron has no skip-tracking, no adjustment dialogue, and no mute semantics. If the Sunday 21:00 update silently fails, it is logged but the next week's update will have a slightly larger input window. This is acceptable for a background data-pipeline step — unlike a skipped daily journal, a silently-failed profile update does not break the user experience because profiles are consumed as background context, not as interactive events.
 
-Pre-processor ordering in `src/chris/engine.ts:processMessage`:
+---
 
-| Order | Pre-processor | Source | Action |
-|-------|---------------|--------|--------|
-| **PP#-1 (NEW)** | Ritual-response detection | M009 | Check active `awaitingResponse` bindings; if found, write to Pensieve as `RITUAL_RESPONSE`, update `ritual_responses.respondedAt`, **return empty string** to suppress reply |
-| PP#0 | Decision capture (active flow) | M007 | Routes AWAITING_RESOLUTION/POSTMORTEM/CAPTURING to handlers |
-| PP#1 | Decision trigger detection | M007 | Detects "I've decided to..." opens capture |
-| PP#2 | Mute intent | M004 | "quiet for a week" → setMuteUntil |
-| PP#3 | Refusal | M006 | "don't talk about X" → addDeclinedTopic |
-| PP#4 | Language detection | M006 | franc + stickiness |
+## Question 2: Profile Generation Handler — One Orchestrator vs Four Separate Handlers
 
-**Why PP#-1 (BEFORE PP#0), not PP#0.5 or after:**
+**Recommendation: One thin orchestrator (`src/memory/profile-updater.ts`) that fans out to four per-profile generators via `Promise.allSettled`, with each generator in its own file under `src/memory/profiles/`.**
 
-1. A ritual response can arrive WHILE a decision capture is open (Greg might respond to last night's voice note this morning, after starting a fresh decision capture an hour ago — though the open capture would be for an unrelated topic). The ritual binding is per-ritual, not per-chat-state, so it's orthogonal to PP#0's chat-state machine. The cleanest invariant: **if a ritual-response window is open, a free-text message inside that window IS the response** — even if a decision capture is also open. Decision capture stays alive (the user can resume it) and the ritual binding is consumed.
+**Structure:**
 
-2. PP#0/PP#1 have heavy semantics (Haiku stakes classification, regex trigger phrases, abort-phrase detection). PP#-1 is one cheap SQL read — it should run first and short-circuit cleanly.
+```
+src/memory/profiles/
+├── jurisdictional.ts    # updateJurisdictionalProfile()
+├── capital.ts           # updateCapitalProfile()
+├── health.ts            # updateHealthProfile()
+├── family.ts            # updateFamilyProfile()
+└── shared.ts            # loadProfileSubstrate(), ProfileSubstrate type, threshold check
+```
 
-3. The "Chris does NOT respond" requirement maps directly to `processMessage` returning empty string, which triggers `handleTextMessage`'s silent-skip path (IN-02 in `src/bot/bot.ts`). This is the existing escape hatch.
+```
+src/memory/profile-updater.ts   # updateAllOperationalProfiles() — thin Promise.allSettled orchestrator
+src/memory/profiles.ts          # getOperationalProfiles() — read-only API for mode handlers
+```
 
-### Concrete PP#-1 implementation
+**Rationale for parallel over serial:**
+
+Each Sonnet call takes approximately 8–15 seconds. Serial execution of 4 calls takes 32–60 seconds. The Sunday 21:00 cron has no latency budget constraint (no user is waiting), but 60 seconds of blocking in a single Node.js async chain burns the event loop for no reason. `Promise.allSettled` gives 4 parallel Sonnet calls completing in ~15 seconds total — a 4x improvement with zero added complexity.
+
+**Rationale for error isolation:**
+
+If the health profile generator fails (e.g., Sonnet returns malformed output that survives retry), it must not prevent the capital or family profile from updating. `Promise.allSettled` (not `Promise.all`) is the right primitive here. Each generator returns a discriminated result (`{ updated: true } | { skipped: 'threshold' | 'existing' } | { failed: true; error: unknown }`), and the orchestrator logs each outcome independently:
 
 ```typescript
-// In src/chris/engine.ts:processMessage, BEFORE the PP#0 block (~line 165):
-
-// ── PP#-1: Ritual-response detection (M009) ────────────────────────────
-// Runs FIRST: if a ritual-response window is open, this message is the response.
-// Writes to Pensieve as RITUAL_RESPONSE, updates ritual_responses.respondedAt,
-// and returns empty string to suppress Chris's reply (deposit-only).
-const ritualBinding = await findActiveRitualBinding(new Date());
-if (ritualBinding) {
-  await recordRitualResponse(ritualBinding, chatId, text);
-  // saveMessage to conversations is intentionally SKIPPED — the response
-  // belongs in Pensieve as authoritative, not in the conversation history.
-  // (Mirrors how decision-capture skips conversation save for AWAITING_RESOLUTION.)
-  return '';  // Triggers IN-02 silent-skip in handleTextMessage
+export async function updateAllOperationalProfiles(): Promise<ProfileUpdateResults> {
+  const [jurisdictional, capital, health, family] = await Promise.allSettled([
+    updateJurisdictionalProfile(),
+    updateCapitalProfile(),
+    updateHealthProfile(),
+    updateFamilyProfile(),
+  ]);
+  // log each settled result; return summary
 }
 ```
 
-`findActiveRitualBinding` queries:
+This mirrors the M008 `runConsolidate` error-isolation contract: `failed: true` is a valid return, not a thrown exception.
+
+**Rationale for four separate files:**
+
+Each profile has a distinct Zod schema, a distinct Sonnet prompt, and a distinct set of Pensieve tag filters. Colocating all four in one file creates a 500+ LOC module that is difficult to test in isolation. Per-file generators allow per-file test mocks without any shared-state contamination. The thin orchestrator stays under 50 LOC and becomes the only file that needs to import all four.
+
+**Testability:** Each generator in `src/memory/profiles/{name}.ts` can be unit-tested with a mock Sonnet SDK and a stub `ProfileSubstrate` without touching the other generators. The orchestrator test only needs to assert that `Promise.allSettled` was called with the right 4 promises and that outcomes are correctly recorded.
+
+---
+
+## Question 3: Sonnet Prompt Strategy — Delta vs Full Regeneration
+
+**Recommendation: Full regeneration every week.**
+
+**Rationale:**
+
+Delta updates (Sonnet reads the previous profile state and proposes field-level patches) introduce a class of error that compounds across weeks: if Sonnet generates a wrong value in week N, that value enters the "previous state" for week N+1 and gets laundered into the next prompt as authoritative fact. By week N+4, the error is deeply baked in. Full regeneration treats each weekly run as a fresh inference from the Pensieve substrate — wrong values are corrected on the next run without needing a repair path.
+
+The practical concern about losing "manual edits" is not applicable here. The M010 spec does not include a manual-edit interface. Greg has no mechanism to manually patch individual profile fields in this milestone. The `/profile` command is read-only (display only). There are no human-in-the-loop edits to lose.
+
+Full regeneration also simplifies the prompt. The per-profile system prompt structure is:
+
+```
+CONSTITUTIONAL_PREAMBLE
++ role framing ("You are reading Greg's operational profile domain...")
++ domain expertise framing (per-profile, locked in per-file constants)
++ data freshness window instruction ("focus on last 30 days; use older data only if referenced in recent entries")
++ threshold instruction ("if fewer than 10 distinct entries mention this domain, output confidence: 0 and null for all fields")
++ Pensieve substrate (FACT/RELATIONSHIP/INTENTION/EXPERIENCE-tagged entries filtered by per-profile domain keywords, last 30–60 days)
++ episodic summaries (last 4–8 weeks, pre-formatted as structured blocks)
++ resolved decisions (domain-tagged, last 60 days)
++ output schema instruction ("respond in JSON matching the schema below")
+```
+
+There is no "previous state" slot. The prompt is stateless. This makes it trivially testable with a fixed synthetic substrate.
+
+**Structured output schema per profile:** Each generator uses a Zod v3 schema (for the business contract) + Zod v4 mirror (for the SDK boundary) following the established dual-schema pattern from `src/episodic/consolidate.ts:33-81` and `src/rituals/weekly-review.ts:132-161`. The v4 mirror is passed to `zodOutputFormat()` at the SDK boundary; Sonnet output is re-validated through the v3 schema.
+
+**Example schema (jurisdictional):**
+
+```typescript
+// v3 business contract
+export const JurisdictionalProfileSchema = z.object({
+  current_location: z.string().min(1),
+  residency_statuses: z.array(z.object({
+    country: z.string(),
+    status: z.string(),
+    since: z.string().nullable(),
+  })).max(10),
+  tax_structures: z.array(z.object({
+    jurisdiction: z.string(),
+    type: z.string(),
+    notes: z.string().nullable(),
+  })).max(10),
+  next_planned_move: z.string().nullable(),
+  planned_move_date: z.string().nullable(),
+  confidence: z.number().min(0).max(1),
+  inference_notes: z.string().max(500).nullable(),
+});
+```
+
+The `confidence` field is emitted by Sonnet as part of the structured output — it is not calculated by the application layer. Sonnet is instructed to calibrate: 0.0 = below threshold or contradictory data, 0.3–0.6 = sparse but consistent data, 0.7–0.9 = clear consistent data over multiple entries. The application layer enforces the minimum-10-entries threshold regardless of Sonnet's confidence output (if below threshold, the generator skips the Sonnet call entirely and writes confidence: 0).
+
+---
+
+## Question 4: `getOperationalProfiles()` Reader API Shape
+
+**Recommendation:** Reader API owns the confidence gating. Mode handlers receive pre-formatted strings and pass them as a new `extras` argument to `buildSystemPrompt`.
+
+### Reader API shape
+
+```typescript
+// src/memory/profiles.ts
+export interface OperationalProfiles {
+  jurisdictional: ProfileRow<JurisdictionalData> | null;
+  capital: ProfileRow<CapitalData> | null;
+  health: ProfileRow<HealthData> | null;
+  family: ProfileRow<FamilyData> | null;
+}
+
+export interface ProfileRow<T> {
+  data: T;
+  confidence: number;
+  lastUpdated: Date;
+}
+
+export async function getOperationalProfiles(): Promise<OperationalProfiles>;
+export function formatProfilesForPrompt(profiles: OperationalProfiles): string;
+```
+
+`getOperationalProfiles()` returns `null` for each profile whose row does not exist in the DB (first run before any cron has fired) or whose `confidence` is 0 (threshold not met). A confidence value of 0 is set by the generator for sparse data; the reader treats it identically to "no row" — both result in `null` for that profile slot.
+
+**Gating in the reader, not the consumer:** The confidence threshold check (`confidence === 0 || row === null → null`) lives inside `getOperationalProfiles()`, not in REFLECT/COACH/PSYCHOLOGY mode handlers. The mode handlers do not need to know about the threshold — they receive `null` and render the absence as "insufficient data". This is the correct separation: the reader owns the data-quality contract; the consumer owns the rendering.
+
+**"Insufficient data" rendering:** `formatProfilesForPrompt` converts `null` slots to a fixed string. When all four are null (first run), the entire profiles block is omitted from the system prompt rather than injected as four "insufficient data" lines. If all four are null, `formatProfilesForPrompt` returns an empty string and the mode handler does not add the profiles section at all.
+
+### `buildSystemPrompt` extension
+
+**Recommendation: Refactor the positional-argument list into a named `extras` object and add `operationalProfiles` there.**
+
+The existing signature at `src/chris/personality.ts:89-95`:
+
+```typescript
+buildSystemPrompt(
+  mode: ChrisMode,
+  pensieveContext?: string,
+  relationalContext?: string,
+  language?: string,
+  declinedTopics?: DeclinedTopic[],
+): string
+```
+
+The ACCOUNTABILITY mode already overloads the `pensieveContext`/`relationalContext` slots (documented in the JSDoc at `personality.ts:79-87`). Adding a 4th positional context argument would deepen this confusion. The clean fix is a named `extras` object:
+
+```typescript
+export interface ChrisContextExtras {
+  language?: string;
+  declinedTopics?: DeclinedTopic[];
+  operationalProfiles?: string;  // pre-formatted by formatProfilesForPrompt(); "" = omit section
+}
+
+buildSystemPrompt(
+  mode: ChrisMode,
+  pensieveContext?: string,
+  relationalContext?: string,
+  extras?: ChrisContextExtras,
+): string
+```
+
+The `extras.operationalProfiles` string is appended inside the REFLECT, COACH, and PSYCHOLOGY branches only. The existing `language` and `declinedTopics` parameters are folded into `extras` in the same commit to avoid a growing positional-argument list. This is a breaking signature change that touches all call sites and must be one atomic plan.
+
+The ACCOUNTABILITY overload is preserved exactly as documented — ACCOUNTABILITY still passes the decision context in the `pensieveContext` slot and the temporal-Pensieve block in the `relationalContext` slot. The `extras` object for ACCOUNTABILITY will have `operationalProfiles: undefined` (profiles are not injected into ACCOUNTABILITY mode).
+
+**Modes that consume operational profiles:** REFLECT, COACH, PSYCHOLOGY only — as explicitly listed in the M010 spec. JOURNAL, INTERROGATE, and PRODUCE are retrieval-grounded (specific user queries); profiles would inject standing context that could contaminate verbatim retrieval responses. ACCOUNTABILITY is decision-resolution specific.
+
+**Injection site:** Mode handlers call `getOperationalProfiles()` and `formatProfilesForPrompt()` before calling `buildSystemPrompt()`. The async profile fetch is a fast DB read (not a Sonnet call) so it adds negligible latency to the message-processing path. No new pre-processor (PP#) is needed.
+
+---
+
+## Question 5: `/profile` Telegram Command Formatting
+
+**Recommendation: Plain text, one message per profile (4 separate Telegram messages), human-formatted narrative (not JSON dump).**
+
+**Plain text over Markdown/HTML:** The `/summary` handler at `src/bot/handlers/summary.ts` uses `ctx.reply(text)` with no `parse_mode`. The rationale documented there (`summary.ts:25`) applies identically: Telegram's Markdown renderer is finicky with user-origin content. Profile field values contain special characters (`/`, `-`, `(`, `)`) that must be escaped in Markdown mode. Plain text is safe, requires no escaping, and is consistent with the established pattern.
+
+**Four separate messages over one mega-message:** Each profile gets its own `ctx.reply()` call. Telegram has a 4096-character per-message limit; a single message with four verbose profiles would exceed this on a well-populated profile. Separate messages also let Greg quote-reply a specific profile for follow-up conversation. The `/decisions` handler follows the same multi-message pattern.
+
+**Human-formatted narrative over JSON dump:** JSON dumps expose internal field names that are implementation details. Human-formatted output uses section headers and bullet points. Example:
+
+```
+Jurisdictional (confidence: 0.78, updated 2026-05-11)
+Location: Paris, France
+Residency: French resident, Georgian tax resident (since 2024)
+Tax structures: French income tax; Georgian flat-rate territorial
+Next move: None planned
+```
+
+The handler lives at `src/bot/handlers/profile.ts` and registers as `/profile` in `src/bot/bot.ts`. It follows the exact shape of `src/bot/handlers/summary.ts`: localized strings, error handling, single-user auth via Grammy middleware (no per-handler auth needed).
+
+---
+
+## Question 6: Synthetic-Fixture Integration
+
+**Minimum dataset shape per profile:**
+
+The primed-fixture pipeline (`scripts/synthesize-delta.ts`) generates entries by day. M010 needs 30+ days of data with entries biased toward each profile's domain keywords.
+
+| Profile | Min Pensieve entries | Tags required | Episodic summaries | Decision signals |
+|---------|---------------------|---------------|-------------------|-----------------|
+| Jurisdictional | 10 with location/residency/tax keywords | FACT, INTENTION | 4+ mentioning location | 1+ resolved decision with domain_tag relating to legal/location |
+| Capital | 10 with FI/investment/net-worth keywords | FACT, INTENTION, DECISION | 4+ mentioning financial state | 1+ resolved decision with domain_tag relating to financial |
+| Health | 10 with health/medical/symptom keywords | FACT, EXPERIENCE | 4+ mentioning health | 0 minimum |
+| Family | 10 with relationship/partner/family keywords | RELATIONSHIP, EXPERIENCE, INTENTION | 4+ mentioning family | 0 minimum |
+
+**Sparse fixture for threshold enforcement:** A separate `m010-5days` fixture with exactly 5 entries per profile domain (below the 10-entry threshold) must produce all four profiles at `confidence: 0` with null fields. This tests the threshold gate independently from the populated-profile case.
+
+**synthesize-delta.ts extension:** The existing synthesizer generates entries by calling Haiku with style-transfer prompts. M010 needs a per-profile "bias mode" where the synthesizer generates entries with explicit domain keywords embedded in the style-transfer prompt. This is a new `--profile-bias` flag on `synthesize-delta.ts`. The bias is additive — a day with `--profile-bias jurisdictional` still generates organic-style content but the Haiku instruction includes "include references to location, residency, or tax status in today's entries."
+
+The synthetic pipeline does not need a separate extension for episodic summaries: `scripts/synthesize-episodic.ts` runs `runConsolidate()` against the Pensieve entries already in the fixture DB. If the Pensieve entries contain jurisdictional/capital/health/family keywords, the episodic summaries will naturally reflect them.
+
+**Fixture names:** `m010-30days` for the populated case, `m010-5days` for the sparse case. Loaded via the existing `loadPrimedFixture('m010-30days')` pattern.
+
+---
+
+## Question 7: Migration Sequence
+
+**Recommendation: Migration 0012, no seed rows — first cron fire creates rows via upsert.**
+
+**Rationale for no seed rows:** The 4 profile tables are updated by the weekly cron, which upserts (INSERT ... ON CONFLICT DO UPDATE). The initial state is "no row exists". `getOperationalProfiles()` returns `null` for missing rows — identical behavior to a row with `confidence: 0`. There is no semantic difference between "no row" and "row with confidence 0 and null fields" from the consumer's perspective. Seeding row-0 placeholders adds migration complexity and creates phantom rows that could confuse the generator's threshold check.
+
+**Migration 0012 content (4 tables, sentinel-name pattern):**
+
 ```sql
-SELECT id, type, config FROM rituals
-WHERE enabled = true
-  AND config ? 'awaitingResponse'
-  AND (config->'awaitingResponse'->>'expiresAt')::timestamptz > $1  -- now
-  AND config->'awaitingResponse' IS NOT NULL
-LIMIT 1
+CREATE TABLE profile_jurisdictional (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL UNIQUE DEFAULT 'primary',  -- sentinel for ON CONFLICT upsert
+  current_location text,
+  residency_statuses jsonb NOT NULL DEFAULT '[]',
+  tax_structures jsonb NOT NULL DEFAULT '[]',
+  next_planned_move text,
+  planned_move_date date,
+  confidence real NOT NULL DEFAULT 0 CHECK (confidence >= 0 AND confidence <= 1),
+  inference_notes text,
+  last_updated timestamptz NOT NULL DEFAULT now(),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+-- similar for profile_capital, profile_health, profile_family
 ```
 
-`recordRitualResponse` does:
-1. Type-dispatch on ritual.type (voice_note → Pensieve write; wellbeing → no-op for text since it uses callbacks; weekly_review → no-op for text since the user replies via callback or via free-text appended observation).
-2. For voice notes: `storePensieveEntry(text, 'telegram', { epistemic_tag: 'RITUAL_RESPONSE', ritual_response_id: bindingRowId })` + fire-and-forget `embedAndStore` + `tagEntry` (override the auto-tagger by passing `RITUAL_RESPONSE` directly — the auto-tagger normally re-tags, so we need a code path that respects an explicit tag).
-3. Update `ritual_responses.respondedAt = now()` and `ritual_responses.pensieve_entry_id = newEntryId`.
-4. Clear the `awaitingResponse` binding in `rituals.config`.
-5. Reset `rituals.skip_count = 0`.
+Each table holds exactly one row by application convention. The `name = 'primary'` sentinel is the ON CONFLICT target for the weekly upsert. This design allows future named snapshots (e.g., archiving quarterly state) without a schema change.
 
-**Tag override for the auto-tagger:** the existing `tagEntry` (in `src/pensieve/tagger.ts`) calls Haiku to classify. For ritual responses, we want to skip Haiku and force `RITUAL_RESPONSE`. Add a `metadata.preTagged: true` flag check in `tagEntry` early-return, or — cleaner — add an explicit `epistemicTag` parameter to `storePensieveEntry` that sets the tag directly without invoking Haiku.
-
-### Interaction with existing PP#0 / PP#1 — explicit resolution
-
-| Scenario | What happens |
-|----------|--------------|
-| Voice note sent at 21:00, Greg responds at 22:00 with no other state active | PP#-1 fires → Pensieve write → empty reply. Done. |
-| Voice note sent at 21:00, Greg responds at 22:00 with "I've decided to quit my job" | PP#-1 fires (the ritual binding wins). The decision-trigger phrase is **not detected** because PP#-1 returns before PP#1. **Trade-off accepted:** if Greg wants to capture a decision, he sends it as a separate message. The ritual response is the higher-priority interpretation when the ritual window is open. |
-| Decision capture in progress (PP#0 active), voice note also fired | PP#-1 still wins. The decision capture state stays alive (we don't `clearCapture`); Greg's next message resumes capture if no new ritual fires in between. |
-| Voice note window expired (>18h since fire), Greg responds | PP#-1 finds no active binding → falls through to PP#0/PP#1/normal engine. Chris responds normally as JOURNAL. The ritual is treated as skipped at the next sweep tick. |
-
-### Epistemic tag
-
-`RITUAL_RESPONSE` — new value added to `epistemicTagEnum` in migration 0006. Distinguishes ritual deposits from organic thoughts so retrieval can choose to include or exclude them (M013 monthly review may want to weight them differently). The 12 existing tags don't fit cleanly: `EXPERIENCE` is too generic, `INTENTION` already means "I plan to do X" (M004 commitment trigger).
+**drizzle meta snapshot:** Regeneration follows the existing `scripts/regen-snapshots.sh` pattern. Migration 0012 is hand-authored (Drizzle-kit generates the DDL from the schema; seed data cannot be auto-generated). The `scripts/test.sh` psql setup line must be updated with migration 0012, identical to how migrations 0009–0011 were added in M009.
 
 ---
 
-## Section 4 — Daily wellbeing snapshot handler & the callback_query architecture
+## Question 8: Build Order
 
-### First-time use of inline keyboards in this codebase
+**Recommended phase split (Phases 33–36, continuing from M009's Phase 32):**
 
-**Confirmed via grep: zero existing usage of `callback_query`, `inline_keyboard`, or `reply_markup` in `src/`.** This is a new Grammy idiom for the project. Source: [grammY InlineKeyboard reference](https://grammy.dev/ref/core/inlinekeyboard).
+### Phase 33 — Substrate (migration + types + reader API stub)
 
-### Module location
+**What ships:**
+- Migration 0012: 4 profile tables in `src/db/schema.ts` + hand-authored SQL + drizzle meta snapshot + `scripts/test.sh` update
+- `src/memory/profiles/shared.ts`: `ProfileSubstrate` type, `loadProfileSubstrate()`, threshold check constant
+- `src/memory/profiles.ts`: `getOperationalProfiles()` returning all-null stubs (rows don't exist yet; compiles and returns correct type); `formatProfilesForPrompt()` stub
+- `src/memory/profiles/jurisdictional.ts`, `capital.ts`, `health.ts`, `family.ts`: Zod v3+v4 schemas only (contract surface, no generator logic)
+- Unit tests: migration applies cleanly; `getOperationalProfiles()` returns all-null when no rows exist; schemas reject invalid shapes
 
-`src/rituals/wellbeing.ts` (fire side) + `src/bot/handlers/ritual-callback.ts` (callback handler).
+**Inter-phase coupling:** Zero dependency on Phase 34 generators. Mode handlers in Phase 35 can begin wiring against the stub API after Phase 33 ships.
 
-### Fire side: build and send
+### Phase 34 — Profile Generators + Orchestrator + Cron
 
-```typescript
-// src/rituals/wellbeing.ts
-import { InlineKeyboard } from 'grammy';
+**What ships:**
+- `src/memory/profiles/jurisdictional.ts`: full `updateJurisdictionalProfile()` with Sonnet call + upsert
+- `src/memory/profiles/capital.ts`, `health.ts`, `family.ts`: same
+- `src/memory/profile-updater.ts`: `updateAllOperationalProfiles()` via `Promise.allSettled`
+- Cron registration: `src/cron-registration.ts` 4th cron (Sunday 21:00) + `CronRegistrationStatus.profileUpdate` field
+- `src/config.ts`: `profileUpdateCron` config field with default `'0 21 * * 0'`
+- Integration tests using `m010-30days` fixture: weekly cron fires, all 4 profiles upsert with non-zero confidence; `m010-5days` fixture: all 4 profiles produce confidence 0 (threshold enforcement)
 
-export async function fireWellbeing(ritual: Ritual, cfg: RitualConfig): Promise<void> {
-  const fireRow = await db.insert(ritualResponses).values({
-    ritualId: ritual.id,
-    firedAt: new Date(),
-    promptText: 'wellbeing-snapshot',
-  }).returning();
-  const fireRowId = fireRow[0]!.id;
+**Inter-phase coupling:** Depends on Phase 33 schemas and DB tables. Independent of Phase 35. Phase 34 can ship with no Telegram surface — generators run silently until Phase 35 wires the display layer.
 
-  // Encode partial state in callback_data: 'wb|<fireRowId>|<dim>|<value>'
-  const kb = new InlineKeyboard();
-  kb.text('Energy 1', `wb|${fireRowId}|e|1`).text('2', `wb|${fireRowId}|e|2`).text('3', `wb|${fireRowId}|e|3`).text('4', `wb|${fireRowId}|e|4`).text('5', `wb|${fireRowId}|e|5`).row();
-  kb.text('Mood 1',   `wb|${fireRowId}|m|1`).text('2', `wb|${fireRowId}|m|2`).text('3', `wb|${fireRowId}|m|3`).text('4', `wb|${fireRowId}|m|4`).text('5', `wb|${fireRowId}|m|5`).row();
-  kb.text('Anxiety 1', `wb|${fireRowId}|a|1`).text('2', `wb|${fireRowId}|a|2`).text('3', `wb|${fireRowId}|a|3`).text('4', `wb|${fireRowId}|a|4`).text('5', `wb|${fireRowId}|a|5`).row();
-  kb.text('Skip',      `wb|${fireRowId}|skip|0`);
+### Phase 35 — Bot Command + Mode-Handler Wiring
 
-  const msg = await bot.api.sendMessage(config.telegramAuthorizedUserId,
-    'Wellbeing snapshot — tap energy, mood, anxiety:', { reply_markup: kb });
+**What ships:**
+- `src/bot/handlers/profile.ts`: `/profile` command handler (4 plain-text messages, localized EN/FR/RU)
+- `src/bot/bot.ts` edit: register `/profile` handler
+- `src/chris/personality.ts` edit: `buildSystemPrompt` signature refactor (`language` + `declinedTopics` → `extras: ChrisContextExtras`, new `operationalProfiles?` field)
+- `src/memory/profiles.ts`: complete `formatProfilesForPrompt()` implementation
+- `src/chris/modes/reflect.ts`, `coach.ts`, `psychology.ts` (or wherever mode handlers live): call `getOperationalProfiles()` + `formatProfilesForPrompt()` and pass to `buildSystemPrompt`
+- Regression tests: all existing mode-handler and engine tests pass with refactored signature; `/profile` handler test covers null path and populated path
 
-  // Bind: track which message ID hosts this keyboard so we can edit it on each tap
-  await db.update(ritualResponses)
-    .set({ metadata: { messageId: msg.message_id, partial: {} } })
-    .where(eq(ritualResponses.id, fireRowId));
-}
+**Inter-phase coupling:** Depends on Phase 33 (reader API) and Phase 34 (generators, because `/profile` needs at least one populated row to test the non-null rendering path). The `buildSystemPrompt` signature change must be one atomic plan — it touches all call sites in the engine.
+
+### Phase 36 — Synthetic Fixture Test + Live Integration
+
+**What ships:**
+- `scripts/synthesize-delta.ts` extension: `--profile-bias <profile-name>` flag
+- `m010-30days` and `m010-5days` primed fixtures generated and committed as VCR-cached artifacts
+- Fixture test: `m010-30days` → all 4 profiles populated with calibrated confidence; `m010-5days` → all 4 profiles at confidence 0
+- Live integration test (API-gated, 3-of-3): send REFLECT-mode message with `m010-30days` fixture loaded; assert system prompt contains profile data; verify Sonnet does not confuse profile context with invented facts
+
+**Inter-phase coupling:** Depends on all prior phases. Cannot run until generators (Phase 34) and mode wiring (Phase 35) are complete.
+
+**Why a dedicated phase:** Following the M009 HARD CO-LOCATION #4 precedent — fixture generation and fixture testing are separate concerns. Phase 36 is the end-to-end integration-test phase; bundling it with Phase 35 would either delay Phase 35 or ship Phase 35 without the tests.
+
+---
+
+## System Overview
+
 ```
+Weekly Cron (Sunday 21:00 Paris)
+    │
+    ▼
+updateAllOperationalProfiles()          src/memory/profile-updater.ts
+    │
+    ├─ Promise.allSettled([
+    │    updateJurisdictionalProfile()  src/memory/profiles/jurisdictional.ts
+    │    updateCapitalProfile()         src/memory/profiles/capital.ts
+    │    updateHealthProfile()          src/memory/profiles/health.ts
+    │    updateFamilyProfile()          src/memory/profiles/family.ts
+    │  ])
+    │
+    │  Each generator:
+    │    loadProfileSubstrate()         reads pensieve_entries (tag-filtered)
+    │                                   + episodic_summaries (last 4-8 weeks)
+    │                                   + decisions (resolved, domain-tagged, last 60 days)
+    │    threshold check                < 10 entries → confidence: 0, skip Sonnet call
+    │    Sonnet structured call         CONSTITUTIONAL_PREAMBLE + domain prompt + substrate
+    │    Zod v4 parse (SDK boundary)    → Zod v3 re-validate (business contract)
+    │    INSERT ... ON CONFLICT         upsert single row via name='primary' sentinel
+    │
+    ▼
+profile_{jurisdictional,capital,health,family} (1 row each, last_updated weekly)
 
-### Callback handler
 
-Register in `src/bot/bot.ts` (alongside the existing `bot.on('message:text', ...)`):
+Read path (REFLECT / COACH / PSYCHOLOGY message or /profile command):
 
-```typescript
-// src/bot/bot.ts
-import { handleRitualCallback } from './handlers/ritual-callback.js';
-bot.on('callback_query:data', async (ctx) => {
-  const data = ctx.callbackQuery.data;
-  if (data.startsWith('wb|')) await handleRitualCallback(ctx);
-  else { await ctx.answerCallbackQuery(); }  // unknown payload — silent ack
-});
-```
+Greg sends message
+    │
+    ▼
+Chris engine mode detection
+    │
+    ├─ getOperationalProfiles()         src/memory/profiles.ts — DB read, null for missing/low-confidence
+    ├─ formatProfilesForPrompt()        human-formatted string or "" if all null
+    ├─ buildSystemPrompt(mode, pensieveCtx, relationalCtx, { operationalProfiles })
+    └─ Sonnet call with enriched prompt
 
-### Decision: where does partial state live?
 
-**Answer: in `ritual_responses.metadata` jsonb, NOT in the callback_data string and NOT in `proactive_state`.**
+/profile command path:
 
-| Option | Trade-off |
-|--------|-----------|
-| Encode full state in `callback_data` (e.g. `wb|fireRowId|e=4&m=3&a=2`) | Fails: Telegram limits `callback_data` to 64 bytes. Three numbers fit, but the encoding becomes baroque. |
-| Store in `proactive_state` table (key-value) | Works, but pollutes the proactive_state namespace which is currently focused on cron-anchored last-sent timestamps + escalation tracking. Wrong table for "partial form data". |
-| Store in `ritual_responses.metadata` (CHOSEN) | Already exists for this purpose. The fire row is the single source of truth for one ritual fire's lifecycle (fire → partial answers → completion). FK from metadata back to fire row is implicit (it's the same row). |
-
-### Handler logic
-
-```typescript
-// src/bot/handlers/ritual-callback.ts
-export async function handleRitualCallback(ctx: Context): Promise<void> {
-  const [, fireRowId, dim, valStr] = ctx.callbackQuery.data.split('|');
-  const value = Number(valStr);
-
-  if (dim === 'skip') {
-    // OPTIONAL skip per spec — no adjustment dialogue trigger (RIT-06: optional skip allowed)
-    await db.update(ritualResponses)
-      .set({ respondedAt: new Date(), metadata: { skipped: true } })
-      .where(eq(ritualResponses.id, fireRowId));
-    // Note: do NOT increment skip_count (spec: "without triggering adjustment dialogue").
-    // This is wellbeing-specific. Voice note skips DO increment (Q3).
-    await ctx.editMessageText('Skipped wellbeing snapshot.');
-    await ctx.answerCallbackQuery();
-    return;
-  }
-
-  // Fetch current partial state
-  const [row] = await db.select().from(ritualResponses).where(eq(ritualResponses.id, fireRowId)).limit(1);
-  const partial = (row?.metadata as { partial?: { e?: number; m?: number; a?: number } })?.partial ?? {};
-  partial[dim as 'e' | 'm' | 'a'] = value;
-
-  // Persist partial
-  await db.update(ritualResponses).set({ metadata: { ...row!.metadata, partial } }).where(eq(ritualResponses.id, fireRowId));
-
-  // Complete?
-  if (partial.e !== undefined && partial.m !== undefined && partial.a !== undefined) {
-    const today = formatLocalDate(new Date(), config.proactiveTimezone);
-    await db.insert(wellbeingSnapshots).values({
-      snapshotDate: today,
-      energy: partial.e, mood: partial.m, anxiety: partial.a,
-    }).onConflictDoNothing();  // UNIQUE(snapshot_date) idempotency
-
-    await db.update(ritualResponses)
-      .set({ respondedAt: new Date(), metadata: { ...row!.metadata, snapshotComplete: true } })
-      .where(eq(ritualResponses.id, fireRowId));
-
-    // Reset skip_count on completion
-    await db.update(rituals).set({ skipCount: 0 })
-      .where(eq(rituals.id, row!.ritualId));
-
-    await ctx.editMessageText(`Logged: energy ${partial.e}, mood ${partial.m}, anxiety ${partial.a}.`);
-  } else {
-    // Update keyboard to show progress
-    await ctx.editMessageText(`Wellbeing — ${formatPartial(partial)}`, {
-      reply_markup: rebuildKeyboard(fireRowId, partial),
-    });
-  }
-  await ctx.answerCallbackQuery();
-}
+Greg sends /profile
+    │
+    ▼
+handleProfileCommand()                  src/bot/handlers/profile.ts
+    ├─ getOperationalProfiles()
+    └─ 4x ctx.reply(formatProfileSection(profile, lang))   plain text, one per profile
 ```
 
 ---
 
-## Section 5 — Weekly review handler
+## Integration Points (Named Module Edges)
 
-### Module location
-
-`src/rituals/weekly-review.ts`. Reads via:
-- `getEpisodicSummariesRange(weekStart, weekEnd)` — already exported, zero current consumers (per STATE.md "M009 weekly review will pick it up"). M009 is the first consumer. Confirmed via grep.
-- M007 resolved decisions for the week — direct query against `decisions WHERE resolved_at BETWEEN $start AND $end`.
-
-### Sonnet call shape
-
-```typescript
-// src/rituals/weekly-review.ts
-async function fireWeeklyReview(ritual: Ritual, cfg: RitualConfig): Promise<void> {
-  // Compute week boundary in proactiveTimezone
-  const now = DateTime.now().setZone(config.proactiveTimezone);
-  const weekStart = now.minus({ days: 7 }).startOf('day').toJSDate();
-  const weekEnd = now.endOf('day').toJSDate();
-
-  // Pull substrate
-  const summaries = await getEpisodicSummariesRange(weekStart, weekEnd);
-  const resolvedDecisions = await db.select().from(decisions)
-    .where(and(
-      eq(decisions.status, 'resolved'),
-      gte(decisions.resolvedAt, weekStart),
-      lte(decisions.resolvedAt, weekEnd),
-    ));
-
-  // Sparse-data guard (mirrors CONS-02 entry-count gate)
-  if (summaries.length === 0 && resolvedDecisions.length === 0) {
-    logger.info({ weekStart, weekEnd }, 'rituals.weekly.skipped.no_data');
-    return;
-  }
-
-  // Generate via Sonnet with constitutional preamble + single-question schema
-  const observation = await generateWeeklyObservation(summaries, resolvedDecisions);
-
-  // Persist BEFORE sending (write-before-send pattern from M007 D-28)
-  const fireRow = await db.insert(ritualResponses).values({
-    ritualId: ritual.id,
-    firedAt: new Date(),
-    promptText: observation.text,
-    metadata: { observationText: observation.text, weekStart, weekEnd },
-  }).returning();
-
-  // Persist as Pensieve entry too (longitudinal recall)
-  await storePensieveEntry(observation.text, 'telegram',
-    { epistemic_tag: 'RITUAL_RESPONSE', ritual_response_id: fireRow[0]!.id, kind: 'weekly_review' });
-
-  await bot.api.sendMessage(config.telegramAuthorizedUserId, observation.text);
-}
-```
-
-### Single-question enforcement
-
-**Decision: Zod schema with refinement + retry-once, fall back to TRUNCATE.**
-
-```typescript
-// src/rituals/weekly-review.ts
-import * as zV4 from 'zod/v4';
-
-const WeeklyReviewSchema = zV4.object({
-  observation: zV4.string().min(20).max(800),
-  question: zV4.string().min(5).max(300)
-    .refine((s) => (s.match(/\?/g) ?? []).length === 1, 'must contain exactly one question mark'),
-});
-
-async function generateWeeklyObservation(summaries: Summary[], decisions: Decision[]) {
-  const systemPrompt = buildSystemPrompt('REFLECT') + '\n\n' + WEEKLY_REVIEW_PROMPT;
-  const userContext = formatWeekContext(summaries, decisions);
-
-  // Retry once if Zod validation fails (matches consolidate.ts retry-once pattern)
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const result = await anthropic.messages.parse({
-        model: SONNET_MODEL,
-        max_tokens: 800,
-        system: [{ type: 'text', text: systemPrompt }],
-        messages: [{ role: 'user', content: userContext }],
-        response_format: zodOutputFormat(WeeklyReviewSchema, 'weekly_review'),
-      });
-      return { text: `${result.observation}\n\n${result.question}` };
-    } catch (err) {
-      if (attempt === 0) {
-        logger.warn({ err }, 'rituals.weekly.parse.retry');
-        continue;
-      }
-      throw err;
-    }
-  }
-  throw new LLMError('weekly_review_parse_failed_twice');
-}
-```
-
-The Zod refinement is the runtime gate. Combined with the `parse` SDK helper that retries on validation failure (matches `consolidate.ts` retry-once pattern), the multi-question failure mode is contained to one extra LLM call, then bubbles up. **No silent-truncate fallback** — silently dropping a malformed weekly review is worse than skipping the week and logging an alert (CONS-12 pattern).
-
-### Does the observation become a Pensieve entry?
-
-**Yes. Tagged `RITUAL_RESPONSE` with `metadata.kind = 'weekly_review'`.** Rationale:
-
-- Longitudinal recall: "Show me the last 4 weekly observations" → grep on `epistemic_tag = 'RITUAL_RESPONSE' AND metadata->>'kind' = 'weekly_review'`
-- Embedded into pgvector for semantic recall (the spec implies these should be retrievable)
-- Boundary-audit consideration: D035 forbids episodic_summaries text from entering Pensieve. Weekly observations are NOT episodic summary text — they are Sonnet-generated commentary ON the summaries. So the boundary holds.
-
-The `ritual_responses` row is the **operational** record (was-the-prompt-fired, was-it-completed); the Pensieve entry is the **content** record (what was said).
+| Edge | From | To | Contract |
+|------|------|----|----------|
+| Cron → orchestrator | `src/cron-registration.ts:registerCrons()` | `src/memory/profile-updater.ts:updateAllOperationalProfiles()` | CRON-01 try/catch, fire-and-forget |
+| Orchestrator → 4 generators | `profile-updater.ts` | each `src/memory/profiles/{name}.ts:update{Name}Profile()` | `Promise.allSettled`, discriminated result |
+| Generator → substrate reader | each generator | `src/memory/profiles/shared.ts:loadProfileSubstrate()` | async, typed `ProfileSubstrate` |
+| Substrate → Pensieve | `shared.ts` | direct Drizzle on `pensieve_entries` WHERE epistemic_tag IN (...) | no new retrieve.ts function needed |
+| Substrate → episodic | `shared.ts` | `src/pensieve/retrieve.ts:getEpisodicSummariesRange()` | already exported, zero M010 callers before Phase 34 |
+| Substrate → decisions | `shared.ts` | direct Drizzle on `decisions` WHERE status IN ('resolved','reviewed') | domain_tag filter applied in query |
+| Generator → Sonnet | each generator | `src/llm/client.ts:anthropic.messages.parse()` | `zodOutputFormat(v4Schema)` + v3 re-validate |
+| Generator → DB upsert | each generator | Drizzle `db.insert(profile_{name}).onConflictDoUpdate({target: name})` | single-row sentinel, idempotent |
+| Reader API → mode handler | `src/memory/profiles.ts:getOperationalProfiles()` | `src/chris/modes/{reflect,coach,psychology}.ts` | returns typed `OperationalProfiles` |
+| Mode handler → buildSystemPrompt | mode handler | `src/chris/personality.ts:buildSystemPrompt()` | new `extras.operationalProfiles` field |
+| Bot command → reader | `src/bot/handlers/profile.ts` | `src/memory/profiles.ts:getOperationalProfiles()` | same reader as mode handlers |
 
 ---
 
-## Section 6 — Cron strategy: ONE recommendation
+## Component Boundaries
 
-**Recommendation: SHARE the existing 10:00 proactive sweep cron — but tighten the cadence model.**
-
-### Three options analyzed
-
-| Option | Pros | Cons |
-|--------|------|------|
-| (a) Per-ritual `cron.schedule()` (one cron per row) | Most flexible per-ritual timing | Fragile: dynamic crons for DB-driven schedules, hard to test, no idempotency story across restarts, bloats `src/index.ts` |
-| (b) Single high-frequency cron (every hour) checking `next_run_at` | Cleanest separation, predictable, idempotent | Adds a new cron peer + new schedule env var; 24× more sweep ticks per day; battery + Telegram rate ceiling concerns are nil for single-user but feels heavy |
-| **(c) Reuse existing 10:00 sweep, add a SECOND 21:00 (evening) tick — chosen** | Reuses proven plumbing; respects D-05 dual-channel separation; matches user reality (morning sweep + evening rituals); zero new cron infrastructure | Slightly less generic than option (b); two cron schedules to manage instead of one |
-
-### Why (c) wins
-
-The morning 10:00 sweep already exists for accountability + reflective triggers. **Add a second `cron.schedule()` registration in `src/index.ts` at 21:00 Europe/Paris** with the same handler (`runSweep`). The handler is idempotent — if a 10:00 tick already fired the daily voice note, the 21:00 tick's `WHERE next_run_at <= now()` query returns nothing because the morning fire advanced `next_run_at` to tomorrow.
-
-This solves:
-- **Voice note must fire at end of day** (spec: "end of John's day"): the 21:00 tick handles it
-- **Wellbeing snapshot fires alongside voice note**: same 21:00 tick
-- **Weekly review fires Sunday evening**: the Sunday 21:00 tick checks if today is the weekly fire day; if so, runs it
-- **Accountability + reflective sweeps stay at 10:00**: unchanged behavior, no regression risk
-- **Idempotency**: the same `next_run_at <= now()` SQL gate works regardless of how many ticks per day
-
-### Concrete `src/index.ts` edit
-
-```typescript
-// In src/index.ts main(), AFTER the existing proactive cron registration:
-
-// Second proactive sweep tick at 21:00 — primarily for ritual firing.
-// Same handler as the 10:00 tick; rituals are gated by next_run_at, accountability +
-// reflective channels are gated by their daily caps, so duplicate-firing is impossible.
-cron.schedule(config.ritualSweepCron, async () => {
-  try { await runSweep(); }
-  catch (err) { logger.error({ err }, 'proactive.cron.evening.error'); }
-}, { timezone: config.proactiveTimezone });
-```
-
-Add to `src/config.ts`:
-```typescript
-ritualSweepCron: process.env.RITUAL_SWEEP_CRON || '0 21 * * *',
-```
-
-**Per-ritual `fireTime` in config.fireTime** is informational only — it sets when `computeNextRunAt` advances `next_run_at` to (e.g., next day at 21:00). The cron itself is fixed. If a ritual's `fireTime` is 21:00 and the cron runs at 21:00 daily, the SQL gate fires it. If a future ritual wants 09:00 firing, the morning 10:00 tick catches it.
+| Component | File(s) | Responsibility | Communicates With |
+|-----------|---------|---------------|-------------------|
+| Cron registration | `src/cron-registration.ts` | Weekly Sunday 21:00 cron wiring | `profile-updater.ts` |
+| Profile orchestrator | `src/memory/profile-updater.ts` | `Promise.allSettled` fan-out, outcome logging | all 4 generators |
+| Shared substrate reader | `src/memory/profiles/shared.ts` | Read Pensieve + episodic + decisions, enforce 10-entry threshold | Pensieve entries (Drizzle), `getEpisodicSummariesRange`, decisions (Drizzle) |
+| Jurisdictional generator | `src/memory/profiles/jurisdictional.ts` | Zod schemas + Sonnet prompt + upsert for jurisdictional | `shared.ts`, `llm/client.ts`, DB |
+| Capital generator | `src/memory/profiles/capital.ts` | Same for capital | `shared.ts`, `llm/client.ts`, DB |
+| Health generator | `src/memory/profiles/health.ts` | Same for health | `shared.ts`, `llm/client.ts`, DB |
+| Family generator | `src/memory/profiles/family.ts` | Same for family | `shared.ts`, `llm/client.ts`, DB |
+| Reader API | `src/memory/profiles.ts` | `getOperationalProfiles()`, `formatProfilesForPrompt()` | DB (read-only), mode handlers, /profile command |
+| Bot command handler | `src/bot/handlers/profile.ts` | `/profile` display, EN/FR/RU localized formatting | reader API |
+| buildSystemPrompt | `src/chris/personality.ts` | System prompt assembly with new `extras: ChrisContextExtras` | mode handlers |
 
 ---
 
-## Section 7 — Build order recommendation
+## Anti-Patterns to Avoid
 
-Carry-ins must land first to unblock everything else. The substantive work then sequences from data → infrastructure → handlers → integration → tests.
+### Anti-Pattern 1: Routing operational profiles through the ritual subsystem
 
-| Phase | Scope | Why this ordering | Files touched | Lines (est) |
-|-------|-------|-------------------|---------------|-------------|
-| **25** | Carry-in: gsd-verifier wiring + SUMMARY.md frontmatter template | Process gate — every subsequent phase needs this. Tiny, self-contained. | `.gsd-skills/`, template files | <100 |
-| **26** | Carry-in: HARN-03 fixture refresh (`--target-days 21`) | Data substrate for the M009 14-day fixture test must exist before tests can run. Operator UAT. | `scripts/regenerate-primed.ts` invocation; new fixture under `tests/fixtures/primed/` | 0 code |
-| **27** | Migration 0006 + Drizzle schema + Zod RitualConfig + skeleton `src/rituals/` directory | Schema must land first so all subsequent code compiles against typed tables. Add `RITUAL_RESPONSE` enum value. Empty placeholder files for `scheduler.ts`, `voice-note.ts`, `wellbeing.ts`, `weekly-review.ts`. | `src/db/schema.ts`, `src/db/migrations/0006_rituals.sql`, `src/rituals/types.ts`, `scripts/test.sh` | ~250 |
-| **28** | `src/rituals/cadence.ts` + `src/rituals/scheduler.ts` (no handlers yet) + cron registration in `src/index.ts` + ritual_outreach channel skeleton in `src/proactive/sweep.ts` | Infrastructure phase. `runRitualSweep` exists but dispatches to `throw new Error('not implemented')` per ritual type. Cron fires; nothing runs. Tests cover cadence math only. | `src/rituals/cadence.ts`, `src/rituals/scheduler.ts`, `src/rituals/__tests__/cadence.test.ts`, `src/index.ts`, `src/proactive/sweep.ts`, `src/config.ts` | ~400 |
-| **29** | Daily voice note handler + PP#-1 in engine.ts + `RITUAL_RESPONSE` tag override in tagger | Voice note is the first real ritual. PP#-1 is the highest-risk integration point (engine pre-processor ordering). Ship + UAT first because every subsequent ritual depends on this binding mechanism. | `src/rituals/voice-note.ts`, `src/rituals/prompt-rotation.ts`, `src/chris/engine.ts`, `src/pensieve/store.ts`/`tagger.ts`, `src/rituals/__tests__/voice-note.test.ts` | ~400 |
-| **30** | Daily wellbeing snapshot + callback_query handler + `wellbeing_snapshots` writes | First use of inline keyboards in the project. Self-contained — does not interact with PP#-1 (callbacks bypass `processMessage` entirely). M010 needs `wellbeing_snapshots` populated to start producing data, so this lands before weekly review. | `src/rituals/wellbeing.ts`, `src/bot/handlers/ritual-callback.ts`, `src/bot/bot.ts`, `src/rituals/__tests__/wellbeing.test.ts` | ~350 |
-| **31** | Weekly review handler + Sonnet call with single-question Zod refinement + Pensieve persistence | Only depends on episodic summaries (M008) and resolved decisions (M007) — both exist. Skip-tracking adjustment dialogue lands here too (cross-cuts all rituals but the trigger is at sweep time). | `src/rituals/weekly-review.ts`, `src/rituals/skip-tracking.ts`, `src/llm/prompts.ts` (add WEEKLY_REVIEW_PROMPT), `src/rituals/__tests__/weekly-review.test.ts` + skip-tracking test | ~450 |
-| **32** | 14-day primed-fixture integration test (the 7 spec assertions) + live-LLM weekly-review test (TEST-23 equivalent, 3-of-3) + end-to-end UAT | Integration phase. Loads `m009-21days` fixture, simulates 14 days via `vi.setSystemTime`, asserts all 7 spec behaviors. Live test against real Sonnet for the single-question constraint. | `src/rituals/__tests__/m009-fixture.test.ts`, `src/rituals/__tests__/live-weekly-review.test.ts`, fixture extensions in `src/__tests__/fixtures/` | ~600 |
+**What people do:** Add a `rituals` row with `name = 'operational_profile_update'` and implement a handler in `dispatchRitualHandler`.
+**Why it's wrong:** The ritual subsystem's invariants (skip-tracking, adjustment dialogue, response windows, catch-up ceiling) all become dead code for a profile that fires silently with no user-facing event. The `RitualConfigSchema` `.strict()` mode requires fields that have no meaning for a data pipeline step.
+**Do this instead:** 4th cron in `registerCrons` as documented in Question 1.
 
-**Phase size discipline:** each phase ships ≤ ~600 LOC + tests. Phases 27–32 each have a clean acceptance criterion and a single-purpose deliverable. No phase combines schema + handlers + tests — the lessons from v2.2 Phase 22.1 (decimal-phase gap closure) and v2.3 Phase 24 (audit-trail gaps) are explicit in the recommendation.
+### Anti-Pattern 2: Mega-prompt for all 4 profiles in one Sonnet call
 
-**Why wellbeing (30) before weekly review (31):** M010 needs real wellbeing data to start producing. If wellbeing lands in Phase 30 and Greg uses it for the M009→M010 pause window (the spec's "1 month of real daily use", though D041 means M010 will primed-fixture validate), there's a month of real numeric series to validate against. Weekly review only generates 4–5 observations during the same month — much less data signal for M010 work.
+**What people do:** Pass all four profile schemas to a single Sonnet call and ask it to return a JSON object with four top-level keys.
+**Why it's wrong:** A single prompt assembling 30+ days of Pensieve entries for all four domains simultaneously exceeds the context budget that produces high-quality Sonnet output. Errors in one domain contaminate the full response (one Zod parse failure = all four profiles fail). Error isolation requires separate calls.
+**Do this instead:** 4 separate Sonnet calls via `Promise.allSettled` as documented in Question 2.
 
-**Why PP#-1 in Phase 29 (with voice note), not earlier or later:** PP#-1 is logically separable from the voice note handler, but in practice they need each other to test end-to-end. Splitting them into "PP#-1 phase" then "voice note phase" creates an orphan-code phase (PP#-1 with no consumer). Combining them gives a single deliverable: the daily voice note works end-to-end.
+### Anti-Pattern 3: Delta (incremental) profile updates
 
----
+**What people do:** Include the previous profile state in the Sonnet prompt and ask Sonnet to produce a JSON patch.
+**Why it's wrong:** Wrong values from week N become authoritative "prior state" in week N+1's prompt, compounding over time. Delta also requires a merge/patch implementation that is significantly more complex to test.
+**Do this instead:** Full regeneration from substrate on every weekly run as documented in Question 3.
 
-## Section 8 — Test architecture
+### Anti-Pattern 4: Consumer-side confidence threshold check
 
-### Fixture variant: extend `m008-14days` OR create `m009-21days`?
+**What people do:** Have REFLECT/COACH/PSYCHOLOGY mode handlers call `getOperationalProfiles()` and then check `if (profile.confidence < 0.3)` before injecting.
+**Why it's wrong:** Duplicates the threshold logic at every consumer. A future change to the threshold requires updating multiple files. The reader API owns the data-quality contract.
+**Do this instead:** Confidence gating inside `getOperationalProfiles()` as documented in Question 4.
 
-**Recommendation: NEW `m009-21days` fixture.**
+### Anti-Pattern 5: Adding `operationalProfiles` as a 6th positional argument to `buildSystemPrompt`
 
-Reasoning:
-- M008's `m008-14days` is locked as the validation substrate for episodic consolidation. Modifying it risks regressing M008 tests.
-- M009's 14-day mock-clock simulation needs ~21 days of real prior history (so the silence trigger and weekly review have prior context — the simulation is "14 days of NEW activity on top of an organic base").
-- The primed-fixture pipeline (`scripts/regenerate-primed.ts --milestone m009 --target-days 21`) is designed for exactly this: each milestone gets its own variant.
-- HARN-03 sanity gate currently asserts ≥7 summaries / ≥200 entries. With 21 days of fresh organic + delta, both thresholds clear comfortably.
-
-### Mock clock: `vi.setSystemTime` day-by-day, not week-step
-
-`vi.setSystemTime(new Date('2026-04-01T21:00:00+02:00'))` — start at evening of day 1. Then loop:
-
-```typescript
-for (let day = 0; day < 14; day++) {
-  vi.setSystemTime(new Date(`2026-04-${String(day + 1).padStart(2, '0')}T21:00:00+02:00`));
-  await runRitualSweep();
-  // Simulate Greg's response ~75% of days for the daily voice note
-  if (day % 4 !== 3) {  // skip every 4th day to test skip-strike
-    await processMessage(CHAT_ID, 99999, `Day ${day} voice note response`);
-  }
-  // Wellbeing snapshot via direct callback simulation (bypass Telegram)
-  await handleRitualCallback(buildMockCallback(`wb|${fireRowId}|e|3`));
-  // ...
-}
-```
-
-**Day-by-day**, not week-step, because:
-- Skip tracking needs to verify increment per missed day (assertion 3)
-- Adjustment dialogue triggers after 3 *consecutive* skips (assertion 4) — needs 3 distinct day boundaries
-- Weekly review triggers on a specific day-of-week (assertion 6) — needs the loop to cross a Sunday
-
-**`vi.setSystemTime` ONLY, NEVER `vi.useFakeTimers`** — D-02 rule from `TESTING.md`. postgres.js connection keep-alive timers must continue to run.
-
-### Test type per spec assertion
-
-| # | Spec assertion | Test type | Why |
-|---|----------------|-----------|-----|
-| 1 | Daily prompts fire on schedule with correct rotation (no consecutive duplicates) | Integration (mock clock + real DB) | Needs real `runRitualSweep` + `rituals.config.recentPromptIndices` round-trip |
-| 2 | Responses store correctly as Pensieve entries | Integration | Needs real `storePensieveEntry` + tagger + `RITUAL_RESPONSE` tag verification |
-| 3 | Skip tracking increments on missed days | Integration | Needs real `ritual_responses.respondedAt = NULL` + sweep-time detection |
-| 4 | Adjustment dialogue triggers after 3 consecutive skips | Integration | Needs real `skip_count` increment + sweep-time branching |
-| 5 | Wellbeing snapshots store correctly when John responds | Integration | Needs real callback parser + partial-state lifecycle + `wellbeing_snapshots` insert |
-| 6 | Weekly review fires at week boundary with exactly one observation and one Socratic question | **Integration + Live** (split into 2 tests) | Mock-clock integration test asserts firing/persistence; **live test** (TEST-26 equivalent, 3-of-3 against real Sonnet) asserts the single-question constraint actually holds with real generation. The Zod refinement is the runtime safety net but live-test verifies it doesn't constantly trigger the retry loop. |
-| 7 | Weekly review references specific episodic summaries and decisions from the simulated week | **Live** (3-of-3) | Citation grounding is a Sonnet-prompt-level behavior; mocked Sonnet output can't validate it. Use a Haiku judge to verify the observation references concrete content from the seeded week. |
-
-### Live-LLM file additions
-
-New live test files to add to the excluded-suite list in `scripts/test.sh`:
-- `src/rituals/__tests__/live-weekly-review.test.ts` (assertions 6 + 7, 3-of-3)
-
-### Unit tests (no DB, no LLM)
-
-- `src/rituals/__tests__/cadence.test.ts` — pure cadence math: daily/weekly/monthly/quarterly + DST boundaries (2026-03-29 spring-forward, 2026-10-25 fall-back)
-- `src/rituals/__tests__/prompt-rotation.test.ts` — `chooseNextPromptIndex` with various recent histories, no-consecutive-duplicates invariant, uniform distribution check
-- `src/rituals/__tests__/skip-tracking.test.ts` — strike counter + reset semantics
+**What people do:** Append `operationalProfiles?: string` after `declinedTopics` in the existing positional-argument signature.
+**Why it's wrong:** The existing signature already has an ACCOUNTABILITY overload documented at `personality.ts:79-87` that repurposes positional slots with different semantics. Adding a 6th positional argument deepens this confusion and makes the ACCOUNTABILITY call site even harder to reason about.
+**Do this instead:** Fold into `extras: ChrisContextExtras` named object as documented in Question 4.
 
 ---
 
-## Open questions / Confidence flags
+## Open Architecture Questions Requiring Phase-Level Research
 
-**HIGH confidence (verified via code inspection):**
-- Schema design (matches existing patterns in `episodic_summaries` and `decisions`)
-- PP#-1 placement (verified by reading `processMessage` flow end-to-end)
-- Channel separation (matches D-05 dual-channel pattern from M007)
-- Cron strategy (existing two-cron pattern from `src/index.ts:73,89` is the precedent)
-- `getEpisodicSummariesRange` ready for M009 (zero current consumers, exported and tested)
-- `RITUAL_RESPONSE` enum extension (precedent: `DECISION` added in migration 0003)
+**OQ-1: Pensieve filtering strategy for "domain-relevant entries."**
+How does `loadProfileSubstrate()` filter Pensieve entries for a specific profile domain? Options:
+- (A) Keyword filter in SQL (`WHERE content ILIKE '%location%' OR content ILIKE '%residency%' ...`) — cheap but brittle for French/Russian content
+- (B) Full semantic search via embedding similarity against a profile-domain query string — accurate, but requires an embedding call per profile per week
+- (C) Epistemic tag filter only (FACT + RELATIONSHIP + INTENTION + EXPERIENCE), no domain filtering; let Sonnet ignore irrelevant entries
 
-**MEDIUM confidence:**
-- callback_query is FIRST USE in this codebase. Pattern source: [grammY InlineKeyboard reference](https://grammy.dev/ref/core/inlinekeyboard). The pattern is well-established in Grammy ecosystem; integration risk is in the bot router (does the `bot.on('callback_query:data')` wire correctly when added alongside the existing `message:text` handler — should work, but needs phase-29 UAT).
-- 18-hour response window for voice note is a guess based on "end of day" framing. Could be 12h, 24h, or 36h. Recommend defaulting to 18h and exposing as `RESPONSE_WINDOW_HOURS` constant in `src/rituals/voice-note.ts` for easy adjustment after live testing.
+**Recommended starting point:** Option C, with a recency window (last 30 days). If synthetic fixture tests show Sonnet producing profile values contaminated by irrelevant entries, upgrade to Option A with EN/FR/RU keyword lists. Embedding search (B) is deferred — adds latency and complexity for marginal gain at M010 scale.
 
-**LOW confidence (flagged for phase-level research):**
-- The "skip vs response window" semantics get subtle when multiple rituals overlap (voice note window from yesterday still open + wellbeing fire today). The proposed model — `findActiveRitualBinding` returns the first active binding by `firedAt DESC` — is the simplest, but a concurrent voice note + wellbeing on the same evening could lead to a wellbeing-intended free-text reply being misclassified as a voice-note reply. **Mitigation:** the wellbeing-snapshot delivery does NOT set `awaitingResponse` because wellbeing replies come via callback_query, not free text. Only voice-note delivery sets `awaitingResponse`. This sidesteps the conflict cleanly.
+**OQ-2: Confidence calibration instruction phrasing.**
+Instructing Sonnet to self-report a calibrated confidence score is a prompt-level behavior. Phase 36's live integration test must validate calibration on both sparse (5 entries) and rich (30+ entries) fixtures. The specific instruction text needs to be finalized during Phase 34 planning and locked as a HARD CO-LOC in the generator files.
+
+**OQ-3: `buildSystemPrompt` signature change blast radius.**
+The `extras: ChrisContextExtras` refactor touches every call site in the engine. The full list of callers must be inventoried during Phase 35 planning. The ACCOUNTABILITY overload (documented in `personality.ts:79-87`) must be preserved exactly — ACCOUNTABILITY passes decision context in `pensieveContext` slot and temporal-Pensieve block in `relationalContext` slot; it does not use `extras.operationalProfiles`.
+
+**OQ-4: `synthesize-delta.ts` `--profile-bias` implementation boundary.**
+The `--profile-bias` flag must ensure that biased entries still read as natural Greg-style journal content. The implementation must be validated during Phase 36 planning to confirm the 10-entry threshold can be crossed deterministically on the 30-day fixture.
 
 ---
 
 ## Sources
 
-- Direct codebase inspection (HIGH confidence sources):
-  - `/home/claude/chris/PLAN.md` (current milestone state, decisions D001–D041)
-  - `/home/claude/chris/M009_Ritual_Infrastructure.md` (spec)
-  - `/home/claude/chris/.planning/codebase/ARCHITECTURE.md` (existing layered monolith map)
-  - `/home/claude/chris/.planning/codebase/CONVENTIONS.md` (ESM `.js` suffix, kebab-case files, fire-and-forget discipline)
-  - `/home/claude/chris/.planning/codebase/TESTING.md` (Docker test gate, `fileParallelism: false`, primed-fixture pipeline)
-  - `/home/claude/chris/src/proactive/sweep.ts` (dual-channel structure, accountability + reflective)
-  - `/home/claude/chris/src/proactive/triggers/{deadline,silence,types}.ts` (TriggerDetector pattern, priority sort)
-  - `/home/claude/chris/src/proactive/state.ts` (proactive_state KV pattern, escalation tracking)
-  - `/home/claude/chris/src/chris/engine.ts` (PP#0 / PP#1 / PP#2 / PP#3 / PP#4 ordering)
-  - `/home/claude/chris/src/episodic/{cron,consolidate}.ts` (independent cron + idempotency pattern)
-  - `/home/claude/chris/src/db/schema.ts` (Drizzle schema, enum extension precedent)
-  - `/home/claude/chris/src/db/migrations/0005_episodic_summaries.sql` (latest migration shape)
-  - `/home/claude/chris/src/index.ts` (cron registration site)
-  - `/home/claude/chris/src/bot/handlers/summary.ts` (CMD pattern, EN/FR/RU localization, Luxon ISO validity gate)
-  - `/home/claude/chris/src/pensieve/retrieve.ts:390` (`getEpisodicSummariesRange` signature, M009-ready)
-  - `/home/claude/chris/src/config.ts` (cron schedule env-var pattern)
+All findings are HIGH confidence — derived from direct codebase inspection.
 
-- External docs (MEDIUM confidence):
-  - [grammY InlineKeyboard reference](https://grammy.dev/ref/core/inlinekeyboard)
-  - [grammY callback_query handling pattern](https://grammy.dev/ref/types/callbackquery)
-  - [grammY keyboard plugin docs](https://github.com/grammyjs/website/blob/main/site/docs/plugins/keyboard.md)
+- `/home/claude/chris/src/rituals/scheduler.ts` — `dispatchRitualHandler`, `runRitualSweep`, `ritualResponseWindowSweep`, catch-up ceiling
+- `/home/claude/chris/src/rituals/types.ts` — `RitualConfigSchema` (`.strict()`, named fields), `RitualFireOutcome`
+- `/home/claude/chris/src/cron-registration.ts` — `registerCrons`, `CronRegistrationStatus`, `RegisterCronsDeps` interface
+- `/home/claude/chris/src/chris/personality.ts` — `buildSystemPrompt`, `CONSTITUTIONAL_PREAMBLE`, ACCOUNTABILITY overload documentation at lines 79-87
+- `/home/claude/chris/src/memory/context-builder.ts` — `buildPensieveContext`, `buildRelationalContext` patterns
+- `/home/claude/chris/src/episodic/consolidate.ts` — `runConsolidate` error-isolation contract, dual-schema pattern at lines 33-81
+- `/home/claude/chris/src/rituals/weekly-review.ts` — `fireWeeklyReview`, `generateWeeklyObservation`, v3/v4 dual schema pattern
+- `/home/claude/chris/src/bot/handlers/summary.ts` — canonical `/summary` bot command pattern for `/profile` design
+- `/home/claude/chris/src/db/schema.ts` — existing table shapes, enum definitions, drizzle patterns
+- `/home/claude/chris/.planning/PROJECT.md` — D028, D029, D031, D034, D035, D038, D040, D041; M010 current milestone section
+- `/home/claude/chris/M010_Operational_Profiles.md` — spec
+
+---
+*Architecture research for: M010 Operational Profiles integration into Chris*
+*Researched: 2026-05-11*
