@@ -456,4 +456,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: v2.4 M009 milestone kickoff, 2026-04-26*
+*Last updated: 2026-05-11 after v2.4 M009 milestone close (23 plans, 52/52 requirements, 6 phases + Phase 31 terminology cleanup + Phase 32 substrate hardening). Full PROJECT.md evolution (What This Is / Core Value / Requirements / Out of Scope / Key Decisions / Constraints review) is deferred to v2.5 M010 kickoff via `/gsd-new-milestone`, which drives the deeper update with fresh domain questions.*

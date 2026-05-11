@@ -203,6 +203,64 @@ Pre-M009 enabler. Single phase, four plans, 20/20 requirements:
 
 ---
 
+## Milestone: v2.4 — M009 Ritual Infrastructure + Daily Note + Weekly Review
+
+**Shipped:** 2026-05-11
+**Phases:** 8 (25-32; 6 milestone-scoped + Phase 31 terminology cleanup + Phase 32 substrate hardening)
+**Plans:** 23 (+ Phase 32 inline-executed via 6 atomic commits)
+
+### What Was Built
+
+- **Substrate (Phase 25):** Migration 0006 with rituals + wellbeing_snapshots + 4 event tables + RITUAL_RESPONSE epistemic_tag value. RitualConfig Zod schema (9 fields + schema_version, strict). Luxon DST-safe `computeNextRunAt`. Atomic `UPDATE...RETURNING` idempotency with `isNull` predicate (post-Phase-32 `lte`). Ritual channel slot in proactive sweep. Per-minute cron tick.
+- **Daily journal ritual (Phase 26 + renamed in Phase 31):** PP#5 ritual-response detector at engine position 0 (HARD CO-LOC #1). 6-prompt shuffled-bag rotation. 21:00 Paris fire with pre-fire suppression on ≥5 telegram entries. Polite-decline voice handler (EN/FR/RU per franc).
+- **Daily wellbeing snapshot (Phase 27):** First inline keyboard in codebase (3 rows × 5 buttons + skip). Per-dim `INSERT ... ON CONFLICT ... DO UPDATE` upsert. Partial-state persistence in `ritual_responses.metadata` jsonb with anchor-bias defeat. 09:00 Paris fire (separate from voice note per D026 spirit).
+- **Skip-tracking + adjustment dialogue (Phase 28):** Discriminated 12-variant RitualFireOutcome union. Append-only `ritual_fire_events` (`skip_count` is a projection). Cadence-aware thresholds (daily=3, weekly=2). Haiku 3-class adjustment parser. 60s confirmation window. Self-protective 30-day pause after 2 evasive in 14d. M006 refusal honored.
+- **Weekly review (Phase 29):** Sunday 20:00 Paris fire reading M008 episodic summaries + M007 resolved decisions. Explicit CONSTITUTIONAL_PREAMBLE injection (Pitfall 17 mitigation). Sonnet structured output via `messages.parse` + `zodOutputFormat`. Two-stage single-question enforcement (Zod refine + Haiku judge). Date-grounding Haiku post-check. Retry cap=2 + templated EN-only fallback. Wellbeing variance gate (stddev < 0.4 → omit block).
+- **Test infrastructure (Phase 30):** 14-day synthetic fixture via `vi.setSystemTime` + `loadPrimedFixture('m009-21days')` walking the full processMessage pipeline. Cumulative `mockAnthropicCreate.not.toHaveBeenCalled()` Pitfall 6 regression. Separate cron-registration test file (HARD CO-LOC #4). Live anti-flattery 3-of-3 against real Sonnet (TEST-31, HARD CO-LOC #6). HARN-03 fixture refresh (carry-in).
+- **Substrate hardening (Phase 32, inline):** weekly_review prompt tightening to prevent fallback under adversarial input. Proactive prompt anti-repetition + section-name avoidance via conversation-history injection. Skip-when-no-USER-in-48h guard in runReflectiveChannel. Journal lastIdx bag-empty branch fix. CI monotonic-`when` guardrail for migrations journal. Boot-time `__drizzle_migrations` drift warning. Plus 2 follow-ups 2026-05-11 after first-Sunday observation surfaced UX defects: weekly_review prompt second-person addressing + language directive.
+
+### What Worked
+
+- **Atomic plans on HARD CO-LOCATION constraints.** Every constraint (PP#5 + handler + mock-chain coverage; Stage-1 + Stage-2 + retry + generator; migration + meta snapshot + scripts/test.sh psql line) shipped as a single plan, not bundled and not split. The result: zero regression of Pitfall 24 (mock-chain coverage drift), Pitfall 6 (Sonnet contamination of mocked pipeline), Pitfall 28 (lineage breakage). All seven HARD CO-LOCATION CONSTRAINTS held.
+- **Test substrate before behavior tests.** Phase 30's synthetic-fixture.test.ts gate was authored as the LAST plan, but the substrate it walks (PP#5 + ritual handlers + dispatcher + cron registration) was built up across Phases 25-29. By the time Phase 30 ran, the integration test was building on a verified substrate rather than discovering substrate gaps mid-test.
+- **Decimal-phase pattern for non-REQ work.** Phase 31 (rename voice_note → journal) and Phase 32 (substrate hardening) shipped as numbered phases without REQ-ID baggage. Phase 32's inline execution per Greg's explicit direction ("no subagent ceremony, each item is small") delivered 6 atomic commits in one session.
+- **Live tests against real Sonnet for adversarial validation.** TEST-31 (3-of-3 atomic on adversarial week fixture) caught the Stage-1 + length-cap regression on first run 2026-05-07 — exactly the failure mode the test was designed to catch. The prompt fix (Phase 32 #9) was driven by iterating against TEST-31 until 3/3 passed.
+- **Production-blocker fix path.** The `tryFireRitualAtomic` `lt` → `lte` predicate bug shipped to prod 2026-04-26, was discovered via debug session 2026-05-05 when rituals didn't fire after seed, and fixed 2026-05-10 (commit c76cb86) via catch-up advance. Total time from incident to resolution: 5 days, but only ~1 hour of focused work — the rest was the debug session walking the SQL semantics and the catch-up logic.
+
+### What Was Inefficient
+
+- **First-fire celebration blindness.** Phase 25-30 verified rituals "could fire" but never tested "fires N times in a row" until 2026-05-05. The `lt` vs `lte` predicate bug only manifested after the FIRST fire. New regression test in `idempotency.test.ts` (successive-fire assertion) prevents repeat. Future ritual-related plans MUST include a second-fire assertion.
+- **Test workaround masked a production bug.** Plan 30-02's synthetic-fixture test reset `lastRunAt: null` between mock-clock iterations. The executor flagged this as "test-only mitigation; production race-lock contract preserved" but the contract was actually broken. Pattern: when a deviation introduces a state reset between iterations, the verifier MUST trace whether production code performs the same reset. If not, the test is hiding a bug.
+- **First-Sunday weekly_review fire shipped with two UX defects.** 2026-05-10 fire delivered an English third-person message to a French-speaking user. Both defects (no language directive + "ask Greg" wording inviting third-person framing) were prompt-design oversights. Caught by Greg's reaction the next morning. Fixed 2026-05-11 (commit 0626713). Lesson: cron-context handlers that fire infrequently need DB-backed language detection (the in-memory `sessionLanguage` map is almost always empty for them).
+- **TEST-31 first live run failed.** 2026-05-07 first run: 2/3 fallbacks (Stage-1 + length-cap violations). The adversarial fixture was correctly stressing the prompt; the prompt was the weak link. Fixed via Phase 32 #9 prompt rewrite. Lesson: TEST-31's "ship the test, then run it live" pattern is correct — but the live run must happen BEFORE milestone close, not after.
+- **`docker logs --since 7d` invalid syntax in the ritual monitor.** Shipped in Phase 25 monitor script; silently returned 0 for log-grep alerts since deploy. Caught 2026-05-11 when Greg forwarded the Telegram alert about "Phase 29 weekly review fired only 0 times in past 7d" — actually a race condition on the psql query that fired the same minute as the weekly_review fire. Fixed: `--since 168h`. Lesson: validate every CLI flag at script-write time; `docker --since` accepts hours/minutes/seconds only.
+- **CRON_TZ not honored by Debian cron.** Monitor scheduled `CRON_TZ=Europe/Paris` + `0 14 * * 0` but ran at 14:00 system EDT = 18:00 UTC = 20:00 Paris CEST = same minute as weekly_review fire. Fixed by dropping CRON_TZ and using explicit system-time slot. Lesson: don't trust environment variables you can't grep for in the cron logs; test the actual fire time after deployment.
+
+### Patterns Established
+
+- **DB-backed language detection for cron-context handlers** (post-2026-05-11). `getLastUserLanguageFromDb(chatId)` reads the most recent USER message from the conversations table and runs franc. Survives container restarts. Use for any handler that fires infrequently enough that the in-memory `sessionLanguage` map is likely to be empty (weekly reviews, scheduled summaries, cron-context proactive).
+- **Second-person addressing as an explicit prompt directive.** When a prompt references the user by name ("ask Greg ONE Socratic question"), Sonnet may interpret the name as a third-party referent. To force conversational framing, add an "Audience and addressing — REQUIRED" block explicitly mandating 'you'/'your' and banning the third-person construction by example.
+- **Atomic deploy points after deadline-critical fixes.** Phase 32 #9 (weekly_review prompt) shipped to prod ahead of the 20:00 Paris fire deadline; the remaining 5 items shipped as a second deploy after all 6 were ready. Two deploy points (deadline-critical + final) is the right cadence for a multi-item fix batch with a hard deadline mid-batch.
+- **`HANDOFF.json` as structured handoff** (replaces or supplements `.continue-here.md`). Phase 32's pause/resume cycle worked cleanly via HANDOFF.json + `.continue-here.md` — the resumed session knew exactly which item to start with, what was deferred, and what the deadline was.
+- **Inline execution for small-scope cleanup phases.** Phase 32's "6 items, ~6h total, each atomic" was inline-executed without `/gsd-plan-phase` or subagent ceremony, per user direction. The atomic commits are the durable artifact. This pattern fits: well-scoped items + clear pass criteria + tired user who wants to ship, not process.
+
+### Key Lessons
+
+- **Test "fires N times in a row" for every ritual-class behavior.** First-fire-only testing is insufficient when the production code path mutates state on first fire (e.g., `last_run_at` write). Add a "successive fires at production cadence" regression test to every ritual handler's test suite.
+- **Verifier must check working-around vs working-with deviations.** When a deviation introduces a state reset between iterations, trace whether production code performs the same reset. If no, the test is hiding a bug — the verifier should reject the deviation rather than accept the "test-only mitigation" framing.
+- **Cron-context handlers need DB-backed inputs, not in-memory session state.** Any cron-context handler that depends on user state must read from the DB at fire time, not rely on in-memory caches that reset on container restart. The fix shipped for weekly_review language detection generalizes: audit other cron handlers for this pattern (proactive sweep already has it via Phase 32 #1 conversation-history injection).
+- **Live tests against real Sonnet must run BEFORE milestone close.** Phase 30's TEST-31 was structurally ready at Phase 29 but only ran live at Phase 30 — that's correct. But the FIRST live run revealed prompt regressions that took Phase 32 to fix. Lesson: run the live test on the actual production prompt before declaring the milestone shippable, not after.
+- **Validate every CLI flag at script-write time.** `docker --since 7d` looked correct but is invalid. Test the script against a real container before deploying it. The monitor was deployed at Phase 25 and silently false-positive for weeks. Validation in CI (e.g., dry-run the monitor script as part of acceptance) would have caught this.
+- **Don't trust CRON_TZ.** Use explicit system-time cron entries. If you need a non-system timezone, convert manually in the comment + use system-time in the schedule.
+
+### Cost Observations
+
+- Model mix: ~70% Sonnet (planning, execution, integration check, review), ~25% Opus (high-stakes architecture decisions, milestone close orchestration), ~5% Haiku (Stage-2 question judge, date-grounding post-check, adjustment dialogue classifier).
+- Sessions: ~15-20 across 18 days (2026-04-25 → 2026-05-11). Phase 32 substrate hardening shipped in a single ~3h session.
+- Notable: TEST-31 live runs cost ~$0.05 each (~$0.45 budgeted ceiling). Adversarial fixture iterations cost ~$0.25 across the Phase 32 #9 prompt iteration loop. Total v2.4 API spend: ~$8-12 estimated.
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
