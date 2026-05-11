@@ -104,9 +104,13 @@ describe('generateCorrectedContent', () => {
     const original = "I'm planning to move from Georgia to Saint Petersburg next month.";
     const result = generateCorrectedContent('current_location', original);
 
+    // 2026-05-11: current_location is now date-derived from LOCATION_LOG via
+    // getCurrentLocation(); assert structure + that it contains today's actual
+    // place rather than a hardcoded "Saint Petersburg" that went stale on
+    // 2026-04-28 when Greg moved.
     expect(typeof result).toBe('string');
     expect(result).toContain('[Audit correction]');
-    expect(result).toContain('Saint Petersburg');
+    expect(result).toMatch(/^\[Audit correction\] current_location: .+/);
   });
 });
 

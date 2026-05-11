@@ -7,7 +7,7 @@ import {
   PRODUCE_SYSTEM_PROMPT,
   ACCOUNTABILITY_RESOLUTION_SYSTEM_PROMPT,
 } from '../llm/prompts.js';
-import { GROUND_TRUTH, type FactCategory } from '../pensieve/ground-truth.js';
+import { getGroundTruth, type FactCategory } from '../pensieve/ground-truth.js';
 import { formatTodayLine } from '../utils/today.js';
 import type { DetectedContradiction } from './contradiction.js';
 
@@ -40,18 +40,23 @@ Your job is to be useful to Greg, not pleasant. Agreement is something you arriv
 `;
 
 /**
- * Render GROUND_TRUTH entries as a structured "Facts about you (Greg)" block.
+ * Render ground-truth entries as a structured "Facts about you (Greg)" block.
  * Injected into JOURNAL and INTERROGATE system prompts per D-04/D-05/D-06.
- * Static, authoritative — always present, separate from retrieved pensieveContext.
+ * Authoritative — always present, separate from retrieved pensieveContext.
+ *
+ * 2026-05-11: location entries are now date-derived via getGroundTruth(now).
+ * Calling on every request keeps Chris's "current_location" in step with the
+ * real calendar instead of asserting a stale date-bound string.
  */
 function buildKnownFactsBlock(): string {
   const categoryOrder: FactCategory[] = ['identity', 'location_history', 'property', 'business', 'financial'];
+  const facts = getGroundTruth(new Date());
   const lines: string[] = [
     '## Facts about you (Greg)',
     'These are authoritative facts about you, the person Chris is talking to. Treat any reference to "Greg" in these facts as referring to you — not a third party.',
   ];
   for (const cat of categoryOrder) {
-    const entries = GROUND_TRUTH.filter((e) => e.category === cat);
+    const entries = facts.filter((e) => e.category === cat);
     for (const entry of entries) {
       lines.push(`- ${entry.key}: ${entry.value}`);
     }
