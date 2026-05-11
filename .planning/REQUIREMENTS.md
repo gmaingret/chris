@@ -78,28 +78,28 @@ These items closed v2.4 as deferred (see `.planning/milestones/v2.4-MILESTONE-AU
 
 | REQ-ID | Phase | Plan(s) | Status | Verified |
 |--------|-------|---------|--------|----------|
-| PROF-01 | 33 | — | Not Started | — |
-| PROF-02 | 33 | — | Not Started | — |
-| PROF-03 | 33 | — | Not Started | — |
-| PROF-04 | 33 | — | Not Started | — |
-| PROF-05 | 33 | — | Not Started | — |
-| GEN-01 | 34 | — | Not Started | — |
-| GEN-02 | 34 | — | Not Started | — |
-| GEN-03 | 34 | — | Not Started | — |
-| GEN-04 | 34 | — | Not Started | — |
-| GEN-05 | 34 | — | Not Started | — |
-| GEN-06 | 34 | — | Not Started | — |
-| GEN-07 | 34 | — | Not Started | — |
-| SURF-01 | 35 | — | Not Started | — |
-| SURF-02 | 35 | — | Not Started | — |
-| SURF-03 | 35 | — | Not Started | — |
-| SURF-04 | 35 | — | Not Started | — |
-| SURF-05 | 35 | — | Not Started | — |
-| PTEST-01 | 36 | — | Not Started | — |
-| PTEST-02 | 36 | — | Not Started | — |
-| PTEST-03 | 36 | — | Not Started | — |
-| PTEST-04 | 36 | — | Not Started | — |
-| PTEST-05 | 36 | — | Not Started | — |
+| PROF-01 | 33 | 33-01 | Not Started | — |
+| PROF-02 | 33 | 33-01 | Not Started | — |
+| PROF-03 | 33 | 33-01 | Not Started | — |
+| PROF-04 | 33 | 33-02 | Not Started | — |
+| PROF-05 | 33 | 33-02 | Not Started | — |
+| GEN-01 | 34 | 34-03 | Not Started | — |
+| GEN-02 | 34 | 34-03 | Not Started | — |
+| GEN-03 | 34 | 34-02 | Not Started | — |
+| GEN-04 | 34 | 34-01 | Not Started | — |
+| GEN-05 | 34 | 34-01 | Not Started | — |
+| GEN-06 | 34 | 34-02 | Not Started | — |
+| GEN-07 | 34 | 34-02 | Not Started | — |
+| SURF-01 | 35 | 35-01 | Not Started | — |
+| SURF-02 | 35 | 35-02 | Not Started | — |
+| SURF-03 | 35 | 35-03 | Not Started | — |
+| SURF-04 | 35 | 35-03 | Not Started | — |
+| SURF-05 | 35 | 35-03 | Not Started | — |
+| PTEST-01 | 36 | 36-01 | Not Started | — |
+| PTEST-02 | 36 | 36-01 | Not Started | — |
+| PTEST-03 | 36 | 36-01 | Not Started | — |
+| PTEST-04 | 36 | 36-01 | Not Started | — |
+| PTEST-05 | 36 | 36-02 | Not Started | — |
 
 **Total: 22 requirements across 4 phases (Phase 33–36).**
 
