@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.5
 milestone_name: M010 Operational Profiles
-status: ready for next phase
-stopped_at: Phase 33 complete + deployed to prod; ready for Phase 34
-last_updated: "2026-05-12T00:00:00.000Z"
-last_activity: 2026-05-11 -- Phase 33 shipped + deployed; PP#5 hotfix + ground-truth refactor live in prod
+status: Ready for next phase
+stopped_at: Phase 34 context gathered
+last_updated: "2026-05-12T18:45:21.038Z"
+last_activity: "2026-05-11 -- Phase 33 shipped + deployed; PP#5 hotfix + ground-truth refactor live in prod"
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 11
+  total_plans: 2
   completed_plans: 2
-  percent: 18
+  percent: 100
 ---
 
 # Project State
@@ -88,6 +88,7 @@ Full log in PROJECT.md Key Decisions table. Most relevant for M010 going forward
 ### Session 2026-05-11 outcomes (shipped + deployed)
 
 **Phase 33 — Profile Substrate (complete + verified + deployed):**
+
 - 2 plans, 14 tasks total
 - Plan 33-01 (atomic substrate migration) — migration 0012, schema.ts, drizzle meta, scripts/test.sh smoke gate, scripts/regen-snapshots.sh cleanup-flag bump. HARD CO-LOC #M10-1 honored (6 atomic artifacts).
 - Plan 33-02 (reader + zod + confidence) — `getOperationalProfiles()` never-throw, v3+v4 dual schemas, `computeProfileConfidence` + `isAboveThreshold` pure functions, 35 new tests all green.
@@ -95,17 +96,20 @@ Full log in PROJECT.md Key Decisions table. Most relevant for M010 going forward
 - Production deploy: 5 profile tables present on Proxmox DB, 4 seed rows confirmed (jurisdictional=0.3, capital=0.2, health=0, family=0).
 
 **PP#5 hotfix (commit `04c6a6f`, live in prod):**
+
 - Bug: Greg's morning freeform messages were silently absorbed as ritual_responses while the evening journal's 18h pending slot was open. Chris stayed silent on legitimate chat-initiated messages for up to 18 hours/day.
 - Fix: `findActivePendingResponse` only runs when the inbound Telegram message has `reply_to_message_id` set. User-initiated freeform messages always reach the engine.
 - Manual reprocess of "Bon pour Batumi" delivered via Telegram (message_id 633).
 
 **Ground-truth dynamic refactor (commit `22793b4`, live in prod):**
+
 - `src/pensieve/ground-truth.ts` now exports a date-aware `LOCATION_LOG` + `getCurrentLocation(at)` / `getNextMove(at)` / `getGroundTruth(at)` / `getGroundTruthMap(at)` functions.
 - `buildKnownFactsBlock()` in `src/chris/personality.ts` calls `getGroundTruth(new Date())` per request — Chris's known-facts block reflects today's actual location instead of asserting stale "Saint Petersburg until 2026-04-28" strings.
 - Backward-compat: `GROUND_TRUTH` / `GROUND_TRUTH_MAP` consts still exist (evaluated at module load).
 - Migration 0012's seed rows are a frozen point-in-time copy — comment in SQL documents that future `ground-truth.ts` edits do not propagate to those rows (Phase 34 generators will overwrite via inference).
 
 **Docker test gate (49 tests recovered, 97 → ~48 failed):**
+
 - `scripts/test.sh` now sources `.env` before vitest so real Anthropic credentials win over the `:-test-key` fallback (was masking the valid prod key, all live tests 401'd silently).
 - HF transformers cache redirected to `/tmp/hf-cache-$USER` to bypass read-only `node_modules` install.
 - `engine-mute.test.ts` config mock now includes `telegramBotToken` (grammy was throwing "Empty token!" at module load).
@@ -169,11 +173,12 @@ Items acknowledged and deferred at v2.4 milestone close on 2026-05-11:
 
 ## Session Continuity
 
-Last session: 2026-05-11 (resumed from prior context; ran end-to-end through Phase 33 + hotfix + ground-truth refactor + deploy)
-Stopped at: Phase 33 complete + deployed to prod
+Last session: 2026-05-12T18:45:21.028Z
+Stopped at: Phase 34 context gathered
 Next: `/gsd-discuss-phase 34` or `/gsd-plan-phase --research-phase 34` to scope Phase 34 (Inference Engine — `assembleProfilePrompt` + 4 dimension generators, 7 requirements GEN-01..07).
 
 **Prod state at session end:**
+
 - Container HEAD: `22793b4` (chris-chris image rebuilt 2026-05-11, container restarted, polling Telegram)
 - Migrations applied: 13 entries (0012_operational_profiles latest)
 - Profile tables: 5/5 present on prod DB with correct seed values
@@ -181,6 +186,7 @@ Next: `/gsd-discuss-phase 34` or `/gsd-plan-phase --research-phase 34` to scope 
 - Ground-truth: dynamic location facts (current=Batumi until 2026-05-16, next=Antibes May 16→Sep 1, permanent=Batumi from Sep 1)
 
 **Local repo state:**
+
 - `main` HEAD: `22793b4` (pushed to origin)
 - All Phase 33 artifacts in `.planning/phases/33-profile-substrate/`: CONTEXT, RESEARCH, PATTERNS, VALIDATION, two PLAN.md, two SUMMARY.md, VERIFICATION
 - Phase 32 was the last completed phase before this session (v2.4 close at ef45e1b). Migration 0012 now lives on top of 0011.
