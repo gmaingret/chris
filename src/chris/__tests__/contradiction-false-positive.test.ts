@@ -157,7 +157,11 @@ const AUDIT_PAIRS: AuditPair[] = [
   },
 ];
 
-describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Contradiction false-positive audit (TEST-09)', () => {
+// Dual-gated per D-30-03 cost discipline (mirrors live-weekly-review.test.ts).
+// Default `bash scripts/test.sh` skips this file (zero API spend + avoids
+// minute-long real-Anthropic test chains). Manual invocation:
+//   RUN_LIVE_TESTS=1 ANTHROPIC_API_KEY=sk-ant-... bash scripts/test.sh src/chris/__tests__/contradiction-false-positive.test.ts
+describe.skipIf(!process.env.RUN_LIVE_TESTS || !process.env.ANTHROPIC_API_KEY)('Contradiction false-positive audit (TEST-09)', () => {
   beforeAll(async () => {
     const result = await sql`SELECT 1 as ok`;
     expect(result[0]!.ok).toBe(1);

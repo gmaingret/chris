@@ -91,7 +91,8 @@ const ADVERSARIAL_PREDICTIONS: Array<{
 
 const TEST_CHAT_ID = CHAT_ID_VAGUE_VALIDATOR_LIVE;
 
-describe.skipIf(!process.env.ANTHROPIC_API_KEY)('TEST-14: vague-prediction resistance (live Haiku)', () => {
+// Dual-gated per D-30-03 cost discipline. Default `bash scripts/test.sh` skips.
+describe.skipIf(!process.env.RUN_LIVE_TESTS || !process.env.ANTHROPIC_API_KEY)('TEST-14: vague-prediction resistance (live Haiku)', () => {
   beforeAll(async () => {
     const result = await sql`SELECT 1 as ok`;
     expect(result[0]!.ok).toBe(1);

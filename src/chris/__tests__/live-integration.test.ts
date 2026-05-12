@@ -43,7 +43,11 @@ const TEST_SOURCE = `test-live-integration-${process.pid}`;
 // files can reference it without re-evaluating this file's describe blocks.
 import { VALIDATION_MARKERS } from '../markers.js';
 
-describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => {
+// Dual-gated per D-30-03 cost discipline. Default `bash scripts/test.sh` skips
+// these 23 tests (3 iterations × multiple LLM calls × 23 = ~$1+ per run +
+// 25-30 min wall clock). Manual invocation:
+//   RUN_LIVE_TESTS=1 ANTHROPIC_API_KEY=sk-ant-... bash scripts/test.sh src/chris/__tests__/live-integration.test.ts
+describe.skipIf(!process.env.RUN_LIVE_TESTS || !process.env.ANTHROPIC_API_KEY)('Live integration tests', () => {
   beforeAll(async () => {
     const result = await sql`SELECT 1 as ok`;
     expect(result[0]!.ok).toBe(1);

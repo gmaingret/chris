@@ -46,6 +46,7 @@ import {
   ritualResponses,
   ritualFireEvents,
   pensieveEntries,
+  pensieveEmbeddings,
   proactiveState,
 } from '../../db/schema.js';
 import { runRitualSweep } from '../scheduler.js';
@@ -61,13 +62,13 @@ async function cleanup(): Promise<void> {
   // Ordered cleanup: child tables first (FK constraints), then state + rituals
   // + pensieve. proactive_state daily-counter reset so hasReachedRitualDailyCap
   // returns false at every test entry.
-  // ritual_fire_events is written by runRitualSweep (fireJournal records fire
-  // events) — must be deleted before rituals to satisfy FK constraint.
   await db.delete(ritualResponses);
   await db.delete(ritualFireEvents);
   await db.delete(ritualPendingResponses);
-  await db.delete(rituals);
+  // FK-safe: pensieve_embeddings → pensieve_entries before rituals delete.
+  await db.delete(pensieveEmbeddings);
   await db.delete(pensieveEntries);
+  await db.delete(rituals);
   await db.delete(proactiveState).where(eq(proactiveState.key, COUNTER_KEY));
 }
 

@@ -7,9 +7,15 @@ import {
 } from '../ground-truth.js';
 
 describe('ground-truth module', () => {
-  it('GROUND_TRUTH is an array with exactly 13 entries covering all categories', () => {
+  it('GROUND_TRUTH covers all stable categories + at-most-2 dynamic locations', () => {
+    // 2026-05-11: locations refactored from 4 static entries to a dated
+    // LOCATION_LOG that exposes 0-2 entries (current + optionally next).
+    // Stable: 3 identity + 2 property + 3 business + 1 financial = 9.
+    // Dynamic: 1 current + 0 or 1 next = 1 or 2 (never 0; LOCATION_LOG
+    // covers 2026 throughout). Total = 10 or 11.
     expect(Array.isArray(GROUND_TRUTH)).toBe(true);
-    expect(GROUND_TRUTH.length).toBe(13);
+    expect(GROUND_TRUTH.length).toBeGreaterThanOrEqual(10);
+    expect(GROUND_TRUTH.length).toBeLessThanOrEqual(11);
 
     const identityEntries = GROUND_TRUTH.filter((e) => e.category === 'identity');
     const locationEntries = GROUND_TRUTH.filter((e) => e.category === 'location_history');
@@ -18,17 +24,20 @@ describe('ground-truth module', () => {
     const financialEntries = GROUND_TRUTH.filter((e) => e.category === 'financial');
 
     expect(identityEntries.length).toBe(3);
-    expect(locationEntries.length).toBe(4);
+    expect(locationEntries.length).toBeGreaterThanOrEqual(1);
+    expect(locationEntries.length).toBeLessThanOrEqual(2);
     expect(propertyEntries.length).toBe(2);
     expect(businessEntries.length).toBe(3);
     expect(financialEntries.length).toBe(1);
   });
 
-  it('GROUND_TRUTH_MAP is a Record mapping all 13 keys to string values', () => {
+  it('GROUND_TRUTH_MAP is a Record mapping all keys to string values', () => {
     expect(typeof GROUND_TRUTH_MAP).toBe('object');
     expect(GROUND_TRUTH_MAP).not.toBeNull();
     const keys = Object.keys(GROUND_TRUTH_MAP);
-    expect(keys.length).toBe(13);
+    // See preceding test — total varies 10-11 with dynamic location entries.
+    expect(keys.length).toBeGreaterThanOrEqual(10);
+    expect(keys.length).toBeLessThanOrEqual(11);
     for (const key of keys) {
       expect(typeof GROUND_TRUTH_MAP[key]).toBe('string');
       expect(GROUND_TRUTH_MAP[key]!.length).toBeGreaterThan(0);

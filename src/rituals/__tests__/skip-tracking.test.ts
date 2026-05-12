@@ -13,7 +13,7 @@
  * Run via canonical Docker harness:
  *   bash scripts/test.sh src/rituals/__tests__/skip-tracking.test.ts
  */
-import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest';
 import { eq, inArray, sql as drizzleSql } from 'drizzle-orm';
 
 // ── Mock Anthropic (cumulative not-called assertion: Pitfall 6 / T-28-E1) ───
@@ -87,6 +87,63 @@ async function cleanupTask2Fixtures(): Promise<void> {
  * NO migration 0010 is shipped from Plan 28-02 — seeds are already correct.
  */
 describe('Phase 28 SKIP-03 — Seed skip_threshold audit (RESEARCH Landmine 4)', () => {
+  // 2026-05-12: ensure migration-seeded rituals exist before the audit. Prior
+  // test files (e.g. journal-suppression.test.ts) wipe the rituals table mid-
+  // run; this beforeAll restores the migration-default seeds in-place if any
+  // are missing. Asserts the SAME values as migrations 0007/0008/0009/0011.
+  beforeAll(async () => {
+    await db
+      .insert(rituals)
+      .values([
+        {
+          name: 'daily_journal',
+          type: 'daily',
+          nextRunAt: new Date(Date.now() + 365 * 24 * 3600 * 1000),
+          enabled: true,
+          config: {
+            fire_at: '21:00',
+            prompt_bag: [],
+            skip_threshold: 3,
+            mute_until: null,
+            time_zone: 'Europe/Paris',
+            prompt_set_version: 'v1',
+            schema_version: 1,
+          },
+        },
+        {
+          name: 'daily_wellbeing',
+          type: 'daily',
+          nextRunAt: new Date(Date.now() + 365 * 24 * 3600 * 1000),
+          enabled: true,
+          config: {
+            fire_at: '09:00',
+            prompt_bag: [],
+            skip_threshold: 3,
+            mute_until: null,
+            time_zone: 'Europe/Paris',
+            prompt_set_version: 'v1',
+            schema_version: 1,
+          },
+        },
+        {
+          name: 'weekly_review',
+          type: 'weekly',
+          nextRunAt: new Date(Date.now() + 365 * 24 * 3600 * 1000),
+          enabled: true,
+          config: {
+            fire_at: '20:00',
+            prompt_bag: [],
+            skip_threshold: 2,
+            mute_until: null,
+            time_zone: 'Europe/Paris',
+            prompt_set_version: 'v1',
+            schema_version: 1,
+          },
+        },
+      ])
+      .onConflictDoNothing({ target: rituals.name });
+  });
+
   it('daily_journal has skip_threshold = 3 (daily cadence default; renamed from daily_voice_note by migration 0011)', async () => {
     const [row] = await db
       .select({

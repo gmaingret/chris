@@ -259,7 +259,8 @@ function assertNoFlattery(summaryText: string, keyQuotes: string[]): void {
 
 // ── Test suite ───────────────────────────────────────────────────────────────
 
-describe.skipIf(!process.env.ANTHROPIC_API_KEY)(
+// Dual-gated per D-30-03 cost discipline. Default `bash scripts/test.sh` skips.
+describe.skipIf(!process.env.RUN_LIVE_TESTS || !process.env.ANTHROPIC_API_KEY)(
   'TEST-22: Live anti-flattery (3-of-3 against real Sonnet)',
   () => {
     beforeAll(async () => {

@@ -150,7 +150,8 @@ async function cleanupIteration(decisionId: string): Promise<void> {
 
 // ── Test suite ────────────────────────────────────────────────────────────
 
-describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live ACCOUNTABILITY integration suite (TEST-13)', () => {
+// Dual-gated per D-30-03 cost discipline. Default `bash scripts/test.sh` skips.
+describe.skipIf(!process.env.RUN_LIVE_TESTS || !process.env.ANTHROPIC_API_KEY)('Live ACCOUNTABILITY integration suite (TEST-13)', () => {
   beforeAll(async () => {
     const result = await sql`SELECT 1 as ok`;
     expect(result[0]!.ok).toBe(1);
