@@ -16,13 +16,13 @@ Milestone scope locked 2026-05-11 after `/gsd-new-milestone` research pass (STAC
 
 ### GEN — Inference engine (Phase 34)
 
-- [ ] **GEN-01**: New (fourth) cron registered in `src/cron-registration.ts` firing Sunday 22:00 Paris (4h after weekly_review's 20:00 fire — buffer for adversarial-week duration per ARCHITECTURE recommendation); env var `profileUpdaterCron` + `cron.validate` fail-fast at config load + `/health` reports `profile_cron_registered`
-- [ ] **GEN-02**: `src/memory/profile-updater.ts` exports `updateAllOperationalProfiles()` orchestrator invoking all four generators via `Promise.allSettled` (error isolation — one profile failing must not abort the other three)
-- [ ] **GEN-03**: Four per-dimension generators in `src/memory/profiles/{jurisdictional,capital,health,family}.ts`; each loads tag-filtered Pensieve (`FACT`/`RELATIONSHIP`/`INTENTION`/`EXPERIENCE`) + episodic summaries via `getEpisodicSummariesRange`, calls Sonnet with structured output, upserts the profile row
-- [ ] **GEN-04**: `src/memory/profile-prompt.ts` exports `assembleProfilePrompt(dimension, substrate, prevState)` shared builder consumed by all four generators (HARD CO-LOC #M10-1 — prevents per-dimension prompt drift; analogue of M009 `assembleWeeklyReviewPrompt`)
-- [ ] **GEN-05**: `src/memory/confidence.ts` exports `computeProfileConfidence(entryCount, dataConsistency)` + `isAboveThreshold(entryCount)` + `MIN_ENTRIES_THRESHOLD = 10` + `SATURATION = 50` constants (first-estimate saturation; tunable in v2.5.1 once empirical data exists)
-- [ ] **GEN-06**: 10-entry minimum threshold enforced before populating any profile — below threshold → row stays at confidence=0 with `"insufficient data"` markers in all fields; generator logs `'chris.profile.threshold.below_minimum'` and skips Sonnet call
-- [ ] **GEN-07**: `substrate_hash` idempotency — generator computes SHA-256 of input substrate; if hash equals `profile.substrate_hash` from prior fire, skip Sonnet call and emit `'profile_skipped_no_change'` outcome (second-fire-blindness mitigation per M009 `lt→lte` lesson + PITFALLS M010-10)
+- [x] **GEN-01**: New (fourth) cron registered in `src/cron-registration.ts` firing Sunday 22:00 Paris (4h after weekly_review's 20:00 fire — buffer for adversarial-week duration per ARCHITECTURE recommendation); env var `profileUpdaterCron` + `cron.validate` fail-fast at config load + `/health` reports `profile_cron_registered`
+- [x] **GEN-02**: `src/memory/profile-updater.ts` exports `updateAllOperationalProfiles()` orchestrator invoking all four generators via `Promise.allSettled` (error isolation — one profile failing must not abort the other three)
+- [x] **GEN-03**: Four per-dimension generators in `src/memory/profiles/{jurisdictional,capital,health,family}.ts`; each loads tag-filtered Pensieve (`FACT`/`RELATIONSHIP`/`INTENTION`/`EXPERIENCE`) + episodic summaries via `getEpisodicSummariesRange`, calls Sonnet with structured output, upserts the profile row
+- [x] **GEN-04**: `src/memory/profile-prompt.ts` exports `assembleProfilePrompt(dimension, substrate, prevState)` shared builder consumed by all four generators (HARD CO-LOC #M10-1 — prevents per-dimension prompt drift; analogue of M009 `assembleWeeklyReviewPrompt`)
+- [x] **GEN-05**: `src/memory/confidence.ts` exports `computeProfileConfidence(entryCount, dataConsistency)` + `isAboveThreshold(entryCount)` + `MIN_ENTRIES_THRESHOLD = 10` + `SATURATION = 50` constants (first-estimate saturation; tunable in v2.5.1 once empirical data exists)
+- [x] **GEN-06**: 10-entry minimum threshold enforced before populating any profile — below threshold → row stays at confidence=0 with `"insufficient data"` markers in all fields; generator logs `'chris.profile.threshold.below_minimum'` and skips Sonnet call
+- [x] **GEN-07**: `substrate_hash` idempotency — generator computes SHA-256 of input substrate; if hash equals `profile.substrate_hash` from prior fire, skip Sonnet call and emit `'profile_skipped_no_change'` outcome (second-fire-blindness mitigation per M009 `lt→lte` lesson + PITFALLS M010-10)
 
 ### SURF — User-facing surfaces (Phase 35)
 
