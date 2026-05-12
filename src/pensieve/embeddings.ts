@@ -1,8 +1,27 @@
-import { pipeline as createPipeline } from '@huggingface/transformers';
+import { env, pipeline as createPipeline } from '@huggingface/transformers';
 import { db } from '../db/connection.js';
 import { pensieveEmbeddings } from '../db/schema.js';
 import { config } from '../config.js';
 import { logger } from '../utils/logger.js';
+
+// transformers.js does NOT honor HF_HOME / TRANSFORMERS_CACHE env vars; its
+// default FileCache lands under node_modules/@huggingface/transformers/.cache,
+// which trips EACCES when node_modules is mounted read-only (CI sandboxes,
+// the bundled-deps Docker image). When either env var is set we redirect the
+// cache to a writable path; otherwise we fall through to the default so
+// production containers keep their existing cache layout.
+//
+// The `&& env` guard is defense-in-depth against test mocks that forget to
+// stub the `env` export. Current unit tests (chunked-embedding.test.ts,
+// embeddings.test.ts) stub `env: {}` explicitly; the guard exists so a
+// future mock cannot silently break module load.
+function configureTransformersCacheDir(): void {
+  const cacheOverride = process.env.TRANSFORMERS_CACHE || process.env.HF_HOME;
+  if (cacheOverride && env) {
+    env.cacheDir = cacheOverride;
+  }
+}
+configureTransformersCacheDir();
 
 // ── Singleton pipeline ─────────────────────────────────────────────────────
 
@@ -124,6 +143,12 @@ export async function embedAndStoreChunked(
   const start = Date.now();
   try {
     const chunks = chunkText(content);
+    // Track successful inserts separately from attempted: per-chunk
+    // `embedText` failures `continue` past the insert, so logging only
+    // `chunkCount: chunks.length` falsely implies full success when some
+    // chunks were skipped. Surface both numbers so a partial-failure case
+    // is auditable from the structured log.
+    let chunksWritten = 0;
 
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i]!;
@@ -142,13 +167,23 @@ export async function embedAndStoreChunked(
         chunkIndex: i,
         model: config.embeddingModel,
       });
+      chunksWritten++;
     }
 
     const totalLatencyMs = Date.now() - start;
-    logger.info(
-      { entryId, chunkCount: chunks.length, totalLatencyMs },
-      'pensieve.embed.chunked',
-    );
+    const logPayload = {
+      entryId,
+      chunkCount: chunks.length,
+      chunksWritten,
+      totalLatencyMs,
+    };
+    // Promote to warn when not every chunk landed so log-level filters
+    // surface partial-success without changing the event name.
+    if (chunksWritten < chunks.length) {
+      logger.warn(logPayload, 'pensieve.embed.chunked');
+    } else {
+      logger.info(logPayload, 'pensieve.embed.chunked');
+    }
   } catch (error) {
     logger.warn(
       { entryId, error: error instanceof Error ? error.message : String(error) },
