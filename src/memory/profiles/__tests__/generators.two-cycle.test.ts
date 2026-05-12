@@ -79,12 +79,10 @@ vi.mock('../../../utils/logger.js', () => ({
 }));
 
 // Imports AFTER vi.mock
+import { sql } from 'drizzle-orm';
 import { db, sql as pgSql } from '../../../db/connection.js';
 import {
   pensieveEntries,
-  pensieveEmbeddings,
-  episodicSummaries,
-  decisions,
   profileJurisdictional,
   profileCapital,
   profileHealth,
@@ -100,11 +98,13 @@ import { generateFamilyProfile } from '../family.js';
 // ── Fixture builders ───────────────────────────────────────────────────────
 
 async function cleanupAll() {
+  // Use TRUNCATE CASCADE per the canonical project pattern. profile_history
+  // is unconstrained (polymorphic FK) so a separate DELETE is fine.
   await db.delete(profileHistory);
-  await db.delete(pensieveEmbeddings);
-  await db.delete(pensieveEntries);
-  await db.delete(episodicSummaries);
-  await db.delete(decisions);
+  await db.execute(sql`TRUNCATE TABLE pensieve_entries CASCADE`);
+  await db.execute(sql`TRUNCATE TABLE episodic_summaries CASCADE`);
+  await db.execute(sql`TRUNCATE TABLE decision_events CASCADE`);
+  await db.execute(sql`TRUNCATE TABLE decisions CASCADE`);
 }
 
 /**

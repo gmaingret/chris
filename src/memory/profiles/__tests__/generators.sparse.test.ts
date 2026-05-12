@@ -55,12 +55,10 @@ vi.mock('../../../utils/logger.js', () => ({
 }));
 
 // Imports AFTER vi.mock so the modules under test see the mocked deps.
+import { sql } from 'drizzle-orm';
 import { db, sql as pgSql } from '../../../db/connection.js';
 import {
   pensieveEntries,
-  pensieveEmbeddings,
-  episodicSummaries,
-  decisions,
   profileJurisdictional,
   profileCapital,
   profileHealth,
@@ -76,10 +74,14 @@ const NOW = new Date('2026-05-12T22:00:00Z');
 const IN_WINDOW = new Date('2026-04-22T12:00:00Z'); // 20 days before NOW
 
 async function cleanupAll() {
-  await db.delete(pensieveEmbeddings);
-  await db.delete(pensieveEntries);
-  await db.delete(episodicSummaries);
-  await db.delete(decisions);
+  // Use TRUNCATE CASCADE per the canonical project pattern
+  // (src/episodic/__tests__/consolidate.test.ts:211-225). Robust against
+  // sibling-test leftover rows in ritual_responses, contradictions,
+  // decision_events, pensieve_embeddings, etc.
+  await db.execute(sql`TRUNCATE TABLE pensieve_entries CASCADE`);
+  await db.execute(sql`TRUNCATE TABLE episodic_summaries CASCADE`);
+  await db.execute(sql`TRUNCATE TABLE decision_events CASCADE`);
+  await db.execute(sql`TRUNCATE TABLE decisions CASCADE`);
 }
 
 describe('GEN-06 threshold short-circuit (sparse 5-entry fixture)', () => {

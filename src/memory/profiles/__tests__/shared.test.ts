@@ -22,10 +22,10 @@
  *   bash scripts/test.sh src/memory/profiles/__tests__/shared.test.ts
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
+import { sql } from 'drizzle-orm';
 import { db, sql as pgSql } from '../../../db/connection.js';
 import {
   pensieveEntries,
-  pensieveEmbeddings,
   episodicSummaries,
   decisions,
 } from '../../../db/schema.js';
@@ -40,11 +40,14 @@ import {
 // ── Fixture builder helpers ─────────────────────────────────────────────────
 
 async function cleanupTables() {
-  // FK-safe order: pensieve_embeddings → pensieve_entries → episodic_summaries → decisions.
-  await db.delete(pensieveEmbeddings);
-  await db.delete(pensieveEntries);
-  await db.delete(episodicSummaries);
-  await db.delete(decisions);
+  // Use TRUNCATE CASCADE per the canonical project pattern in
+  // src/episodic/__tests__/consolidate.test.ts:211-225 — robust against
+  // sibling-test leftover rows in ritual_responses, contradictions,
+  // decision_events, pensieve_embeddings, etc.
+  await db.execute(sql`TRUNCATE TABLE pensieve_entries CASCADE`);
+  await db.execute(sql`TRUNCATE TABLE episodic_summaries CASCADE`);
+  await db.execute(sql`TRUNCATE TABLE decision_events CASCADE`);
+  await db.execute(sql`TRUNCATE TABLE decisions CASCADE`);
 }
 
 const FUTURE_RESOLVE_BY = new Date('2027-12-31T00:00:00Z');
