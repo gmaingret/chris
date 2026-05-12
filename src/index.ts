@@ -11,6 +11,7 @@ import { runConsolidateYesterday } from './episodic/cron.js';
 import { registerCrons, type CronRegistrationStatus } from './cron-registration.js';
 import { runRitualSweep } from './rituals/scheduler.js';
 import { ritualConfirmationSweep } from './rituals/adjustment-dialogue.js';
+import { updateAllOperationalProfiles } from './memory/profile-updater.js';
 
 // Module-scoped registration status — populated by main() via registerCrons().
 // /health route reads this for the ritual_cron_registered field (RIT-12 part b).
@@ -65,6 +66,10 @@ export function createApp(deps?: { cronStatus?: CronRegistrationStatus }): expre
       status: overallStatus,
       checks,
       ritual_cron_registered: effectiveCronStatus?.ritual === 'registered',
+      // M010 Phase 34 GEN-01 — operator (Greg) reads /health post-deploy to
+      // confirm the Sunday 22:00 Paris profile updater registered cleanly.
+      // Field name VERBATIM snake_case per REQUIREMENTS GEN-01.
+      profile_cron_registered: effectiveCronStatus?.profileUpdate === 'registered',
       timestamp: new Date().toISOString(),
     });
   });
@@ -92,6 +97,10 @@ async function main() {
     runRitualSweep,
     runConsolidateYesterday,
     ritualConfirmationSweep, // Phase 28 D-28-06 — 1-minute confirmation sweep
+    // M010 Phase 34 GEN-02 — Sunday 22:00 Paris operational profile updater.
+    // Fire-and-forget (D-23 void return); outcomes observed via discriminated
+    // 'chris.profile.<outcome>' logs + aggregate 'chris.profile.cron.complete'.
+    runProfileUpdate: () => updateAllOperationalProfiles(),
   });
 
   const port = parseInt(process.env.PORT || '3000', 10);

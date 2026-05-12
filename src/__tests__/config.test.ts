@@ -50,3 +50,50 @@ describe('config: cron.validate fail-fast (RIT-12)', () => {
     expect(mod.config.ritualSweepCron).toBe('* * * * *');
   });
 });
+
+/**
+ * M010 Phase 34 Plan 03 — profileUpdaterCron env-validation tests.
+ *
+ * Same validatedCron fail-fast pattern as RITUAL_SWEEP_CRON; the silent-cron
+ * incident class (M008 EPI-04) is the same regardless of which cron is
+ * misconfigured. Container restart-loops on invalid cron until env is fixed.
+ */
+describe('config: profileUpdaterCron fail-fast (Phase 34 GEN-01)', () => {
+  const ORIGINAL_PROFILE_UPDATER_CRON = process.env.PROFILE_UPDATER_CRON;
+
+  beforeEach(() => {
+    delete process.env.PROFILE_UPDATER_CRON;
+  });
+
+  afterEach(() => {
+    if (ORIGINAL_PROFILE_UPDATER_CRON !== undefined) {
+      process.env.PROFILE_UPDATER_CRON = ORIGINAL_PROFILE_UPDATER_CRON;
+    } else {
+      delete process.env.PROFILE_UPDATER_CRON;
+    }
+  });
+
+  it('default PROFILE_UPDATER_CRON is "0 22 * * 0" (Sunday 22:00) when env unset', async () => {
+    // D-24 timing: 2h gap after weekly_review's Sun 20:00 fire.
+    delete process.env.PROFILE_UPDATER_CRON;
+    const mod = await import('../config.js?reload=' + Date.now());
+    expect(mod.config.profileUpdaterCron).toBe('0 22 * * 0');
+  });
+
+  it('accepts valid PROFILE_UPDATER_CRON override at config load', async () => {
+    // A 23:00 Sunday override should load cleanly — proves env override path works.
+    process.env.PROFILE_UPDATER_CRON = '0 23 * * 0';
+    const mod = await import('../config.js?reload=' + Date.now());
+    expect(mod.config.profileUpdaterCron).toBe('0 23 * * 0');
+  });
+
+  it('rejects invalid PROFILE_UPDATER_CRON at config load with /invalid PROFILE_UPDATER_CRON/ message (D-25)', async () => {
+    // Cache-bust: force fresh import (config.ts reads env at module-load time).
+    // Silent-bad-cron prevention — node-cron's validate() catches the malformed
+    // expression and `validatedCron` re-throws as a config-level error.
+    process.env.PROFILE_UPDATER_CRON = 'invalid-expression';
+    await expect(import('../config.js?reload=' + Date.now())).rejects.toThrow(
+      /invalid PROFILE_UPDATER_CRON/,
+    );
+  });
+});

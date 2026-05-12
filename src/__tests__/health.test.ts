@@ -83,6 +83,16 @@ vi.mock('../rituals/scheduler.js', () => ({
   runRitualSweep: vi.fn(),
 }));
 
+vi.mock('../rituals/adjustment-dialogue.js', () => ({
+  ritualConfirmationSweep: vi.fn(),
+}));
+
+// M010 Phase 34 Plan 03 — mock the new orchestrator so importing src/index.ts
+// (which now imports updateAllOperationalProfiles) is side-effect-free.
+vi.mock('../memory/profile-updater.js', () => ({
+  updateAllOperationalProfiles: vi.fn().mockResolvedValue(undefined),
+}));
+
 describe('/health (RIT-12 part b)', () => {
   it('reports ritual_cron_registered: true when cronStatus.ritual === "registered"', async () => {
     const { createApp } = await import('../index.js');
@@ -91,8 +101,10 @@ describe('/health (RIT-12 part b)', () => {
       cronStatus: {
         proactive: 'registered',
         ritual: 'registered',
+        ritualConfirmation: 'registered',
         episodic: 'registered',
         sync: 'disabled',
+        profileUpdate: 'registered',
       },
     });
 
@@ -111,14 +123,57 @@ describe('/health (RIT-12 part b)', () => {
       cronStatus: {
         proactive: 'registered',
         ritual: 'failed',
+        ritualConfirmation: 'registered',
         episodic: 'registered',
         sync: 'disabled',
+        profileUpdate: 'registered',
       },
     });
 
     const body = await invokeHealth(app);
 
     expect(body.ritual_cron_registered).toBe(false);
+  });
+
+  // ── M010 Phase 34 GEN-01 — profile_cron_registered field surface ─────────
+
+  it('reports profile_cron_registered: true when cronStatus.profileUpdate === "registered" (GEN-01)', async () => {
+    const { createApp } = await import('../index.js');
+
+    const app = createApp({
+      cronStatus: {
+        proactive: 'registered',
+        ritual: 'registered',
+        ritualConfirmation: 'registered',
+        episodic: 'registered',
+        sync: 'disabled',
+        profileUpdate: 'registered',
+      },
+    });
+
+    const body = await invokeHealth(app);
+
+    // Verbatim snake_case field name per REQUIREMENTS GEN-01.
+    expect(body.profile_cron_registered).toBe(true);
+  });
+
+  it('reports profile_cron_registered: false when cronStatus.profileUpdate === "failed"', async () => {
+    const { createApp } = await import('../index.js');
+
+    const app = createApp({
+      cronStatus: {
+        proactive: 'registered',
+        ritual: 'registered',
+        ritualConfirmation: 'registered',
+        episodic: 'registered',
+        sync: 'disabled',
+        profileUpdate: 'failed',
+      },
+    });
+
+    const body = await invokeHealth(app);
+
+    expect(body.profile_cron_registered).toBe(false);
   });
 });
 
@@ -134,6 +189,7 @@ async function invokeHealth(app: import('express').Express): Promise<{
   status: string;
   checks: Record<string, string>;
   ritual_cron_registered: boolean;
+  profile_cron_registered: boolean;
   timestamp: string;
 }> {
   return new Promise((resolve, reject) => {
