@@ -721,14 +721,20 @@ describe('fireWeeklyReview integration (real DB + mocked Anthropic + mocked bot)
     expect(metadata?.source_subtype).toBe('weekly_observation');
   });
 
-  // 2026-05-12: skipped — production short-circuit works correctly when called
-  // in isolation (verified via single-file run). Test fails in the full Docker
-  // gate due to cross-file DB pollution: other test files write episodic_summaries
-  // and decisions whose rows fall inside computeWeekBoundary(now)'s rolling 7-day
-  // window, defeating the sparse-data short-circuit's empty-substrate precondition.
-  // Real bug is test architecture (BASE_DATE / computeWeekBoundary anchored to
-  // real `new Date()` while cleanup is hardcoded date range); deferred to v2.5.1.
-  it.skip('sparse-data short-circuit: zero summaries AND zero decisions → no Sonnet call, no Telegram send, no DB writes', async () => {
+  it('sparse-data short-circuit: zero summaries AND zero decisions → no Sonnet call, no Telegram send, no DB writes', async () => {
+    // Cross-file DB pollution defense: other test files may have left
+    // episodic_summaries and resolved decisions in the current-week window.
+    // Compute the actual week boundary the production code will use, then
+    // wipe exactly that window so ctx.summaries/resolvedDecisions are empty.
+    const now = new Date();
+    const { weekStart, weekEnd } = await import('../weekly-review-sources.js')
+      .then((m) => m.computeWeekBoundary(now));
+    await db.execute(
+      sql`DELETE FROM episodic_summaries WHERE summary_date BETWEEN ${weekStart.toISOString().slice(0, 10)} AND ${weekEnd.toISOString().slice(0, 10)}`,
+    );
+    await db.execute(
+      sql`DELETE FROM decisions WHERE resolved_at >= ${weekStart.toISOString()} AND resolved_at <= ${weekEnd.toISOString()}`,
+    );
     const ritual = await seedFixtureRitual();
     const cfg = parseRitualConfig(ritual.config);
 

@@ -623,12 +623,7 @@ describe('TEST-12: same-day deadline + silence trigger collision (channel separa
     vi.useRealTimers();
   });
 
-  // 2026-05-12: skipped — vi.mock of '../../memory/context-builder.js' does not
-  // propagate through sweep.ts's nested import chain in this test (verified
-  // via repeated hoisted/non-hoisted attempts). buildMessageHistory returns
-  // undefined → "history is not iterable" at sweep.ts:573. Deferred to v2.5.1.
-  // The dual-channel contract (SWEEP-02) is also exercised by other suites.
-  it.skip(
+  it(
     'deadline and silence triggers both fire; channels fire serially without either starving the other',
     async () => {
       // Phase 18 IN-06: Use a real UUID (not a human-readable placeholder).
