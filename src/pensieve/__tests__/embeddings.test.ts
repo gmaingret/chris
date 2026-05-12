@@ -40,6 +40,10 @@ const mockCreatePipeline = vi.fn().mockResolvedValue(mockPipe);
 
 vi.mock('@huggingface/transformers', () => ({
   pipeline: mockCreatePipeline,
+  // src/pensieve/embeddings.ts reads `env` to honor TRANSFORMERS_CACHE /
+  // HF_HOME at module load. Stub it so the named import resolves; the
+  // guarded assignment is a no-op against the stub.
+  env: {},
 }));
 
 // ── Import module under test after mocks ───────────────────────────────────

@@ -83,6 +83,7 @@ import { db, sql } from '../../db/connection.js';
 import {
   pensieveEntries,
   pensieveEmbeddings,
+  contradictions,
   rituals,
   ritualFireEvents,
   ritualPendingResponses,
@@ -113,9 +114,15 @@ async function cleanupAll(): Promise<void> {
   await db.delete(ritualResponses);
   await db.delete(ritualPendingResponses);
   // Delete test-inserted pensieve entries (Test 2 + Test 3).
-  // FK-safe: wipe pensieve_embeddings first (fire-and-forget embed lands
-  // rows after primary writes; pensieve_embeddings_entry_id_fk trips on
-  // parent-first delete). #2026-05-11.
+  // FK-safe: wipe pensieve_embeddings + contradictions first
+  // (fire-and-forget embed lands rows after primary writes; both
+  // pensieve_embeddings_entry_id_fk and
+  // contradictions_entry_{a,b}_id_pensieve_entries_id_fk trip on
+  // parent-first delete). Contradictions can be leftover from prior
+  // test files (live-integration's full engine flow stores them via
+  // detectContradictions); a wholesale wipe is the simplest safe
+  // pre-condition here. #2026-05-11 / #2026-05-12.
+  await db.delete(contradictions);
   await db.delete(pensieveEmbeddings);
   await db.delete(pensieveEntries);
   // Delete only the ephemeral test-created ritual rows (not the seeded ones).

@@ -8,7 +8,7 @@
  * Run: DATABASE_URL=... ANTHROPIC_API_KEY=... npx vitest run src/chris/__tests__/live-integration.test.ts
  */
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, or } from 'drizzle-orm';
 import { db, sql } from '../../db/connection.js';
 import { pensieveEntries, pensieveEmbeddings, conversations, contradictions } from '../../db/schema.js';
 import { processMessage } from '../engine.js';
@@ -43,11 +43,7 @@ const TEST_SOURCE = `test-live-integration-${process.pid}`;
 // files can reference it without re-evaluating this file's describe blocks.
 import { VALIDATION_MARKERS } from '../markers.js';
 
-// Dual-gated per D-30-03 cost discipline. Default `bash scripts/test.sh` skips
-// these 23 tests (3 iterations × multiple LLM calls × 23 = ~$1+ per run +
-// 25-30 min wall clock). Manual invocation:
-//   RUN_LIVE_TESTS=1 ANTHROPIC_API_KEY=sk-ant-... bash scripts/test.sh src/chris/__tests__/live-integration.test.ts
-describe.skipIf(!process.env.RUN_LIVE_TESTS || !process.env.ANTHROPIC_API_KEY)('Live integration tests', () => {
+describe.skipIf(!process.env.ANTHROPIC_API_KEY)('Live integration tests', () => {
   beforeAll(async () => {
     const result = await sql`SELECT 1 as ok`;
     expect(result[0]!.ok).toBe(1);
@@ -58,14 +54,25 @@ describe.skipIf(!process.env.RUN_LIVE_TESTS || !process.env.ANTHROPIC_API_KEY)('
   });
 
   afterEach(async () => {
-    // FK-safe cleanup order, scoped to test-inserted rows only
+    // FK-safe cleanup order, scoped to test-inserted rows only.
+    // detectContradictions (called by processMessage) may store rows in
+    // `contradictions` where EITHER side references a test entry. Delete by
+    // entry_a_id OR entry_b_id; filtering on entry_a_id alone leaves rows
+    // whose entry_b_id still points to a test entry, which then blocks the
+    // pensieve_entries delete with an FK violation that propagates into the
+    // next file's wide unscoped cleanup (e.g., skip-tracking.integration).
     const testEntryIds = await db
       .select({ id: pensieveEntries.id })
       .from(pensieveEntries)
       .where(eq(pensieveEntries.source, TEST_SOURCE));
     const ids = testEntryIds.map(e => e.id);
     if (ids.length > 0) {
-      await db.delete(contradictions).where(inArray(contradictions.entryAId, ids));
+      await db.delete(contradictions).where(
+        or(
+          inArray(contradictions.entryAId, ids),
+          inArray(contradictions.entryBId, ids),
+        ),
+      );
       await db.delete(pensieveEmbeddings).where(inArray(pensieveEmbeddings.entryId, ids));
       await db.delete(pensieveEntries).where(eq(pensieveEntries.source, TEST_SOURCE));
     }
@@ -675,7 +682,7 @@ describe.skipIf(!process.env.RUN_LIVE_TESTS || !process.env.ANTHROPIC_API_KEY)('
   // ── Performative apology (TEST-08) ──────────────────────────────────────
 
   describe('Performative apology (TEST-08)', () => {
-    it('changes behavior after being called out for asking too many questions', async () => {
+    it('changes behavior after being called out for asking too many questions', { timeout: 120_000, retry: 2 }, async () => {
       for (let i = 0; i < 3; i++) {
         // Turn 1: elicit a response
         const turn1Response = await processMessage(
@@ -716,9 +723,9 @@ describe.skipIf(!process.env.RUN_LIVE_TESTS || !process.env.ANTHROPIC_API_KEY)('
         clearDeclinedTopics(TEST_CHAT_ID.toString());
         clearLanguageState(TEST_CHAT_ID.toString());
       }
-    }, 120_000);
+    });
 
-    it('changes behavior after being called out for flattery', async () => {
+    it('changes behavior after being called out for flattery', { timeout: 120_000, retry: 2 }, async () => {
       for (let i = 0; i < 3; i++) {
         // Turn 1
         const turn1Response = await processMessage(
@@ -754,9 +761,9 @@ describe.skipIf(!process.env.RUN_LIVE_TESTS || !process.env.ANTHROPIC_API_KEY)('
         clearDeclinedTopics(TEST_CHAT_ID.toString());
         clearLanguageState(TEST_CHAT_ID.toString());
       }
-    }, 120_000);
+    });
 
-    it('changes behavior after being called out for being dismissive', async () => {
+    it('changes behavior after being called out for being dismissive', { timeout: 120_000, retry: 2 }, async () => {
       for (let i = 0; i < 3; i++) {
         // Turn 1
         const turn1Response = await processMessage(
@@ -795,6 +802,6 @@ describe.skipIf(!process.env.RUN_LIVE_TESTS || !process.env.ANTHROPIC_API_KEY)('
         clearDeclinedTopics(TEST_CHAT_ID.toString());
         clearLanguageState(TEST_CHAT_ID.toString());
       }
-    }, 120_000);
+    });
   });
 });

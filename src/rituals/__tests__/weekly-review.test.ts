@@ -28,6 +28,7 @@ import {
   expect,
   beforeAll,
   beforeEach,
+  afterEach,
   afterAll,
   vi,
 } from 'vitest';
@@ -621,6 +622,18 @@ describe('fireWeeklyReview integration (real DB + mocked Anthropic + mocked bot)
     mockSendMessage.mockResolvedValue({ message_id: 12345 });
     mockLoggerInfo.mockReset();
     mockLoggerWarn.mockReset();
+    // Anchor "now" inside the hardcoded fixture week (2026-04-19..2026-04-26).
+    // computeWeekBoundary uses now as weekEnd and now-7d as weekStart, so the
+    // Sunday-evening fire time lands the seeded summaries (2026-04-20..24)
+    // and resolved decisions (2026-04-22) inside the window. Without this
+    // anchor, real-time "now" advances past the fixture week and the
+    // happy-path test trips the sparse-data short-circuit (0 summaries in
+    // window → fireWeeklyReview returns 'skipped').
+    vi.setSystemTime(new Date('2026-04-26T20:00:00.000Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   afterAll(async () => {

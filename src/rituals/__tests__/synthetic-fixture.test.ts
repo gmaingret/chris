@@ -430,8 +430,20 @@ skipIfAbsent('M009 synthetic fixture (14 days; TEST-23..30)', () => {
 
       // 22:00 — Greg replies via STT keyboard (within 18h response window).
       // PP#5 detects ritual_pending_responses match and short-circuits engine.
+      //
+      // PP#5 hotfix (2026-05-11, commit 04c6a6f): the engine now skips the
+      // pending-response lookup entirely when opts.replyToMessageId is
+      // undefined (user-initiated messages always reach Sonnet). The engine
+      // only checks that the value is non-undefined — the lookup itself is
+      // chat+time scoped, not message_id scoped — so any number works. Use
+      // the mockSendMessage return value's message_id for clarity.
       vi.setSystemTime(dateAtLocalHour(date, FIXTURE_TZ, 22, 0));
-      const reply = await processMessage(GREG_CHAT_ID, GREG_USER_ID, `day ${i} reply about my work`);
+      const reply = await processMessage(
+        GREG_CHAT_ID,
+        GREG_USER_ID,
+        `day ${i} reply about my work`,
+        { replyToMessageId: 12345 },
+      );
       expect(reply, `day ${i} PP#5 silent-skip`).toBe('');
     }
 

@@ -617,6 +617,12 @@ describe('TEST-12: same-day deadline + silence trigger collision (channel separa
     mockClearCapture.mockResolvedValue(undefined);
     mockBuildSweepContext.mockResolvedValue('sweep context');
     mockRunOpusAnalysis.mockResolvedValue({ triggered: false });
+    // sweep.ts:569 spreads the return into a messages array. Without restoring
+    // the [] resolved value after vi.resetAllMocks(), buildMessageHistory
+    // returns undefined and [...undefined] throws "history is not iterable".
+    // (Same reason hand-off agent thought the mock wasn't "propagating" —
+    // it was being installed, then reset by this beforeEach hook.)
+    mockBuildMessageHistory.mockResolvedValue([]);
   });
 
   afterEach(() => {

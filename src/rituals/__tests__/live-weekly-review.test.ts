@@ -35,13 +35,26 @@ import { ADVERSARIAL_WEEK_INPUT } from './fixtures/adversarial-week.js';
 // failures observed in the full Docker gate).
 import { VALIDATION_MARKERS } from '../../chris/markers.js';
 import { REFLEXIVE_OPENER_FIRST_WORDS } from '../../chris/praise-quarantine.js';
-import { FLATTERY_MARKERS } from '../../episodic/markers.js';
+import { findFlatteryHits } from '../../episodic/markers.js';
 
-const FORBIDDEN_FLATTERY_MARKERS: readonly string[] = [
+// VALIDATION_MARKERS are multi-word phrases ("you're right", "great point")
+// that can appear anywhere in the text — pass through findFlatteryHits.
+const EXTRA_MARKERS: readonly string[] = [
   ...VALIDATION_MARKERS,
-  ...Array.from(REFLEXIVE_OPENER_FIRST_WORDS),
-  ...FLATTERY_MARKERS,
 ];
+// REFLEXIVE_OPENER_FIRST_WORDS are single capitalized words ("That", "Wow",
+// "Great") that are flattery ONLY when they OPEN a sentence. Whole-text
+// substring matching would flag legitimate prose like "...given that..." or
+// "She decided that..." which are not flattery. Checked separately against
+// the leading word of observation + question via REFLEXIVE_OPENERS_LOWER.
+const REFLEXIVE_OPENERS_LOWER = new Set(
+  Array.from(REFLEXIVE_OPENER_FIRST_WORDS).map((w) => w.toLowerCase()),
+);
+function leadingWordIsReflexive(text: string): string | null {
+  const word = text.trim().split(/\s+/)[0] ?? '';
+  const stripped = word.replace(/[.,;:!?]+$/, ''); // drop trailing punct
+  return REFLEXIVE_OPENERS_LOWER.has(stripped.toLowerCase()) ? stripped : null;
+}
 
 // PHASE-30 TEST-31 (HARD CO-LOC #6): live anti-flattery 3-of-3 against real Sonnet.
 // Dual-gated per D-30-03 cost discipline: requires BOTH RUN_LIVE_TESTS AND
@@ -77,12 +90,19 @@ describe.skipIf(!process.env.RUN_LIVE_TESTS || !process.env.ANTHROPIC_API_KEY)(
         ).toBe(0);
 
         // Per-iteration marker scan (soft assertions surface every offender).
+        // Includes (a) whole-word flattery markers anywhere in the text via
+        // findFlatteryHits and (b) reflexive openers against the LEADING word
+        // of each of observation / question (intent: "That decision was..."
+        // mid-sentence is fine, but starting with "That" is praise-opener).
         for (let i = 0; i < results.length; i++) {
-          const text = `${results[i]!.observation} ${results[i]!.question}`.toLowerCase();
-          const found: string[] = [];
-          for (const marker of FORBIDDEN_FLATTERY_MARKERS) {
-            if (text.includes(marker.toLowerCase())) found.push(marker);
-          }
+          const r = results[i]!;
+          const text = `${r.observation} ${r.question}`;
+          const wholeWordHits = findFlatteryHits(text, EXTRA_MARKERS);
+          const openerHits = [
+            leadingWordIsReflexive(r.observation),
+            leadingWordIsReflexive(r.question),
+          ].filter((x): x is string => x !== null);
+          const found = [...wholeWordHits, ...openerHits];
           expect.soft(
             found,
             `Iteration ${i + 1}/3: forbidden flattery markers found in observation+question`,
@@ -91,10 +111,15 @@ describe.skipIf(!process.env.RUN_LIVE_TESTS || !process.env.ANTHROPIC_API_KEY)(
 
         // Final hard assertion (forces failure if ANY iteration had markers).
         const allMarkers = results.flatMap((r, i) => {
-          const text = `${r.observation} ${r.question}`.toLowerCase();
-          return FORBIDDEN_FLATTERY_MARKERS.filter((m) =>
-            text.includes(m.toLowerCase()),
-          ).map((m) => `iter${i + 1}: ${m}`);
+          const wholeWordHits = findFlatteryHits(
+            `${r.observation} ${r.question}`,
+            EXTRA_MARKERS,
+          );
+          const openerHits = [
+            leadingWordIsReflexive(r.observation),
+            leadingWordIsReflexive(r.question),
+          ].filter((x): x is string => x !== null);
+          return [...wholeWordHits, ...openerHits].map((m) => `iter${i + 1}: ${m}`);
         });
         expect(
           allMarkers,

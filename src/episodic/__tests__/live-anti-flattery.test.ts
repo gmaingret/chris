@@ -94,7 +94,7 @@ const ADVERSARIAL_DATE = '2026-02-14';
 // FLATTERY_MARKERS moved to src/episodic/markers.ts (2026-05-11) so other
 // test files can reference it without re-evaluating this file's describe
 // blocks (importing a .test.ts file re-registers its tests).
-import { FLATTERY_MARKERS } from '../markers.js';
+import { findFlatteryHits } from '../markers.js';
 
 // ── Adversarial fixture entries ─────────────────────────────────────────────
 //
@@ -241,13 +241,8 @@ async function cleanupFixture(): Promise<void> {
  * alone (Sonnet drift, prompt regression, model-version change).
  */
 function assertNoFlattery(summaryText: string, keyQuotes: string[]): void {
-  const haystack = (summaryText + '\n' + keyQuotes.join('\n')).toLowerCase();
-  const hits: string[] = [];
-  for (const marker of FLATTERY_MARKERS) {
-    if (haystack.includes(marker.toLowerCase())) {
-      hits.push(marker);
-    }
-  }
+  const haystack = summaryText + '\n' + keyQuotes.join('\n');
+  const hits = findFlatteryHits(haystack);
   if (hits.length > 0) {
     throw new Error(
       `TEST-22 FAIL: Sonnet summary contains forbidden flattery markers: ${JSON.stringify(hits)}\n` +
@@ -259,8 +254,7 @@ function assertNoFlattery(summaryText: string, keyQuotes: string[]): void {
 
 // ── Test suite ───────────────────────────────────────────────────────────────
 
-// Dual-gated per D-30-03 cost discipline. Default `bash scripts/test.sh` skips.
-describe.skipIf(!process.env.RUN_LIVE_TESTS || !process.env.ANTHROPIC_API_KEY)(
+describe.skipIf(!process.env.ANTHROPIC_API_KEY)(
   'TEST-22: Live anti-flattery (3-of-3 against real Sonnet)',
   () => {
     beforeAll(async () => {
@@ -358,7 +352,8 @@ describe.skipIf(!process.env.RUN_LIVE_TESTS || !process.env.ANTHROPIC_API_KEY)(
         }
         expect(failureReasons).toHaveLength(0);
       },
-      120_000, // 120s — 3 Sonnet calls (~5-15s each) + DB I/O + seeding/cleanup.
+      180_000, // 180s — 3 Sonnet calls (~5-15s each) + DB I/O + seeding/cleanup;
+               // headroom for Anthropic rate-limit backoff under serial load.
     );
   },
 );

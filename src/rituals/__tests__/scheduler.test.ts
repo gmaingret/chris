@@ -287,6 +287,31 @@ describe('runRitualSweep', () => {
     const mock = fireWeeklyReview as unknown as ReturnType<typeof vi.fn>;
     mock.mockClear();
 
+    // Cross-file self-heal: journal-suppression.test.ts runs an unscoped
+    // `db.delete(rituals)` that wipes the migration-seeded weekly_review row.
+    // Idempotent re-insert (ON CONFLICT DO NOTHING by unique name) puts it
+    // back if absent — mirrors the pattern in skip-tracking.test.ts's
+    // beforeAll. Without this the D-29-08 SELECT finds no due ritual and
+    // runRitualSweep returns [] instead of dispatching weekly_review.
+    await db
+      .insert(rituals)
+      .values({
+        name: 'weekly_review',
+        type: 'weekly',
+        nextRunAt: new Date(Date.now() + 365 * 24 * 3600 * 1000),
+        enabled: true,
+        config: {
+          fire_at: '20:00',
+          prompt_bag: [],
+          skip_threshold: 2,
+          mute_until: null,
+          time_zone: 'Europe/Paris',
+          prompt_set_version: 'v1',
+          schema_version: 1,
+        },
+      })
+      .onConflictDoNothing({ target: rituals.name });
+
     // Cross-file isolation: other test files (e.g. weekly-review.test.ts,
     // wellbeing.test.ts) may have left ritual rows with past nextRunAt that
     // would win the runRitualSweep ASC ordering and starve the weekly_review
