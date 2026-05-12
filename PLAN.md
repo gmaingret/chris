@@ -355,6 +355,12 @@ Archived detail: `.planning/milestones/v2.0-*`, `.planning/milestones/v2.1-*`, `
 
 **Kickoff command:** `/gsd-new-milestone` (in progress 2026-05-11).
 
+**Progress (2026-05-12):**
+- Phase 33 (Profile Substrate) ✅ — migration 0012, 5 profile tables, `getOperationalProfiles()` reader, `confidence.ts` helpers, Zod v3/v4 schemas, ground-truth seeded. Deployed to Proxmox 2026-05-11.
+- Phase 34 (Inference Engine) ✅ — `assembleProfilePrompt` shared builder, 4 dimension generators, `loadProfileSubstrate` + SHA-256 substrate-hash idempotency, `updateAllOperationalProfiles` orchestrator, Sunday 22:00 Paris cron, `/health.profile_cron_registered`. All 7 GEN-XX requirements verified in code (1544 tests passing). Two `HUMAN-UAT` items pending operator observation (first Sun 22:00 prod fire + live `/health` curl).
+- Phase 35 (Surfaces) — next: REFLECT/COACH/PSYCHOLOGY mode-handler injection + `/profile` Telegram command + `buildSystemPrompt` signature refactor (HARD CO-LOC #M10-4 atomic).
+- Phase 36 (Synthetic Fixture Test + Live Integration) — depends on Phase 35.
+
 ---
 
 <details>
@@ -480,4 +486,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-11 after v2.4 M009 milestone close (23 plans, 52/52 requirements, 6 phases + Phase 31 terminology cleanup + Phase 32 substrate hardening). Full PROJECT.md evolution (What This Is / Core Value / Requirements / Out of Scope / Key Decisions / Constraints review) is deferred to v2.5 M010 kickoff via `/gsd-new-milestone`, which drives the deeper update with fresh domain questions.*
+*Last updated: 2026-05-12 after v2.5 M010 Phase 34 (Inference Engine) completion. Phase 33 + 34 of 4 (33–36) shipped; Phase 35 (Surfaces) next. Full PROJECT.md evolution (What This Is / Core Value / Requirements / Out of Scope / Key Decisions / Constraints review) is deferred to v2.5 M010 milestone close via `/gsd-complete-milestone`, which drives the deeper update with fresh domain questions.*
