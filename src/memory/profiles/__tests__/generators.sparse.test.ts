@@ -153,10 +153,12 @@ describe('GEN-06 threshold short-circuit (sparse 5-entry fixture)', () => {
       expect(ctx.entryCount).toBe(5);
     }
 
-    // ── 4. Profile rows unchanged from Phase 33 seed (substrate_hash='') ───
-    //     The seed migration 0012 may or may not have populated these tables
-    //     in the test environment. Whatever was there before MUST still be
-    //     there after; no rows mutated.
+    // ── 4. Profile rows unchanged: substrate_hash + confidence preserved ───
+    //     Threshold short-circuit MUST NOT mutate profile rows. The
+    //     pre-call state (whatever it is — Phase 33 seed if pristine, or
+    //     a prior test's mutation if running in a shared-DB suite) MUST
+    //     equal the post-call state. We compare by primary-key id ↔
+    //     substrate_hash + confidence + last_updated.
     const allJAfter = await db.select().from(profileJurisdictional);
     const allCAfter = await db.select().from(profileCapital);
     const allHAfter = await db.select().from(profileHealth);
@@ -165,9 +167,24 @@ describe('GEN-06 threshold short-circuit (sparse 5-entry fixture)', () => {
     expect(allCAfter.length).toBe(allCBefore.length);
     expect(allHAfter.length).toBe(allHBefore.length);
     expect(allFAfter.length).toBe(allFBefore.length);
-    for (const row of [...allJAfter, ...allCAfter, ...allHAfter, ...allFAfter]) {
-      // Seed row contract: substrate_hash starts empty until first successful regen
-      expect(row.substrateHash).toBe('');
+
+    const beforeAfterPairs: Array<[Array<{ id: string; substrateHash: string; confidence: number; lastUpdated: Date }>, Array<{ id: string; substrateHash: string; confidence: number; lastUpdated: Date }>]> = [
+      [allJBefore, allJAfter],
+      [allCBefore, allCAfter],
+      [allHBefore, allHAfter],
+      [allFBefore, allFAfter],
+    ];
+    for (const [before, after] of beforeAfterPairs) {
+      const byIdAfter = new Map(after.map((r) => [r.id, r]));
+      for (const b of before) {
+        const a = byIdAfter.get(b.id);
+        expect(a).toBeDefined();
+        if (a) {
+          expect(a.substrateHash).toBe(b.substrateHash); // unchanged
+          expect(a.confidence).toBe(b.confidence);       // unchanged
+          expect(a.lastUpdated.getTime()).toBe(b.lastUpdated.getTime()); // no upsert occurred
+        }
+      }
     }
   });
 
