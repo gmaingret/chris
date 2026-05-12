@@ -1,0 +1,213 @@
+/**
+ * src/memory/profiles/__tests__/generators.sparse.test.ts — Phase 34 Plan 02 Task 6
+ *
+ * GEN-06 threshold short-circuit test. Seeds 5 substrate-tagged Pensieve
+ * entries (BELOW the MIN_ENTRIES_THRESHOLD=10 floor), calls each of the 4
+ * generators, and verifies:
+ *
+ *   1. mockAnthropicParse NOT called (D-19 — threshold check BEFORE Sonnet)
+ *   2. Each generator returns outcome='profile_below_threshold'
+ *   3. Each generator logs 'chris.profile.threshold.below_minimum' verbatim
+ *      (REQUIREMENTS GEN-06 names this exact key)
+ *   4. Profile rows unchanged from Phase 33 seed (substrate_hash='' preserved)
+ *
+ * Real Docker Postgres + mocked Anthropic SDK + mocked logger (so we can
+ * assert on the log key). Mirrors src/rituals/__tests__/weekly-review.test.ts
+ * mock setup pattern.
+ *
+ * Run via Docker harness:
+ *   bash scripts/test.sh src/memory/profiles/__tests__/generators.sparse.test.ts
+ */
+import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest';
+
+// ── Hoisted mocks (must be vi.hoisted so vi.mock factories can see them) ───
+
+const { mockAnthropicParse, mockLoggerInfo, mockLoggerWarn, mockLoggerError } = vi.hoisted(() => ({
+  mockAnthropicParse: vi.fn(),
+  mockLoggerInfo: vi.fn(),
+  mockLoggerWarn: vi.fn(),
+  mockLoggerError: vi.fn(),
+}));
+
+// Mock anthropic SDK at the client export. ESM partial-spread so SONNET_MODEL
+// and other constants keep their real values.
+vi.mock('../../../llm/client.js', async (importOriginal) => {
+  const orig = await importOriginal<typeof import('../../../llm/client.js')>();
+  return {
+    ...orig,
+    anthropic: {
+      messages: {
+        parse: mockAnthropicParse,
+        create: vi.fn(),
+      },
+    },
+  };
+});
+
+// Mock the logger so we can assert on log key emission.
+vi.mock('../../../utils/logger.js', () => ({
+  logger: {
+    info: mockLoggerInfo,
+    warn: mockLoggerWarn,
+    error: mockLoggerError,
+    debug: vi.fn(),
+  },
+}));
+
+// Imports AFTER vi.mock so the modules under test see the mocked deps.
+import { sql } from 'drizzle-orm';
+import { db, sql as pgSql } from '../../../db/connection.js';
+import {
+  pensieveEntries,
+  profileJurisdictional,
+  profileCapital,
+  profileHealth,
+  profileFamily,
+} from '../../../db/schema.js';
+import { loadProfileSubstrate } from '../shared.js';
+import { generateJurisdictionalProfile } from '../jurisdictional.js';
+import { generateCapitalProfile } from '../capital.js';
+import { generateHealthProfile } from '../health.js';
+import { generateFamilyProfile } from '../family.js';
+
+const NOW = new Date('2026-05-12T22:00:00Z');
+const IN_WINDOW = new Date('2026-04-22T12:00:00Z'); // 20 days before NOW
+
+async function cleanupAll() {
+  // Use TRUNCATE CASCADE per the canonical project pattern
+  // (src/episodic/__tests__/consolidate.test.ts:211-225). Robust against
+  // sibling-test leftover rows in ritual_responses, contradictions,
+  // decision_events, pensieve_embeddings, etc.
+  await db.execute(sql`TRUNCATE TABLE pensieve_entries CASCADE`);
+  await db.execute(sql`TRUNCATE TABLE episodic_summaries CASCADE`);
+  await db.execute(sql`TRUNCATE TABLE decision_events CASCADE`);
+  await db.execute(sql`TRUNCATE TABLE decisions CASCADE`);
+}
+
+describe('GEN-06 threshold short-circuit (sparse 5-entry fixture)', () => {
+  beforeAll(async () => {
+    await pgSql`SELECT 1 as ok`;
+  });
+
+  beforeEach(async () => {
+    await cleanupAll();
+    mockAnthropicParse.mockReset();
+    mockLoggerInfo.mockReset();
+    mockLoggerWarn.mockReset();
+    mockLoggerError.mockReset();
+  });
+
+  afterAll(async () => {
+    await cleanupAll();
+  });
+
+  it('5 entries (below threshold=10) → all 4 generators return profile_below_threshold, NO Sonnet call', async () => {
+    // Seed exactly 5 entries — one per substrate tag + one extra FACT.
+    // entryCount = 5 < MIN_ENTRIES_THRESHOLD (10) → threshold gate triggers.
+    const tags = ['FACT', 'RELATIONSHIP', 'INTENTION', 'EXPERIENCE', 'FACT'] as const;
+    for (let i = 0; i < tags.length; i++) {
+      await db.insert(pensieveEntries).values({
+        content: `sparse entry ${i} tagged ${tags[i]}`,
+        epistemicTag: tags[i],
+        createdAt: IN_WINDOW,
+      });
+    }
+
+    // Capture pre-call profile row state (from Phase 33 seed migration 0012)
+    const allJBefore = await db.select().from(profileJurisdictional);
+    const allCBefore = await db.select().from(profileCapital);
+    const allHBefore = await db.select().from(profileHealth);
+    const allFBefore = await db.select().from(profileFamily);
+
+    const substrate = await loadProfileSubstrate(NOW);
+    expect(substrate.entryCount).toBe(5);
+
+    const outcomes = await Promise.all([
+      generateJurisdictionalProfile({ substrate }),
+      generateCapitalProfile({ substrate }),
+      generateHealthProfile({ substrate }),
+      generateFamilyProfile({ substrate }),
+    ]);
+
+    // ── 1. NO Sonnet call (D-19; GEN-06) ────────────────────────────────────
+    expect(mockAnthropicParse).not.toHaveBeenCalled();
+
+    // ── 2. All 4 outcomes are profile_below_threshold ───────────────────────
+    expect(outcomes.every((o) => o.outcome === 'profile_below_threshold')).toBe(true);
+    for (const o of outcomes) {
+      if (o.outcome === 'profile_below_threshold') {
+        expect(o.entryCount).toBe(5);
+      }
+    }
+    const dimensions = outcomes.map((o) => o.dimension).sort();
+    expect(dimensions).toEqual(['capital', 'family', 'health', 'jurisdictional']);
+
+    // ── 3. Verbatim log key 'chris.profile.threshold.below_minimum' × 4 ─────
+    const thresholdLogCalls = mockLoggerInfo.mock.calls.filter(
+      (c) => c[1] === 'chris.profile.threshold.below_minimum',
+    );
+    expect(thresholdLogCalls).toHaveLength(4);
+    // Confirm each call carries the right dimension + entryCount context
+    const loggedDimensions = thresholdLogCalls.map((c) => (c[0] as { dimension: string }).dimension).sort();
+    expect(loggedDimensions).toEqual(['capital', 'family', 'health', 'jurisdictional']);
+    for (const call of thresholdLogCalls) {
+      const ctx = call[0] as { entryCount: number };
+      expect(ctx.entryCount).toBe(5);
+    }
+
+    // ── 4. Profile rows unchanged: substrate_hash + confidence preserved ───
+    //     Threshold short-circuit MUST NOT mutate profile rows. The
+    //     pre-call state (whatever it is — Phase 33 seed if pristine, or
+    //     a prior test's mutation if running in a shared-DB suite) MUST
+    //     equal the post-call state. We compare by primary-key id ↔
+    //     substrate_hash + confidence + last_updated.
+    const allJAfter = await db.select().from(profileJurisdictional);
+    const allCAfter = await db.select().from(profileCapital);
+    const allHAfter = await db.select().from(profileHealth);
+    const allFAfter = await db.select().from(profileFamily);
+    expect(allJAfter.length).toBe(allJBefore.length);
+    expect(allCAfter.length).toBe(allCBefore.length);
+    expect(allHAfter.length).toBe(allHBefore.length);
+    expect(allFAfter.length).toBe(allFBefore.length);
+
+    const beforeAfterPairs: Array<[Array<{ id: string; substrateHash: string; confidence: number; lastUpdated: Date }>, Array<{ id: string; substrateHash: string; confidence: number; lastUpdated: Date }>]> = [
+      [allJBefore, allJAfter],
+      [allCBefore, allCAfter],
+      [allHBefore, allHAfter],
+      [allFBefore, allFAfter],
+    ];
+    for (const [before, after] of beforeAfterPairs) {
+      const byIdAfter = new Map(after.map((r) => [r.id, r]));
+      for (const b of before) {
+        const a = byIdAfter.get(b.id);
+        expect(a).toBeDefined();
+        if (a) {
+          expect(a.substrateHash).toBe(b.substrateHash); // unchanged
+          expect(a.confidence).toBe(b.confidence);       // unchanged
+          expect(a.lastUpdated.getTime()).toBe(b.lastUpdated.getTime()); // no upsert occurred
+        }
+      }
+    }
+  });
+
+  it('0 entries (empty substrate) → all 4 generators return profile_below_threshold, NO Sonnet call', async () => {
+    // No seeding at all — entryCount=0 < 10 → threshold gate triggers
+    const substrate = await loadProfileSubstrate(NOW);
+    expect(substrate.entryCount).toBe(0);
+
+    const outcomes = await Promise.all([
+      generateJurisdictionalProfile({ substrate }),
+      generateCapitalProfile({ substrate }),
+      generateHealthProfile({ substrate }),
+      generateFamilyProfile({ substrate }),
+    ]);
+
+    expect(mockAnthropicParse).not.toHaveBeenCalled();
+    expect(outcomes.every((o) => o.outcome === 'profile_below_threshold')).toBe(true);
+    for (const o of outcomes) {
+      if (o.outcome === 'profile_below_threshold') {
+        expect(o.entryCount).toBe(0);
+      }
+    }
+  });
+});
