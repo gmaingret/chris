@@ -20,6 +20,10 @@ const { scheduleSpy, validateSpy } = vi.hoisted(() => ({
   validateSpy: vi.fn(() => true),
 }));
 
+const { mockLoggerError } = vi.hoisted(() => ({
+  mockLoggerError: vi.fn(),
+}));
+
 vi.mock('node-cron', () => ({
   default: { schedule: scheduleSpy, validate: validateSpy },
   schedule: scheduleSpy,
@@ -27,7 +31,7 @@ vi.mock('node-cron', () => ({
 }));
 
 vi.mock('../../utils/logger.js', () => ({
-  logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+  logger: { info: vi.fn(), error: mockLoggerError, warn: vi.fn(), debug: vi.fn() },
 }));
 
 const baseConfig = {
@@ -38,11 +42,14 @@ const baseConfig = {
   episodicCron: '0 23 * * *',
   syncIntervalCron: '0 */6 * * *',
   proactiveTimezone: 'Europe/Paris',
+  // M010 Phase 34 GEN-01 — Sunday 22:00 Paris.
+  profileUpdaterCron: '0 22 * * 0',
 };
 
 describe('registerCrons', () => {
   beforeEach(() => {
     scheduleSpy.mockClear();
+    mockLoggerError.mockClear();
   });
 
   it('registers the ritual sweep cron at the configured cadence (RIT-11; revised per-minute 2026-05-05)', async () => {
@@ -54,6 +61,7 @@ describe('registerCrons', () => {
       runRitualSweep: vi.fn(),
       runConsolidateYesterday: vi.fn(),
       ritualConfirmationSweep: vi.fn().mockResolvedValue(0),
+      runProfileUpdate: vi.fn(),
     });
 
     expect(scheduleSpy).toHaveBeenCalledWith(
@@ -72,6 +80,8 @@ describe('registerCrons', () => {
       runSweep: vi.fn(),
       runRitualSweep: vi.fn(),
       runConsolidateYesterday: vi.fn(),
+      ritualConfirmationSweep: vi.fn().mockResolvedValue(0),
+      runProfileUpdate: vi.fn(),
     });
 
     expect(scheduleSpy).toHaveBeenCalledWith(
@@ -89,6 +99,8 @@ describe('registerCrons', () => {
       runSweep: vi.fn(),
       runRitualSweep: vi.fn(),
       runConsolidateYesterday: vi.fn(),
+      ritualConfirmationSweep: vi.fn().mockResolvedValue(0),
+      runProfileUpdate: vi.fn(),
       // runSync omitted
     });
 
@@ -104,6 +116,8 @@ describe('registerCrons', () => {
       runSweep: vi.fn(),
       runRitualSweep: throwingRunRitualSweep,
       runConsolidateYesterday: vi.fn(),
+      ritualConfirmationSweep: vi.fn().mockResolvedValue(0),
+      runProfileUpdate: vi.fn(),
     });
 
     // Find the ritual cron handler from the spy calls
@@ -114,6 +128,81 @@ describe('registerCrons', () => {
     // Invoke it directly — should NOT throw (the try/catch swallows)
     await expect(ritualHandler()).resolves.toBeUndefined();
     expect(throwingRunRitualSweep).toHaveBeenCalled();
+  });
+
+  // ── M010 Phase 34 GEN-01 — 4th cron registration ─────────────────────────
+
+  it('registers the profile updater cron at Sunday 22:00 Europe/Paris (GEN-01, D-24)', async () => {
+    const { registerCrons } = await import('../../cron-registration.js');
+
+    const status = registerCrons({
+      config: baseConfig,
+      runSweep: vi.fn(),
+      runRitualSweep: vi.fn(),
+      runConsolidateYesterday: vi.fn(),
+      ritualConfirmationSweep: vi.fn().mockResolvedValue(0),
+      runProfileUpdate: vi.fn(),
+    });
+
+    // Verbatim cron expression + timezone match (CRITICAL ANCHOR — Sunday
+    // 22:00 Paris, the 2h gap after weekly_review's 20:00 Paris fire).
+    const profileCall = scheduleSpy.mock.calls.find((c) => c[0] === '0 22 * * 0');
+    expect(profileCall, 'profile updater cron must register at Sunday 22:00').toBeDefined();
+    expect(profileCall![2]).toEqual({ timezone: 'Europe/Paris' });
+
+    expect(status.profileUpdate).toBe('registered');
+  });
+
+  it('runProfileUpdate dep is wired into the profile-cron handler (GEN-02)', async () => {
+    const { registerCrons } = await import('../../cron-registration.js');
+
+    const runProfileUpdate = vi.fn().mockResolvedValue(undefined);
+    registerCrons({
+      config: baseConfig,
+      runSweep: vi.fn(),
+      runRitualSweep: vi.fn(),
+      runConsolidateYesterday: vi.fn(),
+      ritualConfirmationSweep: vi.fn().mockResolvedValue(0),
+      runProfileUpdate,
+    });
+
+    const profileCall = scheduleSpy.mock.calls.find((c) => c[0] === '0 22 * * 0');
+    expect(profileCall).toBeDefined();
+    const profileHandler = profileCall![1] as () => Promise<void>;
+
+    await profileHandler();
+    expect(runProfileUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("profile handler isolates errors — throwing runProfileUpdate does NOT propagate; logs 'profile.cron.error' (CRON-01)", async () => {
+    const { registerCrons } = await import('../../cron-registration.js');
+
+    const throwingRunProfileUpdate = vi
+      .fn()
+      .mockRejectedValue(new Error('synthetic profile-update failure'));
+    registerCrons({
+      config: baseConfig,
+      runSweep: vi.fn(),
+      runRitualSweep: vi.fn(),
+      runConsolidateYesterday: vi.fn(),
+      ritualConfirmationSweep: vi.fn().mockResolvedValue(0),
+      runProfileUpdate: throwingRunProfileUpdate,
+    });
+
+    const profileCall = scheduleSpy.mock.calls.find((c) => c[0] === '0 22 * * 0');
+    expect(profileCall).toBeDefined();
+    const profileHandler = profileCall![1] as () => Promise<void>;
+
+    // CRON-01 belt-and-suspenders: handler try/catch swallows the throw.
+    await expect(profileHandler()).resolves.toBeUndefined();
+    expect(throwingRunProfileUpdate).toHaveBeenCalled();
+
+    // Lowercase infra-error log key per the existing convention at
+    // src/cron-registration.ts:73,92,110,131,149.
+    const errorCalls = mockLoggerError.mock.calls.filter(
+      (c) => c[1] === 'profile.cron.error',
+    );
+    expect(errorCalls).toHaveLength(1);
   });
 
   it('TEST-32: registerCrons invoked from src/index.ts main() with all M009 cron handlers (HARD CO-LOC #4)', async () => {

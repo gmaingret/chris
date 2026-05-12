@@ -25,6 +25,8 @@ export interface CronRegistrationStatus {
   ritualConfirmation: 'registered' | 'failed';
   episodic: 'registered' | 'failed';
   sync: 'registered' | 'failed' | 'disabled';
+  /** M010 Phase 34 GEN-01 — operational profile updater (Sunday 22:00 Paris). */
+  profileUpdate: 'registered' | 'failed';
 }
 
 export interface RegisterCronsDeps {
@@ -34,12 +36,20 @@ export interface RegisterCronsDeps {
     episodicCron: string;
     syncIntervalCron: string;
     proactiveTimezone: string;
+    /** M010 Phase 34 GEN-01 — Sunday 22:00 Paris profile updater. */
+    profileUpdaterCron: string;
   };
   runSweep: () => Promise<unknown>;
   runRitualSweep: () => Promise<unknown>;
   runConsolidateYesterday: () => Promise<void>;
   /** Phase 28 D-28-06 — 1-minute confirmation sweep handler. */
   ritualConfirmationSweep: () => Promise<number | void>;
+  /**
+   * M010 Phase 34 GEN-02 — operational profile updater fan-out
+   * (`updateAllOperationalProfiles` via Promise.allSettled across the 4
+   * dimension generators). Fire-and-forget (Promise<void> per D-23).
+   */
+  runProfileUpdate: () => Promise<void>;
   /** Optional — sync may be disabled in some envs (e.g. polling-only test runs). */
   runSync?: () => Promise<void>;
 }
@@ -60,6 +70,7 @@ export function registerCrons(deps: RegisterCronsDeps): CronRegistrationStatus {
     ritualConfirmation: 'failed',
     episodic: 'failed',
     sync: deps.runSync ? 'failed' : 'disabled',
+    profileUpdate: 'failed',
   };
 
   // Optional sync cron (only if runSync provided)
@@ -155,6 +166,30 @@ export function registerCrons(deps: RegisterCronsDeps): CronRegistrationStatus {
   logger.info(
     { cron: deps.config.episodicCron, timezone: deps.config.proactiveTimezone },
     'episodic.cron.scheduled',
+  );
+
+  // M010 Phase 34 GEN-01 — Sunday 22:00 Paris operational profile updater.
+  // 2h gap after weekly_review (Sunday 20:00) per D-24, mitigating M010-04
+  // timing-collision class. CRON-01 try/catch belt-and-suspenders: the
+  // orchestrator already has its own outer try/catch + 'profile.cron.error'
+  // log, so this is a defense-in-depth wrapper — if some unexpected error
+  // escapes the orchestrator's barrier (e.g. node-cron internal callback
+  // bug), it still does NOT crash the cron timer.
+  cron.schedule(
+    deps.config.profileUpdaterCron,
+    async () => {
+      try {
+        await deps.runProfileUpdate();
+      } catch (err) {
+        logger.error({ err }, 'profile.cron.error');
+      }
+    },
+    { timezone: deps.config.proactiveTimezone },
+  );
+  status.profileUpdate = 'registered';
+  logger.info(
+    { cron: deps.config.profileUpdaterCron, timezone: deps.config.proactiveTimezone },
+    'profile.cron.scheduled',
   );
 
   return status;
