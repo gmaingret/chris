@@ -75,4 +75,14 @@ export const config = {
   // Episodic consolidation (M008 Phase 20)
   // EPI-04: Episodic consolidation cron — fires at 23:00 in config.proactiveTimezone by default.
   episodicCron: validatedCron('EPISODIC_CRON', '0 23 * * *'),
+
+  // M010 Phase 34 GEN-01 — operational profile updater cron.
+  // Default '0 22 * * 0' = Sunday 22:00 in config.proactiveTimezone.
+  // 2h gap after weekly_review (Sunday 20:00) to avoid M010-04 timing
+  // collisions — both rituals read the same Pensieve substrate but the
+  // weekly review's `runConsolidate` writes do not need to settle before
+  // the profile updater fires; the 2h buffer is a conservative belt.
+  // D-25 fail-fast: invalid PROFILE_UPDATER_CRON throws at module load
+  // (silent-bad-cron M008 EPI-04 incident class).
+  profileUpdaterCron: validatedCron('PROFILE_UPDATER_CRON', '0 22 * * 0'),
 } as const;
