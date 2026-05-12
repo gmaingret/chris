@@ -51,7 +51,7 @@
  *   - src/memory/profiles/__tests__/generators.two-cycle.test.ts (HARD CO-LOC #M10-3)
  */
 import { createHash } from 'node:crypto';
-import { and, asc, eq, gte, inArray, isNull, lte } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
 import type { PgTable, PgColumn } from 'drizzle-orm/pg-core';
 import type { z } from 'zod';
 import type { z as z4 } from 'zod/v4';
@@ -501,15 +501,32 @@ export async function runProfileGenerator<TData extends { data_consistency: numb
     }
 
     // 11. Upsert via name='primary' sentinel (Phase 33 D-04 precedent;
-    //     onConflictDoUpdate on table.name unique index)
+    //     onConflictDoUpdate on table.name unique index).
+    //
+    //     IMPORTANT: jsonb-column NOT NULL handling. The Phase 33 profile
+    //     tables declare every jsonb column as `.notNull()` with a default
+    //     of `'null'::jsonb` or `'[]'::jsonb` (a JSON null/array value, NOT
+    //     SQL NULL). When Drizzle serializes a JS `null` for a jsonb
+    //     column, it sends SQL `NULL` which violates the NOT NULL
+    //     constraint. We must wrap JS `null` (and `undefined`) as the SQL
+    //     expression `'null'::jsonb` so Postgres receives jsonb null, not
+    //     SQL NULL. JSON-encode + cast the value explicitly via `sql\`...\``.
     const flat = config.flattenSonnetOutput(sonnetOut);
+    const flatEncoded: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(flat)) {
+      // JSON.stringify(null) === 'null', JSON.stringify(undefined) === undefined
+      // (use null as the fallback for undefined). Strings get quoted; objects/
+      // arrays get fully serialized. All cast to jsonb at the SQL level.
+      const serialized = v === undefined ? 'null' : JSON.stringify(v);
+      flatEncoded[k] = sql`${serialized}::jsonb`;
+    }
     const upsertValues: Record<string, unknown> = {
       name: 'primary',
       schemaVersion: prevStateMeta.schema_version,
       substrateHash: computedHash,
       confidence,
       dataConsistency: sonnetOut.data_consistency,
-      ...flat,
+      ...flatEncoded,
       lastUpdated: new Date(),
     };
     await db
