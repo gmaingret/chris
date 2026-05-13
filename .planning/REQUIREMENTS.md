@@ -80,13 +80,37 @@ Explicitly excluded — documented to prevent scope creep:
 
 ## Traceability
 
-Which phases cover which requirements — updated during roadmap creation.
+Which phases cover which requirements — updated at roadmap creation 2026-05-13.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PSCH-01..10 | Phase 37 (Psychological Substrate) | Pending |
-| PGEN-01..07 | Phase 38 (Psychological Inference Engine) | Pending |
-| PSURF-01..05 | Phase 39 (Psychological Surfaces) | Pending |
-| PMT-01..06 | Phase 40 (Psychological Milestone Tests) | Pending |
+| PSCH-01 | Phase 37 (Psychological Substrate) | Pending |
+| PSCH-02 | Phase 37 (Psychological Substrate) | Pending |
+| PSCH-03 | Phase 37 (Psychological Substrate) | Pending |
+| PSCH-04 | Phase 37 (Psychological Substrate) | Pending |
+| PSCH-05 | Phase 37 (Psychological Substrate) | Pending |
+| PSCH-06 | Phase 37 (Psychological Substrate) | Pending |
+| PSCH-07 | Phase 37 (Psychological Substrate) | Pending |
+| PSCH-08 | Phase 37 (Psychological Substrate) | Pending |
+| PSCH-09 | Phase 37 (Psychological Substrate) | Pending |
+| PSCH-10 | Phase 37 (Psychological Substrate) | Pending |
+| PGEN-01 | Phase 38 (Psychological Inference Engine) | Pending |
+| PGEN-02 | Phase 38 (Psychological Inference Engine) | Pending |
+| PGEN-03 | Phase 38 (Psychological Inference Engine) | Pending |
+| PGEN-04 | Phase 38 (Psychological Inference Engine) | Pending |
+| PGEN-05 | Phase 38 (Psychological Inference Engine) | Pending |
+| PGEN-06 | Phase 38 (Psychological Inference Engine) | Pending |
+| PGEN-07 | Phase 38 (Psychological Inference Engine) | Pending |
+| PSURF-01 | Phase 39 (Psychological Surfaces) | Pending |
+| PSURF-02 | Phase 39 (Psychological Surfaces) | Pending |
+| PSURF-03 | Phase 39 (Psychological Surfaces) | Pending |
+| PSURF-04 | Phase 39 (Psychological Surfaces) | Pending |
+| PSURF-05 | Phase 39 (Psychological Surfaces) | Pending |
+| PMT-01 | Phase 40 (Psychological Milestone Tests) | Pending |
+| PMT-02 | Phase 40 (Psychological Milestone Tests) | Pending |
+| PMT-03 | Phase 40 (Psychological Milestone Tests) | Pending |
+| PMT-04 | Phase 40 (Psychological Milestone Tests) | Pending |
+| PMT-05 | Phase 40 (Psychological Milestone Tests) | Pending |
+| PMT-06 | Phase 40 (Psychological Milestone Tests) | Pending |
 
 **Total: 28 requirements, 4 phases, continues from Phase 36.**
