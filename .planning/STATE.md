@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.5
-milestone_name: M010 Operational Profiles
-status: Awaiting next milestone
-stopped_at: Phase 36 context gathered
-last_updated: "2026-05-13T12:04:34.992Z"
-last_activity: 2026-05-13 — Milestone v2.5 completed and archived
+milestone: v2.6
+milestone_name: M011 Psychological Profiles
+status: planning
+last_updated: "2026-05-13T16:52:54.697Z"
+last_activity: 2026-05-13
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 10
-  completed_plans: 10
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -26,10 +25,10 @@ See: .planning/PROJECT.md (symlink to /home/claude/chris/PLAN.md, updated 2026-0
 
 ## Current Position
 
-Phase: Milestone v2.5 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-05-13 — Milestone v2.5 completed and archived
+Status: Defining requirements
+Last activity: 2026-05-13 — Milestone v2.6 started
 
 ## Shipped Milestones
 

@@ -329,7 +329,7 @@ v2.5 closed: 22/22 requirements (PROF-01..05 + GEN-01..07 + SURF-01..05 + PTEST-
 
 Chris is deployed on self-hosted Proxmox (192.168.1.50) with profile inference live. The full reflection loop is now grounded: M008 episodic summaries + M007 resolved decisions + M009 daily journal + wellbeing + weekly review + M010 operational profile injection into REFLECT/COACH/PSYCHOLOGY.
 
-**Currently between milestones.** M011 Psychological Profiles is unblocked and is the next planned milestone — HEXACO traits, attachment dimensions (ATTACH-01 activation trigger 2,000 words / 60 days), values, and other inferred-trait psychology that consumes M010 operational substrate + M008 episodic. Kickoff command: `/gsd-new-milestone "M011 Psychological Profiles"`.
+**Active milestone: v2.6 M011 Psychological Profiles** — kicked off 2026-05-13 via `/gsd-new-milestone`. See `## Current Milestone` below.
 
 **Tech debt carried into v2.6+:**
 - **Phase 34 first-Sunday cron fire observation pending 2026-05-17** — naturally future-dated; container deployed and cron registered (boot log confirms `cron='0 22 * * 0' timezone='Europe/Paris'`). Operator observes via `ssh chris@192.168.1.50 'docker logs chris-chris-1 | grep chris.profile'` after 22:00 Paris on 2026-05-17.
@@ -341,18 +341,32 @@ Chris is deployed on self-hosted Proxmox (192.168.1.50) with profile inference l
 
 Archived detail: `.planning/milestones/v2.0-*`, `.planning/milestones/v2.1-*`, `.planning/milestones/v2.2-*`, `.planning/milestones/v2.3-*`, `.planning/milestones/v2.4-*`, `.planning/milestones/v2.5-*`, `.planning/milestones/v2.X-phases/` (phase directories for v2.0–v2.5; v2.3 phase archival is the only outstanding archive task).
 
-## Next Milestone: v2.6 M011 Psychological Profiles
+## Current Milestone: v2.6 M011 Psychological Profiles
 
-**Status:** Awaiting kickoff via `/gsd-new-milestone "M011 Psychological Profiles"`.
+**Goal:** Layer empirically-grounded psychological trait inference on top of the M010 operational substrate. Two new profile dimensions — HEXACO six-factor personality and Schwartz ten universal values — updated on a slower (monthly) cadence than operational profiles, gated by a strict 5,000-word minimum threshold on Greg's own speech and surfaced with per-dimension confidence ranges. Attachment dimensions schema is defined alongside (population logic deferred to weekly-sweep activation trigger).
 
-**Goal (from `M011_*.md` spec):** Layer psychological trait inference (HEXACO Big-Six personality, attachment dimensions, values, regulatory focus) on top of M010 operational substrate. Psychological profiles update on a slower cadence than operational profiles because traits change slowly; they consume aggregated episodic + relational-memory substrate and explicitly do NOT mix with operational profile fields (D047-to-be: psychological vs operational boundary).
+**Target features:**
+- `profile_hexaco` table (6 dims: honesty_humility, emotionality, extraversion, agreeableness, conscientiousness, openness), per-dim `{score 1.0–5.0, confidence 0.0–1.0, last_updated}` jsonb + `overall_confidence` + Never-Retrofit Checklist columns (schema_version + substrate_hash + name UNIQUE 'primary')
+- `profile_schwartz` table (10 values: self_direction, stimulation, hedonism, achievement, power, security, conformity, tradition, benevolence, universalism), same per-dim structure
+- `profile_attachment` schema-only (anxious / avoidant / secure dimensions) — table exists, population gated on automatic activation trigger (2,000 words relational speech over 60 days)
+- Monthly cron — pulls previous-month episodic summaries + Pensieve entries (Greg's own speech only), Sonnet inference per profile, confidence reflects volume + inter-period consistency
+- 5,000-word floor — below threshold, row exists with `"insufficient data — need X more words"` per dimension and `overall_confidence=0`
+- `getPsychologicalProfiles()` reader API + Zod parse defense + integration into `PROFILE_INJECTION_MAP` so REFLECT / COACH / PSYCHOLOGY mode handlers receive psychological context alongside operational
+- `/profile` Telegram command extended with HEXACO + Schwartz sections (with insufficient-data branch + golden-output snapshot)
+- Synthetic-fixture test — 30+ days summaries + 6,000-word simulated dialogue with designed personality signature; verifies (a) 1,000 words → no profile, (b) 6,000 words → populated with confidence>0, (c) detected signature roughly matches designed within accuracy bounds
+- Live anti-hallucination 3-of-3 milestone-gate test against real Sonnet 4.6, dual-gated (`RUN_LIVE_TESTS=1` + `ANTHROPIC_API_KEY`), three-way `describe.skipIf` per D045
 
-**Pause discipline:** M009 needed 1 month real use before M010 started — but M010 used primed fixtures (D041), satisfying the data-substrate condition without calendar wait. M011 inherits the same flexibility: operator decides whether to gate on at least one Sunday cron fire observation (2026-05-17) before kickoff or to start fixture-driven planning immediately.
+**Key context / decisions in force:**
+- **Continues phase numbering from 36** → v2.6 starts at **Phase 37** (no `--reset-phase-numbers` flag).
+- **D047-to-be:** Psychological-vs-operational boundary — psychological profiles consume episodic + relational substrate, do NOT mix with operational profile fields, and may have a separate `PSYCHOLOGICAL_PROFILE_INJECTION_MAP` (TBD during planning).
+- **Pause discipline:** M010 used primed fixtures (D041) satisfying the data-substrate condition without calendar wait. M011 inherits the same flexibility. The first Sunday 22:00 Paris M010 cron fire observation (2026-05-17) is a parallel observability gate, NOT a hard prerequisite for M011 kickoff.
+- **Reuses M010 patterns:** Never-Retrofit Checklist (D042), substrate-hash idempotency three-cycle test (D044), three-way `describe.skipIf` for live tests (D045), live-test cost discipline ~$0.10-0.15 per run (D046), `PROFILE_INJECTION_MAP` per-mode subset (D043).
+- **John→Greg:** the M011 spec uses "John" — historical PRD artifact; all references treated as "Greg" per M006 Phase 11 unification.
 
 ---
 
 <details>
-<summary>Previous milestone (v2.5 M010 Operational Profiles — shipped 2026-05-13)</summary>
+<summary>v2.5 M010 Operational Profiles (shipped 2026-05-13 — historical)</summary>
 
 **Goal:** Build four operational profile dimensions (jurisdictional, capital, health, family) that capture Greg's situational state from observable facts. Profiles inject as grounded context into REFLECT/COACH/PSYCHOLOGY mode handlers and are read-only-surfaced via a new `/profile` Telegram command.
 
@@ -491,4 +505,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-13 after v2.5 M010 Operational Profiles milestone close. Full evolution review completed — Requirements link list (added v2.4 + v2.5), Implementation Phases (M009 + M010 marked ✅), Current State (Shipped list + v2.5 close narrative + v2.6 next + tech debt rolled forward), Current Milestone section (replaced with Next Milestone: v2.6 M011 + collapsed v2.5 into historical detail block), Key Decisions (added D042 Never-Retrofit Checklist, D043 PROFILE_INJECTION_MAP per-mode subset, D044 three-cycle idempotency, D045 three-way describe.skipIf, D046 live-test cost discipline). "What This Is" / Core Value / Constraints / Out of Scope reviewed and unchanged — M010 fits the existing framing of "Pensieve with first-person voice grounded in structured facts." Next: `/gsd-new-milestone "M011 Psychological Profiles"` after observing 2026-05-17 first Sunday 22:00 Paris cron fire.*
+*Last updated: 2026-05-13 — v2.6 M011 Psychological Profiles kicked off via `/gsd-new-milestone`. Replaced "Next Milestone v2.6" section with active "Current Milestone v2.6" block (HEXACO + Schwartz + attachment-schema target features, key decisions in force, phase numbering continues from 36 → starts at Phase 37). M010 detail block relabeled "shipped 2026-05-13 — historical." Awaiting REQUIREMENTS.md scoping then ROADMAP.md.*
