@@ -83,8 +83,8 @@ See `.planning/milestones/v2.4-ROADMAP.md` for full phase details + `.planning/m
   4. `formatProfileForDisplay(profile)` golden-output snapshot test passes on a fixed `MOCK_PROFILES` fixture — no internal field name leakage, no third-person framing, no `parse_mode` set
   5. When all four profiles are null (e.g., fresh DB or all below threshold), `formatProfilesForPrompt()` returns empty string and mode handlers omit the injection block entirely
 **Plans**: 3 plans
-- [ ] 35-01-PLAN.md — buildSystemPrompt signature refactor + atomic call-site migration (SURF-01, HARD CO-LOC #M10-4)
-- [ ] 35-02-PLAN.md — PROFILE_INJECTION_MAP + formatProfilesForPrompt + REFLECT/COACH/PSYCHOLOGY injection wiring (SURF-02)
+- [x] 35-01-PLAN.md — buildSystemPrompt signature refactor + atomic call-site migration (SURF-01, HARD CO-LOC #M10-4)
+- [x] 35-02-PLAN.md — PROFILE_INJECTION_MAP + formatProfilesForPrompt + REFLECT/COACH/PSYCHOLOGY injection wiring (SURF-02)
 - [ ] 35-03-PLAN.md — /profile command + formatProfileForDisplay + golden-output snapshot test + bot registration (SURF-03/04/05, HARD CO-LOC #M10-5)
 
 **HARD CO-LOCATION #M10-4**: `buildSystemPrompt` signature refactor lands atomically across ALL call sites in ONE plan. Pre-work: full `buildSystemPrompt` call-site grep (OQ-3) before any code change.
@@ -116,7 +116,7 @@ See `.planning/milestones/v2.4-ROADMAP.md` for full phase details + `.planning/m
 | 25-32 | v2.4 | 23/23 + Phase 32 inline | Complete | 2026-05-11 |
 | 33 — Profile Substrate | v2.5 | 2/2 | Complete   | 2026-05-11 |
 | 34 — Inference Engine | v2.5 | 3/3 | Complete    | 2026-05-12 |
-| 35 — Surfaces | v2.5 | 0/3 | Not started | — |
+| 35 — Surfaces | v2.5 | 2/3 | In Progress|  |
 | 36 — Tests | v2.5 | 0/2 | Not started | — |
 
 ## Archived Milestones
