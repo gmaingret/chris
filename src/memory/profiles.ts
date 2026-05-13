@@ -208,7 +208,11 @@ export async function getOperationalProfiles(): Promise<OperationalProfiles> {
 const PER_DIMENSION_CHAR_CAP = 2000;
 const STALENESS_MS = 21 * 86_400_000;
 const HEALTH_CONFIDENCE_FLOOR = 0.5;
-const PROFILE_INJECTION_HEADER = '## Operational Profile (grounded context — not interpretation)';
+// Exported for Phase 36 Plan 02 PTEST-05 (live anti-hallucination test) which
+// asserts this exact header appears in the REFLECT system prompt. Sibling
+// tests in src/memory/profiles/__tests__/ may also import to avoid hardcoding
+// the verbatim string in two places.
+export const PROFILE_INJECTION_HEADER = '## Operational Profile (grounded context — not interpretation)';
 
 /**
  * Format the operational profiles for system-prompt injection in REFLECT,
