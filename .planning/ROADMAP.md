@@ -62,7 +62,7 @@ See `.planning/milestones/v2.5-ROADMAP.md` for full phase details + `.planning/m
 
 Plans:
 **Wave 1**
-- [ ] 37-01-PLAN.md — HARD CO-LOC #M11-1 atomic migration (migration 0013 SQL + schema.ts pgTable exports + drizzle meta snapshot + _journal entry + test.sh apply line + regen-snapshots cleanup-flag bump + psychological-schemas.ts Zod types)
+- [x] 37-01-PLAN.md — HARD CO-LOC #M11-1 atomic migration (migration 0013 SQL + schema.ts pgTable exports + drizzle meta snapshot + _journal entry + test.sh apply line + regen-snapshots cleanup-flag bump + psychological-schemas.ts Zod types)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 37-02-PLAN.md — Substrate loader + reader API + confidence helpers + boundary audit + 4 test files (PSCH-07..10)
@@ -145,7 +145,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 25-32 (v2.4) | 23/23 + Phase 32 inline | Complete | 2026-05-11 |
 | 33-36 (v2.5) | 10/10, 22/22 reqs | Complete | 2026-05-13 |
-| 37. Psychological Substrate | 0/2 | Planning complete | - |
+| 37. Psychological Substrate | 1/2 | In Progress|  |
 | 38. Psychological Inference Engine | 0/TBD | Not started | - |
 | 39. Psychological Surfaces | 0/TBD | Not started | - |
 | 40. Psychological Milestone Tests | 0/TBD | Not started | - |
