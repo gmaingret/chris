@@ -58,7 +58,15 @@ See `.planning/milestones/v2.5-ROADMAP.md` for full phase details + `.planning/m
   3. `loadPsychologicalSubstrate('hexaco', now)` returns only `source='telegram'` entries with `epistemic_tag != 'RITUAL_RESPONSE'`; Gmail/Immich/Drive/episodic-summary rows are provably absent from the corpus.
   4. `loadPsychologicalSubstrate` returns `{ belowThreshold: true, wordCount, neededWords }` when corpus word count is below 5,000; no Sonnet call is made; `word_count_at_last_run` is persisted.
   5. `psych-boundary-audit.test.ts` fails if `\b(jurisdictional|capital|health|family)\b` appears in any `psychological-*.ts` file, and fails if `\b(hexaco|schwartz|attachment)\b` appears in operational profile generator/prompt/shared files.
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+**Wave 1**
+- [ ] 37-01-PLAN.md — HARD CO-LOC #M11-1 atomic migration (migration 0013 SQL + schema.ts pgTable exports + drizzle meta snapshot + _journal entry + test.sh apply line + regen-snapshots cleanup-flag bump + psychological-schemas.ts Zod types)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 37-02-PLAN.md — Substrate loader + reader API + confidence helpers + boundary audit + 4 test files (PSCH-07..10)
+
 **UI hint**: no
 
 **HARD CO-LOC #M11-1:** Migration 0013 SQL + `src/db/schema.ts` Drizzle table exports + `src/db/migrations/meta/0013_snapshot.json` + `_journal.json` entry + `scripts/test.sh` psql apply line + `src/memory/profiles/psychological-schemas.ts` Zod type exports ship in ONE atomic plan.
@@ -137,7 +145,7 @@ See `.planning/milestones/v2.5-ROADMAP.md` for full phase details + `.planning/m
 |-------|----------------|--------|-----------|
 | 25-32 (v2.4) | 23/23 + Phase 32 inline | Complete | 2026-05-11 |
 | 33-36 (v2.5) | 10/10, 22/22 reqs | Complete | 2026-05-13 |
-| 37. Psychological Substrate | 0/TBD | Not started | - |
+| 37. Psychological Substrate | 0/2 | Planning complete | - |
 | 38. Psychological Inference Engine | 0/TBD | Not started | - |
 | 39. Psychological Surfaces | 0/TBD | Not started | - |
 | 40. Psychological Milestone Tests | 0/TBD | Not started | - |
