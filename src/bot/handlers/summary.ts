@@ -34,17 +34,15 @@
 import type { Context } from 'grammy';
 import { DateTime } from 'luxon';
 import { getEpisodicSummary } from '../../pensieve/retrieve.js';
-import { getLastUserLanguage } from '../../chris/language.js';
+import { getLastUserLanguage, langOf, type Lang } from '../../chris/language.js';
 import { config } from '../../config.js';
 import { logger } from '../../utils/logger.js';
 import type { episodicSummaries } from '../../db/schema.js';
 
-type Lang = 'English' | 'French' | 'Russian';
-
-function langOf(raw: string | null): Lang {
-  if (raw === 'French' || raw === 'Russian' || raw === 'English') return raw;
-  return 'English';
-}
+// IN-04: `langOf` + `Lang` come from src/chris/language.ts (shared with
+// profile.ts and future M011+ user-facing surfaces). decisions.ts uses a
+// different `isoLang` returning `'en'|'fr'|'ru'` and is intentionally NOT
+// migrated — its iso-code shape is load-bearing for its switch statements.
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 

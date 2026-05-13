@@ -90,3 +90,30 @@ export function setLastUserLanguage(chatId: string, language: string): void {
 export function clearLanguageState(chatId: string): void {
   sessionLanguage.delete(chatId);
 }
+
+// ── Narrow language string → Lang union ────────────────────────────────────
+
+/**
+ * The three display-name language values used by user-facing handlers
+ * (`/profile`, `/summary`, and future M011+ surfaces). Mirrors the three
+ * franc-supported languages declared in LANGUAGE_NAMES above.
+ */
+export type Lang = 'English' | 'French' | 'Russian';
+
+/**
+ * Narrow a `string | null` (the return type of `getLastUserLanguage` /
+ * `getLastUserLanguageFromDb`) to the `Lang` union, falling back to
+ * `'English'` when the value is null, undefined, or any unexpected string.
+ *
+ * IN-04: extracted from the duplicated 3-line helpers that lived in
+ * `src/bot/handlers/profile.ts` and `src/bot/handlers/summary.ts`. Co-located
+ * here with `getLastUserLanguage` because every caller pairs the two
+ * (`langOf(getLastUserLanguage(...))`) — the helper belongs next to its
+ * upstream producer, not in handler-local code. `decisions.ts` uses a
+ * different `isoLang` (`'en'|'fr'|'ru'`) and is intentionally NOT migrated
+ * here.
+ */
+export function langOf(raw: string | null): Lang {
+  if (raw === 'French' || raw === 'Russian' || raw === 'English') return raw;
+  return 'English';
+}

@@ -66,21 +66,18 @@ import type {
   HealthProfileData,
   FamilyProfileData,
 } from '../../memory/profiles/schemas.js';
-import { getLastUserLanguage } from '../../chris/language.js';
+import { getLastUserLanguage, langOf, type Lang } from '../../chris/language.js';
 import { logger } from '../../utils/logger.js';
 
 // ── Lang narrowing ──────────────────────────────────────────────────────────
 //
-// Exported so the golden-snapshot test can pass it as a parameter. langOf is
-// the same shape summary.ts:42-47 uses — getLastUserLanguage returns string |
-// null and we narrow it to the 3-element union here.
+// IN-04: `langOf` + `Lang` are imported from src/chris/language.ts (the
+// shared module co-located with `getLastUserLanguage`). The type is
+// re-exported below so the golden-snapshot test in profile.golden.test.ts
+// can `import { type Lang } from '../profile.js'` without reaching into
+// `src/chris/`. summary.ts consumes the same shared helpers — see #IN-04.
 
-export type Lang = 'English' | 'French' | 'Russian';
-
-function langOf(raw: string | null): Lang {
-  if (raw === 'French' || raw === 'Russian' || raw === 'English') return raw;
-  return 'English';
-}
+export type { Lang };
 
 // ── Staleness threshold ─────────────────────────────────────────────────────
 //
