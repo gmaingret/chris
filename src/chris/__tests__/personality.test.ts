@@ -230,3 +230,94 @@ describe('CONSTITUTIONAL_PREAMBLE export (Phase 21 CONS-04 dependency)', () => {
     expect(prompt.startsWith(CONSTITUTIONAL_PREAMBLE)).toBe(true);
   });
 });
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Phase 35 Plan 35-02 — extras.operationalProfiles injection (D-07, D-28)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+describe('extras.operationalProfiles injection (Phase 35 D-07)', () => {
+  const PROFILE_BLOCK =
+    '## Operational Profile (grounded context — not interpretation)\n\nfake-jurisdictional-block';
+  const PENSIEVE = 'PENSIEVE_FACTS_MARKER';
+
+  it('REFLECT: prepends operationalProfiles ABOVE pensieveContext when set', () => {
+    const out = buildSystemPrompt('REFLECT', PENSIEVE, 'REL', {
+      operationalProfiles: PROFILE_BLOCK,
+    });
+    expect(out).toContain('fake-jurisdictional-block');
+    expect(out).toContain(PENSIEVE);
+    const iProfile = out.indexOf('fake-jurisdictional-block');
+    const iPensieve = out.indexOf(PENSIEVE);
+    expect(iProfile).toBeGreaterThan(0);
+    expect(iPensieve).toBeGreaterThan(iProfile);
+  });
+
+  it('COACH: prepends operationalProfiles ABOVE pensieveContext when set', () => {
+    const out = buildSystemPrompt('COACH', PENSIEVE, 'REL', {
+      operationalProfiles: PROFILE_BLOCK,
+    });
+    expect(out).toContain('fake-jurisdictional-block');
+    expect(out).toContain(PENSIEVE);
+    const iProfile = out.indexOf('fake-jurisdictional-block');
+    const iPensieve = out.indexOf(PENSIEVE);
+    expect(iProfile).toBeGreaterThan(0);
+    expect(iPensieve).toBeGreaterThan(iProfile);
+  });
+
+  it('PSYCHOLOGY: prepends operationalProfiles ABOVE pensieveContext when set', () => {
+    const out = buildSystemPrompt('PSYCHOLOGY', PENSIEVE, 'REL', {
+      operationalProfiles: PROFILE_BLOCK,
+    });
+    expect(out).toContain('fake-jurisdictional-block');
+    expect(out).toContain(PENSIEVE);
+    const iProfile = out.indexOf('fake-jurisdictional-block');
+    const iPensieve = out.indexOf(PENSIEVE);
+    expect(iProfile).toBeGreaterThan(0);
+    expect(iPensieve).toBeGreaterThan(iProfile);
+  });
+
+  it('JOURNAL silently drops extras.operationalProfiles (D-28)', () => {
+    const out = buildSystemPrompt('JOURNAL', PENSIEVE, undefined, {
+      operationalProfiles: 'should-not-appear-in-journal',
+    });
+    expect(out).not.toContain('should-not-appear-in-journal');
+  });
+
+  it('INTERROGATE silently drops extras.operationalProfiles (D-28)', () => {
+    const out = buildSystemPrompt('INTERROGATE', PENSIEVE, undefined, {
+      operationalProfiles: 'should-not-appear-in-interrogate',
+    });
+    expect(out).not.toContain('should-not-appear-in-interrogate');
+  });
+
+  it('PRODUCE silently drops extras.operationalProfiles (D-28)', () => {
+    const out = buildSystemPrompt('PRODUCE', PENSIEVE, undefined, {
+      operationalProfiles: 'should-not-appear-in-produce',
+    });
+    expect(out).not.toContain('should-not-appear-in-produce');
+  });
+
+  it('PHOTOS silently drops extras.operationalProfiles (D-28)', () => {
+    const out = buildSystemPrompt('PHOTOS', PENSIEVE, undefined, {
+      operationalProfiles: 'should-not-appear-in-photos',
+    });
+    expect(out).not.toContain('should-not-appear-in-photos');
+  });
+
+  it('ACCOUNTABILITY silently drops extras.operationalProfiles (D-28)', () => {
+    const out = buildSystemPrompt('ACCOUNTABILITY', 'decision-ctx', 'temporal-ctx', {
+      operationalProfiles: 'should-not-appear-in-accountability',
+    });
+    expect(out).not.toContain('should-not-appear-in-accountability');
+  });
+
+  it('REFLECT: empty operationalProfiles string behaves identically to undefined (D-12)', () => {
+    const withEmpty = buildSystemPrompt('REFLECT', PENSIEVE, 'REL', {
+      operationalProfiles: '',
+    });
+    const withoutField = buildSystemPrompt('REFLECT', PENSIEVE, 'REL');
+    expect(withEmpty).toBe(withoutField);
+    // Sanity: empty string must NOT introduce the verbatim header
+    expect(withEmpty).not.toContain('## Operational Profile (grounded context — not interpretation)');
+  });
+});
