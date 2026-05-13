@@ -54,6 +54,12 @@ export interface Args {
   force: boolean;
   noRefresh: boolean;
   reseedVcr: boolean; // HARN-05
+  /**
+   * Phase 36 D-03..D-06 (PTEST-01): repeatable `--profile-bias <dim>`
+   * pass-through to synthesize-delta.ts. Plumbed verbatim — value
+   * whitelist enforcement lives in the downstream script (T-36-02).
+   */
+  profileBias: readonly string[];
 }
 
 export function parseCliArgs(argv: string[]): Args {
@@ -64,6 +70,7 @@ export function parseCliArgs(argv: string[]): Args {
     force?: boolean;
     'no-refresh'?: boolean;
     'reseed-vcr'?: boolean;
+    'profile-bias'?: string[];
     help?: boolean;
   };
   try {
@@ -76,6 +83,10 @@ export function parseCliArgs(argv: string[]): Args {
         force: { type: 'boolean', default: false },
         'no-refresh': { type: 'boolean', default: false },
         'reseed-vcr': { type: 'boolean', default: false },
+        // Phase 36 D-03 pass-through; whitelist validation lives downstream
+        // in synthesize-delta.ts so a single source of truth governs accepted
+        // dimensions.
+        'profile-bias': { type: 'string', multiple: true },
         help: { type: 'boolean', default: false },
       },
       strict: true,
@@ -120,12 +131,13 @@ export function parseCliArgs(argv: string[]): Args {
     force: values.force ?? false,
     noRefresh: values['no-refresh'] ?? false,
     reseedVcr: values['reseed-vcr'] ?? false, // HARN-05
+    profileBias: values['profile-bias'] ?? [],
   };
 }
 
 function printUsage(): void {
   console.log(
-    'Usage: npx tsx scripts/regenerate-primed.ts --milestone <name> [--target-days 14] [--seed 42] [--force] [--no-refresh] [--reseed-vcr]',
+    'Usage: npx tsx scripts/regenerate-primed.ts --milestone <name> [--target-days 14] [--seed 42] [--force] [--no-refresh] [--reseed-vcr] [--profile-bias <dim>]...',
   );
   console.log(
     '  Composer: fetch-prod-data.ts → synthesize-delta.ts → synthesize-episodic.ts.',
@@ -138,6 +150,12 @@ function printUsage(): void {
   );
   console.log(
     '  --reseed-vcr clears tests/fixtures/.vcr before re-run (HARN-05).',
+  );
+  console.log(
+    '  --profile-bias  repeatable; passed through to synthesize-delta.ts',
+  );
+  console.log(
+    '                  (Phase 36 D-03..D-09; dim ∈ {jurisdictional,capital,health,family}).',
   );
 }
 
@@ -237,6 +255,11 @@ export async function main(): Promise<void> {
       args.milestone,
     ];
     if (args.noRefresh) synthDeltaArgs.push('--no-refresh');
+    // Phase 36 D-03 pass-through. Each --profile-bias becomes an additive
+    // pair on the downstream synthesize-delta argv.
+    for (const dim of args.profileBias) {
+      synthDeltaArgs.push('--profile-bias', dim);
+    }
     logger.info(
       { args: synthDeltaArgs },
       'regenerate-primed.synth-delta.start',
