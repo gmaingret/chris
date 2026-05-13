@@ -551,19 +551,55 @@ export function formatProfileForDisplay(
   return lines.join('\n');
 }
 
-// ── Handler (Task 3 fills in the body) ──────────────────────────────────────
+// ── Handler ─────────────────────────────────────────────────────────────────
+//
+// User-initiated `/profile` Telegram command. Reads all 4 operational profiles
+// in parallel (Phase 33 never-throw reader), renders each via the pure
+// formatProfileForDisplay, sends one ctx.reply per dimension in declaration
+// order, then a final reply with the M011 psychological-profile placeholder.
+// Total: 5 ctx.reply calls per /profile invocation (D-18). On error, sends a
+// single localized genericError reply + logger.warn — never silent.
+//
+// Per D-17 + SURF-05: every ctx.reply takes a single plain-string argument
+// (no parse_mode). Per D-19: language sourced from in-memory
+// getLastUserLanguage cache (user-initiated context); NOT getLastUserLanguageFromDb
+// (that's for cron handlers where the in-memory cache may be cold — M009
+// first-Sunday lesson).
+//
+// Per ANTI-6: ZERO sub-argument parsing surface — ctx.message.text is ignored.
+// `/profile edit jurisdictional ...` would route to the same handler and emit
+// the same 5 replies. No regex, no split, no command-suffix logic.
 
-export async function handleProfileCommand(
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  ctx: Context,
-): Promise<void> {
-  // Silence unused-import warnings until Task 3 fills in the body.
-  void getOperationalProfiles;
-  void getLastUserLanguage;
-  void langOf;
-  void logger;
-  void STALENESS_MS;
-  void MSG;
-  throw new Error('TODO: Task 3');
+export async function handleProfileCommand(ctx: Context): Promise<void> {
+  const chatId = ctx.chat?.id;
+  if (chatId === undefined) return;
+
+  const lang = langOf(getLastUserLanguage(chatId.toString()));
+
+  try {
+    const profiles = await getOperationalProfiles();
+    // D-18: 5 ctx.reply calls — 4 dimensions in declaration order + M011.
+    // Sequential awaits so Telegram receives the messages in the same order
+    // they're emitted (parallelizing via Promise.all would not guarantee
+    // message arrival order at the client). Per-dimension failure isolation:
+    // formatProfileForDisplay is pure and exception-free over the typed
+    // OperationalProfiles shape (null branch + populated branch both return
+    // strings); any throw here means the catch-block fires and Greg sees a
+    // genericError, which is the right UX over a partial 3-dimension reply.
+    const dimensions: Dimension[] = ['jurisdictional', 'capital', 'health', 'family'];
+    for (const dim of dimensions) {
+      await ctx.reply(formatProfileForDisplay(dim, profiles[dim], lang));
+    }
+    await ctx.reply(MSG.m011Placeholder[lang]);
+  } catch (err) {
+    logger.warn(
+      {
+        chatId,
+        error: err instanceof Error ? err.message : String(err),
+      },
+      'profile.command.error',
+    );
+    await ctx.reply(MSG.genericError[lang]);
+  }
 }
 
