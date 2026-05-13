@@ -32,7 +32,7 @@ See `.planning/milestones/v2.4-ROADMAP.md` for full phase details + `.planning/m
 
 - [x] **Phase 33: Profile Substrate** — Migration 0012 + 4 profile tables + history table + reader API + Zod schemas (completed 2026-05-11)
 - [x] **Phase 34: Inference Engine** — Shared prompt builder + 4 generators + orchestrator + Sunday 22:00 cron + idempotency (completed 2026-05-12)
-- [ ] **Phase 35: Surfaces** — buildSystemPrompt refactor + REFLECT/COACH/PSYCHOLOGY injection + /profile command + formatter
+- [x] **Phase 35: Surfaces** — buildSystemPrompt refactor + REFLECT/COACH/PSYCHOLOGY injection + /profile command + formatter (completed 2026-05-13)
 - [ ] **Phase 36: Tests** — m010-30days primed fixture + real-DB integration + two-cycle idempotency + sparse + live 3-of-3
 
 ## Phase Details
@@ -85,7 +85,7 @@ See `.planning/milestones/v2.4-ROADMAP.md` for full phase details + `.planning/m
 **Plans**: 3 plans
 - [x] 35-01-PLAN.md — buildSystemPrompt signature refactor + atomic call-site migration (SURF-01, HARD CO-LOC #M10-4)
 - [x] 35-02-PLAN.md — PROFILE_INJECTION_MAP + formatProfilesForPrompt + REFLECT/COACH/PSYCHOLOGY injection wiring (SURF-02)
-- [ ] 35-03-PLAN.md — /profile command + formatProfileForDisplay + golden-output snapshot test + bot registration (SURF-03/04/05, HARD CO-LOC #M10-5)
+- [x] 35-03-PLAN.md — /profile command + formatProfileForDisplay + golden-output snapshot test + bot registration (SURF-03/04/05, HARD CO-LOC #M10-5)
 
 **HARD CO-LOCATION #M10-4**: `buildSystemPrompt` signature refactor lands atomically across ALL call sites in ONE plan. Pre-work: full `buildSystemPrompt` call-site grep (OQ-3) before any code change.
 **HARD CO-LOCATION #M10-5**: `/profile` handler + `formatProfileForDisplay` + golden-output snapshot test land in the SAME plan.
@@ -116,7 +116,7 @@ See `.planning/milestones/v2.4-ROADMAP.md` for full phase details + `.planning/m
 | 25-32 | v2.4 | 23/23 + Phase 32 inline | Complete | 2026-05-11 |
 | 33 — Profile Substrate | v2.5 | 2/2 | Complete   | 2026-05-11 |
 | 34 — Inference Engine | v2.5 | 3/3 | Complete    | 2026-05-12 |
-| 35 — Surfaces | v2.5 | 2/3 | In Progress|  |
+| 35 — Surfaces | v2.5 | 3/3 | Complete   | 2026-05-13 |
 | 36 — Tests | v2.5 | 0/2 | Not started | — |
 
 ## Archived Milestones

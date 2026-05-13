@@ -26,11 +26,11 @@ Milestone scope locked 2026-05-11 after `/gsd-new-milestone` research pass (STAC
 
 ### SURF — User-facing surfaces (Phase 35)
 
-- [ ] **SURF-01**: `buildSystemPrompt` signature in `src/chris/personality.ts` refactored to `(mode, pensieveContext, relationalContext, extras: ChrisContextExtras)` where `ChrisContextExtras = { language, declinedTopics, operationalProfiles? }` — atomic across all call sites (HARD CO-LOC #M10-2 — partial refactor breaks mode dispatch). Pre-work: full call-site inventory (OQ-3) before any code change
-- [ ] **SURF-02**: REFLECT, COACH, PSYCHOLOGY mode handlers in `src/chris/modes/{reflect,coach,psychology}.ts` call `getOperationalProfiles()` and inject the result into `extras.operationalProfiles` as a structured `## Operational Profile (grounded context — not interpretation)` block placed ABOVE `{pensieveContext}` per D031 Known Facts pattern. JOURNAL/INTERROGATE/PRODUCE/PHOTOS modes do NOT receive the injection
-- [ ] **SURF-03**: `/profile` Telegram command in `src/bot/handlers/profile.ts` returns a formatted plain-text summary of all four operational profiles with confidence percentages; psychological section reads `"not yet available — see M011"` until M011 lands
-- [ ] **SURF-04**: `formatProfileForDisplay(profile)` function with golden-output snapshot test in `src/bot/handlers/__tests__/profile.golden.test.ts` — prevents the M009 first-fire UX regression class (third-person framing / leaked internal field names / format drift)
-- [ ] **SURF-05**: `/profile` output uses plain text — no Telegram `parse_mode` — per codebase D-31 convention; multi-section layout (one section per profile dimension) with ASCII section dividers mirroring `src/bot/handlers/summary.ts` formatting
+- [x] **SURF-01**: `buildSystemPrompt` signature in `src/chris/personality.ts` refactored to `(mode, pensieveContext, relationalContext, extras: ChrisContextExtras)` where `ChrisContextExtras = { language, declinedTopics, operationalProfiles? }` — atomic across all call sites (HARD CO-LOC #M10-4 — partial refactor breaks mode dispatch). Pre-work: full call-site inventory (OQ-3) before any code change
+- [x] **SURF-02**: REFLECT, COACH, PSYCHOLOGY mode handlers in `src/chris/modes/{reflect,coach,psychology}.ts` call `getOperationalProfiles()` and inject the result into `extras.operationalProfiles` as a structured `## Operational Profile (grounded context — not interpretation)` block placed ABOVE `{pensieveContext}` per D031 Known Facts pattern. JOURNAL/INTERROGATE/PRODUCE/PHOTOS modes do NOT receive the injection
+- [x] **SURF-03**: `/profile` Telegram command in `src/bot/handlers/profile.ts` returns a formatted plain-text summary of all four operational profiles with confidence percentages; psychological section reads `"not yet available — see M011"` until M011 lands
+- [x] **SURF-04**: `formatProfileForDisplay(profile)` function with golden-output snapshot test in `src/bot/handlers/__tests__/profile.golden.test.ts` — prevents the M009 first-fire UX regression class (third-person framing / leaked internal field names / format drift)
+- [x] **SURF-05**: `/profile` output uses plain text — no Telegram `parse_mode` — per codebase D-31 convention; multi-section layout (one section per profile dimension) with ASCII section dividers mirroring `src/bot/handlers/summary.ts` formatting
 
 ### PTEST — Profile tests (Phase 36)
 
@@ -90,11 +90,11 @@ These items closed v2.4 as deferred (see `.planning/milestones/v2.4-MILESTONE-AU
 | GEN-05 | 34 | 34-01 | Not Started | — |
 | GEN-06 | 34 | 34-02 | Not Started | — |
 | GEN-07 | 34 | 34-02 | Not Started | — |
-| SURF-01 | 35 | 35-01 | Not Started | — |
-| SURF-02 | 35 | 35-02 | Not Started | — |
-| SURF-03 | 35 | 35-03 | Not Started | — |
-| SURF-04 | 35 | 35-03 | Not Started | — |
-| SURF-05 | 35 | 35-03 | Not Started | — |
+| SURF-01 | 35 | 35-01 | Complete | 35-VERIFICATION.md (2026-05-13) |
+| SURF-02 | 35 | 35-02 | Complete | 35-VERIFICATION.md (2026-05-13) |
+| SURF-03 | 35 | 35-03 | Complete | 35-VERIFICATION.md (2026-05-13) |
+| SURF-04 | 35 | 35-03 | Complete | 35-VERIFICATION.md (2026-05-13) |
+| SURF-05 | 35 | 35-03 | Complete | 35-VERIFICATION.md (2026-05-13) |
 | PTEST-01 | 36 | 36-01 | Not Started | — |
 | PTEST-02 | 36 | 36-01 | Not Started | — |
 | PTEST-03 | 36 | 36-01 | Not Started | — |
