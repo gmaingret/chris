@@ -66,6 +66,20 @@ vi.mock('../personality.js', () => ({
   buildSystemPrompt: mockBuildSystemPrompt,
 }));
 
+// ── Mock memory/profiles (Phase 35 Plan 35-02 D-28 negative invariant) ─────
+// INTERROGATE is an OUT-OF-SCOPE mode — these mocks must remain UNCALLED.
+const mockGetOperationalProfiles = vi.fn();
+const mockFormatProfilesForPrompt = vi.fn();
+vi.mock('../../memory/profiles.js', () => ({
+  getOperationalProfiles: mockGetOperationalProfiles,
+  formatProfilesForPrompt: mockFormatProfilesForPrompt,
+  PROFILE_INJECTION_MAP: {
+    REFLECT: ['jurisdictional', 'capital', 'health', 'family'],
+    COACH: ['capital', 'family'],
+    PSYCHOLOGY: ['health', 'jurisdictional'],
+  },
+}));
+
 // ── Mock pensieve store (should NOT be called) ─────────────────────────────
 const mockStorePensieveEntry = vi.fn();
 vi.mock('../../pensieve/store.js', () => ({
@@ -503,5 +517,40 @@ describe('handleInterrogate — date-anchored summary injection (RETR-04)', () =
     expect(interpretationIdx).toBeGreaterThanOrEqual(0);
     expect(knownFactsIdx).toBeGreaterThanOrEqual(0);
     expect(interpretationIdx).toBeLessThan(knownFactsIdx);
+  });
+});
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Phase 35 Plan 35-02 — Negative-injection invariant (D-28)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+describe('INTERROGATE operational-profile injection (D-28 negative invariant)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Mirror the handleInterrogate happy-path defaults so the handler runs.
+    mockSearchPensieve.mockResolvedValue([]);
+    mockExtractQueryDate.mockResolvedValue(null);
+    mockGetEpisodicSummary.mockResolvedValue(null);
+    mockBuildPensieveContext.mockReturnValue('');
+    mockBuildMessageHistory.mockResolvedValue([]);
+    mockBuildSystemPrompt.mockReturnValue('interpolated system prompt');
+    mockCreate.mockResolvedValue(makeLLMResponse('Mocked'));
+    // Defense for test independence — even if accidentally called, return safely.
+    mockGetOperationalProfiles.mockResolvedValue({
+      jurisdictional: null,
+      capital: null,
+      health: null,
+      family: null,
+    });
+  });
+
+  it('does NOT call getOperationalProfiles (D-28 — out-of-scope mode)', async () => {
+    await handleInterrogate(CHAT_ID, TEST_QUERY);
+    expect(mockGetOperationalProfiles).not.toHaveBeenCalled();
+  });
+
+  it('does NOT call formatProfilesForPrompt (D-28 — wire-drift detector)', async () => {
+    await handleInterrogate(CHAT_ID, TEST_QUERY);
+    expect(mockFormatProfilesForPrompt).not.toHaveBeenCalled();
   });
 });

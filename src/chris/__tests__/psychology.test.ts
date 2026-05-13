@@ -80,6 +80,15 @@ vi.mock('../personality.js', () => ({
   buildSystemPrompt: mockBuildSystemPrompt,
 }));
 
+// ── Mock memory/profiles (Phase 35 Plan 35-02 SURF-02) ─────────────────────
+// PSYCHOLOGY is an in-scope mode per PROFILE_INJECTION_MAP — mocks the D-14 chain.
+const mockGetOperationalProfiles = vi.fn();
+const mockFormatProfilesForPrompt = vi.fn();
+vi.mock('../../memory/profiles.js', () => ({
+  getOperationalProfiles: mockGetOperationalProfiles,
+  formatProfilesForPrompt: mockFormatProfilesForPrompt,
+}));
+
 // ── Mock pensieve store (should NOT be called) ─────────────────────────────
 const mockStorePensieveEntry = vi.fn();
 vi.mock('../../pensieve/store.js', () => ({
@@ -202,6 +211,15 @@ describe('handlePsychology', () => {
       { role: 'assistant', content: 'previous answer' },
     ]);
     mockBuildSystemPrompt.mockReturnValue('interpolated psychology system prompt');
+    mockGetOperationalProfiles.mockResolvedValue({
+      jurisdictional: null,
+      capital: null,
+      health: null,
+      family: null,
+    });
+    mockFormatProfilesForPrompt.mockReturnValue(
+      '## Operational Profile (grounded context — not interpretation)\n\nfake-rendered-profile',
+    );
     mockCreate.mockResolvedValue(
       makeLLMResponse('This pattern of self-sabotage when things go well looks like a classic fear of success rooted in anxious attachment...'),
     );
@@ -241,7 +259,24 @@ describe('handlePsychology', () => {
       'PSYCHOLOGY',
       expect.any(String),
       expect.any(String),
-      { language: undefined, declinedTopics: undefined },
+      expect.objectContaining({ language: undefined, declinedTopics: undefined }),
+    );
+  });
+
+  it('calls getOperationalProfiles + formatProfilesForPrompt + passes operationalProfiles via extras (Phase 35 SURF-02, D-14)', async () => {
+    await handlePsychology(CHAT_ID, TEST_QUERY);
+    expect(mockGetOperationalProfiles).toHaveBeenCalledTimes(1);
+    expect(mockFormatProfilesForPrompt).toHaveBeenCalledWith(
+      expect.any(Object),
+      'PSYCHOLOGY',
+    );
+    expect(mockBuildSystemPrompt).toHaveBeenCalledWith(
+      'PSYCHOLOGY',
+      expect.any(String),
+      expect.any(String),
+      expect.objectContaining({
+        operationalProfiles: expect.stringContaining('Operational Profile'),
+      }),
     );
   });
 

@@ -236,3 +236,291 @@ describe('getOperationalProfiles — schema mismatch (D-13)', () => {
     expect(warnCalls.length).toBeGreaterThanOrEqual(1);
   });
 });
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Phase 35 Plan 35-02 — PROFILE_INJECTION_MAP + formatProfilesForPrompt
+// Pure-function tests (D-08 / D-09 / D-10 / D-11 / D-12 / D-13)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+import { afterEach } from 'vitest';
+import type {
+  ProfileRow,
+  OperationalProfiles,
+} from '../profiles.js';
+import type {
+  JurisdictionalProfileData,
+  CapitalProfileData,
+  HealthProfileData,
+  FamilyProfileData,
+} from '../profiles/schemas.js';
+
+const NOW = new Date('2026-05-13T12:00:00Z');
+const STALE_DATE = new Date('2026-04-01T12:00:00Z'); // 42 days before NOW
+const FRESH_DATE = new Date('2026-04-29T12:00:00Z'); // 14 days before NOW
+
+function makeRow<T>(data: T, confidence: number, lastUpdated: Date = FRESH_DATE): ProfileRow<T> {
+  return { data, confidence, lastUpdated, schemaVersion: 1 };
+}
+
+function jurisdictionalData(overrides: Partial<JurisdictionalProfileData> = {}): JurisdictionalProfileData {
+  return {
+    current_country: 'France',
+    physical_location: 'Antibes',
+    residency_status: [],
+    tax_residency: 'France',
+    active_legal_entities: [],
+    next_planned_move: { destination: null, from_date: null },
+    planned_move_date: null,
+    passport_citizenships: ['French'],
+    data_consistency: 0.8,
+    ...overrides,
+  };
+}
+
+function capitalData(overrides: Partial<CapitalProfileData> = {}): CapitalProfileData {
+  return {
+    fi_phase: 'accumulation',
+    fi_target_amount: '$1,500,000',
+    estimated_net_worth: '$900,000',
+    runway_months: 36,
+    next_sequencing_decision: 'evaluate-rental-income',
+    income_sources: [],
+    major_allocation_decisions: [],
+    tax_optimization_status: null,
+    active_legal_entities: [],
+    data_consistency: 0.8,
+    ...overrides,
+  };
+}
+
+function healthData(overrides: Partial<HealthProfileData> = {}): HealthProfileData {
+  return {
+    open_hypotheses: [],
+    pending_tests: [],
+    active_treatments: [],
+    recent_resolved: [],
+    case_file_narrative: 'Stable',
+    wellbeing_trend: { energy_30d_mean: 7, mood_30d_mean: 7, anxiety_30d_mean: 3 },
+    data_consistency: 0.8,
+    ...overrides,
+  };
+}
+
+function familyData(overrides: Partial<FamilyProfileData> = {}): FamilyProfileData {
+  return {
+    relationship_status: 'partnered',
+    partnership_criteria_evolution: [],
+    children_plans: 'undecided',
+    parent_care_responsibilities: { notes: null, dependents: [] },
+    active_dating_context: null,
+    milestones: [],
+    constraints: [],
+    data_consistency: 0.8,
+    ...overrides,
+  };
+}
+
+function freshProfiles(overrides: Partial<OperationalProfiles> = {}): OperationalProfiles {
+  return {
+    jurisdictional: makeRow(jurisdictionalData(), 0.7),
+    capital: makeRow(capitalData(), 0.7),
+    health: makeRow(healthData(), 0.7),
+    family: makeRow(familyData(), 0.7),
+    ...overrides,
+  };
+}
+
+const ALL_NULL_PROFILES: OperationalProfiles = {
+  jurisdictional: null,
+  capital: null,
+  health: null,
+  family: null,
+};
+
+describe('PROFILE_INJECTION_MAP — shape (D-08)', () => {
+  it('REFLECT contains all 4 dimensions in declaration order', async () => {
+    const { PROFILE_INJECTION_MAP } = await import('../profiles.js');
+    expect(PROFILE_INJECTION_MAP.REFLECT).toEqual(['jurisdictional', 'capital', 'health', 'family']);
+    expect(PROFILE_INJECTION_MAP.REFLECT.length).toBe(4);
+  });
+
+  it("COACH equals ['capital', 'family'] (M010-08(b) — no health to avoid topic drift)", async () => {
+    const { PROFILE_INJECTION_MAP } = await import('../profiles.js');
+    expect(PROFILE_INJECTION_MAP.COACH).toEqual(['capital', 'family']);
+  });
+
+  it("PSYCHOLOGY equals ['health', 'jurisdictional']", async () => {
+    const { PROFILE_INJECTION_MAP } = await import('../profiles.js');
+    expect(PROFILE_INJECTION_MAP.PSYCHOLOGY).toEqual(['health', 'jurisdictional']);
+  });
+
+  it('JOURNAL/INTERROGATE/PRODUCE/PHOTOS/ACCOUNTABILITY are NOT keys in the map (D-28 negative invariant)', async () => {
+    const { PROFILE_INJECTION_MAP } = await import('../profiles.js');
+    expect('JOURNAL' in PROFILE_INJECTION_MAP).toBe(false);
+    expect('INTERROGATE' in PROFILE_INJECTION_MAP).toBe(false);
+    expect('PRODUCE' in PROFILE_INJECTION_MAP).toBe(false);
+    expect('PHOTOS' in PROFILE_INJECTION_MAP).toBe(false);
+    expect('ACCOUNTABILITY' in PROFILE_INJECTION_MAP).toBe(false);
+  });
+});
+
+describe('formatProfilesForPrompt — gates and rendering (D-09..D-13)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('returns empty string when mode is not in PROFILE_INJECTION_MAP (D-12.a)', async () => {
+    const { formatProfilesForPrompt } = await import('../profiles.js');
+    const profiles = freshProfiles();
+    expect(formatProfilesForPrompt(profiles, 'JOURNAL')).toBe('');
+    expect(formatProfilesForPrompt(profiles, 'INTERROGATE')).toBe('');
+    expect(formatProfilesForPrompt(profiles, 'PRODUCE')).toBe('');
+    expect(formatProfilesForPrompt(profiles, 'PHOTOS')).toBe('');
+    expect(formatProfilesForPrompt(profiles, 'ACCOUNTABILITY')).toBe('');
+    expect(formatProfilesForPrompt(profiles, 'UNKNOWN_MODE')).toBe('');
+  });
+
+  it('returns empty string when all in-scope dimensions are null (D-12.b)', async () => {
+    const { formatProfilesForPrompt } = await import('../profiles.js');
+    expect(formatProfilesForPrompt(ALL_NULL_PROFILES, 'REFLECT')).toBe('');
+    expect(formatProfilesForPrompt(ALL_NULL_PROFILES, 'COACH')).toBe('');
+    expect(formatProfilesForPrompt(ALL_NULL_PROFILES, 'PSYCHOLOGY')).toBe('');
+  });
+
+  it('returns empty string when all in-scope dimensions are zero-confidence (D-12.c)', async () => {
+    const { formatProfilesForPrompt } = await import('../profiles.js');
+    const profiles: OperationalProfiles = {
+      jurisdictional: makeRow(jurisdictionalData(), 0),
+      capital: makeRow(capitalData(), 0),
+      health: makeRow(healthData(), 0),
+      family: makeRow(familyData(), 0),
+    };
+    expect(formatProfilesForPrompt(profiles, 'REFLECT')).toBe('');
+  });
+
+  it('PSYCHOLOGY returns empty when only health-low-conf + jurisdictional-null (D-12.d)', async () => {
+    const { formatProfilesForPrompt } = await import('../profiles.js');
+    const profiles: OperationalProfiles = {
+      jurisdictional: null,
+      capital: makeRow(capitalData(), 0.7), // not in PSYCHOLOGY scope
+      health: makeRow(healthData(), 0.3), // below 0.5 gate
+      family: makeRow(familyData(), 0.7), // not in PSYCHOLOGY scope
+    };
+    expect(formatProfilesForPrompt(profiles, 'PSYCHOLOGY')).toBe('');
+  });
+
+  it('PSYCHOLOGY: health below 0.5 is skipped, jurisdictional renders → header present, health absent (D-09)', async () => {
+    const { formatProfilesForPrompt } = await import('../profiles.js');
+    const profiles: OperationalProfiles = {
+      jurisdictional: makeRow(jurisdictionalData({ current_country: 'TestlandFR' }), 0.7),
+      capital: null,
+      health: makeRow(healthData({ case_file_narrative: 'CONFIDENTIAL_HEALTH_MARKER' }), 0.3),
+      family: null,
+    };
+    const out = formatProfilesForPrompt(profiles, 'PSYCHOLOGY');
+    expect(out).not.toBe('');
+    expect(out.startsWith('## Operational Profile (grounded context — not interpretation)')).toBe(true);
+    expect(out).toContain('TestlandFR');
+    expect(out).not.toContain('CONFIDENTIAL_HEALTH_MARKER');
+  });
+
+  it('appends staleness qualifier when lastUpdated > 21 days ago (D-10)', async () => {
+    const { formatProfilesForPrompt } = await import('../profiles.js');
+    const profiles: OperationalProfiles = {
+      jurisdictional: makeRow(jurisdictionalData(), 0.7, STALE_DATE), // 42 days old
+      capital: null,
+      health: null,
+      family: null,
+    };
+    const out = formatProfilesForPrompt(profiles, 'REFLECT');
+    expect(out).toContain('Note: profile data from 2026-04-01 — may not reflect current state.');
+  });
+
+  it('does NOT append staleness qualifier when lastUpdated ≤ 21 days ago', async () => {
+    const { formatProfilesForPrompt } = await import('../profiles.js');
+    const profiles: OperationalProfiles = {
+      jurisdictional: makeRow(jurisdictionalData(), 0.7, FRESH_DATE), // 14 days old
+      capital: null,
+      health: null,
+      family: null,
+    };
+    const out = formatProfilesForPrompt(profiles, 'REFLECT');
+    expect(out).not.toContain('Note: profile data from');
+  });
+
+  it('truncates a per-dimension block exceeding 2000 chars with ... marker (D-11)', async () => {
+    const { formatProfilesForPrompt } = await import('../profiles.js');
+    // Force a > 2000-char render: long narrative on health.case_file_narrative
+    // (we use REFLECT — health is in scope at confidence 0.7)
+    const longString = 'X'.repeat(5000);
+    const profiles: OperationalProfiles = {
+      jurisdictional: null,
+      capital: null,
+      health: makeRow(
+        healthData({ case_file_narrative: longString }),
+        0.7,
+        FRESH_DATE,
+      ),
+      family: null,
+    };
+    const out = formatProfilesForPrompt(profiles, 'REFLECT');
+    // Header + (capped health block) → total length is bounded; per-dimension
+    // block (after header strip) must end with '...' and be ≤ 2000 chars.
+    const HEADER = '## Operational Profile (grounded context — not interpretation)\n\n';
+    expect(out.startsWith(HEADER)).toBe(true);
+    const body = out.slice(HEADER.length);
+    expect(body.length).toBeLessThanOrEqual(2000);
+    expect(body.endsWith('...')).toBe(true);
+  });
+
+  it('REFLECT renders all 4 dimensions in declaration order (jurisdictional, capital, health, family)', async () => {
+    const { formatProfilesForPrompt } = await import('../profiles.js');
+    const profiles: OperationalProfiles = {
+      jurisdictional: makeRow(jurisdictionalData({ current_country: 'MARKER_JURISDICTIONAL' }), 0.7),
+      capital: makeRow(capitalData({ fi_target_amount: 'MARKER_CAPITAL' }), 0.7),
+      health: makeRow(healthData({ case_file_narrative: 'MARKER_HEALTH' }), 0.7),
+      family: makeRow(familyData({ relationship_status: 'MARKER_FAMILY' }), 0.7),
+    };
+    const out = formatProfilesForPrompt(profiles, 'REFLECT');
+    const iJur = out.indexOf('MARKER_JURISDICTIONAL');
+    const iCap = out.indexOf('MARKER_CAPITAL');
+    const iHea = out.indexOf('MARKER_HEALTH');
+    const iFam = out.indexOf('MARKER_FAMILY');
+    expect(iJur).toBeGreaterThan(0);
+    expect(iCap).toBeGreaterThan(iJur);
+    expect(iHea).toBeGreaterThan(iCap);
+    expect(iFam).toBeGreaterThan(iHea);
+  });
+
+  it('COACH renders ONLY capital + family (no health, no jurisdictional)', async () => {
+    const { formatProfilesForPrompt } = await import('../profiles.js');
+    const profiles: OperationalProfiles = {
+      jurisdictional: makeRow(jurisdictionalData({ current_country: 'MARKER_JURISDICTIONAL_VALUE' }), 0.7),
+      capital: makeRow(capitalData({ fi_target_amount: 'MARKER_CAPITAL_VALUE' }), 0.7),
+      health: makeRow(healthData({ case_file_narrative: 'MARKER_HEALTH_VALUE' }), 0.7),
+      family: makeRow(familyData({ relationship_status: 'MARKER_FAMILY_VALUE' }), 0.7),
+    };
+    const out = formatProfilesForPrompt(profiles, 'COACH');
+    expect(out).toContain('MARKER_CAPITAL_VALUE');
+    expect(out).toContain('MARKER_FAMILY_VALUE');
+    expect(out).not.toContain('MARKER_HEALTH_VALUE');
+    expect(out).not.toContain('MARKER_JURISDICTIONAL_VALUE');
+  });
+
+  it('emits the verbatim D-13 header when at least one dimension renders', async () => {
+    const { formatProfilesForPrompt } = await import('../profiles.js');
+    const profiles: OperationalProfiles = {
+      jurisdictional: makeRow(jurisdictionalData(), 0.7),
+      capital: null,
+      health: null,
+      family: null,
+    };
+    const out = formatProfilesForPrompt(profiles, 'REFLECT');
+    expect(out.startsWith('## Operational Profile (grounded context — not interpretation)')).toBe(true);
+  });
+});

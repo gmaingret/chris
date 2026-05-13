@@ -8,6 +8,7 @@ import {
   buildMessageHistory,
 } from '../../memory/context-builder.js';
 import { getRelationalMemories } from '../../memory/relational.js';
+import { getOperationalProfiles, formatProfilesForPrompt } from '../../memory/profiles.js';
 import { buildSystemPrompt, type DeclinedTopic } from '../personality.js';
 import { LLMError } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
@@ -72,9 +73,20 @@ export async function handlePsychology(
   const relationalContext = buildRelationalContext(relationalMemories);
   const relationalCount = relationalMemories.length;
 
+  // Phase 35 D-14 — read operational profiles, format for prompt, pass via extras.
+  // PSYCHOLOGY receives only health + jurisdictional per PROFILE_INJECTION_MAP (D-08).
+  // Health is additionally gated at confidence ≥ 0.5 inside formatProfilesForPrompt
+  // (D-09, M010-07 mitigation — speculative health hypotheses never reach the prompt).
+  const profiles = await getOperationalProfiles();
+  const operationalProfiles = formatProfilesForPrompt(profiles, 'PSYCHOLOGY');
+
   // Build conversation history and system prompt with both contexts
   const history = await buildMessageHistory(chatId);
-  const systemPrompt = buildSystemPrompt('PSYCHOLOGY', pensieveContext, relationalContext, { language, declinedTopics });
+  const systemPrompt = buildSystemPrompt('PSYCHOLOGY', pensieveContext, relationalContext, {
+    language,
+    declinedTopics,
+    operationalProfiles,
+  });
 
   try {
     const response = await anthropic.messages.create({

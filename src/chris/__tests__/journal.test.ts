@@ -71,6 +71,26 @@ vi.mock('../../memory/context-builder.js', () => ({
   buildMessageHistory: (...args: unknown[]) => mockBuildMessageHistory(...args),
 }));
 
+// ── Mock memory/profiles (Phase 35 Plan 35-02 D-28 negative invariant) ─────
+// JOURNAL is an OUT-OF-SCOPE mode per PROFILE_INJECTION_MAP — these mocks
+// must remain UNCALLED throughout this test file. The negative-invariant
+// assertion below catches accidental wire-drift in a future phase: if a
+// future developer accidentally adds getOperationalProfiles() to handleJournal,
+// the assertion fires loudly.
+const mockGetOperationalProfiles = vi.fn();
+const mockFormatProfilesForPrompt = vi.fn();
+vi.mock('../../memory/profiles.js', () => ({
+  getOperationalProfiles: mockGetOperationalProfiles,
+  formatProfilesForPrompt: mockFormatProfilesForPrompt,
+  // PROFILE_INJECTION_MAP stub — matches production shape so any accidental
+  // import resolves cleanly without bringing in the real DB-reading module.
+  PROFILE_INJECTION_MAP: {
+    REFLECT: ['jurisdictional', 'capital', 'health', 'family'],
+    COACH: ['capital', 'family'],
+    PSYCHOLOGY: ['health', 'jurisdictional'],
+  },
+}));
+
 // ── Import after mocks ─────────────────────────────────────────────────────
 const { handleJournal } = await import('../modes/journal.js');
 const { JOURNAL_SEARCH_OPTIONS } = await import('../../pensieve/retrieve.js');
@@ -234,5 +254,38 @@ describe('end-to-end prompt assembly', () => {
     expect(system).not.toContain('{pensieveContext}');
     // Hallucination resistance present
     expect(system).toContain("I don't have any memories about that");
+  });
+});
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Phase 35 Plan 35-02 — Negative-injection invariant (D-28)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+describe('JOURNAL operational-profile injection (D-28 negative invariant)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockHybridSearch.mockResolvedValue([]);
+    mockGetEpisodicSummary.mockResolvedValue(null);
+    mockExtractQueryDate.mockResolvedValue(null);
+    mockBuildPensieveContext.mockReturnValue('');
+    mockBuildMessageHistory.mockResolvedValue([]);
+    mockCreate.mockResolvedValue(makeLLMResponse('Mocked'));
+    // Defense for test independence: even if accidentally called, return safely.
+    mockGetOperationalProfiles.mockResolvedValue({
+      jurisdictional: null,
+      capital: null,
+      health: null,
+      family: null,
+    });
+  });
+
+  it('does NOT call getOperationalProfiles (D-28 — out-of-scope mode)', async () => {
+    await handleJournal(CHAT_ID, 'test message');
+    expect(mockGetOperationalProfiles).not.toHaveBeenCalled();
+  });
+
+  it('does NOT call formatProfilesForPrompt (D-28 — wire-drift detector)', async () => {
+    await handleJournal(CHAT_ID, 'another test');
+    expect(mockFormatProfilesForPrompt).not.toHaveBeenCalled();
   });
 });

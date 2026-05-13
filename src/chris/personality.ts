@@ -124,11 +124,15 @@ export function buildSystemPrompt(
   extras?: ChrisContextExtras,
 ): string {
   const { language, declinedTopics, operationalProfiles } = extras ?? {};
-  // Plan 35-02 consumes this — slot reserved by SURF-01 atomic refactor
-  // (HARD CO-LOC #M10-4). Silence the unused-locals warning here so the
-  // signature can ship in Plan 35-01 without false-positive type errors.
-  void operationalProfiles;
   const contextValue = pensieveContext || 'No relevant memories found.';
+
+  // Phase 35 D-07: For REFLECT/COACH/PSYCHOLOGY, prepend the operational
+  // profile block to the `{pensieveContext}` substitution so the profile
+  // appears ABOVE the retrieved-memory block. `operationalProfiles` already
+  // carries the verbatim D-13 header from formatProfilesForPrompt(); empty
+  // string means "no profile available" and we substitute pensieveContext
+  // alone (D-12 contract). JOURNAL/INTERROGATE/PRODUCE/PHOTOS/ACCOUNTABILITY
+  // silently drop this field (D-07 silent-drop, D-28 negative invariant).
 
   let modeBody: string;
   switch (mode) {
@@ -138,21 +142,33 @@ export function buildSystemPrompt(
     case 'INTERROGATE':
       modeBody = INTERROGATE_SYSTEM_PROMPT.replace('{pensieveContext}', contextValue);
       break;
-    case 'REFLECT':
+    case 'REFLECT': {
+      const pensieveWithProfile = operationalProfiles
+        ? `${operationalProfiles}\n\n${contextValue}`
+        : contextValue;
       modeBody = REFLECT_SYSTEM_PROMPT
-        .replace('{pensieveContext}', contextValue)
+        .replace('{pensieveContext}', pensieveWithProfile)
         .replace('{relationalContext}', relationalContext || 'No observations accumulated yet.');
       break;
-    case 'COACH':
+    }
+    case 'COACH': {
+      const pensieveWithProfile = operationalProfiles
+        ? `${operationalProfiles}\n\n${contextValue}`
+        : contextValue;
       modeBody = COACH_SYSTEM_PROMPT
-        .replace('{pensieveContext}', contextValue)
+        .replace('{pensieveContext}', pensieveWithProfile)
         .replace('{relationalContext}', relationalContext || 'No observations accumulated yet.');
       break;
-    case 'PSYCHOLOGY':
+    }
+    case 'PSYCHOLOGY': {
+      const pensieveWithProfile = operationalProfiles
+        ? `${operationalProfiles}\n\n${contextValue}`
+        : contextValue;
       modeBody = PSYCHOLOGY_SYSTEM_PROMPT
-        .replace('{pensieveContext}', contextValue)
+        .replace('{pensieveContext}', pensieveWithProfile)
         .replace('{relationalContext}', relationalContext || 'No observations accumulated yet.');
       break;
+    }
     case 'PRODUCE':
       modeBody = PRODUCE_SYSTEM_PROMPT.replace('{pensieveContext}', contextValue);
       break;
