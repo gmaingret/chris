@@ -79,6 +79,119 @@ const DECISIONS_COUNT = 5;
 /** resolve_by spread in days from synthetic-day midpoint. */
 const RESOLVE_BY_SPREAD_DAYS = [1, 3, 7, 14, 30] as const;
 
+// ── Phase 36 Plan 01: --profile-bias flag (PTEST-01, M010-05 mitigation) ───
+//
+// D-03..D-09 + D-11: repeatable `--profile-bias <dim>` flag appends a per-
+// dimension domain-keyword hint to the per-day Haiku style-transfer prompt.
+// The hint nudges Haiku to emit topic-distribution-skewed entries; Haiku
+// CHOOSES whether to incorporate (soft hint, not template substitution).
+// Round-robin rotation across the 4 dimensions per `dayIndex % 4`.
+//
+// When --profile-bias is omitted (legacy m009-21days regen), buildHaikuSystemPrompt
+// is byte-identical to its pre-Phase-36 shape. Plumbed through parseCliArgs →
+// synthesize() → per-day call site without breaking the existing API.
+//
+// VCR cache invalidation is automatic (D-06): the keyword-hint changes the
+// Haiku prompt hash → existing cache misses → fresh Anthropic call on first
+// regenerate run.
+
+/**
+ * Profile dimension union — matches the 4 operational-profile tables landed
+ * in Phase 33 (migration 0012). Used to constrain `--profile-bias` values
+ * (T-36-02 mitigation — ASVS L1 V5.1: input validation at CLI entry boundary).
+ */
+export type Dimension = 'jurisdictional' | 'capital' | 'health' | 'family';
+
+/**
+ * Whitelist of accepted `--profile-bias` values. Any value NOT in this list
+ * is rejected with UsageError at parseCliArgs time.
+ */
+const DIMENSIONS = ['jurisdictional', 'capital', 'health', 'family'] as const;
+
+/**
+ * D-05: per-dimension keyword hints sourced from FEATURES.md §2.1-2.4 +
+ * M010 spec language. These are NUDGES (not exhaustive ground truth) — the
+ * Haiku model interprets them. Lock the dimension→keyword-set mapping.
+ *
+ * Plan 36-01 Task 4's HARN sanity gate imports this constant (single source
+ * of truth — NOT duplicated in test files).
+ */
+export const PROFILE_BIAS_KEYWORDS: Record<Dimension, readonly string[]> = {
+  jurisdictional: [
+    'current location',
+    'country',
+    'residency status',
+    'tax residency',
+    'legal entity',
+    'planned move',
+    'visa',
+    'passport',
+  ],
+  capital: [
+    'FI target',
+    'net worth',
+    'business income',
+    'savings rate',
+    'financial decision',
+    'capital allocation',
+    'money goal',
+  ],
+  health: [
+    'clinical hypothesis',
+    'pending test',
+    'health decision',
+    'symptom',
+    'medication',
+    'doctor visit',
+    'lab result',
+  ],
+  family: [
+    'relationship milestone',
+    'family criteria',
+    'partner formation',
+    'family planning',
+    'child consideration',
+    'relationship constraint',
+  ],
+};
+
+/**
+ * D-09: round-robin rotation order. Day 0 → jurisdictional, Day 1 → capital,
+ * Day 2 → health, Day 3 → family, Day 4 → jurisdictional, ... Per-day
+ * dimension = `PROFILE_BIAS_ROTATION[dayIndex % PROFILE_BIAS_ROTATION.length]`.
+ */
+export const PROFILE_BIAS_ROTATION: readonly Dimension[] = [
+  'jurisdictional',
+  'capital',
+  'health',
+  'family',
+] as const;
+
+/**
+ * Compute the keyword-hint sentence (or undefined for no-op) for a given
+ * synthetic day index.
+ *
+ * Returns undefined when:
+ *   - `biases` is empty (caller passed no `--profile-bias` flags)
+ *   - The rotated dimension is NOT in the `biases` whitelist (e.g., operator
+ *     passed only `--profile-bias jurisdictional` — days 1/2/3 receive no hint)
+ *
+ * Returns a comma-joined keyword sentence otherwise:
+ *   `"current location, country, residency status, ..."`
+ *
+ * Plan 36-01 Task 5/6 HARN sanity assertions grep against these keyword
+ * patterns to verify per-dimension entry coverage.
+ */
+export function dimensionHintFor(
+  dayIndex: number,
+  biases: readonly Dimension[],
+): string | undefined {
+  if (biases.length === 0) return undefined;
+  const rotated = PROFILE_BIAS_ROTATION[dayIndex % PROFILE_BIAS_ROTATION.length]!;
+  if (!biases.includes(rotated)) return undefined;
+  return PROFILE_BIAS_KEYWORDS[rotated].join(', ');
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────
 
 export interface Args {
@@ -87,6 +200,11 @@ export interface Args {
   seed: number;
   milestone: string;
   noRefresh: boolean;
+  /**
+   * Phase 36 D-03: repeatable `--profile-bias <dim>` values, whitelist-validated.
+   * Empty/omitted → legacy m009 behavior (byte-identical Haiku prompt).
+   */
+  profileBias?: readonly Dimension[];
 }
 
 export interface SynthesizeOptions extends Args {
@@ -124,15 +242,19 @@ class UsageError extends Error {
 
 function printUsage(): void {
   console.log(
-    `Usage: npx tsx scripts/synthesize-delta.ts --organic <path> --target-days <n> --seed <n> --milestone <label> [--no-refresh]
+    `Usage: npx tsx scripts/synthesize-delta.ts --organic <path> --target-days <n> --seed <n> --milestone <label> [--no-refresh] [--profile-bias <dim>]...
 
 Flags:
-  --organic      path to organic snapshot dir (or LATEST symlink)
-  --target-days  total days in fused fixture (D-07 chronological extension)
-  --seed         deterministic RNG seed (SYNTH-07)
-  --milestone    output-dir label (e.g. m008, m009-with-resolutions)
-  --no-refresh   skip 24h auto-refresh of LATEST (FRESH-02; sandbox/offline)
-  --help         print this message and exit 0`,
+  --organic        path to organic snapshot dir (or LATEST symlink)
+  --target-days    total days in fused fixture (D-07 chronological extension)
+  --seed           deterministic RNG seed (SYNTH-07)
+  --milestone      output-dir label (e.g. m008, m009-with-resolutions)
+  --no-refresh     skip 24h auto-refresh of LATEST (FRESH-02; sandbox/offline)
+  --profile-bias   repeatable; <dim> ∈ {jurisdictional, capital, health, family}.
+                   Appends per-dimension keyword hints to the Haiku style-transfer
+                   prompt on a round-robin rotation across days (Phase 36 D-03..D-09,
+                   PTEST-01). Omit for legacy m009 behavior (byte-identical prompts).
+  --help           print this message and exit 0`,
   );
 }
 
@@ -143,6 +265,7 @@ export function parseCliArgs(argv: string[]): Args {
     seed?: string;
     milestone?: string;
     'no-refresh'?: boolean;
+    'profile-bias'?: string[];
     help?: boolean;
   };
   try {
@@ -154,6 +277,9 @@ export function parseCliArgs(argv: string[]): Args {
         seed: { type: 'string' },
         milestone: { type: 'string' },
         'no-refresh': { type: 'boolean', default: false },
+        // Phase 36 D-03: repeatable flag for per-dimension keyword nudges.
+        // `multiple: true` returns string[] (empty array when omitted).
+        'profile-bias': { type: 'string', multiple: true },
         help: { type: 'boolean', default: false },
       },
       strict: true,
@@ -191,12 +317,27 @@ export function parseCliArgs(argv: string[]): Args {
     throw new UsageError('synthesize-delta: --seed must be an int');
   }
 
+  // Phase 36 D-03 + T-36-02: whitelist-validate each --profile-bias value at
+  // the CLI entry boundary. ASVS L1 V5.1 — input validation. Unknown dims
+  // produce a clear UsageError before any downstream coupling.
+  const rawBias = raw['profile-bias'] ?? [];
+  const profileBias: Dimension[] = [];
+  for (const value of rawBias) {
+    if (!(DIMENSIONS as readonly string[]).includes(value)) {
+      throw new UsageError(
+        `synthesize-delta: --profile-bias '${value}' is not one of ${DIMENSIONS.join(', ')}`,
+      );
+    }
+    profileBias.push(value as Dimension);
+  }
+
   return {
     organic: raw.organic,
     targetDays,
     seed,
     milestone: raw.milestone,
     noRefresh: raw['no-refresh'] ?? false,
+    profileBias,
   };
 }
 
@@ -261,18 +402,34 @@ export function deterministicUuid(seed: number): string {
 
 // ── Haiku per-day prompt (D-02) ───────────────────────────────────────────
 
+/**
+ * Build the per-day Haiku system prompt.
+ *
+ * Phase 36 D-04: when `dimensionHint` is provided (a comma-joined keyword
+ * list), append a single Focus sentence AFTER the few-shot block. When
+ * omitted (undefined), the prompt is byte-identical to the pre-Phase-36
+ * shape — legacy m009-21days regeneration remains unaffected and the VCR
+ * cache continues to hit (no prompt-hash drift).
+ */
 function buildHaikuSystemPrompt(
   fewShot: readonly Record<string, unknown>[],
   dateIso: string,
   nEntries: number,
+  dimensionHint?: string,
 ): string {
   const bullets = fewShot
     .map((e, i) => `  ${i + 1}. ${JSON.stringify((e as { content: string }).content)}`)
     .join('\n');
-  return `You are mimicking Greg's Telegram voice. Below are ${fewShot.length} real entries from Greg; produce ${nEntries} new entries for ${dateIso} that could plausibly come from the same person on a plausible Europe/Paris day. Match tone, sentence length, topic distribution, emoji/caps/punctuation usage. One entry per array element; each entry is a string. Do not copy verbatim; capture voice only. Respect UTC+1 (winter) / UTC+2 (summer) wall-clock hours when assigning createdAtHour (0..23) and createdAtMinute (0..59). Return valid JSON matching the output schema.
+  const base = `You are mimicking Greg's Telegram voice. Below are ${fewShot.length} real entries from Greg; produce ${nEntries} new entries for ${dateIso} that could plausibly come from the same person on a plausible Europe/Paris day. Match tone, sentence length, topic distribution, emoji/caps/punctuation usage. One entry per array element; each entry is a string. Do not copy verbatim; capture voice only. Respect UTC+1 (winter) / UTC+2 (summer) wall-clock hours when assigning createdAtHour (0..23) and createdAtMinute (0..59). Return valid JSON matching the output schema.
 
 Few-shot entries:
 ${bullets}`;
+  if (dimensionHint) {
+    return `${base}
+
+Focus today's entries on ${dimensionHint}.`;
+  }
+  return base;
 }
 
 // ── Deterministic decisions generator (SYNTH-04) ──────────────────────────
@@ -519,12 +676,19 @@ export async function synthesize(opts: SynthesizeOptions): Promise<void> {
   });
 
   // Per-day Haiku (D-02): one call per synthetic date.
+  // Phase 36 D-04..D-09: append a per-dimension keyword hint when the
+  // operator passed `--profile-bias <dim>`. `dimensionHintFor` returns
+  // undefined when biases is empty OR the rotated dim is not in the bias
+  // list → buildHaikuSystemPrompt produces the byte-identical legacy prompt
+  // shape (VCR cache hit preserved for m009 regeneration).
+  const profileBias = opts.profileBias ?? [];
   const synthPensieve: Record<string, unknown>[] = [];
   for (let d = 0; d < synthDaysNeeded; d++) {
     const dayDate = synthStart.plus({ days: d });
     const dayDateStr = dayDate.toISODate()!;
     const fewShot = seededSample(organicPensieve, FEW_SHOT_N, opts.seed + d);
-    const systemPrompt = buildHaikuSystemPrompt(fewShot, dayDateStr, ENTRIES_PER_DAY);
+    const hint = dimensionHintFor(d, profileBias);
+    const systemPrompt = buildHaikuSystemPrompt(fewShot, dayDateStr, ENTRIES_PER_DAY, hint);
     const userPrompt = `Produce ${ENTRIES_PER_DAY} synthetic Telegram entries for ${dayDateStr}. Return as { entries: [{ content, createdAtHour, createdAtMinute }, ...] }.`;
 
     const request = {

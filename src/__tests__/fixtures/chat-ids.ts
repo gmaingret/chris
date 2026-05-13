@@ -29,3 +29,6 @@ export const CHAT_ID_VAGUE_VALIDATOR_LIVE = BigInt(99920);
 
 /** Phase 30 TEST-23..30 M009 synthetic fixture (src/rituals/__tests__/synthetic-fixture.test.ts). */
 export const CHAT_ID_M009_SYNTHETIC_FIXTURE = BigInt(99921);
+
+/** Phase 36 Plan 02 PTEST-05 live 3-of-3 anti-hallucination test (src/memory/profiles/__tests__/live-anti-hallucination.test.ts). */
+export const CHAT_ID_LIVE_ANTI_HALLUCINATION = BigInt(99922);
