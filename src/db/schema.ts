@@ -25,6 +25,11 @@ import type {
   FamilyProfileData,
   ProfileSnapshot,
 } from '../memory/profiles/schemas.js';
+import type {
+  HexacoProfileData,
+  SchwartzProfileData,
+  AttachmentProfileData,
+} from '../memory/profiles/psychological-schemas.js';
 
 // ── Enums ──────────────────────────────────────────────────────────────────
 
@@ -632,6 +637,103 @@ export const profileFamily = pgTable(
   (table) => [
     check('profile_family_confidence_bounds', sql`${table.confidence} >= 0 AND ${table.confidence} <= 1`),
     check('profile_family_data_consistency_bounds', sql`${table.dataConsistency} >= 0 AND ${table.dataConsistency} <= 1`),
+  ],
+);
+
+// ── Phase 37 (M011 v2.6) — Psychological profile substrate ─────────────
+// HARD CO-LOC #M11-1: these 3 pgTable exports ship in Plan 37-01 alongside
+// migration 0013 SQL + meta snapshot + _journal entry + scripts/test.sh
+// apply line + scripts/regen-snapshots.sh sentinel bump + Zod schemas in
+// src/memory/profiles/psychological-schemas.ts.
+//
+// Never-Retrofit Checklist (D-06 + D-07 + PROJECT.md D042):
+//   - schemaVersion / substrateHash / name UNIQUE 'primary'
+//   - overallConfidence (renamed from M010 `confidence`) with CHECK bounds
+//   - wordCount + wordCountAtLastRun (M011-specific word-count gate)
+//   - lastUpdated nullable (null = "never run"; D-06)
+//   - profileAttachment additionally: relationalWordCount + activated (D-07)
+//
+// Pitfall 4 mitigation: each jsonb dim column typed
+// `.$type<HexacoProfileData['<field>']>()` where the Zod factory uses
+// `.nullable()` — TypeScript infers `Dimension | null` at the column level.
+// Column-level `.notNull()` matches M010 pattern (JSON 'null' literal is a
+// value, not SQL NULL).
+
+export const profileHexaco = pgTable(
+  'profile_hexaco',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`).notNull(),
+    name: text('name').notNull().default('primary').unique(),
+    schemaVersion: integer('schema_version').notNull().default(1),
+    substrateHash: text('substrate_hash').notNull().default(''),
+    overallConfidence: real('overall_confidence').notNull().default(0),
+    wordCount: integer('word_count').notNull().default(0),
+    wordCountAtLastRun: integer('word_count_at_last_run').notNull().default(0),
+    honestyHumility: jsonb('honesty_humility').$type<HexacoProfileData['honesty_humility']>().notNull().default(sql`'null'::jsonb`),
+    emotionality: jsonb('emotionality').$type<HexacoProfileData['emotionality']>().notNull().default(sql`'null'::jsonb`),
+    extraversion: jsonb('extraversion').$type<HexacoProfileData['extraversion']>().notNull().default(sql`'null'::jsonb`),
+    agreeableness: jsonb('agreeableness').$type<HexacoProfileData['agreeableness']>().notNull().default(sql`'null'::jsonb`),
+    conscientiousness: jsonb('conscientiousness').$type<HexacoProfileData['conscientiousness']>().notNull().default(sql`'null'::jsonb`),
+    openness: jsonb('openness').$type<HexacoProfileData['openness']>().notNull().default(sql`'null'::jsonb`),
+    lastUpdated: timestamp('last_updated', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('profile_hexaco_overall_confidence_bounds', sql`${table.overallConfidence} >= 0 AND ${table.overallConfidence} <= 1`),
+  ],
+);
+
+export const profileSchwartz = pgTable(
+  'profile_schwartz',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`).notNull(),
+    name: text('name').notNull().default('primary').unique(),
+    schemaVersion: integer('schema_version').notNull().default(1),
+    substrateHash: text('substrate_hash').notNull().default(''),
+    overallConfidence: real('overall_confidence').notNull().default(0),
+    wordCount: integer('word_count').notNull().default(0),
+    wordCountAtLastRun: integer('word_count_at_last_run').notNull().default(0),
+    selfDirection: jsonb('self_direction').$type<SchwartzProfileData['self_direction']>().notNull().default(sql`'null'::jsonb`),
+    stimulation: jsonb('stimulation').$type<SchwartzProfileData['stimulation']>().notNull().default(sql`'null'::jsonb`),
+    hedonism: jsonb('hedonism').$type<SchwartzProfileData['hedonism']>().notNull().default(sql`'null'::jsonb`),
+    achievement: jsonb('achievement').$type<SchwartzProfileData['achievement']>().notNull().default(sql`'null'::jsonb`),
+    power: jsonb('power').$type<SchwartzProfileData['power']>().notNull().default(sql`'null'::jsonb`),
+    security: jsonb('security').$type<SchwartzProfileData['security']>().notNull().default(sql`'null'::jsonb`),
+    conformity: jsonb('conformity').$type<SchwartzProfileData['conformity']>().notNull().default(sql`'null'::jsonb`),
+    tradition: jsonb('tradition').$type<SchwartzProfileData['tradition']>().notNull().default(sql`'null'::jsonb`),
+    benevolence: jsonb('benevolence').$type<SchwartzProfileData['benevolence']>().notNull().default(sql`'null'::jsonb`),
+    universalism: jsonb('universalism').$type<SchwartzProfileData['universalism']>().notNull().default(sql`'null'::jsonb`),
+    lastUpdated: timestamp('last_updated', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('profile_schwartz_overall_confidence_bounds', sql`${table.overallConfidence} >= 0 AND ${table.overallConfidence} <= 1`),
+  ],
+);
+
+export const profileAttachment = pgTable(
+  'profile_attachment',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`).notNull(),
+    name: text('name').notNull().default('primary').unique(),
+    schemaVersion: integer('schema_version').notNull().default(1),
+    substrateHash: text('substrate_hash').notNull().default(''),
+    overallConfidence: real('overall_confidence').notNull().default(0),
+    wordCount: integer('word_count').notNull().default(0),
+    wordCountAtLastRun: integer('word_count_at_last_run').notNull().default(0),
+    // D-07 attachment-only metadata columns (population deferred to D028
+    // activation gate; weekly sweep flips `activated` when relational
+    // word count crosses RELATIONAL_WORD_COUNT_THRESHOLD=2000 over 60d).
+    relationalWordCount: integer('relational_word_count').notNull().default(0),
+    activated: boolean('activated').notNull().default(false),
+    anxious: jsonb('anxious').$type<AttachmentProfileData['anxious']>().notNull().default(sql`'null'::jsonb`),
+    avoidant: jsonb('avoidant').$type<AttachmentProfileData['avoidant']>().notNull().default(sql`'null'::jsonb`),
+    secure: jsonb('secure').$type<AttachmentProfileData['secure']>().notNull().default(sql`'null'::jsonb`),
+    lastUpdated: timestamp('last_updated', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('profile_attachment_overall_confidence_bounds', sql`${table.overallConfidence} >= 0 AND ${table.overallConfidence} <= 1`),
   ],
 );
 
