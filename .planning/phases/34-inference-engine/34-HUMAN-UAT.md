@@ -3,12 +3,20 @@ status: partial
 phase: 34-inference-engine
 source: [34-VERIFICATION.md]
 started: 2026-05-12T20:40:00Z
-updated: 2026-05-12T20:40:00Z
+updated: 2026-05-13T01:45:00Z
 ---
 
 ## Current Test
 
-[awaiting operator action: deploy to Proxmox + observe first Sunday 22:00 Paris fire]
+[deployed 2026-05-13 01:43 UTC; item 2 resolved via live curl; awaiting first Sunday 22:00 Paris fire on 2026-05-17 (4 days from deploy)]
+
+## Deploy Record
+
+- **Deployed:** 2026-05-13 01:43 UTC (Proxmox 192.168.1.50, container `chris-chris-1`)
+- **HEAD shipped:** `484cbe0` (docs(phase-34): evolve PROJECT.md after phase completion)
+- **Boot log confirms `profile.cron.scheduled`** with `cron='0 22 * * 0'` + `timezone='Europe/Paris'`
+- **Phase 33 seed state intact at deploy:** `profile_jurisdictional.substrate_hash = ''` + `confidence = 0.3` → first Sunday fire will regenerate from substrate (empty hash never matches a real SHA-256, per CONTEXT.md D-11+D-18)
+- **First fire ETA:** Sunday 2026-05-17 22:00 Europe/Paris = 20:00 UTC
 
 ## Tests
 
@@ -38,7 +46,7 @@ ssh chris@192.168.1.50 'docker exec chris-postgres-1 psql -U chris -d chris -c "
 
 result: [pending]
 
-### 2. `/health` endpoint surfaces `profile_cron_registered: true` post-deploy
+### 2. `/health` endpoint surfaces `profile_cron_registered: true` post-deploy [RESOLVED 2026-05-13]
 expected: After the container restarts with the Phase 34 build, `curl http://192.168.1.50:PORT/health` (whatever port the express server listens on) returns JSON including `profile_cron_registered: true` alongside the other cron-status fields. The field-mapping logic is unit-tested in `src/__tests__/health.test.ts:138-178` against a synthetic `cronStatus` object — production verifies the actual registration succeeds at boot.
 
 Verification command:
@@ -49,14 +57,14 @@ curl -s http://192.168.1.50:PORT/health | jq '.profile_cron_registered'
 
 If the field returns `false`: registration failed at boot — inspect `docker logs chris-chris-1 --since=1h | grep profile.cron`. Most likely cause is `profileUpdaterCron` env var malformed or unset (the `cron.validate` fail-fast should have prevented container start, so seeing `false` means registration silently failed — investigate the registration block at `src/cron-registration.ts:178-188`).
 
-result: [pending]
+result: PASSED 2026-05-13T01:43:15.830Z. Live `/health` response: `{"status":"ok","checks":{"database":"ok","immich":"ok"},"ritual_cron_registered":true,"profile_cron_registered":true,...}` — confirmed via `curl http://localhost:3000/health` on Proxmox host. Boot log line `profile.cron.scheduled cron='0 22 * * 0' timezone='Europe/Paris'` also confirms underlying registration.
 
 ## Summary
 
 total: 2
-passed: 0
+passed: 1
 issues: 0
-pending: 2
+pending: 1
 skipped: 0
 blocked: 0
 
