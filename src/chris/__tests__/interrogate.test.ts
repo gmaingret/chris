@@ -190,8 +190,7 @@ describe('handleInterrogate', () => {
       'INTERROGATE',
       expect.any(String),
       undefined,
-      undefined,
-      undefined,
+      { language: undefined, declinedTopics: undefined },
     );
   });
 

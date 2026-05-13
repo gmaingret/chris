@@ -237,8 +237,7 @@ describe('handleReflect', () => {
       'REFLECT',
       expect.any(String),
       expect.any(String),
-      undefined,
-      undefined,
+      { language: undefined, declinedTopics: undefined },
     );
   });
 

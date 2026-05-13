@@ -40,24 +40,26 @@ describe('three forbidden behaviors (SYCO-03)', () => {
 
 describe('declined topics injection (TRUST-04)', () => {
   it('includes declined topics section when topics provided', () => {
-    const prompt = buildSystemPrompt('JOURNAL', undefined, undefined, undefined, [
-      { topic: 'my father', originalSentence: "I don't want to talk about my father" },
-    ]);
+    const prompt = buildSystemPrompt('JOURNAL', undefined, undefined, {
+      declinedTopics: [
+        { topic: 'my father', originalSentence: "I don't want to talk about my father" },
+      ],
+    });
     expect(prompt).toMatch(/Declined Topics/);
     expect(prompt).toContain("I don't want to talk about my father");
   });
 
   it('omits declined topics section when empty array', () => {
-    const prompt = buildSystemPrompt('JOURNAL', undefined, undefined, undefined, []);
+    const prompt = buildSystemPrompt('JOURNAL', undefined, undefined, { declinedTopics: [] });
     expect(prompt).not.toMatch(/Declined Topics/);
   });
 
   it('includes declined topics for all 6 modes (TRUST-04)', () => {
     const modes = ['JOURNAL', 'INTERROGATE', 'REFLECT', 'COACH', 'PSYCHOLOGY', 'PRODUCE'] as const;
     for (const mode of modes) {
-      const prompt = buildSystemPrompt(mode, undefined, undefined, undefined, [
-        { topic: 'test', originalSentence: 'test sentence' },
-      ]);
+      const prompt = buildSystemPrompt(mode, undefined, undefined, {
+        declinedTopics: [{ topic: 'test', originalSentence: 'test sentence' }],
+      });
       expect(prompt).toMatch(/Declined Topics/);
     }
   });
@@ -65,7 +67,7 @@ describe('declined topics injection (TRUST-04)', () => {
 
 describe('language directive injection (LANG-03)', () => {
   it('includes language directive when language provided', () => {
-    const prompt = buildSystemPrompt('JOURNAL', undefined, undefined, 'French');
+    const prompt = buildSystemPrompt('JOURNAL', undefined, undefined, { language: 'French' });
     expect(prompt).toMatch(/French/);
     expect(prompt).toMatch(/MANDATORY|override/i);
   });
@@ -78,7 +80,7 @@ describe('language directive injection (LANG-03)', () => {
   it('language directive present for all modes', () => {
     const modes = ['JOURNAL', 'INTERROGATE', 'REFLECT', 'COACH', 'PSYCHOLOGY', 'PRODUCE'] as const;
     for (const mode of modes) {
-      const prompt = buildSystemPrompt(mode, undefined, undefined, 'Russian');
+      const prompt = buildSystemPrompt(mode, undefined, undefined, { language: 'Russian' });
       expect(prompt).toMatch(/Russian/);
     }
   });
@@ -141,7 +143,7 @@ describe('Known Facts injection (RETR-02)', () => {
   });
 
   it('Known Facts appears BEFORE Language Directive', () => {
-    const prompt = buildSystemPrompt('JOURNAL', 'ctx', undefined, 'French');
+    const prompt = buildSystemPrompt('JOURNAL', 'ctx', undefined, { language: 'French' });
     const factsIndex = prompt.indexOf('Facts about you (Greg)');
     const langIndex = prompt.indexOf('Language Directive');
     expect(factsIndex).toBeGreaterThan(-1);
@@ -224,7 +226,7 @@ describe('CONSTITUTIONAL_PREAMBLE export (Phase 21 CONS-04 dependency)', () => {
   });
 
   it('is the exact prefix of every mode’s system prompt — single source of truth', () => {
-    const prompt = buildSystemPrompt('JOURNAL', 'context', undefined, 'English');
+    const prompt = buildSystemPrompt('JOURNAL', 'context', undefined, { language: 'English' });
     expect(prompt.startsWith(CONSTITUTIONAL_PREAMBLE)).toBe(true);
   });
 });

@@ -179,7 +179,7 @@ export async function handlePhotos(
     const history = await buildMessageHistory(chatId);
 
     // Call Sonnet with vision
-    const systemPrompt = buildSystemPrompt('JOURNAL', undefined, undefined, language, declinedTopics);
+    const systemPrompt = buildSystemPrompt('JOURNAL', undefined, undefined, { language, declinedTopics });
     const response = await anthropic.messages.create({
       model: SONNET_MODEL,
       max_tokens: 1500,

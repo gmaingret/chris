@@ -74,7 +74,7 @@ export async function handlePsychology(
 
   // Build conversation history and system prompt with both contexts
   const history = await buildMessageHistory(chatId);
-  const systemPrompt = buildSystemPrompt('PSYCHOLOGY', pensieveContext, relationalContext, language, declinedTopics);
+  const systemPrompt = buildSystemPrompt('PSYCHOLOGY', pensieveContext, relationalContext, { language, declinedTopics });
 
   try {
     const response = await anthropic.messages.create({

@@ -249,11 +249,15 @@ export async function handleResolution(
   ].join('\n');
 
   // 5. Build system prompt and call Sonnet for acknowledgment
+  // Phase 35 D-05: ACCOUNTABILITY overload semantics preserved verbatim —
+  // decisionContext still rides the `pensieveContext` slot and temporalContext
+  // still rides the `relationalContext` slot. Only `language` flows through
+  // extras here; no declinedTopics in scope at this call site (intentional).
   const systemPrompt = buildSystemPrompt(
     'ACCOUNTABILITY',
     decisionContext,
     temporalContext,
-    rawLang,
+    { language: rawLang },
   );
 
   let acknowledgment: string;

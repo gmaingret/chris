@@ -78,7 +78,7 @@ export async function handleJournal(
       system: [
         {
           type: 'text',
-          text: buildSystemPrompt('JOURNAL', pensieveContext, undefined, language, declinedTopics),
+          text: buildSystemPrompt('JOURNAL', pensieveContext, undefined, { language, declinedTopics }),
           cache_control: { type: 'ephemeral' },
         },
       ],
