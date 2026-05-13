@@ -510,6 +510,12 @@ describe('formatProfileForDisplay — language coverage', () => {
     expect(out).toMatch(/Tu es|Ta résidence|Ton prochain|Tes/);
     expect(out).not.toContain('Jurisdictional Profile');
     expect(out).not.toContain('You\'re');
+    // WR-02: connective glue words must be localized — no English "since" leak
+    // inside an otherwise-French section ("depuis" is the localized form).
+    // Scoped to the " (since YYYY-MM-DD)" UI pattern to avoid catching the
+    // word "since" if it appears in a user-content data field.
+    expect(out).toContain('(depuis 2020-01-01)');
+    expect(out).not.toMatch(/\(since \d{4}-\d{2}-\d{2}\)/);
     // No third-person leak.
     expect(out).not.toContain('Greg');
     expect(out).not.toMatch(/\bHis\b/);
@@ -525,7 +531,67 @@ describe('formatProfileForDisplay — language coverage', () => {
     expect(out).toMatch(/Ты|Твой|Твоя|Твоё|Твои/);
     expect(out).not.toContain('Jurisdictional Profile');
     expect(out).not.toContain('You\'re');
+    // WR-02: connective glue words must be localized — "с" replaces "since".
+    // Scoped to UI pattern; user-content data may legitimately contain "since".
+    expect(out).toContain('(с 2020-01-01)');
+    expect(out).not.toMatch(/\(since \d{4}-\d{2}-\d{2}\)/);
     expect(out).not.toContain('Greg');
     expect(out).not.toMatch(/\bHis\b/);
+  });
+
+  // WR-02: health-dimension smoke tests for the "since" connective +
+  // wellbeing-axis labels (`energy=`/`mood=`/`anxiety=`). The English
+  // forms were leaking verbatim into FR/RU output — these assertions are
+  // the regression detector. We don't use full inline snapshots because
+  // `case_file_narrative`, `h.status`, `t.purpose`, and `r.resolution`
+  // are stored data values (user-content, not UI labels) that remain
+  // in the source language they were recorded in; only the connective
+  // glue words are within scope of WR-02.
+  it('FR health: "depuis" + French wellbeing axis labels, no English leak in connectives', () => {
+    const out = formatProfileForDisplay(
+      'health',
+      MOCK_PROFILES.health.populatedFresh,
+      'French' as Lang,
+    );
+    expect(out).toContain('Profil de santé');
+    expect(out).toContain('confiance');
+    // open_hypotheses: "[investigating depuis 2026-04-20]" (status is data;
+    // only the connective is localized — status word stays untranslated).
+    expect(out).toContain('[investigating depuis 2026-04-20]');
+    // active_treatments: "magnesium glycinate 400mg depuis 2026-04-22 (sleep)"
+    expect(out).toContain('depuis 2026-04-22');
+    // wellbeing_trend axes localized:
+    expect(out).toContain('énergie=6.4');
+    expect(out).toContain('humeur=7.1');
+    expect(out).toContain('anxiété=3.2');
+    // Negative invariants: no English UI-label leak in the connective
+    // positions where they previously appeared. Scoped to UI patterns
+    // ("[STATUS since DATE]", "NAME since DATE") so user-content fields
+    // (case_file_narrative, resolution text) that legitimately contain
+    // the English word "since" as data are not flagged.
+    expect(out).not.toMatch(/\[\w+ since \d{4}-\d{2}-\d{2}\]/);
+    expect(out).not.toMatch(/ since \d{4}-\d{2}-\d{2}/);
+    expect(out).not.toContain('energy=');
+    expect(out).not.toContain('mood=');
+    expect(out).not.toContain('anxiety=');
+  });
+  it('RU health: "с" + Russian wellbeing axis labels, no English leak in connectives', () => {
+    const out = formatProfileForDisplay(
+      'health',
+      MOCK_PROFILES.health.populatedFresh,
+      'Russian' as Lang,
+    );
+    expect(out).toContain('Профиль здоровья');
+    expect(out).toContain('уверенность');
+    expect(out).toContain('[investigating с 2026-04-20]');
+    expect(out).toContain('с 2026-04-22');
+    expect(out).toContain('энергия=6.4');
+    expect(out).toContain('настроение=7.1');
+    expect(out).toContain('тревога=3.2');
+    expect(out).not.toMatch(/\[\w+ since \d{4}-\d{2}-\d{2}\]/);
+    expect(out).not.toMatch(/ since \d{4}-\d{2}-\d{2}/);
+    expect(out).not.toContain('energy=');
+    expect(out).not.toContain('mood=');
+    expect(out).not.toContain('anxiety=');
   });
 });

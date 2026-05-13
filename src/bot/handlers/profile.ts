@@ -187,6 +187,9 @@ const MSG = {
           `You're currently in ${country}.`,
         yourTaxResidency: (tax: string): string => `Your tax residency: ${tax}.`,
         yourResidencyStatuses: 'Your residency statuses:',
+        // WR-02: localized "since" connective — round-trips with the parent
+        // language so FR/RU lines don't suddenly switch to English mid-sentence.
+        residencySince: (date: string): string => ` (since ${date})`,
         yourNextMove: (dest: string, date: string): string =>
           `Your next planned move: ${dest} (from ${date}).`,
         yourNextMoveDestOnly: (dest: string): string =>
@@ -203,6 +206,7 @@ const MSG = {
           `Tu es actuellement en ${country}.`,
         yourTaxResidency: (tax: string): string => `Ta résidence fiscale : ${tax}.`,
         yourResidencyStatuses: 'Tes statuts de résidence :',
+        residencySince: (date: string): string => ` (depuis ${date})`,
         yourNextMove: (dest: string, date: string): string =>
           `Ton prochain déménagement prévu : ${dest} (à partir du ${date}).`,
         yourNextMoveDestOnly: (dest: string): string =>
@@ -219,6 +223,7 @@ const MSG = {
           `Ты сейчас в ${country}.`,
         yourTaxResidency: (tax: string): string => `Твоё налоговое резидентство: ${tax}.`,
         yourResidencyStatuses: 'Твои статусы резидентства:',
+        residencySince: (date: string): string => ` (с ${date})`,
         yourNextMove: (dest: string, date: string): string =>
           `Твой следующий запланированный переезд: ${dest} (с ${date}).`,
         yourNextMoveDestOnly: (dest: string): string =>
@@ -282,6 +287,14 @@ const MSG = {
         yourActiveTreatments: 'Your active treatments:',
         yourRecentResolved: 'Your recently resolved items:',
         yourWellbeingTrend: 'Your 30-day wellbeing trend:',
+        // WR-02: localized "since" connective + wellbeing axis labels — these
+        // round-trip with the parent language so FR/RU output doesn't suddenly
+        // switch to English mid-line ("Tes traitements actifs : ... since ..." was
+        // the M010-07-adjacent regression class). The `since` word here is the
+        // same connective used in jurisdictional.residencySince but spelled-out
+        // in a "$NAME since $DATE" shape instead of " (since $DATE)".
+        since: (date: string): string => `since ${date}`,
+        wellbeingLabels: { energy: 'energy', mood: 'mood', anxiety: 'anxiety' },
       },
       French: {
         yourCaseFile: (narrative: string): string =>
@@ -291,6 +304,8 @@ const MSG = {
         yourActiveTreatments: 'Tes traitements actifs :',
         yourRecentResolved: 'Tes points récemment résolus :',
         yourWellbeingTrend: 'Ta tendance bien-être sur 30 jours :',
+        since: (date: string): string => `depuis ${date}`,
+        wellbeingLabels: { energy: 'énergie', mood: 'humeur', anxiety: 'anxiété' },
       },
       Russian: {
         yourCaseFile: (narrative: string): string =>
@@ -300,6 +315,8 @@ const MSG = {
         yourActiveTreatments: 'Твои активные методы лечения:',
         yourRecentResolved: 'Твои недавно решённые вопросы:',
         yourWellbeingTrend: 'Твой 30-дневный тренд самочувствия:',
+        since: (date: string): string => `с ${date}`,
+        wellbeingLabels: { energy: 'энергия', mood: 'настроение', anxiety: 'тревога' },
       },
     },
     family: {
@@ -397,7 +414,7 @@ export function formatProfileForDisplay(
       if (d.residency_status?.length) {
         lines.push(L.yourResidencyStatuses);
         for (const r of d.residency_status) {
-          lines.push(`- ${r.type}: ${r.value}${r.since ? ` (since ${r.since})` : ''}`);
+          lines.push(`- ${r.type}: ${r.value}${r.since ? L.residencySince(r.since) : ''}`);
         }
       }
       if (d.next_planned_move?.destination && d.next_planned_move.from_date) {
@@ -453,7 +470,7 @@ export function formatProfileForDisplay(
       if (d.open_hypotheses?.length) {
         lines.push(L.yourOpenHypotheses);
         for (const h of d.open_hypotheses) {
-          lines.push(`- ${h.name} [${h.status} since ${h.date_opened}]`);
+          lines.push(`- ${h.name} [${h.status} ${L.since(h.date_opened)}]`);
         }
       }
       if (d.pending_tests?.length) {
@@ -478,7 +495,7 @@ export function formatProfileForDisplay(
         lines.push(L.yourActiveTreatments);
         for (const t of d.active_treatments) {
           const purp = t.purpose ? ` (${t.purpose})` : '';
-          lines.push(`- ${t.name} since ${t.started_date}${purp}`);
+          lines.push(`- ${t.name} ${L.since(t.started_date)}${purp}`);
         }
       }
       if (d.recent_resolved?.length) {
@@ -490,9 +507,9 @@ export function formatProfileForDisplay(
       const wb = d.wellbeing_trend;
       if (wb && (wb.energy_30d_mean != null || wb.mood_30d_mean != null || wb.anxiety_30d_mean != null)) {
         const parts: string[] = [];
-        if (wb.energy_30d_mean != null) parts.push(`energy=${wb.energy_30d_mean}`);
-        if (wb.mood_30d_mean != null) parts.push(`mood=${wb.mood_30d_mean}`);
-        if (wb.anxiety_30d_mean != null) parts.push(`anxiety=${wb.anxiety_30d_mean}`);
+        if (wb.energy_30d_mean != null) parts.push(`${L.wellbeingLabels.energy}=${wb.energy_30d_mean}`);
+        if (wb.mood_30d_mean != null) parts.push(`${L.wellbeingLabels.mood}=${wb.mood_30d_mean}`);
+        if (wb.anxiety_30d_mean != null) parts.push(`${L.wellbeingLabels.anxiety}=${wb.anxiety_30d_mean}`);
         lines.push(`${L.yourWellbeingTrend} ${parts.join(', ')}`);
       }
       break;
