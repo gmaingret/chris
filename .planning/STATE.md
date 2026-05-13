@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v2.5
 milestone_name: M010 Operational Profiles
-status: completed
+status: Awaiting next milestone
 stopped_at: Phase 36 context gathered
-last_updated: "2026-05-13T12:03:11.917Z"
-last_activity: 2026-05-13 -- Phase 36 marked complete
+last_updated: "2026-05-13T12:04:34.992Z"
+last_activity: 2026-05-13 — Milestone v2.5 completed and archived
 progress:
   total_phases: 4
   completed_phases: 4
@@ -26,20 +26,10 @@ See: .planning/PROJECT.md (symlink to /home/claude/chris/PLAN.md, updated 2026-0
 
 ## Current Position
 
-Phase: 36 — COMPLETE
-Plan: Not started
-Next: Phase 34 (inference-engine)
-Status: Phase 36 complete
-Last activity: 2026-05-13 -- Phase 36 marked complete
-
-```
-Progress: [████░░░░░░░░░░░░░░░░] 18% (2/11 plans)
-
-Phase 33 (PROF substrate)   ██  2/2  ✓ shipped + deployed
-Phase 34 (GEN engine)       ░░░░  0/4
-Phase 35 (SURF surfaces)    ░░░  0/3
-Phase 36 (PTEST tests)      ░░  0/2
-```
+Phase: Milestone v2.5 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-05-13 — Milestone v2.5 completed and archived
 
 ## Shipped Milestones
 
@@ -191,3 +181,17 @@ Next: `/gsd-discuss-phase 34` or `/gsd-plan-phase --research-phase 34` to scope 
 - `main` HEAD: `22793b4` (pushed to origin)
 - All Phase 33 artifacts in `.planning/phases/33-profile-substrate/`: CONTEXT, RESEARCH, PATTERNS, VALIDATION, two PLAN.md, two SUMMARY.md, VERIFICATION
 - Phase 32 was the last completed phase before this session (v2.4 close at ef45e1b). Migration 0012 now lives on top of 0011.
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone
+
+## Deferred Items
+
+Items acknowledged and deferred at M010 close on 2026-05-13:
+
+| Category | Item | Status | Note |
+|----------|------|--------|------|
+| debug_session | m009-rituals-no-fire | root_caused | Fix shipped commit c76cb86 2026-05-10; archival pending |
+| uat_gaps | phase 34 HUMAN-UAT.md | partial (1 open scenario) | "First Sunday 22:00 Paris cron fire" observation scheduled 2026-05-17 — naturally future-dated |
+| verification_gaps | phase 34 VERIFICATION.md | open | Same 2026-05-17 cron-fire observation reference |

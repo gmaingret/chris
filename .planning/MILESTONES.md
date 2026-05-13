@@ -1,5 +1,24 @@
 # Milestones
 
+## v2.5 v2.5 (Shipped: 2026-05-13)
+
+**Phases completed:** 4 phases, 10 plans, 54 tasks
+
+**Key accomplishments:**
+
+- Drizzle ORM pgTable definitions + migration 0012 SQL + drizzle meta snapshot for 4 operational profile tables (jurisdictional, capital, health, family) plus profile_history, with Zod v3+v4 dual schemas and Phase 33 Docker smoke gate
+- Never-throw getOperationalProfiles() reader with 3-layer Zod v3 parse defense (Pitfall 4/5/6), plus pure-function confidence helpers (computeProfileConfidence/isAboveThreshold), shipped TDD with 35 new tests (15 confidence + 14 schema + 6 reader)
+- `assembleProfilePrompt` pure-function shared builder ships with locked OQ-2 volume-weight ceiling phrasing + DO_NOT_INFER directive + previous-state injection + 4-dimension parametrized structural tests (40/40 GREEN) — HARD CO-LOC #M10-2 anchor satisfied; Plan 34-02 unblocked.
+- Per-dimension generator helper extracted into `runProfileGenerator` (Claude's Discretion default); shared SHA-256 substrate-hash idempotency closes the M009 `lt→lte` second-fire-blindness regression class via the HARD CO-LOC #M10-3 atomic 3-cycle test (Cycle 1 → 4 calls, Cycle 2 identical → STILL 4 calls, Cycle 3 INSERTs a new Pensieve entry → 8 calls). Closure-captured volume-weight ceiling .refine() constructed INSIDE the generator function body per RESEARCH.md residual risk 938-941. 40/40 plan-owned tests GREEN; full src/memory suite 150/150 GREEN; full Docker suite 1490 passed / 12 skipped / 29 pre-existing deferred-items failures (live-API tests requiring real ANTHROPIC_API_KEY — sandbox uses fallback 'test-key' which yields 401, documented in deferred-items.md prior to Plan 34-02 start).
+- Plan 34-03 ships the production wiring that turns Plan 34-02's 4 per-dimension generators into a Sunday 22:00 Paris cron-driven inference engine.
+- `buildSystemPrompt` now accepts `(mode, pensieve?, relational?, extras?: ChrisContextExtras)` — atomic 8-site production refactor + 7-test-file migration in a single plan, ACCOUNTABILITY overload preserved verbatim, `extras.operationalProfiles` slot reserved for Plan 35-02 wiring.
+- `PROFILE_INJECTION_MAP` named constant + `formatProfilesForPrompt` pure function ship in `src/memory/profiles.ts`; REFLECT/COACH/PSYCHOLOGY handlers now wire `getOperationalProfiles → formatProfilesForPrompt → buildSystemPrompt(..., { operationalProfiles })` per D-14 call order; JOURNAL/INTERROGATE/PRODUCE/PHOTOS/ACCOUNTABILITY silently drop the field per D-28 negative invariant; full Docker suite delta = +38 new passing tests / 0 new failures.
+- `/profile` Telegram command shipped with handleProfileCommand + formatProfileForDisplay pure function + 16-case inline-snapshot golden test + bot registration — all atomically per HARD CO-LOC #M10-5. M010-07 regression gate (third-person framing detector) now active. Phase 35 SURF block 5/5 complete. Full Docker suite delta: +26 new passing tests / 0 new failures.
+- `--profile-bias` repeatable flag with PROFILE_BIAS_KEYWORDS/ROTATION + dimensionHintFor helper extends synthesize-delta.ts; seedProfileRows() helper mitigates Pitfall P-36-02; 4 new fixture-driven test files (HARN sanity + PTEST-02 populated + PTEST-03 three-cycle idempotency + PTEST-04 sparse threshold) ship green covering all M010 PTEST-01..04 requirements atomically per HARD CO-LOC #M10-6
+- 1. [Rule 3 — Blocking] Promoted `PROFILE_INJECTION_HEADER` to a named export
+
+---
+
 ## v2.4 M009 Ritual Infrastructure + Daily Note + Weekly Review (Shipped: 2026-05-11)
 
 **Phases completed:** 6 phases, 23 plans, 85 tasks
