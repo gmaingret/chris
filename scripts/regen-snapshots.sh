@@ -65,6 +65,7 @@ MIGRATION_9="${MIGRATIONS_DIR}/0009_weekly_review_seed.sql"
 MIGRATION_10="${MIGRATIONS_DIR}/0010_adjustment_dialogue.sql"
 MIGRATION_11="${MIGRATIONS_DIR}/0011_rename_daily_voice_note_to_journal.sql"
 MIGRATION_12="${MIGRATIONS_DIR}/0012_operational_profiles.sql"
+MIGRATION_13="${MIGRATIONS_DIR}/0013_psychological_profiles.sql"
 
 CHECK_ONLY=0
 if [[ "${1:-}" == "--check-only" ]]; then
@@ -119,6 +120,11 @@ OVR
 # be preserved (it ships in Plan 33-01); only the post-0012 acceptance-gate
 # artifact (0013_snapshot.json named by drizzle's sequence-counter) is wiped
 # when this run produced it.
+#
+# Phase 37 extends this discipline to 0013 — committed 0013_snapshot.json must
+# be preserved (it ships in Plan 37-01, HARD CO-LOC #M11-1); only the post-0013
+# acceptance-gate artifact (0014_snapshot.json named by drizzle's sequence-counter)
+# is wiped when this run produced it.
 REGEN_PRODUCED_ACCEPTANCE=0
 cleanup() {
   local rc=$?
@@ -141,16 +147,17 @@ cleanup() {
   find "${MIGRATIONS_DIR}" -maxdepth 1 -name "0011_acceptance_check*.sql" -delete 2>/dev/null || true
   find "${MIGRATIONS_DIR}" -maxdepth 1 -name "0012_acceptance_check*.sql" -delete 2>/dev/null || true
   find "${MIGRATIONS_DIR}" -maxdepth 1 -name "0013_acceptance_check*.sql" -delete 2>/dev/null || true
-  # Only delete the post-0012 snapshot if THIS run produced it — otherwise it
+  find "${MIGRATIONS_DIR}" -maxdepth 1 -name "0014_acceptance_check*.sql" -delete 2>/dev/null || true
+  # Only delete the post-0013 snapshot if THIS run produced it — otherwise it
   # is a legitimate committed snapshot from a future plan and must be preserved.
   # The committed Phase 25 0006_snapshot.json + Phase 26 0007_snapshot.json +
   # Phase 27 0008_snapshot.json + Phase 29 0009_snapshot.json + Phase 28
   # 0010_snapshot.json + Phase 31 0011_snapshot.json + Phase 33
-  # 0012_snapshot.json are NEVER touched here; only the post-0012 future-snapshot
-  # drizzle-kit emits during the acceptance generate (named 0013_snapshot.json
-  # by drizzle's sequence-counter).
+  # 0012_snapshot.json + Phase 37 0013_snapshot.json are NEVER touched here;
+  # only the post-0013 future-snapshot drizzle-kit emits during the acceptance
+  # generate (named 0014_snapshot.json by drizzle's sequence-counter).
   if [[ "${REGEN_PRODUCED_ACCEPTANCE}" -eq 1 ]]; then
-    find "${META_DIR}" -name "0013_snapshot.json" -delete 2>/dev/null || true
+    find "${META_DIR}" -name "0014_snapshot.json" -delete 2>/dev/null || true
   fi
   exit "${rc}"
 }
@@ -373,15 +380,16 @@ apply_sql "${MIGRATION_9}"
 apply_sql "${MIGRATION_10}"
 apply_sql "${MIGRATION_11}"
 apply_sql "${MIGRATION_12}"
+apply_sql "${MIGRATION_13}"
 
 # Run generate from repo root. Use a distinctive name so any accidentally-
 # produced migration is easy to spot and cleanup.
 #
-# Mark that THIS run is responsible for any post-0012 snapshot that appears
+# Mark that THIS run is responsible for any post-0013 snapshot that appears
 # from here onward. The EXIT trap consults this flag before deleting any
-# 0013_snapshot.json so it never blows away a legitimate committed snapshot
-# on a script re-run after a future plan lands a real 0013 migration.
-# (The number after 0012 is 0013.)
+# 0014_snapshot.json so it never blows away a legitimate committed snapshot
+# on a script re-run after a future plan lands a real 0014 migration.
+# (The number after 0013 is 0014.)
 REGEN_PRODUCED_ACCEPTANCE=1
 set +e
 GEN_OUT=$(DATABASE_URL="${DB_URL}" npx drizzle-kit generate --name acceptance_check 2>&1)
@@ -394,9 +402,9 @@ if echo "${GEN_OUT}" | grep -q "No schema changes"; then
   echo ""
   echo "✓ Snapshot regeneration acceptance gate: No schema changes"
   # Defensive cleanup in case drizzle-kit wrote anything (the next sequence
-  # number after 0012 is 0013).
-  find "${MIGRATIONS_DIR}" -maxdepth 1 -name "0013_acceptance_check*.sql" -delete 2>/dev/null || true
-  find "${META_DIR}" -name "0013_snapshot.json" -delete 2>/dev/null || true
+  # number after 0013 is 0014).
+  find "${MIGRATIONS_DIR}" -maxdepth 1 -name "0014_acceptance_check*.sql" -delete 2>/dev/null || true
+  find "${META_DIR}" -name "0014_snapshot.json" -delete 2>/dev/null || true
   exit 0
 else
   echo ""
