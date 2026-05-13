@@ -42,3 +42,19 @@ acceptance criteria for Plan 37-01 Task 6.
 
 This pattern is consistent with M010 Plan 33-01 (which also could not run
 the full live-test suite from inside a worktree agent — same root cause).
+
+### live-API test failures persist during Plan 37-02 execution (2026-05-13)
+
+Re-confirmed during Plan 37-02 full `bash scripts/test.sh` run: same 29
+failures across the same 5 `live-*` test files. Zero overlap with Plan 37-02
+artifacts (`src/memory/confidence.ts`, `src/memory/profiles.ts`,
+`src/memory/profiles/psychological-shared.ts`, 4 new test files). All 4 new
+Plan 37-02 test files (psych-boundary-audit, psychological-schemas,
+psychological-shared, psychological-profiles) pass 65/65 against real Docker
+postgres.
+
+Summary of Plan 37-02 full-suite run:
+- Test Files: 5 failed | 124 passed | 7 skipped (136)
+- Tests: 29 failed | 1652 passed | 23 skipped (1704)
+- Failures: all in `live-*` files requiring real `ANTHROPIC_API_KEY`.
+
