@@ -145,6 +145,12 @@ const POPULATED_FRESH = {
  * argument list (not just the first arg). The per-call args array is the
  * load-bearing assertion for SURF-05 — if any future change passes a 2nd
  * argument (parse_mode), tests assert args.length === 1 and fail.
+ *
+ * IN-03: Omits `ctx.from` deliberately. The production handler
+ * (src/bot/handlers/profile.ts) reads only `ctx.chat?.id` — `ctx.from` is
+ * never accessed. Including it in the fixture would falsely suggest a
+ * Telegram-identity check happens inside the handler. In the single-user
+ * D009 deployment chat.id and from.id are always equal anyway.
  */
 function buildCtx(
   chatId: number = FIXTURE_CHAT_ID,
@@ -157,7 +163,6 @@ function buildCtx(
   const capturedAllArgs: unknown[][] = [];
   const ctx = {
     chat: { id: chatId },
-    from: { id: chatId },
     message: { text: '/profile' },
     reply: async (...args: unknown[]): Promise<void> => {
       captured.push(args[0] as string);
