@@ -82,7 +82,10 @@ See `.planning/milestones/v2.4-ROADMAP.md` for full phase details + `.planning/m
   3. `/profile` command returns a plain-text, second-person formatted summary of all four operational profiles with confidence percentages; psychological section reads "not yet available — see M011"
   4. `formatProfileForDisplay(profile)` golden-output snapshot test passes on a fixed `MOCK_PROFILES` fixture — no internal field name leakage, no third-person framing, no `parse_mode` set
   5. When all four profiles are null (e.g., fresh DB or all below threshold), `formatProfilesForPrompt()` returns empty string and mode handlers omit the injection block entirely
-**Plans**: TBD
+**Plans**: 3 plans
+- [ ] 35-01-PLAN.md — buildSystemPrompt signature refactor + atomic call-site migration (SURF-01, HARD CO-LOC #M10-4)
+- [ ] 35-02-PLAN.md — PROFILE_INJECTION_MAP + formatProfilesForPrompt + REFLECT/COACH/PSYCHOLOGY injection wiring (SURF-02)
+- [ ] 35-03-PLAN.md — /profile command + formatProfileForDisplay + golden-output snapshot test + bot registration (SURF-03/04/05, HARD CO-LOC #M10-5)
 
 **HARD CO-LOCATION #M10-4**: `buildSystemPrompt` signature refactor lands atomically across ALL call sites in ONE plan. Pre-work: full `buildSystemPrompt` call-site grep (OQ-3) before any code change.
 **HARD CO-LOCATION #M10-5**: `/profile` handler + `formatProfileForDisplay` + golden-output snapshot test land in the SAME plan.
