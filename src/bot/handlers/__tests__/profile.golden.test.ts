@@ -1,16 +1,20 @@
 /**
  * Phase 35 Plan 35-03 — formatProfileForDisplay golden-output snapshot test (SURF-04).
  *
- * **First snapshot test in this codebase.** Reviewer notes:
- *   - On test failure (rendering changed), run
- *     `npx vitest run -u src/bot/handlers/__tests__/profile.golden.test.ts`
- *     to update the inline snapshots in this file. Then REVIEW the diff
- *     carefully: ANY third-person leak ("Greg's...", "His...", "He has...")
- *     or internal field-name leak ("tax_structure:", "fi_phase:") is a
- *     M010-07 regression — REJECT the update.
- *   - The 16 cases cover 4 dimensions × 4 states (null / zero-confidence /
- *     populated-fresh / populated-stale) in English.
+ * **First inline-snapshot test in this codebase.** IN-02: the `-u` update
+ * workflow and the reviewer-discipline checklist (third-person leaks,
+ * internal field-name leaks, cross-locale English bleed, ISO-date leaks
+ * where a localized form is expected) are documented repo-wide in
+ * `.planning/codebase/TESTING.md` ("Inline Snapshots" section). Keep the
+ * narrower notes below focused on what is specific to THIS file.
+ *
+ * File-specific notes:
+ *   - The 16 EN cases cover 4 dimensions × 4 states (null / zero-confidence /
+ *     populated-fresh / populated-stale).
  *   - 2 FR + 2 RU smoke tests assert localized labels appear (1 dimension each).
+ *   - 2 IN-01 staleness-date tests pin the FR + RU localized forms ("1 avril
+ *     2026", "1 апреля 2026") and assert no ISO-date leak inside the
+ *     staleness note.
  *
  * Per D-25 + D-26: inline-snapshot keeps the expected output visible at the
  * assertion site so every rendering change forces deliberate reviewer

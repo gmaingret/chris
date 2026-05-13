@@ -320,6 +320,43 @@ Root cause: `scripts/synthesize-episodic.ts:288` deliberately skips organic epis
 
 The literal-text adequacy of the fixture is degraded; the FUNCTIONAL adequacy for Plan 30-02's `vi.setSystemTime` mock-clock walk is preserved (the walk simulates 14 days irrespective of fixture row counts). ROADMAP.md Phase 32 entry items #3-#5 captures the substrate hardening backlog. Once that hardening lands, raise the thresholds back: search the codebase for `TODO(phase-32)` markers in `src/__tests__/fixtures/primed-sanity.test.ts` + `scripts/validate-primed-manifest.ts`.
 
+## Inline Snapshots (`toMatchInlineSnapshot`)
+
+**Use case:** locking the exact user-facing output of a pure formatter (no DB, no LLM, no time-of-day signal) so any rendering change forces deliberate reviewer approval. The first instance in this codebase is `src/bot/handlers/__tests__/profile.golden.test.ts` — `/profile` command golden output (M010-07 regression gate against third-person leaks, internal-field-name leaks, and locale label leaks).
+
+**When to use vs. external snapshot (`toMatchSnapshot`):** prefer **inline** when the expected output is short enough to read at the assertion site (≤ ~25 lines). The visibility wins over external `__snapshots__/` files because every rendering change shows up in the PR diff of the test file itself — there is no separate file a reviewer might overlook.
+
+**When NOT to use inline snapshots:**
+- Outputs that contain `Date.now()`-derived fields without `vi.setSystemTime` to pin them.
+- Outputs derived from random data, UUIDs, or any non-deterministic input.
+- DB-row dumps where column ordering or formatting may shift across Drizzle versions.
+- Anything > ~25 lines per assertion — at that point the snapshot becomes hard to scan in the PR diff and an external snapshot file is cleaner.
+
+**Updating snapshots after an intentional rendering change:**
+```bash
+# Targeted, single file (preferred — avoids regenerating unrelated snapshots):
+DATABASE_URL=postgresql://chris:localtest123@localhost:5433/chris \
+  ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN \
+  TELEGRAM_AUTHORIZED_USER_ID=$TELEGRAM_AUTHORIZED_USER_ID \
+  npx vitest run -u src/bot/handlers/__tests__/profile.golden.test.ts
+
+# Full suite (use only if you are confident the changes are intentional everywhere):
+npm test -- -u
+```
+The `-u` flag updates inline snapshots in-place. `git diff` after running it should show exactly the lines that changed — no more, no less.
+
+**Reviewer discipline (load-bearing):**
+
+When reviewing a PR that touches a `toMatchInlineSnapshot` block, the snapshot diff IS the regression surface. Always scan the diff for:
+1. **Third-person leaks** — "Greg's", "His", "He has", "Le profil de Greg…" in `/profile` output. These violate D-20 (second-person framing) and recreate the M010-07 UX failure class. **Reject the update.**
+2. **Internal field-name leaks** — verbatim schema keys like `tax_structure:`, `fi_phase:`, `energy_30d_mean:` in user-facing output. The localized message tables in `MSG.fields.{dim}.{lang}` exist specifically to wrap these — a leak means a connective slipped past localization.
+3. **Cross-locale English bleed** — English connectives ("since", `energy=`/`mood=`/`anxiety=` axis labels) appearing inside otherwise-French/Russian sections. WR-02 covered this class explicitly; the smoke tests in `profile.golden.test.ts` (FR/RU `not.toMatch(...)` blocks) are the regression detector — but a new dimension or field may slip through without one.
+4. **ISO date leaks where a localized form is expected** — `2026-04-01` inside a staleness note rendered for FR/RU users. IN-01 fix: dates flow through `toLocaleDateString` with the per-language BCP-47 tag from a `DATE_LOCALES` table (see `src/chris/personality.ts` + `src/bot/handlers/profile.ts`).
+
+If ANY of those four appear in a snapshot update diff, the underlying change is wrong — fix the source, do not accept the snapshot.
+
+**Deterministic time for snapshot tests:** pin `Date.now()` with `vi.setSystemTime(FIXED_DATE)` in `beforeAll` and call `vi.useRealTimers()` in `afterAll`. NEVER `vi.useFakeTimers` (D-02, see Fake Time below). The `profile.golden.test.ts` pattern (`FRESH_DATE` for fresh rows, `STALE_DATE = FRESH_DATE − 42d` for >21d-stale rows) is the canonical setup.
+
 ## Fake Time
 
 **`vi.setSystemTime` ONLY — `vi.useFakeTimers` is FORBIDDEN.** D-02 rule. `vi.useFakeTimers` replaces `setTimeout`/`setInterval` and breaks the postgres.js connection keep-alive timers, causing flakey DB disconnects mid-test.
