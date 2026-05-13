@@ -85,7 +85,9 @@ Requirements are tracked **per milestone**, not aggregated here:
 - v2.1 M007: `.planning/milestones/v2.1-REQUIREMENTS.md` (31/31 satisfied)
 - v2.2 M008: `.planning/milestones/v2.2-REQUIREMENTS.md` (35/35 satisfied)
 - v2.3 Test Data Infrastructure: `.planning/milestones/v2.3-REQUIREMENTS.md` (20/20 satisfied)
-- **v2.4+ M009 and beyond:** spec files in repo root (`M009_*.md` … `M014_*.md`); next milestone kickoff via `/gsd-new-milestone "M009 Ritual Infrastructure + Daily Note + Weekly Review"`.
+- v2.4 M009 Ritual Infrastructure + Daily Note + Weekly Review: `.planning/milestones/v2.4-REQUIREMENTS.md` (52/52 satisfied)
+- v2.5 M010 Operational Profiles: `.planning/milestones/v2.5-REQUIREMENTS.md` (22/22 satisfied)
+- **v2.6+ M011 and beyond:** spec files in repo root (`M011_*.md` … `M014_*.md`); next milestone kickoff via `/gsd-new-milestone "M011 Psychological Profiles"`.
 
 See `## Current State` for the active milestone status and `## Implementation Phases` for the phase-level breakdown.
 
@@ -133,6 +135,11 @@ See `## Current State` for the active milestone status and `## Implementation Ph
 | **D039** | No Haiku fallback in verbatim-keyword fast-path (M008 deferral) | 15-keyword EN/FR/RU `VERBATIM_KEYWORDS` list is the sole gate; afterAll cumulative assertion `expect(mockAnthropicCreate).not.toHaveBeenCalled()` enforces. M009+ may add a Haiku fallback when real-world miss rate is measurable. Adding a classifier call to every chat message has a latency cost that is only worth paying once we know the keyword list misses in practice. |
 | **D040** | Decimal phases (e.g., 22.1) are the mid-milestone gap-closure pattern | Pattern borrowed from v2.1 Phase 15.1/16.1 precedent. When a milestone audit reveals a wiring gap that is not a re-open of the originating phase's scope, insert a decimal phase with explicit `(INSERTED)` marker in the progress table and plan numbering `22.1-01` (not 22-06). Keeps the audit trail clean: each phase's plans stay bounded; decimal phases are always gap-closure. Used in v2.2 for Phase 22.1 to wire `retrieveContext` into 5 chat-mode handlers after Phase 22's implementation shipped orphaned. |
 | **D041** | Test data via primed-fixture pipeline (v2.3) — no calendar-time data-accumulation gates | No milestone may gate on real wall-clock time for data accumulation (e.g. "wait 7 days to accumulate real episodic summaries before M009 can be tested"). The primed-fixture pipeline (Phase 24) produces fused organic+synthetic test fixtures on demand — organic base from live prod via SSH-tunneled postgres.js dump, synthetic delta via per-day Haiku style-transfer + real `runConsolidate()` episodic synthesis, all VCR-cached. Tests consume via `loadPrimedFixture('m008-14days')`. See `.planning/codebase/TESTING.md §Primed-Fixture Pipeline` and `.planning/codebase/CONVENTIONS.md §Test Data`. Replaces the v2.2 pain point where M008 testing implicitly gated M009 planning on 7 real calendar days of Greg's active use. |
+| **D042** | M010 Never-Retrofit Checklist — `schema_version` + `substrate_hash` + `name UNIQUE 'primary'` ship in migration 0012 with table creation, never retrofitted | Migration 0012 introduces 4 profile tables + `profile_history` with all non-retrofittable columns from day one: `schema_version INT NOT NULL DEFAULT 1`, `substrate_hash TEXT`, `name TEXT NOT NULL UNIQUE DEFAULT 'primary'` sentinel, `confidence REAL CHECK (>= 0 AND <= 1)`. Retrofitting any of these requires a follow-up migration touching live rows under load — strictly more expensive than getting it right in 0012. Enforced as HARD CO-LOCATION #M10-1. |
+| **D043** | PROFILE_INJECTION_MAP per-mode subset, not flat injection | REFLECT mode receives all 4 profile dimensions; COACH receives `['capital','family']`; PSYCHOLOGY receives `['health','jurisdictional']`. JOURNAL/INTERROGATE/PRODUCE/PHOTOS/ACCOUNTABILITY receive zero. Different conversational modes need different grounding — Capital + Family is the COACH context (financial + relational planning); Health + Jurisdictional is the PSYCHOLOGY context (somatic + legal-status interpretation). Flat injection of all 4 to all modes wastes tokens AND introduces field-leak risk (e.g., FI numbers showing up in a PSYCHOLOGY response). `PROFILE_INJECTION_MAP` at `src/memory/profiles.ts:70-74` is the single source of truth; out-of-scope modes silently drop `extras.operationalProfiles`. |
+| **D044** | Substrate-hash idempotency closes the M009 lt→lte regression class — three-cycle test pattern, not two-cycle | Phase 36 PTEST-03 extends the ROADMAP-required "two-cycle" test to a 3-cycle pattern: Cycle 1 (4 Sonnet calls, populate); Cycle 2 with identical substrate (STILL 4 cumulative — idempotent, NOT 8); Cycle 3 with mutated substrate via INSERT of a new Pensieve entry (8 cumulative — substrate changed). The Cycle 3 mutation MUST be an INSERT (new ID), NOT a text edit on an existing row — the SHA-256 hashes over entry IDs, not content. The M009 `lt→lte` lesson (`tryFireRitualAtomic` boundary off-by-one preventing first-fire) requires testing the boundary explicitly: Cycle 2 idempotent + Cycle 3 detects new entries. |
+| **D045** | Three-way `describe.skipIf` gate for live tests — extends M009 two-way pattern | M009 TEST-22 used `describe.skipIf(!RUN_LIVE_TESTS \|\| !ANTHROPIC_API_KEY)`. M010 PTEST-05 adds a third condition: `FIXTURE_PRESENT`. Rationale: a developer setting `RUN_LIVE_TESTS=1` in a sandbox without the regenerated fixture would otherwise run the test with vacuous assertions (system prompt has no profile block to assert on). Three-way gate makes failure modes explicit at skip time, not at assertion time. Default CI run skips cleanly in <1s. |
+| **D046** | Live milestone-gate cost discipline — ~$0.10-0.15 per PTEST-05 run, dual-gated, operator-invoked | Live tests against real Sonnet 4.6 cost ~$0.03-0.05 per atomic 3-of-3 run; the M010 milestone-gate test runs once per milestone close, not in CI. Dual-gating by `RUN_LIVE_TESTS=1 ANTHROPIC_API_KEY=…` is mandatory for any test that invokes Sonnet/Haiku/Opus billed APIs. Per-test cost callouts in the test file docblock are required so operators can budget. M010 PTEST-05 cost was $0.10-0.15 for 3 atomic iterations, 75s wall-clock. |
 
 ---
 
@@ -214,9 +221,9 @@ Milestones M006–M014 implement the "soul system" described in `PRD_Project_Chr
 | 2 | v2.1 | M007 | Decision Archive | M006 |
 | 3 | v2.2 | M008 | Episodic Consolidation | M007 |
 | 3.5 | **v2.3** | **—** | **Test Data Infrastructure** *(pre-M009 enabler, single-phase; primed-fixture pipeline, organic from prod + synthetic delta)* | M008 |
-| 4 | v2.4 | **M009** | **Ritual Infrastructure + Daily Note + Weekly Review** *(MVP shipping point)* | v2.3 Test Data Infra + M008 |
-| 5 | v2.5 | M010 | Operational Profiles | M009 |
-| 6 | v2.6 | M011 | Psychological Profiles | M010 |
+| 4 | v2.4 | M009 ✅ | Ritual Infrastructure + Daily Note + Weekly Review *(MVP shipping point)* | v2.3 Test Data Infra + M008 |
+| 5 | v2.5 | M010 ✅ | Operational Profiles | M009 |
+| 6 | **v2.6** | **M011** | **Psychological Profiles** *(NEXT)* | M010 |
 | 7 | v2.7 | M012 | Mental Model Inventory | M010 (parallel with M011) |
 | 8 | v2.8 | M013 | Monthly + Quarterly Rituals + Anti-Sycophancy Monitoring | M011 and M012 |
 | 9 | v2.9 | M014 | Narrative Identity | M013 |
@@ -316,55 +323,53 @@ Execution runs inside GSD v1 (`get-shit-done-cc`), not v2. GSD v1 operates as Cl
 
 ## Current State
 
-**Shipped:** v1.0 (2026-04-13), v2.0 M006 Trustworthy Chris (2026-04-15), v2.1 M007 Decision Archive (2026-04-18), v2.2 M008 Episodic Consolidation (2026-04-19), **v2.3 Test Data Infrastructure (2026-04-20, archived 2026-04-25)**.
+**Shipped:** v1.0 (2026-04-13), v2.0 M006 Trustworthy Chris (2026-04-15), v2.1 M007 Decision Archive (2026-04-18), v2.2 M008 Episodic Consolidation (2026-04-19), v2.3 Test Data Infrastructure (2026-04-20, archived 2026-04-25), v2.4 M009 Ritual Infrastructure + Daily Note + Weekly Review (2026-05-11), **v2.5 M010 Operational Profiles (2026-05-13)**.
 
-v2.3 closed: 20/20 requirements satisfied via Phase 24's primed-fixture pipeline. Operator can produce a fused organic+synthetic test fixture on demand — `scripts/fetch-prod-data.ts` SSH-tunnels into Proxmox for read-only pg_dump, `scripts/synthesize-delta.ts` extends with Haiku style-transfer + deterministic generators (VCR-cached for free re-runs), `scripts/synthesize-episodic.ts` invokes the real `runConsolidate()` engine via sibling-module composition against throwaway PG5435, and `loadPrimedFixture(name)` seeds the Docker test DB FK-safe + idempotent. HARN-03 sanity gate asserts ≥7 summaries, ≥200 telegram entries, UNIQUE(summary_date), no non-telegram leakage. D041 convention codified in PLAN.md/CONVENTIONS.md/TESTING.md: *no milestone may gate on real calendar time for data accumulation.*
+v2.5 closed: 22/22 requirements (PROF-01..05 + GEN-01..07 + SURF-01..05 + PTEST-01..05) satisfied across 4 phases / 10 plans / 54 tasks. Profile substrate (5 tables + reader API + Zod v3+v4 dual schemas + confidence helpers) shipped Phase 33. Sunday 22:00 Paris cron + 4 per-dimension generators with SHA-256 substrate-hash idempotency + Promise.allSettled isolation shipped Phase 34. REFLECT/COACH/PSYCHOLOGY profile injection via `PROFILE_INJECTION_MAP` per-mode subset + `/profile` Telegram command with golden-output formatter shipped Phase 35. Test pyramid (primed fixture + 3-cycle idempotency + sparse threshold + live 3-of-3 anti-hallucination against real Sonnet 4.6) shipped Phase 36. PTEST-05 milestone-gate confirmed 2026-05-13T11:30Z: 3-of-3 atomic GREEN with zero hallucinated facts. Container deployed to Proxmox 2026-05-13 01:43 UTC; first Sunday cron fire ETA 2026-05-17 22:00 Paris.
 
-Chris is deployed on self-hosted Proxmox (192.168.1.50) with both containers healthy through v2.2. v2.3 is a test-infrastructure milestone — no prod deploy expected; the new scripts run from operator workstations against prod read-only.
+Chris is deployed on self-hosted Proxmox (192.168.1.50) with profile inference live. The full reflection loop is now grounded: M008 episodic summaries + M007 resolved decisions + M009 daily journal + wellbeing + weekly review + M010 operational profile injection into REFLECT/COACH/PSYCHOLOGY.
 
-**Currently between milestones.** M009 Ritual Infrastructure is unblocked and is the next planned milestone — the primed-fixture pipeline removes the prior 7-real-calendar-day data-accumulation gate. Kickoff command: `/gsd-new-milestone "M009 Ritual Infrastructure + Daily Note + Weekly Review"`.
+**Currently between milestones.** M011 Psychological Profiles is unblocked and is the next planned milestone — HEXACO traits, attachment dimensions (ATTACH-01 activation trigger 2,000 words / 60 days), values, and other inferred-trait psychology that consumes M010 operational substrate + M008 episodic. Kickoff command: `/gsd-new-milestone "M011 Psychological Profiles"`.
 
-**Tech debt carried into v2.4+:**
-- **Process: `gsd-verifier` not wired into `/gsd-execute-phase`.** Phase 24 shipped without a live VERIFICATION.md (produced retroactively at v2.3 close). Investigate before next milestone.
-- **Process: SUMMARY.md frontmatter missing `requirements-completed` field.** All 4 v2.3 plans omit it — breaks structured cross-reference. Update template / planner prompt before next milestone.
-- **Upstream `gsd-sdk milestone.complete` is broken** — calls `phasesArchive([], projectDir)` without forwarding the version arg. v2.3 close performed manually as workaround.
-- **Manual operator UAT pending for v2.3 live prod path** — `scripts/regenerate-primed.ts --milestone m008 --force` against real Proxmox needs to run once to materialize `tests/fixtures/primed/m008-14days/MANIFEST.json`; HARN-03 4 sanity assertions then flip from skipped to running.
-- **Env-level vitest-4 fork-IPC hang under HuggingFace EACCES** — pre-existing; 5-file excluded-suite mitigation in `scripts/test.sh` keeps Docker gate green. Worth a future fix-up phase.
-- **`getEpisodicSummariesRange` forward-only substrate** — exported and tested but zero production callers in v2.2/v2.3. Will be picked up by M009 weekly review.
-- **Phase 21 WR-02 retry-on-all-errors policy** — documented design choice; M009+ may revisit if error patterns emerge.
+**Tech debt carried into v2.6+:**
+- **Phase 34 first-Sunday cron fire observation pending 2026-05-17** — naturally future-dated; container deployed and cron registered (boot log confirms `cron='0 22 * * 0' timezone='Europe/Paris'`). Operator observes via `ssh chris@192.168.1.50 'docker logs chris-chris-1 | grep chris.profile'` after 22:00 Paris on 2026-05-17.
+- **v2.5.1 backlog from M010 deferred items** (DIFF-2..7): auto-detection of profile-change moments (DIFF-2), per-profile narrative summaries (DIFF-4), profile consistency checker (DIFF-5), wellbeing-anchored health updates (DIFF-6). SATURATION constant requires 4-8 weeks of real M010 operation to calibrate.
+- **WR-01 dead-code branch + WR-02 EN-tokens leak in FR/RU `/profile` output** (Phase 35 code review). Non-blocking polish items.
+- **v2.4 carry-forward unresolved**: synth-pipeline organic+synth fusion, FR/RU localization of templated weekly_review fallback, Phase 28 60s confirmation window real-clock UAT.
+- **Env-level vitest-4 fork-IPC hang under HuggingFace EACCES** — pre-existing; 5-file excluded-suite mitigation in `scripts/test.sh` keeps Docker gate green.
 - **12 human-UAT items carried from v2.1** — live Telegram feel, ACCOUNTABILITY tone, `/decisions` dashboard format, FR/RU localization.
 
-Archived detail: `.planning/milestones/v2.0-*`, `.planning/milestones/v2.1-*`, `.planning/milestones/v2.2-*`, `.planning/milestones/v2.3-*`, `.planning/milestones/v2.X-phases/` (phase directories for v2.0–v2.2; v2.3 phase archival pending).
+Archived detail: `.planning/milestones/v2.0-*`, `.planning/milestones/v2.1-*`, `.planning/milestones/v2.2-*`, `.planning/milestones/v2.3-*`, `.planning/milestones/v2.4-*`, `.planning/milestones/v2.5-*`, `.planning/milestones/v2.X-phases/` (phase directories for v2.0–v2.5; v2.3 phase archival is the only outstanding archive task).
 
-## Current Milestone: v2.5 M010 Operational Profiles
+## Next Milestone: v2.6 M011 Psychological Profiles
 
-**Goal:** Build the four operational profile dimensions that capture Greg's situational state — jurisdictional (location + residency + tax statuses), capital (FI phase + trajectory), health (clinical case file with open hypotheses), and family formation arc. Operational profiles update from observable facts rather than inferred traits, so they have stronger ground truth and faster validation cycles than the M011 HEXACO / M012 mental-models layer that comes after. Builds directly on M008 episodic summaries + M007 resolved decisions + new M009 daily journal + wellbeing substrate.
+**Status:** Awaiting kickoff via `/gsd-new-milestone "M011 Psychological Profiles"`.
 
-**Target features:**
-- Four new Drizzle tables: `profile_jurisdictional`, `profile_capital`, `profile_health`, `profile_family` — each with id, last_updated, confidence (0.0–1.0), plus profile-specific jsonb columns per the M010 spec
-- Weekly cron updates all four operational profiles from the previous week's episodic summaries + FACT/RELATIONSHIP/INTENTION/EXPERIENCE-tagged Pensieve entries; one focused Sonnet prompt per profile (never a mega-prompt)
-- Confidence scores reflect data volume + consistency; minimum 10 distinct Pensieve entries threshold before any profile populates (below threshold → "insufficient data" markers + confidence 0)
-- New module `src/memory/profiles.ts` exposing `getOperationalProfiles()` returning structured data (not narrative summaries); REFLECT, COACH, and PSYCHOLOGY mode handlers call this and format the result into their system prompts as grounded context
-- `/profile` Telegram command returns a read-only summary of all four operational profiles with confidence ranges; psychological-profile section reads "not yet available — see M011" until M011 lands
-- Synthetic fixture test: 30+ days of synthetic episodic summaries covering all four profile dimensions, weekly update job runs, all four populate with calibrated confidence; sparse 5-entry fixture must produce no populated profile (threshold enforcement)
+**Goal (from `M011_*.md` spec):** Layer psychological trait inference (HEXACO Big-Six personality, attachment dimensions, values, regulatory focus) on top of M010 operational substrate. Psychological profiles update on a slower cadence than operational profiles because traits change slowly; they consume aggregated episodic + relational-memory substrate and explicitly do NOT mix with operational profile fields (D047-to-be: psychological vs operational boundary).
 
-**Key context:**
-- **D041 supersedes the M010 spec's "30 days of real M009 data" pause** — primed-fixture pipeline is the validation gate, not calendar wait
-- M010 spec text uses "John" as a legacy artifact (Phase 11 unified John→Greg in the codebase); requirements + code will use Greg
-- v2.4 carryover items (synth-pipeline organic+synth fusion, weekly_review FR/RU localization, Phase 28 60s real-clock UAT) are NOT in M010 scope — they remain backlog for v2.5.1 substrate cleanup or M013
-
-**Kickoff command:** `/gsd-new-milestone` (in progress 2026-05-11).
-
-**Progress (2026-05-12):**
-- Phase 33 (Profile Substrate) ✅ — migration 0012, 5 profile tables, `getOperationalProfiles()` reader, `confidence.ts` helpers, Zod v3/v4 schemas, ground-truth seeded. Deployed to Proxmox 2026-05-11.
-- Phase 34 (Inference Engine) ✅ — `assembleProfilePrompt` shared builder, 4 dimension generators, `loadProfileSubstrate` + SHA-256 substrate-hash idempotency, `updateAllOperationalProfiles` orchestrator, Sunday 22:00 Paris cron, `/health.profile_cron_registered`. All 7 GEN-XX requirements verified in code (1544 tests passing). Two `HUMAN-UAT` items pending operator observation (first Sun 22:00 prod fire + live `/health` curl).
-- Phase 35 (Surfaces) — next: REFLECT/COACH/PSYCHOLOGY mode-handler injection + `/profile` Telegram command + `buildSystemPrompt` signature refactor (HARD CO-LOC #M10-4 atomic).
-- Phase 36 (Synthetic Fixture Test + Live Integration) — depends on Phase 35.
+**Pause discipline:** M009 needed 1 month real use before M010 started — but M010 used primed fixtures (D041), satisfying the data-substrate condition without calendar wait. M011 inherits the same flexibility: operator decides whether to gate on at least one Sunday cron fire observation (2026-05-17) before kickoff or to start fixture-driven planning immediately.
 
 ---
 
 <details>
-<summary>Previous milestone (v2.4 M009 Ritual Infrastructure + Daily Note + Weekly Review — shipped 2026-05-11)</summary>
+<summary>Previous milestone (v2.5 M010 Operational Profiles — shipped 2026-05-13)</summary>
+
+**Goal:** Build four operational profile dimensions (jurisdictional, capital, health, family) that capture Greg's situational state from observable facts. Profiles inject as grounded context into REFLECT/COACH/PSYCHOLOGY mode handlers and are read-only-surfaced via a new `/profile` Telegram command.
+
+**Delivered (22/22 requirements, 4 phases, 10 plans, 54 tasks):**
+- **Phase 33 — Profile Substrate (PROF-01..05):** Migration 0012 + 4 profile tables (`profile_jurisdictional/capital/health/family`) + `profile_history` table + Never-Retrofit Checklist columns (schema_version + substrate_hash + name UNIQUE 'primary' + confidence CHECK) — all shipped atomically per HARD CO-LOC #M10-1. Never-throw `getOperationalProfiles()` reader with 3-layer Zod v3 parse defense + ground-truth seeded initial rows (jurisdictional 0.3, capital 0.2, health/family 0.0). Zod v3+v4 dual schemas + pure-function confidence helpers (`computeProfileConfidence` + `isAboveThreshold` + `MIN_ENTRIES_THRESHOLD=10` + `SATURATION=50`).
+- **Phase 34 — Inference Engine (GEN-01..07):** `assembleProfilePrompt(dim, substrate, prevState, entryCount)` shared builder with CONSTITUTIONAL_PREAMBLE + DO_NOT_INFER_DIRECTIVE — HARD CO-LOC #M10-2 ships builder BEFORE 4 dimension generators. `runProfileGenerator` shared helper (Claude's Discretion extraction). `updateAllOperationalProfiles` orchestrator via `Promise.allSettled` with isolation between dimensions. SHA-256 substrate-hash idempotency closes M009 `lt→lte` regression class via HARD CO-LOC #M10-3 three-cycle test (Cycle 1 → 4 calls, Cycle 2 identical → STILL 4, Cycle 3 INSERT new entry → 8). Sunday 22:00 Paris cron registered in `cron-registration.ts` with `profileUpdaterCron` env + `cron.validate` fail-fast + `/health.profile_cron_registered`.
+- **Phase 35 — Surfaces (SURF-01..05):** `buildSystemPrompt` refactored to `(mode, pensieveCtx, relCtx, extras: ChrisContextExtras)` atomically across 8 production call sites — HARD CO-LOC #M10-4. `PROFILE_INJECTION_MAP` per-mode subset (REFLECT=4 dims, COACH=[capital,family], PSYCHOLOGY=[health,jurisdictional]) — D043. `formatProfilesForPrompt` empty-string return for null/zero-confidence profiles (no orphan header). `/profile` Telegram command with `formatProfileForDisplay` pure function + 16-case golden-output snapshot test + M011 placeholder — HARD CO-LOC #M10-5.
+- **Phase 36 — Tests (PTEST-01..05):** `synthesize-delta.ts --profile-bias` flag + m010-30days + m010-5days primed fixtures + HARN sanity gate per-dimension — HARD CO-LOC #M10-6. Real-DB 3-cycle idempotency integration test, sparse threshold-enforcement test, live 3-of-3 anti-hallucination test against real Sonnet 4.6 (dual-gated `RUN_LIVE_TESTS=1 ANTHROPIC_API_KEY=…`, three-way `describe.skipIf` per D045, ~$0.10-0.15 cost per D046). PTEST-05 milestone-gate operator-confirmed 2026-05-13T11:30Z: 3-of-3 atomic GREEN, zero hallucinated facts across all 3 iterations.
+
+**New decisions logged during v2.5:** D042 (Never-Retrofit Checklist columns in migration 0012), D043 (PROFILE_INJECTION_MAP per-mode subset), D044 (three-cycle substrate-hash idempotency pattern), D045 (three-way `describe.skipIf` for live tests), D046 (live milestone-gate cost discipline ~$0.10-0.15 per run).
+
+Archived at `.planning/milestones/v2.5-ROADMAP.md`, `.planning/milestones/v2.5-REQUIREMENTS.md`, `.planning/milestones/v2.5-MILESTONE-AUDIT.md`, `.planning/milestones/v2.5-phases/`.
+
+</details>
+
+<details>
+<summary>v2.4 M009 Ritual Infrastructure + Daily Note + Weekly Review (shipped 2026-05-11 — historical)</summary>
 
 **Goal:** Build scheduling + tracking infrastructure for rituals plus the three lightest rituals — daily journal, daily wellbeing snapshot, weekly review. After M009 ships, Greg has the full frictionless reflection loop: M006 trust + M007 decisions + M008 episodic + M009 daily prompts + weekly observations. Everything from M010 onward builds on real data this milestone produces.
 
@@ -486,4 +491,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-12 after v2.5 M010 Phase 34 (Inference Engine) completion. Phase 33 + 34 of 4 (33–36) shipped; Phase 35 (Surfaces) next. Full PROJECT.md evolution (What This Is / Core Value / Requirements / Out of Scope / Key Decisions / Constraints review) is deferred to v2.5 M010 milestone close via `/gsd-complete-milestone`, which drives the deeper update with fresh domain questions.*
+*Last updated: 2026-05-13 after v2.5 M010 Operational Profiles milestone close. Full evolution review completed — Requirements link list (added v2.4 + v2.5), Implementation Phases (M009 + M010 marked ✅), Current State (Shipped list + v2.5 close narrative + v2.6 next + tech debt rolled forward), Current Milestone section (replaced with Next Milestone: v2.6 M011 + collapsed v2.5 into historical detail block), Key Decisions (added D042 Never-Retrofit Checklist, D043 PROFILE_INJECTION_MAP per-mode subset, D044 three-cycle idempotency, D045 three-way describe.skipIf, D046 live-test cost discipline). "What This Is" / Core Value / Constraints / Out of Scope reviewed and unchanged — M010 fits the existing framing of "Pensieve with first-person voice grounded in structured facts." Next: `/gsd-new-milestone "M011 Psychological Profiles"` after observing 2026-05-17 first Sunday 22:00 Paris cron fire.*

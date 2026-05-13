@@ -192,6 +192,6 @@ Items acknowledged and deferred at M010 close on 2026-05-13:
 
 | Category | Item | Status | Note |
 |----------|------|--------|------|
-| debug_session | m009-rituals-no-fire | root_caused | Fix shipped commit c76cb86 2026-05-10; archival pending |
+| debug_session | m009-rituals-no-fire | resolved | Fix shipped commit c76cb86 2026-05-10; archived 2026-05-13 (status flipped to resolved + resolution metadata added) |
 | uat_gaps | phase 34 HUMAN-UAT.md | partial (1 open scenario) | "First Sunday 22:00 Paris cron fire" observation scheduled 2026-05-17 — naturally future-dated |
 | verification_gaps | phase 34 VERIFICATION.md | open | Same 2026-05-17 cron-fire observation reference |

@@ -3,6 +3,8 @@ phase: 36-tests
 plan: 02
 subsystem: tests/profiles
 tags: [m010, profiles, live-test, anti-hallucination, reflect-mode, milestone-gate, ptest-05]
+requirements-completed:
+  - PTEST-05
 requires:
   - "Plan 36-01 fixture infrastructure (CHAT_ID_LIVE_ANTI_HALLUCINATION, seedProfileRows, m010-30days fixture, primed-sanity-m010 gate)"
   - "Phase 33 getOperationalProfiles reader (consumed inside handleReflect)"

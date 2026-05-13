@@ -1,8 +1,19 @@
 ---
 slug: m009-rituals-no-fire
-status: root_caused
+status: resolved
 created: 2026-05-05T12:40:00Z
 updated: 2026-05-05T14:45:00Z
+resolved: 2026-05-13T12:35:00Z
+resolution:
+  fix_commit: c76cb86
+  fix_date: 2026-05-10
+  fix_summary: |
+    P0 fix: tryFireRitualAtomic lt→lte boundary (M009 second-fire-blindness
+    regression class). Rituals unstuck via catch-up. First weekly_review fire
+    confirmed 2026-05-10 20:00 Paris. Bug 1 (journal/DB desync) closed by
+    commit be22af0 stale 'when' fix on the 0011 journal entry. Bug 2 confirmed
+    as operator action (no code change needed).
+  archived_during: v2.5 M010 milestone close (2026-05-13)
 trigger: |
   M009 ritual infrastructure has never successfully fired in production.
   Two distinct bugs surfaced during /gsd-verify-work 29 (SC-1 verification).
