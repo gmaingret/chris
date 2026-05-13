@@ -201,8 +201,7 @@ describe('handleProduce', () => {
       'PRODUCE',
       expect.any(String),
       undefined,
-      undefined,
-      undefined,
+      { language: undefined, declinedTopics: undefined },
     );
   });
 
