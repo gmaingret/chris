@@ -34,11 +34,11 @@ Milestone scope locked 2026-05-11 after `/gsd-new-milestone` research pass (STAC
 
 ### PTEST — Profile tests (Phase 36)
 
-- [ ] **PTEST-01**: `tests/fixtures/primed/m010-30days/` primed fixture covering all four profile dimensions with ≥12 distinct tagged Pensieve entries per dimension; `scripts/synthesize-delta.ts` extended with `--profile-bias` flag for per-dimension content biasing (PITFALLS M010-05 — synth pipeline has no topic-bias mechanism today)
-- [ ] **PTEST-02**: Real-DB integration test loading m010-30days, running `updateAllOperationalProfiles()`, asserting all four profiles populate with confidence > 0 AND every profile-row's `last_updated` advances AND `substrate_hash` is non-null
-- [ ] **PTEST-03**: Two-cycle integration test — Week 1 populates with substrate A; Week 2 with identical substrate A verifies `substrate_hash` idempotency (no second Sonnet call — `mockAnthropicParse.toHaveBeenCalledTimes(4)` not 8); Week 2 with substrate B (new entries) verifies the update applies and emits `'profile_updated'`. Second-fire-blindness regression detector
-- [ ] **PTEST-04**: Sparse-fixture test — 5-entry-per-dimension fixture → all four profiles return `"insufficient data"` markers + `confidence=0` + skipped log line; asserts threshold-enforcement contract (TS-8 from FEATURES)
-- [ ] **PTEST-05**: Live 3-of-3 atomic anti-hallucination test against real Sonnet on a fresh fixture week — dual-gated (`RUN_LIVE_TESTS=1 ANTHROPIC_API_KEY=…`) per D-30-03 cost discipline; ~$0.20/run; mirrors M009 TEST-31 structure
+- [x] **PTEST-01**: `tests/fixtures/primed/m010-30days/` primed fixture covering all four profile dimensions with ≥12 distinct tagged Pensieve entries per dimension; `scripts/synthesize-delta.ts` extended with `--profile-bias` flag for per-dimension content biasing (PITFALLS M010-05 — synth pipeline has no topic-bias mechanism today)
+- [x] **PTEST-02**: Real-DB integration test loading m010-30days, running `updateAllOperationalProfiles()`, asserting all four profiles populate with confidence > 0 AND every profile-row's `last_updated` advances AND `substrate_hash` is non-null
+- [x] **PTEST-03**: Two-cycle integration test — Week 1 populates with substrate A; Week 2 with identical substrate A verifies `substrate_hash` idempotency (no second Sonnet call — `mockAnthropicParse.toHaveBeenCalledTimes(4)` not 8); Week 2 with substrate B (new entries) verifies the update applies and emits `'profile_updated'`. Second-fire-blindness regression detector
+- [x] **PTEST-04**: Sparse-fixture test — 5-entry-per-dimension fixture → all four profiles return `"insufficient data"` markers + `confidence=0` + skipped log line; asserts threshold-enforcement contract (TS-8 from FEATURES)
+- [x] **PTEST-05**: Live 3-of-3 atomic anti-hallucination test against real Sonnet on a fresh fixture week — dual-gated (`RUN_LIVE_TESTS=1 ANTHROPIC_API_KEY=…`) per D-30-03 cost discipline; ~$0.10-0.15/run; mirrors M009 TEST-31 structure
 
 ## Future Requirements (deferred to v2.5.1 or M013)
 
@@ -95,11 +95,11 @@ These items closed v2.4 as deferred (see `.planning/milestones/v2.4-MILESTONE-AU
 | SURF-03 | 35 | 35-03 | Complete | 35-VERIFICATION.md (2026-05-13) |
 | SURF-04 | 35 | 35-03 | Complete | 35-VERIFICATION.md (2026-05-13) |
 | SURF-05 | 35 | 35-03 | Complete | 35-VERIFICATION.md (2026-05-13) |
-| PTEST-01 | 36 | 36-01 | Not Started | — |
-| PTEST-02 | 36 | 36-01 | Not Started | — |
-| PTEST-03 | 36 | 36-01 | Not Started | — |
-| PTEST-04 | 36 | 36-01 | Not Started | — |
-| PTEST-05 | 36 | 36-02 | Not Started | — |
+| PTEST-01 | 36 | 36-01 | Complete | 36-VERIFICATION.md (2026-05-13) |
+| PTEST-02 | 36 | 36-01 | Complete | 36-VERIFICATION.md (2026-05-13) |
+| PTEST-03 | 36 | 36-01 | Complete | 36-VERIFICATION.md (2026-05-13) |
+| PTEST-04 | 36 | 36-01 | Complete | 36-VERIFICATION.md (2026-05-13) |
+| PTEST-05 | 36 | 36-02 | Complete | 36-VERIFICATION.md (2026-05-13) — live 3-of-3 atomic pass operator-confirmed 11:30 UTC |
 
 **Total: 22 requirements across 4 phases (Phase 33–36).**
 

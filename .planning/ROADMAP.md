@@ -33,7 +33,7 @@ See `.planning/milestones/v2.4-ROADMAP.md` for full phase details + `.planning/m
 - [x] **Phase 33: Profile Substrate** — Migration 0012 + 4 profile tables + history table + reader API + Zod schemas (completed 2026-05-11)
 - [x] **Phase 34: Inference Engine** — Shared prompt builder + 4 generators + orchestrator + Sunday 22:00 cron + idempotency (completed 2026-05-12)
 - [x] **Phase 35: Surfaces** — buildSystemPrompt refactor + REFLECT/COACH/PSYCHOLOGY injection + /profile command + formatter (completed 2026-05-13)
-- [ ] **Phase 36: Tests** — m010-30days primed fixture + real-DB integration + two-cycle idempotency + sparse + live 3-of-3
+- [x] **Phase 36: Tests** — m010-30days primed fixture + real-DB integration + two-cycle idempotency + sparse + live 3-of-3 (completed 2026-05-13)
 
 ## Phase Details
 
@@ -117,7 +117,7 @@ See `.planning/milestones/v2.4-ROADMAP.md` for full phase details + `.planning/m
 | 33 — Profile Substrate | v2.5 | 2/2 | Complete   | 2026-05-11 |
 | 34 — Inference Engine | v2.5 | 3/3 | Complete    | 2026-05-12 |
 | 35 — Surfaces | v2.5 | 3/3 | Complete   | 2026-05-13 |
-| 36 — Tests | v2.5 | 1/2 | In Progress|  |
+| 36 — Tests | v2.5 | 2/2 | Complete   | 2026-05-13 |
 
 ## Archived Milestones
 
