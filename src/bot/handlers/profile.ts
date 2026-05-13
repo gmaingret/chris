@@ -402,13 +402,13 @@ export function formatProfileForDisplay(
       }
       if (d.next_planned_move?.destination && d.next_planned_move.from_date) {
         lines.push(L.yourNextMove(d.next_planned_move.destination, d.next_planned_move.from_date));
+      } else if (d.next_planned_move?.destination && d.planned_move_date) {
+        // Edge: from_date sits in planned_move_date instead of inside next_planned_move.
+        // This branch MUST come before the destination-only branch below — otherwise
+        // the destination-only branch eats the case and the planned_move_date is dropped.
+        lines.push(L.yourNextMove(d.next_planned_move.destination, d.planned_move_date));
       } else if (d.next_planned_move?.destination) {
         lines.push(L.yourNextMoveDestOnly(d.next_planned_move.destination));
-      } else if (d.planned_move_date && d.next_planned_move) {
-        // Edge: from_date sits in planned_move_date instead of inside the object.
-        if (d.next_planned_move.destination) {
-          lines.push(L.yourNextMove(d.next_planned_move.destination, d.planned_move_date));
-        }
       }
       if (d.passport_citizenships?.length) {
         lines.push(L.yourCitizenships(d.passport_citizenships.join(', ')));
