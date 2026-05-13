@@ -81,6 +81,18 @@ vi.mock('../personality.js', () => ({
   buildSystemPrompt: mockBuildSystemPrompt,
 }));
 
+// ── Mock memory/profiles (Phase 35 Plan 35-02 SURF-02) ─────────────────────
+// REFLECT is an in-scope mode per PROFILE_INJECTION_MAP — these mocks let us
+// assert the D-14 call order (getOperationalProfiles → formatProfilesForPrompt
+// → buildSystemPrompt) and the D-08/D-13 wire of operationalProfiles into
+// extras without exercising the real DB-reading code path.
+const mockGetOperationalProfiles = vi.fn();
+const mockFormatProfilesForPrompt = vi.fn();
+vi.mock('../../memory/profiles.js', () => ({
+  getOperationalProfiles: mockGetOperationalProfiles,
+  formatProfilesForPrompt: mockFormatProfilesForPrompt,
+}));
+
 // ── Mock pensieve store (should NOT be called) ─────────────────────────────
 const mockStorePensieveEntry = vi.fn();
 vi.mock('../../pensieve/store.js', () => ({
@@ -198,6 +210,15 @@ describe('handleReflect', () => {
       { role: 'assistant', content: 'previous answer' },
     ]);
     mockBuildSystemPrompt.mockReturnValue('interpolated reflect system prompt');
+    mockGetOperationalProfiles.mockResolvedValue({
+      jurisdictional: null,
+      capital: null,
+      health: null,
+      family: null,
+    });
+    mockFormatProfilesForPrompt.mockReturnValue(
+      '## Operational Profile (grounded context — not interpretation)\n\nfake-rendered-profile',
+    );
     mockCreate.mockResolvedValue(
       makeLLMResponse('I notice a recurring theme of self-doubt in your entries.'),
     );
@@ -237,7 +258,24 @@ describe('handleReflect', () => {
       'REFLECT',
       expect.any(String),
       expect.any(String),
-      { language: undefined, declinedTopics: undefined },
+      expect.objectContaining({ language: undefined, declinedTopics: undefined }),
+    );
+  });
+
+  it('calls getOperationalProfiles + formatProfilesForPrompt + passes operationalProfiles via extras (Phase 35 SURF-02, D-14)', async () => {
+    await handleReflect(CHAT_ID, TEST_QUERY);
+    expect(mockGetOperationalProfiles).toHaveBeenCalledTimes(1);
+    expect(mockFormatProfilesForPrompt).toHaveBeenCalledWith(
+      expect.any(Object),
+      'REFLECT',
+    );
+    expect(mockBuildSystemPrompt).toHaveBeenCalledWith(
+      'REFLECT',
+      expect.any(String),
+      expect.any(String),
+      expect.objectContaining({
+        operationalProfiles: expect.stringContaining('Operational Profile'),
+      }),
     );
   });
 

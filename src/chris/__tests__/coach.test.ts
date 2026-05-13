@@ -80,6 +80,15 @@ vi.mock('../personality.js', () => ({
   buildSystemPrompt: mockBuildSystemPrompt,
 }));
 
+// ── Mock memory/profiles (Phase 35 Plan 35-02 SURF-02) ─────────────────────
+// COACH is an in-scope mode per PROFILE_INJECTION_MAP — mocks the D-14 chain.
+const mockGetOperationalProfiles = vi.fn();
+const mockFormatProfilesForPrompt = vi.fn();
+vi.mock('../../memory/profiles.js', () => ({
+  getOperationalProfiles: mockGetOperationalProfiles,
+  formatProfilesForPrompt: mockFormatProfilesForPrompt,
+}));
+
 // ── Mock pensieve store (should NOT be called) ─────────────────────────────
 const mockStorePensieveEntry = vi.fn();
 vi.mock('../../pensieve/store.js', () => ({
@@ -205,6 +214,15 @@ describe('handleCoach', () => {
       { role: 'assistant', content: 'previous answer' },
     ]);
     mockBuildSystemPrompt.mockReturnValue('interpolated coach system prompt');
+    mockGetOperationalProfiles.mockResolvedValue({
+      jurisdictional: null,
+      capital: null,
+      health: null,
+      family: null,
+    });
+    mockFormatProfilesForPrompt.mockReturnValue(
+      '## Operational Profile (grounded context — not interpretation)\n\nfake-rendered-profile',
+    );
     mockCreate.mockResolvedValue(
       makeLLMResponse('You said you wanted to be more direct — so why are you still avoiding it?'),
     );
@@ -244,7 +262,24 @@ describe('handleCoach', () => {
       'COACH',
       expect.any(String),
       expect.any(String),
-      { language: undefined, declinedTopics: undefined },
+      expect.objectContaining({ language: undefined, declinedTopics: undefined }),
+    );
+  });
+
+  it('calls getOperationalProfiles + formatProfilesForPrompt + passes operationalProfiles via extras (Phase 35 SURF-02, D-14)', async () => {
+    await handleCoach(CHAT_ID, TEST_QUERY);
+    expect(mockGetOperationalProfiles).toHaveBeenCalledTimes(1);
+    expect(mockFormatProfilesForPrompt).toHaveBeenCalledWith(
+      expect.any(Object),
+      'COACH',
+    );
+    expect(mockBuildSystemPrompt).toHaveBeenCalledWith(
+      'COACH',
+      expect.any(String),
+      expect.any(String),
+      expect.objectContaining({
+        operationalProfiles: expect.stringContaining('Operational Profile'),
+      }),
     );
   });
 

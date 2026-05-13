@@ -8,6 +8,7 @@ import {
   buildMessageHistory,
 } from '../../memory/context-builder.js';
 import { getRelationalMemories } from '../../memory/relational.js';
+import { getOperationalProfiles, formatProfilesForPrompt } from '../../memory/profiles.js';
 import { buildSystemPrompt, type DeclinedTopic } from '../personality.js';
 import { LLMError } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
@@ -71,9 +72,19 @@ export async function handleReflect(
   const relationalContext = buildRelationalContext(relationalMemories);
   const relationalCount = relationalMemories.length;
 
+  // Phase 35 D-14 — read operational profiles, format for prompt, pass via extras.
+  // Order is locked: getOperationalProfiles → formatProfilesForPrompt → buildSystemPrompt.
+  // No caching layer (single-user scale; ~4ms/call overhead — see D-14 deferred-items).
+  const profiles = await getOperationalProfiles();
+  const operationalProfiles = formatProfilesForPrompt(profiles, 'REFLECT');
+
   // Build conversation history and system prompt with both contexts
   const history = await buildMessageHistory(chatId);
-  const systemPrompt = buildSystemPrompt('REFLECT', pensieveContext, relationalContext, { language, declinedTopics });
+  const systemPrompt = buildSystemPrompt('REFLECT', pensieveContext, relationalContext, {
+    language,
+    declinedTopics,
+    operationalProfiles,
+  });
 
   try {
     const response = await anthropic.messages.create({
