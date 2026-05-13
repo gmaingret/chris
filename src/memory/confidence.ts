@@ -63,3 +63,63 @@ export function computeProfileConfidence(
 export function isAboveThreshold(entryCount: number): boolean {
   return entryCount >= MIN_ENTRIES_THRESHOLD;
 }
+
+// ── Phase 37 Plan 37-02 Task 1 (PSCH-08 substrate) ─────────────────────
+//
+// Append-only extension per 37-CONTEXT.md D-29: word-count gate constants
+// for the M011 psychological profile substrate. These are SUBSTRATE (not
+// inference) deliverables; Phase 38 generators will depend on them.
+//
+// Locked in 37-CONTEXT.md:
+//   - D-19: 5000-word floor of first-party telegram speech in the previous
+//           calendar month (Europe/Paris) gates psychological-profile
+//           generators before the Sonnet call.
+//   - D-29: append-only discipline — M010 helpers (MIN_ENTRIES_THRESHOLD,
+//           SATURATION, computeProfileConfidence, isAboveThreshold) stay
+//           untouched.
+//   - D-30: WORD_SATURATION is explicitly DEFERRED to Phase 38. Phase 37
+//           only ships the floor; word-count-based confidence math is part
+//           of the inference layer, not the substrate.
+//
+// Pitfall 2 mitigation (PITFALLS.md): the word-count gate and the
+// entry-count gate (isAboveThreshold above) are INDEPENDENT. The
+// psychological substrate loader (src/memory/profiles/psychological-shared.ts)
+// imports `MIN_SPEECH_WORDS` ONLY and DOES NOT import `isAboveThreshold` —
+// composing both gates would reject a valid 5,200-word + 8-entry substrate.
+
+/**
+ * PSCH-08 floor: psychological profile substrate requires this many words
+ * of first-party telegram speech in the previous calendar month (Europe/Paris
+ * boundary) before any psychological-profile generator is allowed to fire.
+ *
+ * Locked in 37-CONTEXT.md D-19. The 5,000-word threshold is calibrated
+ * against typical Greg substrate volumes and is independent of the M010
+ * entry-count threshold above (D-29 + Pitfall 2 in PITFALLS.md).
+ */
+export const MIN_SPEECH_WORDS = 5000;
+
+/**
+ * D028 attachment-activation gate: `profile_attachment.activated` flips to
+ * `true` when `relational_word_count` (a 60-day rolling sum) crosses this
+ * threshold. The population sweep that maintains `relational_word_count` is
+ * scheduled post-M011 per 37-CONTEXT.md (deferred); the constant lives here
+ * now so the activation-gate column has a single source-of-truth threshold
+ * by the time the sweep ships.
+ */
+export const RELATIONAL_WORD_COUNT_THRESHOLD = 2000;
+
+/**
+ * True if the psychological substrate has enough first-party speech to
+ * justify a Sonnet-inferred psychological-profile generation. Below
+ * threshold → Phase 38 generator returns a discriminated-union
+ * below-threshold branch BEFORE the Sonnet call (substrate loader is
+ * the gate).
+ *
+ * Note `>=` per M009 lt→lte lesson (second-fire bug, commit c76cb86):
+ * a wordCount of exactly MIN_SPEECH_WORDS is "above threshold" — using
+ * `<` would silently lock out the boundary case wordCount === 5000.
+ * Parallels `isAboveThreshold(entryCount)` above for the entry-count gate.
+ */
+export function isAboveWordThreshold(wordCount: number): boolean {
+  return wordCount >= MIN_SPEECH_WORDS;
+}
