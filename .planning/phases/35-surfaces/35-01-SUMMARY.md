@@ -283,7 +283,21 @@ git log --all --oneline | grep -c 37c760c  → 1 (FOUND)
 git log --all --oneline | grep -c 4510bab  → 1 (FOUND)
 ```
 
-(Confirmation run in the closing Bash step after SUMMARY commit.)
+**Confirmation (run after SUMMARY commit):**
+
+```
+FOUND: 35-01-SUMMARY.md
+FOUND: 4ea29fc   (Task 1)
+FOUND: 8e9c5cf   (Task 2)
+FOUND: 46cdfd1   (Task 3)
+FOUND: 37c760c   (Task 4)
+FOUND: 4510bab   (Task 5)
+FOUND: d877c5d   (SUMMARY commit)
+```
+
+## Self-Check: PASSED
+
+All claimed artifacts exist on disk and in git history.
 
 ---
 *Phase: 35-surfaces*
