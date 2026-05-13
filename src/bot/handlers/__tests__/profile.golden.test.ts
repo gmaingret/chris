@@ -323,7 +323,7 @@ describe('formatProfileForDisplay — jurisdictional (EN)', () => {
       Your passport citizenships: France.
       Your active legal entities: Maingret Consulting SARL (France).
 
-      Note: profile data from 2026-04-01 — may not reflect current situation."
+      Note: profile data from April 1, 2026 — may not reflect current situation."
     `);
   });
 });
@@ -378,7 +378,7 @@ describe('formatProfileForDisplay — capital (EN)', () => {
       Your major allocation decisions:
       - 2026-02-10: shift 30% to global ETF
 
-      Note: profile data from 2026-04-01 — may not reflect current situation."
+      Note: profile data from April 1, 2026 — may not reflect current situation."
     `);
   });
 });
@@ -429,7 +429,7 @@ describe('formatProfileForDisplay — health (EN)', () => {
       - shoulder pain resolved 2026-04-10: PT 4 weeks
       Your 30-day wellbeing trend: energy=6.4, mood=7.1, anxiety=3.2
 
-      Note: profile data from 2026-04-01 — may not reflect current situation."
+      Note: profile data from April 1, 2026 — may not reflect current situation."
     `);
   });
 });
@@ -484,7 +484,7 @@ describe('formatProfileForDisplay — family (EN)', () => {
       Your milestones:
       - 2026-05-01 first-date: good signal
 
-      Note: profile data from 2026-04-01 — may not reflect current situation."
+      Note: profile data from April 1, 2026 — may not reflect current situation."
     `);
   });
 });
@@ -593,5 +593,37 @@ describe('formatProfileForDisplay — language coverage', () => {
     expect(out).not.toContain('energy=');
     expect(out).not.toContain('mood=');
     expect(out).not.toContain('anxiety=');
+  });
+
+  // IN-01: the staleness-note date must be localized via Intl.DateTimeFormat
+  // (en-US / fr-FR / ru-RU), NOT emitted as the ISO `YYYY-MM-DD` slice. The
+  // EN inline snapshots above already capture "April 1, 2026"; these two
+  // tests pin the FR + RU forms ("1 avril 2026", "1 апреля 2026 г.") and
+  // assert the negative invariant — no ISO leak inside the staleness line.
+  // STALE_DATE is 2026-04-01T00:00:00Z, so all three locales render the same
+  // calendar day regardless of host TZ (UTC midnight rolls the same way).
+  it('IN-01: FR staleness date is localized ("1 avril 2026"), no ISO leak', () => {
+    const out = formatProfileForDisplay(
+      'jurisdictional',
+      MOCK_PROFILES.jurisdictional.populatedStale,
+      'French' as Lang,
+    );
+    expect(out).toContain('1 avril 2026');
+    // Negative invariant scoped to the staleness-note line — the dimension
+    // body contains user-content dates ("since 2020-01-01") that legitimately
+    // use the ISO form and must NOT trigger this assertion.
+    expect(out).not.toMatch(/Note .* 2026-04-01/);
+    expect(out).not.toContain('données du profil du 2026-04-01');
+  });
+  it('IN-01: RU staleness date is localized ("1 апреля 2026"), no ISO leak', () => {
+    const out = formatProfileForDisplay(
+      'jurisdictional',
+      MOCK_PROFILES.jurisdictional.populatedStale,
+      'Russian' as Lang,
+    );
+    // Intl emits "1 апреля 2026 г." in ru-RU; assert the prefix to be tolerant
+    // of trailing-form variation across ICU versions.
+    expect(out).toMatch(/1 апреля 2026/);
+    expect(out).not.toMatch(/Примечание: данные профиля от 2026-04-01/);
   });
 });

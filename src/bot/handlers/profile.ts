@@ -87,6 +87,17 @@ export type { Lang };
 
 const STALENESS_MS = 21 * 86_400_000;
 
+// IN-01: BCP-47 locale tags for the staleness-note date. Mirrors the
+// `DATE_LOCALES` table in src/chris/personality.ts (`formatContradictionNotice`)
+// so the two user-facing date renderings stay consistent. EN gets `en-US`,
+// FR gets `fr-FR`, RU gets `ru-RU`; output is the long-form locale date
+// ("April 1, 2026" / "1 avril 2026" / "1 апреля 2026 г.") rather than ISO.
+const DATE_LOCALES: Record<Lang, string> = {
+  English: 'en-US',
+  French: 'fr-FR',
+  Russian: 'ru-RU',
+};
+
 // ── Localized message strings ───────────────────────────────────────────────
 //
 // Per D-19 + 35-PATTERNS.md MSG-map shape (summary.ts:56-82 precedent).
@@ -557,8 +568,17 @@ export function formatProfileForDisplay(
   // lastUpdated > 21 days ago. Same threshold as D-10 prompt-side gate; the
   // user-facing wording differs ("may not reflect current situation" vs
   // "may not reflect current state").
+  //
+  // IN-01: date is rendered via toLocaleDateString with the per-language
+  // BCP-47 tag from DATE_LOCALES, matching the formatContradictionNotice
+  // pattern in src/chris/personality.ts. Greg sees "April 1, 2026" in EN,
+  // "1 avril 2026" in FR, "1 апреля 2026 г." in RU — not the ISO date.
   if (Date.now() - profile.lastUpdated.getTime() > STALENESS_MS) {
-    const dateStr = profile.lastUpdated.toISOString().slice(0, 10);
+    const dateStr = profile.lastUpdated.toLocaleDateString(DATE_LOCALES[lang], {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
     lines.push('', MSG.staleNote[lang](dateStr));
   }
 
