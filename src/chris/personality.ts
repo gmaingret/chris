@@ -23,6 +23,26 @@ export interface DeclinedTopic {
 }
 
 /**
+ * Extras envelope for `buildSystemPrompt` (Phase 35 D-04, HARD CO-LOC #M10-4).
+ *
+ * Per Phase 35 D-04: all three fields optional. Callers that need none of these
+ * may omit the `extras` argument entirely.
+ *
+ * `operationalProfiles` is a PRE-RENDERED prompt-side string produced by
+ * `formatProfilesForPrompt()` in `src/memory/profiles.ts` (Phase 35 Plan 35-02).
+ * It is intentionally the rendered text, NOT the structured
+ * `OperationalProfiles` object — this keeps `personality.ts` ignorant of
+ * profile internals (single-responsibility: render the prompt; don't compute
+ * injection scope). Plan 35-01 reserves the slot but does NOT consume it; Plan
+ * 35-02 wires REFLECT/COACH/PSYCHOLOGY mode handlers to populate it.
+ */
+export interface ChrisContextExtras {
+  language?: string;
+  declinedTopics?: DeclinedTopic[];
+  operationalProfiles?: string;
+}
+
+/**
  * Constitutional anti-sycophancy preamble prepended to every mode's system prompt.
  * Per SYCO-01, SYCO-02, SYCO-03, D022 — this is a floor, not a ceiling.
  * Existing mode-specific guidance stays exactly as-is beneath this preamble.
@@ -67,8 +87,8 @@ function buildKnownFactsBlock(): string {
 /**
  * Return the system prompt for a given mode.
  * Prepends constitutional preamble to all modes.
- * Appends language directive if language is set.
- * Appends declined topics section if declinedTopics is non-empty.
+ * Appends language directive if `extras.language` is set.
+ * Appends declined topics section if `extras.declinedTopics` is non-empty.
  *
  * Parameter usage per mode:
  * - `pensieveContext` is substituted into all modes (JOURNAL, INTERROGATE, REFLECT,
@@ -80,6 +100,12 @@ function buildKnownFactsBlock(): string {
  *   accepted but intentionally ignored: those templates have no placeholder
  *   because the mode is not pattern/observation oriented. Callers may safely
  *   pass a value for these modes — it will be silently dropped.
+ * - `extras` (Phase 35 D-03 / D-04) groups the optional rendering inputs:
+ *   `language` (mandatory-language directive), `declinedTopics` (per-session
+ *   refusal list), and `operationalProfiles` (pre-rendered profile block from
+ *   `formatProfilesForPrompt()` — slot reserved by Plan 35-01 for Plan 35-02
+ *   to populate via the REFLECT/COACH/PSYCHOLOGY mode handlers; not consumed
+ *   in Plan 35-01).
  *
  * IN-04: ACCOUNTABILITY mode overloads the parameter semantics. To avoid a
  * breaking signature change, `pensieveContext` is substituted into the
@@ -95,9 +121,13 @@ export function buildSystemPrompt(
   mode: ChrisMode,
   pensieveContext?: string,
   relationalContext?: string,
-  language?: string,
-  declinedTopics?: DeclinedTopic[],
+  extras?: ChrisContextExtras,
 ): string {
+  const { language, declinedTopics, operationalProfiles } = extras ?? {};
+  // Plan 35-02 consumes this — slot reserved by SURF-01 atomic refactor
+  // (HARD CO-LOC #M10-4). Silence the unused-locals warning here so the
+  // signature can ship in Plan 35-01 without false-positive type errors.
+  void operationalProfiles;
   const contextValue = pensieveContext || 'No relevant memories found.';
 
   let modeBody: string;
