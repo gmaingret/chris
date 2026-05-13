@@ -79,6 +79,20 @@ vi.mock('../personality.js', () => ({
   buildSystemPrompt: mockBuildSystemPrompt,
 }));
 
+// ── Mock memory/profiles (Phase 35 Plan 35-02 D-28 negative invariant) ─────
+// PRODUCE is an OUT-OF-SCOPE mode — these mocks must remain UNCALLED.
+const mockGetOperationalProfiles = vi.fn();
+const mockFormatProfilesForPrompt = vi.fn();
+vi.mock('../../memory/profiles.js', () => ({
+  getOperationalProfiles: mockGetOperationalProfiles,
+  formatProfilesForPrompt: mockFormatProfilesForPrompt,
+  PROFILE_INJECTION_MAP: {
+    REFLECT: ['jurisdictional', 'capital', 'health', 'family'],
+    COACH: ['capital', 'family'],
+    PSYCHOLOGY: ['health', 'jurisdictional'],
+  },
+}));
+
 // ── Mock pensieve store (should NOT be called) ─────────────────────────────
 const mockStorePensieveEntry = vi.fn();
 vi.mock('../../pensieve/store.js', () => ({
@@ -396,5 +410,40 @@ describe('RETR-02/03 routing wiring', () => {
     await handleProduce(CHAT_ID, 'what exactly did I decide about the job');
     expect(mockGetEpisodicSummary).not.toHaveBeenCalled();
     expect(mockHybridSearch).toHaveBeenCalled();
+  });
+});
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Phase 35 Plan 35-02 — Negative-injection invariant (D-28)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+describe('PRODUCE operational-profile injection (D-28 negative invariant)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockHybridSearch.mockResolvedValue([]);
+    mockGetEpisodicSummary.mockResolvedValue(null);
+    mockExtractQueryDate.mockResolvedValue(null);
+    mockGetRelationalMemories.mockResolvedValue([]);
+    mockBuildPensieveContext.mockReturnValue('');
+    mockBuildRelationalContext.mockReturnValue('');
+    mockBuildMessageHistory.mockResolvedValue([]);
+    mockBuildSystemPrompt.mockReturnValue('interpolated');
+    mockCreate.mockResolvedValue(makeLLMResponse('Mocked'));
+    mockGetOperationalProfiles.mockResolvedValue({
+      jurisdictional: null,
+      capital: null,
+      health: null,
+      family: null,
+    });
+  });
+
+  it('does NOT call getOperationalProfiles (D-28 — out-of-scope mode)', async () => {
+    await handleProduce(CHAT_ID, TEST_QUERY);
+    expect(mockGetOperationalProfiles).not.toHaveBeenCalled();
+  });
+
+  it('does NOT call formatProfilesForPrompt (D-28 — wire-drift detector)', async () => {
+    await handleProduce(CHAT_ID, TEST_QUERY);
+    expect(mockFormatProfilesForPrompt).not.toHaveBeenCalled();
   });
 });

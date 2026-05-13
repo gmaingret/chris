@@ -46,6 +46,21 @@ vi.mock('../personality.js', () => ({
   buildSystemPrompt: mockBuildSystemPrompt,
 }));
 
+// ── Mock memory/profiles (Phase 35 Plan 35-02 D-28 negative invariant) ─────
+// PHOTOS is an OUT-OF-SCOPE mode (uses JOURNAL persona for vision) — these
+// mocks must remain UNCALLED throughout this test file.
+const mockGetOperationalProfiles = vi.fn();
+const mockFormatProfilesForPrompt = vi.fn();
+vi.mock('../../memory/profiles.js', () => ({
+  getOperationalProfiles: mockGetOperationalProfiles,
+  formatProfilesForPrompt: mockFormatProfilesForPrompt,
+  PROFILE_INJECTION_MAP: {
+    REFLECT: ['jurisdictional', 'capital', 'health', 'family'],
+    COACH: ['capital', 'family'],
+    PSYCHOLOGY: ['health', 'jurisdictional'],
+  },
+}));
+
 // ── Import module under test ───────────────────────────────────────────────
 const { handlePhotos, parsePhotoQuery } = await import('../modes/photos.js');
 
@@ -310,5 +325,38 @@ describe('handlePhotos', () => {
       .mockRejectedValueOnce(new Error('Sonnet unavailable'));
 
     await expect(handlePhotos(CHAT_ID, 'Show me photos')).rejects.toThrow();
+  });
+});
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Phase 35 Plan 35-02 — Negative-injection invariant (D-28)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+describe('PHOTOS operational-profile injection (D-28 negative invariant)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockBuildMessageHistory.mockResolvedValue([]);
+    mockBuildSystemPrompt.mockReturnValue('You are Chris...');
+    mockFetchRecentPhotos.mockResolvedValue([MOCK_ASSET]);
+    mockFetchAssetThumbnail.mockResolvedValue(MOCK_THUMB);
+    mockCreate
+      .mockResolvedValueOnce(makeLLMResponse('{}'))
+      .mockResolvedValueOnce(makeLLMResponse('Belle photo'));
+    mockGetOperationalProfiles.mockResolvedValue({
+      jurisdictional: null,
+      capital: null,
+      health: null,
+      family: null,
+    });
+  });
+
+  it('does NOT call getOperationalProfiles (D-28 — out-of-scope mode, JOURNAL persona)', async () => {
+    await handlePhotos(CHAT_ID, 'Show me photos');
+    expect(mockGetOperationalProfiles).not.toHaveBeenCalled();
+  });
+
+  it('does NOT call formatProfilesForPrompt (D-28 — wire-drift detector)', async () => {
+    await handlePhotos(CHAT_ID, 'Show me photos');
+    expect(mockFormatProfilesForPrompt).not.toHaveBeenCalled();
   });
 });
