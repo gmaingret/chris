@@ -1,289 +1,288 @@
-# Research Summary — M010 Operational Profiles
+# Research Summary — M011 Psychological Profiles
 
-**Project:** Chris — M010 Operational Profiles
-**Domain:** Profile inference + persistence layer on top of Pensieve/episodic/ritual substrate
-**Researched:** 2026-05-11
-**Confidence:** HIGH (all four research files grounded in direct codebase inspection; no speculative web sources)
+**Project:** Project Chris v2.6 — M011 Psychological Profiles (HEXACO + Schwartz + Attachment schema)
+**Domain:** Speech-based psychological trait inference layered on M010 operational profile substrate
+**Researched:** 2026-05-13
+**Confidence:** HIGH (all four research files grounded in live codebase inspection + published psychometrics literature)
 
 ---
 
 ## Executive Summary
 
-M010 builds the first layer of persistent situational context for Chris: four operational profile tables (jurisdictional, capital, health, family) that accumulate weekly from Greg's Pensieve entries and episodic summaries, then inject as grounded context into the REFLECT, COACH, and PSYCHOLOGY mode handlers. The milestone solves a concrete correctness problem: without profiles, Chris treats Greg as a blank slate in every conversation and may give anachronistic advice (recommending French tax strategy months after Greg relocated to Georgia). Profiles are not narrative summaries — they are typed structured data inferred from observable facts, gated on a 10-entry minimum threshold, and rated with a confidence score so mode handlers know how much to trust the context they receive.
+M011 extends the M010 operational profile layer with three new slow-moving inferred profiles: HEXACO Big Six personality dimensions, Schwartz Ten Universal Values, and an attachment-style schema (population deferred). The correct inference engine is Sonnet 4.6 called with Greg's own speech as substrate — lexicon-based alternatives (LIWC-22, Boyd-Pennebaker Schwartz dictionary) have no viable npm port, are English-only validated, and produce lower accuracy (r ≈ .20-.30) than LLM-direct inference on personal diary text (r ≈ .38-.58). Zero new npm dependencies are required. The entire M011 implementation fits within the existing M010 stack: `@anthropic-ai/sdk`, Drizzle ORM, Zod v3+v4 dual-schema, `node:crypto` SHA-256, `node-cron`, and Luxon.
 
-The recommended implementation composes entirely from patterns established in M006–M009. No new dependencies. Five new source files plus one migration. The four generators run via `Promise.allSettled` (parallel, error-isolated) on a 4th cron firing Sunday 22:00 Paris — two hours after the weekly_review (M009, Sunday 20:00) to avoid Anthropic rate-limit collisions under retry conditions. Each generator does full regeneration from substrate on every fire (no delta updates), using the v3/v4 dual-Zod/Sonnet structured-output pattern established in `src/episodic/consolidate.ts` and `src/rituals/weekly-review.ts`. The `buildSystemPrompt` signature is refactored in Phase 35 to accept a named `extras: ChrisContextExtras` object folding in `language`, `declinedTopics`, and new `operationalProfiles` field — this is a one-time breaking change that must be atomic across all call sites.
+The recommended architecture mirrors M010 patterns exactly but in a parallel namespace: a forked prompt assembler (`assemblePsychologicalProfilePrompt`), a separate substrate loader (`loadPsychologicalSubstrate` with word-count gate and strict `source='telegram'` filter), a sibling orchestrator (`updateAllPsychologicalProfiles`), and a separate reader API (`getPsychologicalProfiles`). The critical separation is `PSYCHOLOGICAL_PROFILE_INJECTION_MAP` as a new constant distinct from `PROFILE_INJECTION_MAP`, injecting into REFLECT and PSYCHOLOGY modes only — never COACH (D027 Hard Rule risk). One atomic migration (0013) ships all three tables with the full Never-Retrofit Checklist applied to each.
 
-The primary risks are: (1) Sonnet inflating confidence scores when data is sparse — mitigated by a volume-weight ceiling formula enforced at Zod parse time; (2) hallucinated profile facts — mitigated by per-field source-citation requirements in the output schema and a shared `DO_NOT_INFER_DIRECTIVE` in the prompt builder; (3) second-fire regression (the M009 `lt/lte` class of bug) — mitigated by two-cycle synthetic fixture tests and a substrate-hash idempotency guard. Every pitfall identified in PITFALLS.md has a concrete mitigation assigned to a specific phase, and seven of eleven pitfalls require schema-phase artifacts that cannot be retrofitted (history table, schema_version, substrate_hash). These must land in the initial migration.
+The primary risks are trust-level: psychological trait scores injected into the system prompt can generate sycophancy that masquerades as insight ("given your high conscientiousness, your instinct is sound"). This is the D027 Hard Rule violation with empirical cover. The injection block must carry an explicit Hard Rule extension reminding Sonnet that traits are not evidence — and the milestone gate (PTEST-M011) must include an adversarial trait-authority prompt (3-of-3 live). The secondary risk is source contamination: the substrate loader must filter strictly to `source='telegram'` entries (Greg's own Telegram speech), excluding Gmail, Immich, Drive, episodic summaries, and RITUAL_RESPONSE-tagged entries. Both risks are preventable at design time; both are catastrophic if discovered post-deploy.
 
 ---
 
 ## Key Findings
 
-### Recommended Stack
+### Stack Additions (Zero New Dependencies — Confirmed)
 
-No new direct dependencies. No version bumps. M010 composes entirely from installed packages at their current versions: `drizzle-orm` 0.45.2 (`jsonb().$type<T>()` is already present), `@anthropic-ai/sdk` ^0.90.0 (`messages.parse` + `zodOutputFormat`), `zod` ^3.24.0 + `zod/v4` sub-path (dual-schema pattern already established), `grammy` ^1.31.0 (`bot.command()` + `ctx.reply()`), `node-cron` ^4.2.1 (4th cron peer alongside episodic cron), `luxon` ^3.7.2 (existing cron timezone patterns).
+All four research files agree: M011 requires no new npm packages. The M010 stack handles every M011 requirement.
 
-The one pattern that is new to the codebase is `jsonb().$type<T>()` — used to give TypeScript compile-time type safety on profile-specific JSONB columns. This is already supported in the installed Drizzle version. Every other pattern (singleton upsert via `onConflictDoUpdate`, sequential multi-schema structured output, v3/v4 dual validation, plain-text command handler) has a named precedent in M008/M009 code.
+**Core technologies (unchanged from M010):**
+- `@anthropic-ai/sdk ^0.90.0` — Sonnet 4.6 inference for HEXACO + Schwartz; `zodOutputFormat` + `messages.parse` pattern is stable
+- `drizzle-orm ^0.45.2` + PostgreSQL 16 — three new wide tables; `.$type<T>()` jsonb inference unchanged
+- `zod ^3.24.0` (v3 readers) + `zod/v4` subpath (SDK boundary) — same dual-schema discipline as M010
+- `node:crypto` SHA-256 (built-in, Node 22) — `computeSubstrateHash` pattern from `src/memory/profiles/shared.ts`
+- `node-cron ^4.2.1` (already installed) — new `psychologicalProfileUpdaterCron` alongside existing Sunday cron
+- `luxon ^3.7.2` (already installed) — DST-safe calendar-month boundary computation
 
-**Core technologies:**
-- `drizzle-orm` 0.45.2: four profile tables with typed JSONB columns — `jsonb().$type<T>()` pattern, singleton upsert on fixed sentinel `name='primary'`
-- `@anthropic-ai/sdk` ^0.90.0: one Sonnet structured-output call per profile generator using `messages.parse({ output_config: { format: zodOutputFormat(v4Schema) } })`
-- `zod` ^3.24.0 + `zod/v4`: four v3/v4 schema pairs (one per profile), each including a `data_consistency: z.number().min(0).max(1)` field for confidence calibration
-- `node-cron` ^4.2.1: 4th cron in `registerCrons`, Sunday 22:00 Paris, same `{timezone: proactiveTimezone}` pattern as existing crons
-- `grammy` ^1.31.0: `/profile` command handler, plain-text output only (D-31 policy), same `bot.command(..., handler as any)` registration pattern
+**Word-counting strategy (inline pure-TypeScript, no library):**
+Whitespace-split word counting (`text.trim().split(/\s+/).filter(s => s.length > 0).length`) is accurate to ±2% for EN/FR/RU at 5,000-word scale. Russian Cyrillic words are space-delimited; French elision ("j'ai") counts as 1 word — acceptable rounding at this threshold scale. The `words-count` npm package offers no meaningful accuracy advantage. The `@anthropic-ai/sdk messages.countTokens` API is the wrong unit — a 5,000-word Russian text is ~9,000-11,000 tokens (2× inflation), making token-count gating prohibitive for Russian-heavy substrates.
 
-**Anti-recommendations (confirmed by research):** No `Promise.all` (use `Promise.allSettled` for error isolation); no streaming (background cron, no real-time UX); no delta updates (full regen only); no `parse_mode` on `/profile` (user-origin content, D-31 policy); no ritual subsystem routing (wrong semantics for a silent data pipeline); SATURATION constant first-estimate is 50 — tune post-ship against real data, not a blocker.
+**Inter-period consistency math (reuse existing `computeStdDev`):**
+The `computeStdDev` function already exists in `src/rituals/weekly-review-sources.ts`. The preferred implementation injects the last N monthly snapshots from `profile_history` into the Sonnet prompt (as `prevState`) and lets Sonnet report `data_consistency` as a combined volume + consistency signal — avoiding host-side arithmetic that produces NaN on first fire or artificial high consistency at N=2.
 
-### Expected Features
+**wordSaturation constant (first estimate: 20,000 words):**
+Lock to 20,000 for Phase 37 planning; flag for calibration after 4-8 months of real M011 operation.
 
-All 12 table-stakes features are P1 for M010. The complex items with most implementation risk are TS-3 (weekly profile update cron — 4 Sonnet prompts, structured output parsing, merge logic, confidence calculation) and TS-9 (30-day synthetic fixture — must cover all 4 dimensions with domain-biased entries).
+---
 
-**Must have (table stakes) — M010:**
-- TS-1: Four Drizzle profile tables with migration (also: `profile_history`, `schema_version`, `substrate_hash` columns — cannot be retrofitted)
-- TS-2: `getOperationalProfiles()` in `src/memory/profiles.ts` — never-throw, confidence-gated reader
-- TS-3: Weekly cron — 4 focused Sonnet prompts via `Promise.allSettled`, full regen, upsert
-- TS-4: 10-entry minimum threshold enforcement (below threshold: row exists, confidence=0, fields="insufficient data")
-- TS-5: Confidence score per profile (volume-weight ceiling × Sonnet-reported `data_consistency`)
-- TS-6: REFLECT, COACH, PSYCHOLOGY system prompt injection via `extras.operationalProfiles` in refactored `buildSystemPrompt`
-- TS-7: `/profile` Telegram command — plain-text, 4 separate `ctx.reply()` calls, second-person formatting
-- TS-8: Below-threshold "insufficient data" + progress indicator
-- TS-9: `m010-30days` primed fixture — 30+ days, domain-biased entries, HARN sanity gate (>= 12 entries per dimension)
-- TS-10: `m010-5days` sparse fixture — all 4 profiles at confidence=0
-- TS-11: D035 boundary — profiles module never reads episodic_summaries directly into narrative fields
-- TS-12: Never-throw contract on `getOperationalProfiles()`
+### Features: Table Stakes vs Differentiators vs Anti-Features
 
-**Ground-truth seeding:** `src/pensieve/ground-truth.ts` contains 13 facts that are effectively jurisdictional + capital profile data. M010 seeds initial profile rows from these at migration time → day-1 confidence 0.2–0.3 for known facts instead of "insufficient data" everywhere.
+**Table stakes — M011 is not shippable without these:**
 
-**Should have (v2.5.1 after empirical validation):**
-- DIFF-2: Auto-detection of profile-change moments
-- DIFF-4: Per-profile narrative summary
-- DIFF-5: Profile consistency checker
-- DIFF-6: Wellbeing-anchored health profile updates
+| Feature | Notes |
+|---------|-------|
+| `profile_hexaco` table, 6 dims as jsonb | Migration 0013, Never-Retrofit Checklist |
+| `profile_schwartz` table, 10 dims as jsonb | Migration 0013, same checklist |
+| `profile_attachment` table, schema-only | Migration 0013; population gated on D028 activation trigger |
+| 5,000-word floor (Greg's telegram speech only) | Word count, NOT entry count; NOT token count |
+| Monthly cron, 1st of each month 09:00 Paris | `0 9 1 * *` — resolved below |
+| Per-dimension `{score, confidence, last_updated}` jsonb | Per-dim `dimension_consistency` + overall `data_consistency` |
+| `getPsychologicalProfiles()` reader API | Separate from `getOperationalProfiles()`; never-throw contract |
+| `PSYCHOLOGICAL_PROFILE_INJECTION_MAP` (REFLECT + PSYCHOLOGY only) | Separate constant; COACH explicitly absent |
+| `/profile` command extended with HEXACO + Schwartz sections | Replaces M011 placeholder; narrative display by default |
+| Insufficient-data branch UX ("need X more words") | `word_count_at_last_run` column enables this without re-querying |
+| Cold-start seed rows (`overall_confidence=0`, all dims null) | Insert in migration; first cron fire → below-threshold → no Sonnet call |
+| Synthetic fixture test (1k words / 6k words / signature detection) | `synthesize-delta.ts --psych-profile-bias` flag; designed personality signature |
+| Live 3-of-3 anti-hallucination milestone gate (PTEST-M011) | Includes adversarial Hard-Rule trait-authority test |
 
-**Defer to M013+:** DIFF-1 (multi-profile cross-reference reasoning), DIFF-3 (time-series history), DIFF-7 (per-field confidence granularity)
+**Differentiators — valuable, not required for M011 ship:**
 
-**Explicit anti-features (never build):** ANTI-1 (predictive forecasting), ANTI-4 (real-time profile update on every message), ANTI-6 (profile editing via Telegram commands)
+| Feature | When |
+|---------|------|
+| Per-dimension confidence with textual qualifier bracket | Include in schema from day 1; display in Phase 3 |
+| Inter-period consistency confidence modulation (3+ monthly fires) | v2.6.1 |
+| HEXACO × Schwartz cross-validation ("independently corroborated") | M013/M014 |
+| Attachment profile activation (weekly sweep trigger) | Post-M011; schema ships in M011 |
+| HEXACO change-detection alerts (shifts ≥ 0.5 month-over-month) | v2.6.1 |
+| Grouped Schwartz display by circumplex sector | M011 Phase 3 or M014 |
+| Narrative psychological profile summary | M014 — high hallucination risk without life-chapter grounding |
 
-### Architecture Approach
+**Anti-features — explicitly do not build in M011:**
 
-The profile layer has two independent code paths: a weekly write path (cron → orchestrator → 4 generators → DB upsert) and a read path (mode handler or `/profile` command → `getOperationalProfiles()` → `formatProfilesForPrompt()` → system prompt injection). These paths share only the reader module and the DB tables. The write path has no user-visible surface; the read path has no write capability.
+| Anti-Feature | Reason |
+|--------------|--------|
+| Real-time HEXACO/Schwartz update on every message | Traits are slow-moving; noise > signal |
+| Attachment dimension population | D028: sparse relational speech produces stereotypes worse than no profile |
+| MBTI or Big Five mixing | MBTI unvalidated; HEXACO adds Honesty-Humility not in Big Five |
+| Narrative summarization of psychological profiles | Interpretation of inference = hallucination amplifier; M014 only |
+| Psychological profiles in COACH mode | D027 Hard Rule violation risk |
+| VIA Character Strengths | PROJECT.md explicitly excludes |
+| Per-message word count accumulation | Compute at inference time only |
+| Word counting from episodic summaries | D035 boundary: summaries are Chris's interpretation |
 
-**STACK vs ARCHITECTURE conflict — execution model:** STACK.md recommends sequential `await` loop; ARCHITECTURE.md recommends `Promise.allSettled`. **Resolution: `Promise.allSettled` wins.** 4 independent profile types, no data dependency between them, error isolation per profile, 4× wall-clock improvement (15s vs 60s). The 200 RPM Anthropic rate limit is not a constraint at 4 calls/week.
+---
+
+### Architecture Decisions (All Locked)
+
+**Table strategy:** Three wide tables (`profile_hexaco`, `profile_schwartz`, `profile_attachment`), each holding all dimensions as jsonb columns. Mirrors M010 four-table pattern. Per-dimension EAV rows rejected: breaks `ProfileRow<T>` contract, requires JOINs, incompatible with Drizzle `.$type<T>()` inference. HEXACO's 6 dims and Schwartz's 10 dims are fixed academic constructs.
+
+**Migration shape:** ONE atomic migration (0013) for all three tables + Never-Retrofit Checklist columns + seed-row INSERTs. `profile_history` requires no ALTER TABLE — its `profile_table_name text NOT NULL` discriminator already accommodates new values by design.
+
+**Never-Retrofit Checklist for all 3 tables (must ship in 0013):**
+- `schema_version int NOT NULL DEFAULT 1`
+- `substrate_hash text NOT NULL DEFAULT ''`
+- `name text NOT NULL UNIQUE DEFAULT 'primary'`
+- `overall_confidence real CHECK (>= 0 AND <= 1) NOT NULL DEFAULT 0`
+- `word_count_at_last_run int NOT NULL DEFAULT 0`
+- ALL planned dimension columns (even if null by default)
+- `profile_attachment` additionally: `relational_word_count int NOT NULL DEFAULT 0`, `activated boolean NOT NULL DEFAULT false`
+
+**Prompt assembler fork:** `assemblePsychologicalProfilePrompt` in new `src/memory/psychological-profile-prompt.ts`. Must NOT extend `assembleProfilePrompt`'s `ProfilePromptDimension` union — would break every exhaustive switch consuming it. Reuse `CONSTITUTIONAL_PREAMBLE` and `DO_NOT_INFER_DIRECTIVE` by import. New type: `PsychologicalProfileDimension = 'hexaco' | 'schwartz' | 'attachment'` (one value per TABLE, not per trait).
+
+**Orchestrator split:** `updateAllPsychologicalProfiles()` in new `src/memory/psychological-profile-updater.ts`. Existing `updateAllOperationalProfiles` in `src/memory/profile-updater.ts` is NOT modified.
+
+**Reader API split:** `getPsychologicalProfiles(): Promise<PsychologicalProfiles>` added to `src/memory/profiles.ts` after `getOperationalProfiles`. Must NOT extend `getOperationalProfiles` return type — 8+ existing call sites.
+
+**PSYCHOLOGICAL_PROFILE_INJECTION_MAP (separate constant — mandatory):**
+```
+REFLECT: ['hexaco', 'schwartz']
+PSYCHOLOGY: ['hexaco', 'schwartz']
+// COACH: intentionally absent — D027 Hard Rule risk
+```
+Disagreement resolved: ARCHITECTURE.md proposes REFLECT gets only `['schwartz']`; FEATURES.md and STACK.md propose both. **Resolution: both.** REFLECT synthesizes the full self-picture; HEXACO traits are as relevant as values for reflective synthesis.
+
+**D047 Boundary Statement (locked):** Operational profiles capture Greg's current facts-of-record. Psychological profiles infer stable trait-level dispositions. Cross-reading permitted (PSYCHOLOGY may consume operational context). Cross-writing forbidden: operational generators must never emit psychological trait scores; psychological generators must never emit operational facts.
 
 **Major components:**
-1. **Cron registration** (`src/cron-registration.ts`): 4th cron, Sunday 22:00 Paris — fire-and-forget, try/catch, logs error, never throws
-2. **Profile orchestrator** (`src/memory/profile-updater.ts`): `updateAllOperationalProfiles()` via `Promise.allSettled`, discriminated outcome logging per profile
-3. **Shared substrate reader** (`src/memory/profiles/shared.ts`): `loadProfileSubstrate()` — reads pensieve_entries (tag-filtered: FACT/RELATIONSHIP/INTENTION/EXPERIENCE), `getEpisodicSummariesRange()`, and decisions (resolved, domain-tagged, last 60 days); enforces 10-entry threshold
-4. **Four profile generators** (`src/memory/profiles/{jurisdictional,capital,health,family}.ts`): each owns its Zod v3+v4 schema pair, Sonnet system prompt, upsert logic; all assembled via shared `assembleProfilePrompt()` builder (M010-06 mandate)
-5. **Reader API** (`src/memory/profiles.ts`): `getOperationalProfiles()` with confidence gating (null for missing rows or confidence=0); `formatProfilesForPrompt()` for mode handlers; `PROFILE_INJECTION_MAP` named constant
-6. **Bot command handler** (`src/bot/handlers/profile.ts`): `/profile` plain-text display, EN/FR/RU localized, second-person formatting, golden-output snapshot test
-7. **`buildSystemPrompt` refactor** (`src/chris/personality.ts`): `extras: ChrisContextExtras` named object replaces positional `language` + `declinedTopics` + adds `operationalProfiles?`; atomic change across all call sites in Phase 35
 
-**Per-mode profile injection mapping (PROFILE_INJECTION_MAP):**
-- REFLECT: all 4 profiles
-- COACH: capital + family only (topic-drift risk if health injected)
-- PSYCHOLOGY: health + jurisdictional only
-- JOURNAL, INTERROGATE, PRODUCE, ACCOUNTABILITY: no profile injection
+| Component | File | Responsibility |
+|-----------|------|----------------|
+| Schema | `src/db/schema.ts` (modified) | Three new table exports after `profileFamily`, before `profileHistory` |
+| Schemas | `src/memory/profiles/schemas.ts` (modified) | Zod v3+v4 dual schemas for HEXACO, Schwartz, Attachment |
+| Substrate Loader | `src/memory/psychological-profiles/shared.ts` (new) | Calendar-month substrate + `userWordCount` (telegram only) + `relationalWordCount` |
+| Prompt Builder | `src/memory/psychological-profile-prompt.ts` (new) | `assemblePsychologicalProfilePrompt` — forked, different epistemological framing |
+| Generators | `src/memory/psychological-profiles/{hexaco,schwartz,attachment}.ts` (new) | Per-profile Sonnet call + threshold gate + upsert + `profile_history` write-before-upsert |
+| Orchestrator | `src/memory/psychological-profile-updater.ts` (new) | `updateAllPsychologicalProfiles()` via `Promise.allSettled` |
+| Reader | `src/memory/profiles.ts` (modified) | `getPsychologicalProfiles()`, `PSYCHOLOGICAL_PROFILE_INJECTION_MAP`, `formatPsychologicalProfilesForPrompt()` |
+| Display | `src/bot/handlers/profile.ts` (modified) | `/profile` extended; `formatHexacoForDisplay()`, `formatSchwartzForDisplay()` |
+| Cron | `src/cron-registration.ts` (modified) | `psychologicalProfileUpdate` status + `0 9 1 * *` monthly registration |
 
-**Confidence formula (`src/memory/confidence.ts`):**
-```
-if (entryCount < 10) → confidence = 0
-volumeScore = min(1.0, (entryCount - 10) / (SATURATION - 10))   // SATURATION = 50
-confidence = round((0.3 + 0.7 × volumeScore × consistencyFactor) × 100) / 100
-```
-`consistencyFactor` is the `data_consistency` field Sonnet self-reports in each structured output. Volume ceiling enforced at Zod parse time: `confidence > 0.5` when `entryCount < 20` triggers Zod refinement failure → retry loop.
+---
 
-### Critical Pitfalls
+### Critical Pitfalls (Prioritized by Trust Impact)
 
-**All 11 pitfalls from PITFALLS.md are load-bearing. Seven require schema-phase artifacts that cannot be retrofitted.**
+**1. D027 Hard Rule violation via trait-authority framing (CRITICAL)**
+Injecting "Conscientiousness: 4.5/5.0" causes Sonnet to produce "given your strong conscientiousness, your instinct is sound." The injection block must carry an explicit Hard Rule extension inline — not only in `CONSTITUTIONAL_PREAMBLE`. PTEST-M011 must include adversarial prompt baiting trait validation; forbidden phrases: `'consistent with your'`, `'aligns with your'`, `'given your [trait]'`, `'fits your'`, `'as someone with your'`. HARD CO-LOC: injection map + system-prompt framing + PTEST-M011 adversarial test.
 
-1. **M010-01 — Confidence inflation** (Phase 33/34): Volume-weight ceiling in Zod output schema — `confidence > 0.5` when `entryCount < 20` fails Zod `.refine()` and triggers retry loop.
+**2. Speech-source contamination (CRITICAL)**
+M010's substrate loader does NOT filter by source — correct for operational profiles, wrong for psychological. M011 must define `loadPsychologicalSubstrate()` with `WHERE source = 'telegram' AND epistemic_tag NOT IN ('RITUAL_RESPONSE')`. Gmail, Immich, Drive, episodic summaries excluded from word count. Mirror `boundary-audit.test.ts` with `psych-boundary-audit.test.ts`. HARD CO-LOC: substrate loader + source filter + boundary audit test.
 
-2. **M010-02 — Hallucinated profile facts** (Phase 34): Per-field `sources: uuid[]` (min 2) in Sonnet output schema. Shared `DO_NOT_INFER_DIRECTIVE` constant in `assembleProfilePrompt()` builder. Optional Haiku post-check.
+**3. Sparse-data overconfidence above 5,000-word floor (HIGH)**
+The floor prevents profile creation below threshold but not high confidence just above it. Both entry-count gate AND word-count gate must fire — word count first (cheaper). Volume-weight ceiling directive must bind `data_consistency` below 0.5 until sufficient history. Sparse test: (a) 4,800 words → no profile; (b) 5,200 words + few entries → confidence < 0.5. HARD CO-LOC: `MIN_SPEECH_WORDS` constant + word-count gate + sparse-threshold test.
 
-3. **M010-03 — Profile drift without history** (Phase 33+34): `profile_history` table in initial migration. Previous profile row injected as "CURRENT PROFILE STATE" in weekly Sonnet prompt. High-confidence field change requires 3+ supporting substrate entries.
+**4. Migration 0013 Never-Retrofit incompleteness (HIGH)**
+All five non-retrofittable columns must ship for all three tables. `profile_attachment` additionally needs `relational_word_count`, `activated`. Apply D042 verbatim. HARD CO-LOC (#M11-1): migration 0013 + schema.ts exports + meta snapshots + journal entry + test.sh psql line.
 
-4. **M010-04 — Weekly cron timing collision** (Phase 34): Cron at Sunday 22:00 Paris (NOT 21:00 from spec default) — 2h gap after weekly_review. Rationale documented in migration SQL comment.
+**5. Monthly unconditional fire vs substrate-hash-skip (HIGH)**
+Resolved: **unconditional monthly fire.** Skipping a month on unchanged substrate breaks the inter-period consistency time series — a skipped month creates a permanent data gap. The M010 hash-skip pattern does NOT apply to psychological profiles. Three-cycle test must assert Cycle 3 fires on calendar-month boundary even with identical substrate.
 
-5. **M010-05 — Synthetic fixture dimension coverage gap** (Phase 36): `synthesize-delta.ts --profile-bias` flag. HARN sanity gate: >= 12 entries per profile dimension before any profile update test runs.
+**6. PROFILE_INJECTION_MAP token-budget collision (MEDIUM)**
+`PSYCHOLOGICAL_PROFILE_INJECTION_MAP` is a required architectural separation, not code style. Per-dim char cap: 500 chars (vs M010's 2,000-char operational cap). JOURNAL negative invariant: `formatPsychologicalProfilesForPrompt('JOURNAL', ...)` returns `""`. HARD CO-LOC (#M11-4): injection map + formatter + `ChrisContextExtras` wiring + PSYCHOLOGY handler.
 
-6. **M010-06 — Four-prompt drift** (Phase 34): `assembleProfilePrompt()` shared builder is the first artifact written in the prompt phase. Structural test verifies CONSTITUTIONAL_PREAMBLE + DO_NOT_INFER_DIRECTIVE in all 4 dimension outputs.
-
-7. **M010-07 — /profile internal field leak** (Phase 35): `formatProfileForDisplay()` with golden-output snapshot test ships in same plan as `/profile` handler. Second-person framing mandatory.
-
-8. **M010-08 — Mode handler context injection scope** (Phase 35): PROFILE_INJECTION_MAP named constant. Health profile only when `confidence >= 0.5`. Staleness qualifier when `last_updated > 21 days ago`.
-
-9. **M010-09 — Double-update idempotency** (Phase 33+34): `substrate_hash` column in all profile tables (initial migration). Skip LLM call if hash unchanged.
-
-10. **M010-10 — First-fire celebration blindness** (Phase 36): Two-cycle synthetic fixture test. Cycle 2 previous-state injection verified via mock SDK boundary assertion. Direct M009 `lt/lte` lesson applied to M010.
-
-11. **M010-11 — JSONB schema evolution failure** (Phase 33): `schema_version INT NOT NULL DEFAULT 1` in all profile tables (initial migration). Schema registry in `getOperationalProfiles()`. Unsupported version returns null, does not throw.
+**7. Synthetic fixture signal erasure (MEDIUM)**
+Haiku style-transfer averages toward Greg's habitual register, potentially erasing the designed personality signature. Assert `OPENNESS_SIGNAL_PHRASES.some(p => fixture.includes(p))` BEFORE running inference. Accuracy-bounded assertions required: `Openness >= 4.0`, not just `confidence > 0`. HARD CO-LOC (#M11-3): display formatter + golden snapshot test.
 
 ---
 
 ## Implications for Roadmap
 
-Continuing from M009's Phase 32. Phases are numbered 33–36.
+### Phase 37: Schema + Substrate
 
-### Phase 33 — Substrate (Schema + Types + Reader API Stub)
-
-**Rationale:** Seven pitfall mitigations require schema-phase artifacts that cannot be retrofitted. Phase 33 ships zero LLM calls and zero user-visible features — it is foundation-only but it gates everything else.
+**Rationale:** Migration 0013 is the dependency anchor for everything in M011. Drizzle ORM type inference requires table definitions before generator code can compile. Word-count gate and source-filter substrate loader must exist before engine calls them.
 
 **Delivers:**
-- Migration 0012 (hand-authored SQL): `profile_jurisdictional`, `profile_capital`, `profile_health`, `profile_family` — each with `id uuid pk`, `name text UNIQUE DEFAULT 'primary'` (ON CONFLICT sentinel), `confidence real CHECK (>= 0 AND <= 1)`, `last_updated timestamptz`, `substrate_hash text`, `schema_version int NOT NULL DEFAULT 1`, profile-specific JSONB columns
-- `profile_history` table in same migration
-- Drizzle meta snapshot regeneration + `scripts/test.sh` psql apply line for migration 0012
-- `src/memory/profiles/shared.ts`: `ProfileSubstrate` type, `loadProfileSubstrate()`, `MIN_ENTRIES_THRESHOLD = 10`
-- `src/memory/confidence.ts`: `computeProfileConfidence()`, `isAboveThreshold()`, `SATURATION = 50`
-- `src/memory/profiles.ts`: `getOperationalProfiles()` all-null stubs; `OperationalProfiles` interface; `PROFILE_INJECTION_MAP` named constant; `formatProfilesForPrompt()` stub
-- Zod v3+v4 schema pairs in each generator file (schemas only, no generator logic)
-- Unit tests: migration applies cleanly; `getOperationalProfiles()` returns all-null when no rows; schemas reject invalid shapes; `schema_version: 999` → null; confidence formula pure-function tests
+- Migration 0013 (3 tables + Never-Retrofit Checklist + seed rows) — HARD CO-LOC #M11-1
+- `src/db/schema.ts` three new table exports
+- `src/memory/profiles/schemas.ts`: `HexacoProfileData`, `SchwartzProfileData`, `AttachmentProfileData` (Zod v3+v4 dual schemas)
+- `src/memory/confidence.ts`: `MIN_SPEECH_WORDS = 5000`, `RELATIONAL_WORD_COUNT_THRESHOLD = 2000`, `isAboveWordThreshold()`
+- `src/memory/psychological-profiles/shared.ts`: `loadPsychologicalSubstrate()` with `source='telegram'` filter + `userWordCount`
+- `psych-boundary-audit.test.ts`: source-filter invariant test
+- Word-count sparse test (under-floor and just-above-floor cases)
 
-**Addresses:** TS-1, TS-2 (stub), TS-4, TS-5, TS-12
-**Avoids:** M010-01, M010-03, M010-09, M010-11
-**Hard co-location:** migration SQL + drizzle meta snapshot + `scripts/test.sh` psql line in one atomic plan (D034 precedent)
-**Research flag:** Standard Drizzle patterns — no phase research needed.
+**Must avoid:** Missing Never-Retrofit columns; reusing `loadProfileSubstrate` with a parameter; checking entry count instead of word count.
+
+**Research flag:** Standard patterns. Skip `/gsd-research-phase` — migration 0013 mirrors migration 0012.
 
 ---
 
-### Phase 34 — Profile Generators + Orchestrator + Cron
+### Phase 38: Inference Engine
 
-**Rationale:** Core inference engine. Highest-complexity phase. `assembleProfilePrompt()` shared builder must be the first artifact written (M010-06 mandate). Depends on Phase 33; Phase 35 depends on this.
+**Rationale:** Engine depends on Phase 37 substrate loader and Zod schemas. All three generators ship here, including attachment (with activation gate returning `'profile_below_threshold'` unconditionally until threshold met).
 
 **Delivers:**
-- `assembleProfilePrompt(dimension, substrate, prevState, entryCount)` shared builder: injects CONSTITUTIONAL_PREAMBLE, DO_NOT_INFER_DIRECTIVE, volume-weight ceiling formula, previous-state section, dimension-specific substrate + schema
-- Dimension-specific config objects (JURISDICTIONAL_PROFILE_CONFIG, CAPITAL_PROFILE_CONFIG, HEALTH_PROFILE_CONFIG, FAMILY_PROFILE_CONFIG)
-- Full generator implementations for all 4 profiles: Sonnet call, Zod v4 parse, Zod v3 re-validate, substrate-hash check (skip if unchanged), upsert via `name='primary'` sentinel, write to `profile_history` before upsert
-- `src/memory/profile-updater.ts`: `updateAllOperationalProfiles()` via `Promise.allSettled`; discriminated outcome logging
-- Cron registration: 4th cron, Sunday 22:00 Paris (`'0 22 * * 0'`), `{timezone: proactiveTimezone}`; `CronRegistrationStatus.profileUpdate`; `src/config.ts` `profileUpdateCron` field
-- Ground-truth seeding: initial profile rows from `src/pensieve/ground-truth.ts` → day-1 confidence 0.2–0.3 for known facts
-- Integration tests (two-cycle): Cycle 1 (populate from empty); Cycle 2 (`vi.setSystemTime` +7 days, update, assert previous-state injection non-null in mock SDK boundary assertion, assert `profile_history` has 2 rows per dimension)
-- Structural test: `assembleProfilePrompt` output contains CONSTITUTIONAL_PREAMBLE + DO_NOT_INFER_DIRECTIVE for all 4 dimensions
+- `src/memory/psychological-profile-prompt.ts`: `assemblePsychologicalProfilePrompt` (forked)
+- `src/memory/psychological-profiles/hexaco.ts`: `generateHexacoProfile()` — 1 Sonnet call, 6 dims
+- `src/memory/psychological-profiles/schwartz.ts`: `generateSchwartzProfile()` — 1 Sonnet call, 10 dims
+- `src/memory/psychological-profiles/attachment.ts`: `generateAttachmentProfile()` with `activated` gate
+- `src/memory/psychological-profile-updater.ts`: `updateAllPsychologicalProfiles()` via `Promise.allSettled`
+- `src/cron-registration.ts`: `psychologicalProfileUpdate` status + `0 9 1 * *` monthly cron
+- Three-cycle substrate-hash regression test — HARD CO-LOC #M11-2
+- Monthly cadence test including unconditional-fire assertion
+- DST-safe monthly boundary test (February + spring-forward edge cases)
 
-**Addresses:** TS-3, TS-4, TS-5, TS-8
-**Avoids:** M010-02, M010-04, M010-06, M010-09, M010-10
-**OQ-1 (resolve in planning):** Pensieve domain-filtering strategy — recommended starting point: tag-only filter (FACT/RELATIONSHIP/INTENTION/EXPERIENCE), no keyword/semantic filtering; upgrade to keyword lists only if fixture tests show contamination.
-**OQ-2 (resolve in planning):** Confidence calibration Sonnet prompt phrasing — draft during Phase 34 planning, lock as HARD CO-LOC in generator files.
-**Research flag:** Phase-level research recommended for OQ-1 and OQ-2.
+**Batching decision (locked):** 2 Sonnet calls per monthly fire (1 HEXACO, 1 Schwartz). Not 16 per-dimension calls. Not 1 combined call. HEXACO dims are one theoretical framework benefiting from cross-dimension coherence. Schwartz dims are a circumplex — splitting destroys cross-value evidence. Performance: 2 calls × ~10s = ~20s vs 16 calls × ~10s = 160s.
+
+**Cron expression (resolved):** `0 9 1 * *`. STACK.md says `0 0 1 * *`; ARCHITECTURE.md and FEATURES.md both say `0 9 1 * *`. Resolution: `0 9 1 * *` — morning timing for investigability; two-source majority.
+
+**Must avoid:** Per-dimension Sonnet calls; custom "has it been 30 days?" check; skipping fire on unchanged substrate hash.
+
+**Research flag:** Phase 38 needs `/gsd-research-phase` for the **unconditional-fire + substrate-hash interaction** — specifically, how the hash is written on unconditional fires vs how second-fire-same-month is prevented.
 
 ---
 
-### Phase 35 — Bot Command + Mode Handler Wiring
+### Phase 39: Surfaces
 
-**Rationale:** User-visible phase. Depends on Phase 33 (reader API) and Phase 34 (populated rows needed for non-null rendering test). The `buildSystemPrompt` refactor is a breaking change — call-site inventory (OQ-3) must be complete before any code is written.
+**Rationale:** Reader API depends on tables (Phase 37) and seed row (Phase 38). All four surface components ship atomically to avoid unexercised code paths (HARD CO-LOC #M11-4).
 
 **Delivers:**
-- `src/bot/handlers/profile.ts`: `handleProfileCommand()` — 4 × `ctx.reply()` plain-text, EN/FR/RU localized, second-person framing, staleness qualifier (`last_updated > 21 days`), M011 placeholder section
-- `formatProfileForDisplay()` with golden-output snapshot test on fixed `MOCK_PROFILES` fixture
-- `src/bot/bot.ts` edit: register `/profile` handler
-- `src/memory/profiles.ts` completion: full `formatProfilesForPrompt()` (empty string when all 4 null → mode handlers skip injection)
-- `src/chris/personality.ts` refactor: `buildSystemPrompt(mode, pensieveContext?, relationalContext?, extras?: ChrisContextExtras)` — `language` + `declinedTopics` folded into `extras`, `operationalProfiles?` added; ACCOUNTABILITY overload preserved exactly
-- Mode handler edits (`reflect.ts`, `coach.ts`, `psychology.ts`): call `getOperationalProfiles()` + `formatProfilesForPrompt()` before `buildSystemPrompt()`; use PROFILE_INJECTION_MAP
-- Regression tests: all existing mode-handler and engine tests pass with refactored signature
+- `getPsychologicalProfiles()` reader + `PsychologicalProfiles` interface in `src/memory/profiles.ts`
+- `PSYCHOLOGICAL_PROFILE_INJECTION_MAP` (REFLECT + PSYCHOLOGY, COACH absent)
+- `formatPsychologicalProfilesForPrompt()` with JOURNAL negative invariant
+- `ChrisContextExtras.psychologicalProfiles?: string` in `src/chris/personality.ts`
+- REFLECT mode handler: both HEXACO + Schwartz blocks
+- PSYCHOLOGY mode handler: both HEXACO + Schwartz blocks with heaviest epistemic-distance framing + explicit Hard Rule extension inline
+- `/profile` command: HEXACO + Schwartz + attachment sections; narrative display by default; removes M011 placeholder
+- `formatHexacoForDisplay()` and `formatSchwartzForDisplay()` pure formatters
+- Golden-output snapshot test — HARD CO-LOC #M11-3
+- JOURNAL negative-invariant test
+- HARD CO-LOC #M11-4: all four injection circuit pieces together
 
-**Addresses:** TS-6, TS-7, TS-8, TS-11
-**Avoids:** M010-07, M010-08
-**OQ-3 (pre-work, not research):** Grep `src/` for `buildSystemPrompt` calls; enumerate all call sites; document ACCOUNTABILITY overload explicitly before writing any Phase 35 code.
-**Research flag:** No external research needed — internal call-site inventory is the prerequisite.
+**Must avoid:** Flat injection into existing `PROFILE_INJECTION_MAP`; raw numeric scores in default `/profile` output; missing Hard Rule extension in injection block; COACH receiving psychological profiles.
+
+**Research flag:** Standard patterns. Skip `/gsd-research-phase`.
 
 ---
 
-### Phase 36 — Synthetic Fixture Test + Live Integration
+### Phase 40: Tests
 
-**Rationale:** Cannot start until Phase 34 (generators) and Phase 35 (mode wiring) are complete. Dedicated phase following M009's HARD CO-LOCATION #4 precedent — fixture generation and fixture testing are separate concerns.
+**Rationale:** Full test pyramid requires all other phases. Synthetic fixture test needs display formatter (Phase 39) and inference engine (Phase 38). PTEST-M011 milestone gate must cover both anti-hallucination AND adversarial Hard-Rule trait-authority assertions.
 
 **Delivers:**
-- `scripts/synthesize-delta.ts` extension: `--profile-bias <profile-name>` flag — appends domain keyword hint to daily Haiku style-transfer prompt
-- `m010-30days` primed fixture: generated, HARN sanity gate (>= 12 entries per profile dimension), committed as VCR-cached artifact
-- `m010-5days` primed fixture: generated, all 4 profiles at confidence=0, committed
-- Fixture tests (real-DB integration against Docker Postgres):
-  - `m010-30days` → all 4 profiles populate with non-zero calibrated confidence
-  - `m010-5days` → all 4 profiles at confidence=0
-  - Two-cycle test on `m010-30days`: Cycle 1 (populate from empty) + Cycle 2 (`vi.setSystemTime` +7 days, previous-state injection verified, `profile_history` has 2 rows per dimension)
-  - Substrate-hash skip: second Cycle 2 fire with unchanged substrate → no LLM calls
-- Live integration test (API-gated, 3-of-3): REFLECT-mode message with `m010-30days` fixture; assert system prompt contains `## Operational Profile` block; assert Sonnet does not hallucinate facts outside profile context
-- `boundary-audit.test.ts` extension for TS-11 if needed
+- `synthesize-delta.ts --psych-profile-bias` flag — designed signature injection into Haiku style-transfer
+- `m011-30days` primed fixture (30+ days, 6,000+ words; signature: High Openness, High Conscientiousness, Low Conformity, Low Power, High Benevolence)
+- Signal-phrase retention assertion before inference runs
+- Three-assertion synthetic fixture test: (1) 1,000 words → `overall_confidence=0`; (2) 6,000 words → `overall_confidence > 0`; (3) Openness ≥ 4.0, Conformity ≤ 2.5 within ±0.8 tolerance
+- PTEST-M011 live 3-of-3: anti-hallucination + adversarial trait-authority prompt
+- Forbidden phrases: `'consistent with your'`, `'aligns with your'`, `'as someone with your'`, `'fits your'`, `'given your [trait]'`
+- Cost callout in docblock: ~5-8 Sonnet calls, ~$0.15-0.25 per run
 
-**Addresses:** TS-9, TS-10, TS-11
-**Avoids:** M010-05, M010-10
-**OQ-4 (resolve in planning):** `synthesize-delta.ts --profile-bias` threshold determinism — validate that biased entries cross 10-entry threshold per dimension deterministically in 30-day window.
-**Research flag:** Phase-level research recommended for OQ-4 (bias mechanism design and threshold validation).
+**Must avoid:** Asserting only `confidence > 0` without accuracy-bounded score check; missing `FIXTURE_PRESENT` third gate (D045); fixture signal erasure without verification.
+
+**Research flag:** Phase 40 needs `/gsd-research-phase` for **fixture design** — `synthesize-delta.ts --psych-profile-bias` flag and signal-phrase injection are novel (no M010 equivalent).
 
 ---
 
 ### Phase Ordering Rationale
 
-- Phase 33 before everything: 7 of 11 pitfall mitigations require schema-phase artifacts; retrofitting them adds migration complexity and deployment risk.
-- Phase 34 before Phase 35: mode handlers need at least one populated row to test non-null rendering; `buildSystemPrompt` refactor should not happen until the profile data it injects exists.
-- Phase 35 before Phase 36: live integration test requires mode wiring to be complete to assert system prompt injection.
-- Phase 36 last: dedicated fixture-and-test phase; cannot start until generators and mode wiring exist to validate against.
-- Sunday 22:00 cron (not 21:00): 2-hour gap after weekly_review at 20:00 gives full retry-window buffer under worst-case adversarial conditions (M009 weekly_review max retries: ~120s).
-
----
+- Schema before engine: Drizzle type inference requires table definitions; generators cannot compile without schema exports
+- Engine before surfaces: reader needs seed row from at least one generator run; injection map needs reader
+- Surfaces before full tests: golden snapshot test requires formatter; PTEST-M011 requires injection wiring
+- Word-count gate with substrate (Phase 37), not engine (Phase 38): gate is cheap; must exist before engine calls it; enables sparse-threshold test co-location
 
 ### Research Flags
 
-**Phases needing deeper research during planning:**
-- **Phase 34 (OQ-1):** Pensieve domain-filtering strategy for `loadProfileSubstrate()` — tag-only is recommended starting point; confirm during planning.
-- **Phase 34 (OQ-2):** Confidence calibration Sonnet prompt phrasing — must be drafted and validated before locking.
-- **Phase 36 (OQ-4):** `synthesize-delta.ts --profile-bias` threshold determinism — confirm 10-entry crossing per domain in 30 days.
+Phases needing `/gsd-research-phase` during planning:
+- **Phase 38:** Unconditional-fire + substrate-hash interaction — how hash is written on unconditional monthly fires and how same-month second-fire is prevented without hash-skip
+- **Phase 40:** Fixture design — `synthesize-delta.ts --psych-profile-bias` flag and controlled signal injection (novel, no M010 equivalent)
 
-**Phases with standard patterns (skip research-phase):**
-- **Phase 33:** Pure Drizzle DDL + schema registry. Fully established patterns.
-- **Phase 35 (OQ-3):** Call-site inventory is a codebase grep, not external research.
-
----
-
-## Conflict Resolution Log
-
-| Conflict | STACK says | ARCHITECTURE says | Resolution |
-|----------|------------|-------------------|------------|
-| Execution model | Sequential `await` loop | `Promise.allSettled` parallel | `Promise.allSettled` wins — error isolation is stronger argument; 4 calls/week nowhere near rate limit |
-| Cron time | Sunday 21:00 Paris (spec default) | Sunday 22:00 Paris (2h gap) | 22:00 wins — M010-04 timing collision risk documented |
-| `confidence` field origin | Host code computes entirely | Sonnet emits `confidence` in output | Hybrid: Sonnet emits `data_consistency`; host computes final via `computeProfileConfidence(entryCount, data_consistency)` |
-| `profile_history` table scope | FEATURES DIFF-3: defer to M013 | PITFALLS/ARCH: must be in initial migration | PITFALLS wins — internal write-before-upsert snapshot is not the DIFF-3 user-facing history feature; the DIFF-3 deferral applies to the read interface, not the internal table |
+Phases with standard patterns (skip research-phase):
+- **Phase 37:** Mirrors migration 0012 pattern exactly
+- **Phase 39:** Mirrors M010 surfaces phase; PROFILE_INJECTION_MAP pattern well-documented in codebase
 
 ---
 
-## Pitfall-to-Phase Ownership Map
+### Open Questions Resolved by Research (lock these in phase plans)
 
-| Pitfall | Phase Owns Mitigation |
-|---------|-----------------------|
-| M010-01: Confidence inflation (volume-weight ceiling in Zod) | Phase 33 (schema) + Phase 34 (Sonnet prompt) |
-| M010-02: Hallucinated facts (source citation schema + DO_NOT_INFER) | Phase 34 |
-| M010-03: Profile drift (profile_history table + prev-state injection) | Phase 33 (table) + Phase 34 (prompt) |
-| M010-04: Cron timing collision (22:00 Paris, 2h gap, migration comment) | Phase 34 |
-| M010-05: Fixture dimension coverage gap (--profile-bias + HARN gate) | Phase 36 |
-| M010-06: Four-prompt drift (shared assembleProfilePrompt builder) | Phase 34 |
-| M010-07: /profile field leak (formatProfileForDisplay + golden test) | Phase 35 |
-| M010-08: Mode handler injection scope (PROFILE_INJECTION_MAP constant) | Phase 35 |
-| M010-09: Double-update idempotency (substrate_hash + skip guard) | Phase 33 (column) + Phase 34 (skip logic) |
-| M010-10: First-fire blindness (two-cycle test) | Phase 36 |
-| M010-11: JSONB schema evolution (schema_version + reader registry) | Phase 33 |
+| Question | Resolution | Source |
+|----------|------------|--------|
+| Monthly fire: unconditional vs hash-skip | **Unconditional** — skipped months break consistency time series | PITFALLS.md explicit recommendation |
+| Batching: per-dim vs grouped | **2 calls** (1 HEXACO, 1 Schwartz) | FEATURES.md + STACK.md consensus; PITFALLS.md performance trap |
+| Word-floor window: all-time vs rolling 60-day | **All-time** for the 5,000-word gate | M011 spec; rolling window is for substrate content, not the gate |
+| wordSaturation constant | **20,000** (first estimate) | STACK.md; FEATURES.md suggests 30,000 — use 20,000, flag for calibration |
+| Cron expression | **`0 9 1 * *`** | ARCHITECTURE.md + FEATURES.md (2-source majority over STACK.md midnight) |
+| REFLECT injection scope | **Both HEXACO + Schwartz** | FEATURES.md + STACK.md; ARCHITECTURE.md Schwartz-only rejected |
 
----
+### Open Questions for Post-M011 Planning
 
-## Never-Retrofit Checklist (Must Land in Phase 33)
-
-- [ ] `profile_history` table in migration 0012
-- [ ] `schema_version INT NOT NULL DEFAULT 1` in all 4 profile tables
-- [ ] `substrate_hash TEXT` in all 4 profile tables
-- [ ] `name TEXT NOT NULL UNIQUE DEFAULT 'primary'` sentinel in all 4 profile tables (ON CONFLICT target)
-- [ ] `confidence REAL CHECK (confidence >= 0 AND confidence <= 1)` in all 4 profile tables
-- [ ] Migration 0012 in `scripts/test.sh` psql apply chain
-- [ ] Drizzle meta snapshot regenerated for migration 0012
-
----
-
-## Open Questions
-
-| ID | Question | Phase | Recommended Starting Point |
-|----|----------|-------|---------------------------|
-| OQ-1 | Pensieve domain-filtering strategy for `loadProfileSubstrate()` | Phase 34 | Tag-only (FACT/RELATIONSHIP/INTENTION/EXPERIENCE), no keyword/semantic filtering; let Sonnet ignore irrelevant entries |
-| OQ-2 | Confidence calibration Sonnet prompt phrasing | Phase 34 | Draft in Phase 34 planning; validate on sparse vs rich fixtures in Phase 36; lock as HARD CO-LOC in generator files |
-| OQ-3 | `buildSystemPrompt` call-site inventory | Phase 35 pre-work | Grep `src/` for `buildSystemPrompt` before writing any Phase 35 code; document ACCOUNTABILITY overload explicitly |
-| OQ-4 | `synthesize-delta.ts --profile-bias` threshold determinism | Phase 36 | Validate 10-entry threshold crossing per domain deterministically in 30-day window before fixture generation begins |
-| OQ-5 | SATURATION constant tuning | Post-ship | SATURATION = 50 is first estimate; tune after 4–8 weeks of production profile updates; not a blocker |
+- Attachment activation-trigger mechanism: weekly sweep extension vs monthly cron guard — flag for Phase 38 detailed planning
+- M013 monthly-ritual collision avoidance: verify M013 cron expression does not collide with `0 9 1 * *`
 
 ---
 
@@ -291,53 +290,53 @@ Continuing from M009's Phase 32. Phases are numbered 33–36.
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All technologies installed at correct versions; all patterns have named M008/M009 precedents; no new dependencies |
-| Features | HIGH (TS-1–TS-8, TS-11–TS-12); MEDIUM (TS-9–TS-10) | Table stakes clear; synthetic fixture design (TS-9) is MEDIUM because `--profile-bias` mechanism does not yet exist in `synthesize-delta.ts` |
-| Architecture | HIGH | All component boundaries derived from direct codebase inspection; execution model conflict resolved |
-| Pitfalls | HIGH | All 11 pitfalls grounded in M006–M009 production incidents or direct code inspection; recovery strategies documented for all |
+| Stack | HIGH | Zero-dep conclusion confirmed by all 4 research files; word-counting strategy verified against multilingual token-count divergence data |
+| Features | HIGH | Table-stakes derived from M011 spec + M010 precedent + PROJECT.md decisions D028, D042-D046 |
+| Architecture | HIGH | All integration points verified at actual file:line in live codebase; component boundaries locked |
+| Pitfalls | HIGH | Derived entirely from live codebase inspection; every code reference verified |
 
-**Overall confidence:** HIGH
+**Overall confidence: HIGH**
 
-### Gaps to Address
+### Gaps to Address During Planning
 
-- OQ-1 (Phase 34 planning): Confirm tag-only filtering is sufficient before locking substrate reader
-- OQ-2 (Phase 34 planning): Draft and validate confidence calibration prompt phrasing before shipping
-- OQ-3 (Phase 35 pre-work): Complete `buildSystemPrompt` call-site grep before any Phase 35 code
-- OQ-4 (Phase 36 planning): Validate `--profile-bias` threshold determinism before fixture generation
-- OQ-5 (post-ship): Tune SATURATION constant against real production data
+- **`wordSaturation` calibration:** 20,000 words is a first estimate. Flag in code: `// SATURATION: first estimate 20,000 — calibrate after 4-8 monthly fires`.
+- **Attachment activation-trigger mechanism:** D028 specifies weekly sweep; trigger wiring is deferred post-M011. Schema and `activated` column ship in Phase 37; trigger wiring is a Phase 38+ concern for a separate plan.
+- **HEXACO × Schwartz internal consistency validation:** Cross-validation assertion ("both profiles point same direction") needs specification in Phase 40 planning — exact assertion undefined.
+- **Confidence display thresholds:** Textual qualifier brackets (0-30% / 31-59% / 60-79% / 80-100%) are reasonable first estimates; may need adjustment after first 3 monthly fires.
+
+---
+
+## HARD CO-LOC Summary
+
+| ID | What Ships Together | Why |
+|----|---------------------|-----|
+| **#M11-1** | Migration 0013 SQL + `schema.ts` exports + `meta/0013_snapshot.json` + `_journal.json` entry + `test.sh` psql line + `regen-snapshots` bump + `schemas.ts` type exports | Drizzle requires migration + meta + table def consistency; incoherent intermediate state causes spurious ALTER TABLE |
+| **#M11-2** | `psychological-profiles/shared.ts` substrate hash logic + three-cycle regression test | Substrate hash correctness untestable without a test detecting second-fire blindness at hash-introduction time |
+| **#M11-3** | `/profile` psychological display formatters + golden-output snapshot test | Prevents framing regression (raw-JSON-dump aesthetic) from reaching surfaces |
+| **#M11-4** | `PSYCHOLOGICAL_PROFILE_INJECTION_MAP` + `formatPsychologicalProfilesForPrompt` + `ChrisContextExtras.psychologicalProfiles` + PSYCHOLOGY mode handler wiring | Four pieces form one logical circuit; any piece missing silently fails to inject |
 
 ---
 
 ## Sources
 
-### Primary (HIGH confidence — direct codebase inspection)
+### Primary (HIGH confidence — live codebase)
+- `src/memory/profiles/shared.ts`, `src/memory/profile-prompt.ts`, `src/memory/profiles.ts`, `src/memory/confidence.ts`, `src/memory/profile-updater.ts` — M010 pattern baseline
+- `src/db/schema.ts:536-658`, `src/db/migrations/0012_operational_profiles.sql` — table shape and migration precedent
+- `src/chris/personality.ts`, `src/cron-registration.ts`, `src/rituals/cadence.ts`, `src/rituals/idempotency.ts` — integration points
+- `PROJECT.md` Key Decisions D027–D046 — architectural constraints
 
-- `src/rituals/weekly-review.ts` — authoritative pattern for v3/v4 dual-schema, sequential multi-schema Sonnet calls, DB-backed language detection, CONSTITUTIONAL_PREAMBLE, MAX_RETRIES retry loop
-- `src/episodic/consolidate.ts` — v3/v4 dual-schema at SDK boundary, `zodOutputFormat()` cast, error-isolation contract
-- `src/cron-registration.ts` — `registerCrons`, `CronRegistrationStatus`, `RegisterCronsDeps` interface pattern
-- `src/chris/personality.ts` — `buildSystemPrompt` current signature (lines 89-95), ACCOUNTABILITY overload documentation (lines 79-87), CONSTITUTIONAL_PREAMBLE
-- `src/proactive/state.ts` — `onConflictDoUpdate` singleton upsert precedent
-- `src/bot/handlers/summary.ts` — D-31 plain-text policy, command handler structure, `as any` cast pattern
-- `src/db/schema.ts` — existing table shapes, column types; confirmed `jsonb().$type<T>()` in drizzle-orm 0.45.2
-- `src/pensieve/retrieve.ts` — `getEpisodicSummariesRange()` already exported
-- `src/pensieve/ground-truth.ts` — 13 facts available for initial profile seeding
-- `scripts/synthesize-delta.ts` — confirmed: no `--profile-bias` flag; OQ-4 is a real gap
-- `.planning/PROJECT.md` — D029, D030, D034, D035, D041
-- `package.json` — installed deps + versions verified 2026-05-11
+### Primary (HIGH confidence — M011 spec)
+- `M011_Psychological_Profiles.md` — canonical feature spec and acceptance criteria
 
-### Secondary (MEDIUM confidence — production incidents + retrospectives)
-
-- v2.4 RETROSPECTIVE.md — first-fire celebration blindness, DB-backed language detection lesson, third-person framing UX failure
-- v2.4 M009 Phase 29 VERIFICATION.md — third-person framing incident (direct source for M010-07 formatter requirement)
-- v2.4 MILESTONE-AUDIT.md — HARN floor patterns, successive-fire fix origin
-
-### Tertiary (domain concept validation)
-
-- EMA literature — validates 10-entry threshold reasoning; sparse data produces worse inference than no inference
-- Clinical documentation patterns (SOAP notes) — source for health profile case-file model (open hypothesis / pending test / active treatment triad)
+### Secondary (MEDIUM confidence — empirical accuracy)
+- JMIR 2025: Psychometric Evaluation of LLM Embeddings for Personality Trait Prediction (r ≈ .38–.58 LLM-direct vs r ≈ .20–.35 lexicon)
+- arXiv 2509.13244: Evaluating LLM Alignment on Personality Inference from Real-World Interview
+- arXiv 2508.00742: Applying Psychometrics to LLM Simulated Populations (HEXACO)
+- Boyd & Pennebaker ICWSM 2015: Values in Words (Schwartz dictionary — rejected for M011: no npm port, English-only, lower accuracy)
+- Shrout & Fleiss 1979: ICC (rejected for M011 — inapplicable rater-equivalence assumptions for sequential LLM observations)
 
 ---
 
-*Research completed: 2026-05-11*
+*Research completed: 2026-05-13*
 *Ready for roadmap: yes*
-*Legacy note: M010 spec uses "John" naming — all requirements and code use Greg.*
+*Phases suggested: 4 (Phase 37 Schema+Substrate → Phase 38 Inference Engine → Phase 39 Surfaces → Phase 40 Tests)*
