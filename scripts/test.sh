@@ -18,6 +18,7 @@ MIGRATION_9_SQL="src/db/migrations/0009_weekly_review_seed.sql"
 MIGRATION_10_SQL="src/db/migrations/0010_adjustment_dialogue.sql"
 MIGRATION_11_SQL="src/db/migrations/0011_rename_daily_voice_note_to_journal.sql"
 MIGRATION_12_SQL="src/db/migrations/0012_operational_profiles.sql"
+MIGRATION_13_SQL="src/db/migrations/0013_psychological_profiles.sql"
 
 cleanup() {
   echo "🧹 Stopping test postgres..."
@@ -81,6 +82,8 @@ docker compose -f "$COMPOSE_FILE" exec -T postgres \
   psql -U chris -d chris -v ON_ERROR_STOP=1 -q < "$MIGRATION_11_SQL"
 docker compose -f "$COMPOSE_FILE" exec -T postgres \
   psql -U chris -d chris -v ON_ERROR_STOP=1 -q < "$MIGRATION_12_SQL"
+docker compose -f "$COMPOSE_FILE" exec -T postgres \
+  psql -U chris -d chris -v ON_ERROR_STOP=1 -q < "$MIGRATION_13_SQL"
 
 # Phase 25 (M009 v2.4) — post-migration substrate smoke gate.
 # Per HARD CO-LOCATION CONSTRAINT #7 + Pitfall 28: the SQL migration, the
@@ -260,6 +263,70 @@ docker compose -f "$COMPOSE_FILE" exec -T postgres \
 # 4 tables × 5 required columns = 20 rows
 grep -q "^20$" /tmp/m010_cols.txt || { echo "❌ Migration 0012 non-retrofittable columns incomplete"; cat /tmp/m010_cols.txt; exit 1; }
 echo "✓ Migration 0012 non-retrofittable columns verified (schema_version + substrate_hash + data_consistency + name + confidence on all 4 profile tables)"
+
+# Phase 37 (M011 v2.6) — psychological profiles substrate smoke gate.
+# HARD CO-LOCATION #M11-1: this gate ships in the SAME plan as the migration
+# SQL + drizzle meta snapshot + schema.ts table defs (Plan 37-01). Failure
+# exits BEFORE vitest (mirrors Phase 33 0012 substrate gate at line ~228).
+# This gate runs independently of the M010 gate per RESEARCH.md OQ-3 —
+# regression isolation across milestones.
+#
+# Asserts (matched format ^3|1|1|1|0|0|0|false$):
+#   - 3 new tables exist (profile_hexaco, profile_schwartz, profile_attachment)
+#   - Each of 3 psych tables has exactly 1 row WHERE name='primary'
+#   - overall_confidence=0 and word_count=0 on profile_hexaco seed
+#   - profile_attachment additionally: relational_word_count=0, activated=false
+#     (psql casts boolean to "true"/"false" text, not "t"/"f")
+echo "🔍 Verifying migration 0013 substrate..."
+docker compose -f "$COMPOSE_FILE" exec -T postgres \
+  psql -U chris -d chris -v ON_ERROR_STOP=1 -tAq -c "
+    SELECT
+      (SELECT COUNT(*) FROM information_schema.tables
+       WHERE table_schema = 'public'
+       AND table_name IN ('profile_hexaco', 'profile_schwartz',
+                          'profile_attachment')) AS table_count,
+      (SELECT COUNT(*) FROM profile_hexaco WHERE name = 'primary') AS hex_seed,
+      (SELECT COUNT(*) FROM profile_schwartz WHERE name = 'primary') AS sch_seed,
+      (SELECT COUNT(*) FROM profile_attachment WHERE name = 'primary') AS att_seed,
+      (SELECT overall_confidence::text FROM profile_hexaco WHERE name = 'primary') AS hex_conf,
+      (SELECT word_count::text FROM profile_hexaco WHERE name = 'primary') AS hex_wc,
+      (SELECT relational_word_count::text FROM profile_attachment WHERE name = 'primary') AS att_rwc,
+      (SELECT activated::text FROM profile_attachment WHERE name = 'primary') AS att_act;
+  " | tee /tmp/m011_smoke.txt
+grep -q "^3|1|1|1|0|0|0|false$" /tmp/m011_smoke.txt || { echo "❌ Migration 0013 substrate incomplete or seed values wrong"; cat /tmp/m011_smoke.txt; exit 1; }
+echo "✓ Migration 0013 substrate verified (3 tables + 3 seed rows + cold-start values)"
+
+# Phase 37 also asserts: schema_version + substrate_hash + name +
+# overall_confidence + word_count + word_count_at_last_run present on all 3
+# psychological tables (Never-Retrofit Checklist per D-06). Catches a
+# forgetful retrofit. 3 tables × 6 columns = 18.
+echo "🔍 Verifying migration 0013 non-retrofittable columns..."
+docker compose -f "$COMPOSE_FILE" exec -T postgres \
+  psql -U chris -d chris -v ON_ERROR_STOP=1 -tAq -c "
+    SELECT COUNT(*) FROM information_schema.columns
+     WHERE table_schema = 'public'
+     AND table_name IN ('profile_hexaco', 'profile_schwartz', 'profile_attachment')
+     AND column_name IN ('schema_version', 'substrate_hash', 'name',
+                         'overall_confidence', 'word_count', 'word_count_at_last_run');
+  " | tee /tmp/m011_cols.txt
+# 3 tables × 6 required columns = 18 rows
+grep -q "^18$" /tmp/m011_cols.txt || { echo "❌ Migration 0013 non-retrofittable columns incomplete (expected 18, got: $(cat /tmp/m011_cols.txt))"; cat /tmp/m011_cols.txt; exit 1; }
+echo "✓ Migration 0013 non-retrofittable columns verified (schema_version + substrate_hash + name + overall_confidence + word_count + word_count_at_last_run on all 3 psychological tables)"
+
+# Phase 37 — profile_attachment specific D-07 columns (relational_word_count
+# + activated). Catches a Pitfall 1 retrofit attempt (e.g., trying to ALTER
+# TABLE profile_attachment ADD COLUMN activated in a later migration —
+# would mean the D028 activation gate has no column to flip at activation).
+echo "🔍 Verifying migration 0013 profile_attachment D-07 columns..."
+docker compose -f "$COMPOSE_FILE" exec -T postgres \
+  psql -U chris -d chris -v ON_ERROR_STOP=1 -tAq -c "
+    SELECT COUNT(*) FROM information_schema.columns
+     WHERE table_schema = 'public'
+     AND table_name = 'profile_attachment'
+     AND column_name IN ('relational_word_count', 'activated');
+  " | tee /tmp/m011_att_cols.txt
+grep -q "^2$" /tmp/m011_att_cols.txt || { echo "❌ Migration 0013 profile_attachment D-07 columns missing (expected 2, got: $(cat /tmp/m011_att_cols.txt))"; cat /tmp/m011_att_cols.txt; exit 1; }
+echo "✓ Migration 0013 profile_attachment D-07 columns verified (relational_word_count + activated)"
 
 echo "🧪 Running tests..."
 # Source .env if present so real API credentials win over the -:fallback below.
