@@ -52,13 +52,32 @@ export interface OperationalProfiles {
   family: ProfileRow<FamilyProfileData> | null;
 }
 
+/**
+ * One of the four operational profile dimensions. Exported for Phase 35
+ * Plan 35-03's `/profile` handler to import.
+ */
+export type Dimension = 'jurisdictional' | 'capital' | 'health' | 'family';
+
+/**
+ * Per-mode subset of profile dimensions to inject into the system prompt.
+ * Locked per Phase 35 D-08 + PITFALLS.md M010-08 mitigation (lines 250-258):
+ *   - REFLECT synthesizes across all 4 dimensions by design
+ *   - COACH gets decisions + constraints only — health → topic-drift risk (M010-08(b))
+ *   - PSYCHOLOGY needs clinical + situational grounding only
+ * JOURNAL / INTERROGATE / PRODUCE / PHOTOS / ACCOUNTABILITY absent by design
+ * (D-28 negative invariant — no injection for these modes).
+ */
+export const PROFILE_INJECTION_MAP: Readonly<Record<'REFLECT' | 'COACH' | 'PSYCHOLOGY', readonly Dimension[]>> = {
+  REFLECT: ['jurisdictional', 'capital', 'health', 'family'],
+  COACH: ['capital', 'family'],
+  PSYCHOLOGY: ['health', 'jurisdictional'],
+} as const;
+
 // ── Dispatcher: schema_version → Zod schema, per dimension ──────────────
 //
 // Schema-version dispatcher pattern per PITFALLS.md M010-11. Explicit
 // `if (!parser)` check below before `.safeParse` (Pitfall 6) so a future
 // row with schema_version=999 returns null, never crashes.
-
-type Dimension = 'jurisdictional' | 'capital' | 'health' | 'family';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const PROFILE_SCHEMAS: Record<Dimension, Record<number, z.ZodTypeAny>> = {
