@@ -22,6 +22,9 @@ import {
   profileCapital,
   profileHealth,
   profileFamily,
+  profileHexaco,
+  profileSchwartz,
+  profileAttachment,
 } from '../db/schema.js';
 import { logger } from '../utils/logger.js';
 import {
@@ -34,7 +37,21 @@ import {
   type HealthProfileData,
   type FamilyProfileData,
 } from './profiles/schemas.js';
+import {
+  HexacoProfileSchemaV3,
+  SchwartzProfileSchemaV3,
+  AttachmentProfileSchemaV3,
+  type HexacoProfileData,
+  type SchwartzProfileData,
+  type AttachmentProfileData,
+} from './profiles/psychological-schemas.js';
 import type { z } from 'zod';
+
+// Re-export PsychologicalProfileType so Phase 39+ consumers have a stable
+// import path from src/memory/profiles.js (the same module that exports
+// getPsychologicalProfiles).
+export type { PsychologicalProfileType } from './profiles/psychological-shared.js';
+import type { PsychologicalProfileType } from './profiles/psychological-shared.js';
 
 // ── Public types ────────────────────────────────────────────────────────
 
@@ -196,6 +213,205 @@ export async function getOperationalProfiles(): Promise<OperationalProfiles> {
     readOneProfile<FamilyProfileData>('family', profileFamily),
   ]);
   return { jurisdictional, capital, health, family };
+}
+
+// ── M011 psychological-profile reader — Phase 37 Plan 37-02 Task 3 ──────
+//
+// PSCH-09 deliverable: typed never-throw reader over the 3 M011 profile
+// tables (hexaco, schwartz, attachment). Structural mirror of the M010
+// operational reader above, with these locked divergences per
+// 37-CONTEXT.md (D-21..D-24):
+//
+//   - SEPARATE function `getPsychologicalProfiles` (D-21) — does NOT
+//     replace getOperationalProfiles. The 8+ existing call sites for the
+//     M010 reader keep their canonical type.
+//   - DISTINCT log event namespace `chris.psychological.profile.read.*`
+//     (D-23) — separate from M010's `chris.profile.read.*` so future log
+//     filtering can route psychological-profile errors separately.
+//   - 3-LAYER Zod v3 parse defense (D-23): schema_version dispatcher miss
+//     → schema_mismatch; safeParse failure → parse_failed; outer throw
+//     → unknown_error. Each layer returns null per-profile (Promise.all
+//     aggregates 3 nullable results — partial failures don't cascade).
+//   - 11-COLUMN metadata strip (Pitfall 7): M011 profile rows have 4 more
+//     metadata columns than M010 (substrateHash, overallConfidence,
+//     wordCount, wordCountAtLastRun, relationalWordCount, activated +
+//     the universal ones). The shared helper stripPsychologicalMetadataColumns
+//     destructures all 11; attachment-only columns are harmlessly absent
+//     on hexaco/schwartz rows.
+//   - `row.lastUpdated ?? new Date(0)` (D-22) — cold-start null
+//     (migration 0013 seeds last_updated=NULL) coalesces to epoch so the
+//     ProfileRow<T>.lastUpdated: Date contract holds for the never-run
+//     case.
+
+export interface PsychologicalProfiles {
+  hexaco: ProfileRow<HexacoProfileData> | null;
+  schwartz: ProfileRow<SchwartzProfileData> | null;
+  attachment: ProfileRow<AttachmentProfileData> | null;
+}
+
+// Module-private schema_version → Zod schema dispatcher (D-24). Internal —
+// no export. Future schema-version bumps add entries here; readOne handles
+// missing-version lookups via the schema_mismatch layer.
+const PSYCHOLOGICAL_PROFILE_SCHEMAS: Record<
+  PsychologicalProfileType,
+  Record<number, z.ZodTypeAny>
+> = {
+  hexaco: { 1: HexacoProfileSchemaV3 },
+  schwartz: { 1: SchwartzProfileSchemaV3 },
+  attachment: { 1: AttachmentProfileSchemaV3 },
+};
+
+/**
+ * Strip the 11 metadata columns from an M011 psychological-profile SELECT
+ * row so what remains is the validatable jsonb-field set (matches the v3
+ * schema shape per psychological-schemas.ts).
+ *
+ * The 11 columns stripped (Pitfall 7 — comprehensive enumeration):
+ *   - id (uuid PK)
+ *   - name (string sentinel = 'primary')
+ *   - schemaVersion (number)
+ *   - substrateHash (string)
+ *   - overallConfidence (number 0-1)
+ *   - wordCount (number)
+ *   - wordCountAtLastRun (number)
+ *   - lastUpdated (nullable timestamp)
+ *   - createdAt (timestamp)
+ *   - relationalWordCount (attachment-only; harmlessly absent on hexaco/
+ *     schwartz rows because destructuring an absent key yields undefined)
+ *   - activated (attachment-only; same harmless-absent behavior)
+ *
+ * Converts remaining Drizzle camelCase keys to snake_case to match the Zod
+ * schemas defined in psychological-schemas.ts (per-dimension keys are
+ * snake_case: honesty_humility, self_direction, etc.).
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function stripPsychologicalMetadataColumns(row: Record<string, any>): Record<string, unknown> {
+  const {
+    id,
+    name,
+    schemaVersion,
+    substrateHash,
+    overallConfidence,
+    wordCount,
+    wordCountAtLastRun,
+    lastUpdated,
+    createdAt,
+    relationalWordCount,
+    activated,
+    ...rest
+  } = row;
+  void id; void name; void schemaVersion; void substrateHash;
+  void overallConfidence; void wordCount; void wordCountAtLastRun;
+  void lastUpdated; void createdAt;
+  void relationalWordCount; void activated;
+
+  // Drizzle returns camelCase; Zod psych-schemas expect snake_case.
+  const snakeRest: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(rest)) {
+    const snake = k.replace(/[A-Z]/g, (m) => '_' + m.toLowerCase());
+    snakeRest[snake] = v;
+  }
+  return snakeRest;
+}
+
+/**
+ * Read one psychological profile dimension. Encapsulates the DB SELECT +
+ * 3-layer Zod parse defense per D-23. Per-profile null on any failure;
+ * NEVER throws.
+ *
+ * Layer 1 (schema_mismatch): schema_version stored in the row is not in
+ *   PSYCHOLOGICAL_PROFILE_SCHEMAS[profileType]. Logs
+ *   'chris.psychological.profile.read.schema_mismatch' → returns null.
+ *
+ * Layer 2 (parse_failed): safeParse against the dispatched schema fails
+ *   (corrupted jsonb at read boundary). Logs
+ *   'chris.psychological.profile.read.parse_failed' → returns null.
+ *
+ * Layer 3 (unknown_error): any throw — DB connection dropped, query
+ *   timeout, unexpected runtime error. Logs
+ *   'chris.psychological.profile.read.unknown_error' → returns null.
+ */
+async function readOnePsychologicalProfile<T>(
+  profileType: PsychologicalProfileType,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  table: any,
+): Promise<ProfileRow<T> | null> {
+  try {
+    const rows = await db
+      .select()
+      .from(table)
+      .where(eq(table.name, 'primary'))
+      .limit(1);
+    if (rows.length === 0) return null;
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const row = rows[0]!;
+
+    // Layer 1: schema_version dispatch (D-23 schema_mismatch).
+    const parser =
+      PSYCHOLOGICAL_PROFILE_SCHEMAS[profileType][row.schemaVersion as number];
+    if (!parser) {
+      logger.warn(
+        { profileType, schemaVersion: row.schemaVersion },
+        'chris.psychological.profile.read.schema_mismatch',
+      );
+      return null;
+    }
+
+    // Layer 2: safeParse over the stripped jsonb-field set (D-23 parse_failed).
+    const dataToValidate = stripPsychologicalMetadataColumns(row);
+    const parsed = parser.safeParse(dataToValidate);
+    if (!parsed.success) {
+      logger.warn(
+        { profileType, error: parsed.error.message },
+        'chris.psychological.profile.read.parse_failed',
+      );
+      return null;
+    }
+
+    return {
+      data: parsed.data as T,
+      confidence: row.overallConfidence,
+      // D-22: cold-start null lastUpdated (migration 0013 seed rows) →
+      // epoch sentinel so the ProfileRow<T>.lastUpdated: Date contract holds.
+      lastUpdated: row.lastUpdated ?? new Date(0),
+      schemaVersion: row.schemaVersion,
+    };
+  } catch (error) {
+    // Layer 3: any uncaught throw (D-23 unknown_error).
+    logger.warn(
+      {
+        profileType,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      'chris.psychological.profile.read.unknown_error',
+    );
+    return null;
+  }
+}
+
+/**
+ * Read all 3 psychological profiles (hexaco, schwartz, attachment) in
+ * parallel. Never throws.
+ *
+ * Return contract (D-22 mirrors M010 D-12):
+ *   - Always returns `PsychologicalProfiles` shape
+ *   - Each field is `ProfileRow<T>` (parsed seed) OR `null` (DB error,
+ *     missing row, schema_mismatch, parse_failed, unknown_error)
+ *   - On total DB failure: { hexaco: null, schwartz: null, attachment: null }
+ *     — NEVER a single null. Promise.all + per-profile try/catch in
+ *     readOnePsychologicalProfile isolates per-profile failures.
+ *
+ * Phase 38 generators will call this BEFORE invoking the substrate loader
+ * so the generator can read the prior profile state and thread it into the
+ * Sonnet prompt as the "before" snapshot.
+ */
+export async function getPsychologicalProfiles(): Promise<PsychologicalProfiles> {
+  const [hexaco, schwartz, attachment] = await Promise.all([
+    readOnePsychologicalProfile<HexacoProfileData>('hexaco', profileHexaco),
+    readOnePsychologicalProfile<SchwartzProfileData>('schwartz', profileSchwartz),
+    readOnePsychologicalProfile<AttachmentProfileData>('attachment', profileAttachment),
+  ]);
+  return { hexaco, schwartz, attachment };
 }
 
 // ── formatProfilesForPrompt — Phase 35 Plan 35-02 (SURF-02) ─────────────
