@@ -117,7 +117,7 @@ See `.planning/milestones/v2.4-ROADMAP.md` for full phase details + `.planning/m
 | 33 — Profile Substrate | v2.5 | 2/2 | Complete   | 2026-05-11 |
 | 34 — Inference Engine | v2.5 | 3/3 | Complete    | 2026-05-12 |
 | 35 — Surfaces | v2.5 | 3/3 | Complete   | 2026-05-13 |
-| 36 — Tests | v2.5 | 0/2 | Not started | — |
+| 36 — Tests | v2.5 | 0/2 | Planned    |  |
 
 ## Archived Milestones
 
