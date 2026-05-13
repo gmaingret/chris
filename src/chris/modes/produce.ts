@@ -69,7 +69,7 @@ export async function handleProduce(
 
   // Build conversation history and system prompt with Pensieve context only (no relational)
   const history = await buildMessageHistory(chatId);
-  const systemPrompt = buildSystemPrompt('PRODUCE', pensieveContext, undefined, language, declinedTopics);
+  const systemPrompt = buildSystemPrompt('PRODUCE', pensieveContext, undefined, { language, declinedTopics });
 
   try {
     const response = await anthropic.messages.create({

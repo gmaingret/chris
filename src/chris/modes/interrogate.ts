@@ -112,7 +112,7 @@ export async function handleInterrogate(
 
   // Build conversation history and system prompt
   const history = await buildMessageHistory(chatId);
-  const systemPrompt = buildSystemPrompt('INTERROGATE', pensieveContext, undefined, language, declinedTopics);
+  const systemPrompt = buildSystemPrompt('INTERROGATE', pensieveContext, undefined, { language, declinedTopics });
 
   try {
     const response = await anthropic.messages.create({

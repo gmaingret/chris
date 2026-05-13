@@ -73,7 +73,7 @@ export async function handleCoach(
 
   // Build conversation history and system prompt with both contexts
   const history = await buildMessageHistory(chatId);
-  const systemPrompt = buildSystemPrompt('COACH', pensieveContext, relationalContext, language, declinedTopics);
+  const systemPrompt = buildSystemPrompt('COACH', pensieveContext, relationalContext, { language, declinedTopics });
 
   try {
     const response = await anthropic.messages.create({

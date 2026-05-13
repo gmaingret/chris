@@ -73,7 +73,7 @@ export async function handleReflect(
 
   // Build conversation history and system prompt with both contexts
   const history = await buildMessageHistory(chatId);
-  const systemPrompt = buildSystemPrompt('REFLECT', pensieveContext, relationalContext, language, declinedTopics);
+  const systemPrompt = buildSystemPrompt('REFLECT', pensieveContext, relationalContext, { language, declinedTopics });
 
   try {
     const response = await anthropic.messages.create({
