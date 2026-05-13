@@ -343,17 +343,212 @@ const MSG = {
   },
 } as const;
 
-// ── Pure formatter (Task 2 fills in the body) ───────────────────────────────
+// ── Pure formatter ──────────────────────────────────────────────────────────
+//
+// Renders one operational-profile dimension as a plain-text Telegram message
+// for `/profile`. Pure function: input tuple in, string out, no I/O / no DB /
+// no logger. Deterministic given (dimension, profile, lang) AND current Date
+// (for the staleness check vs profile.lastUpdated).
+//
+// Contract:
+//   - profile === null OR profile.confidence === 0 → returns the localized
+//     actionable progress indicator (D-21). No header, no body fields.
+//   - profile.confidence > 0 AND lastUpdated within 21 days → returns
+//     `${sectionTitle} (${confidence} NN%)` + blank line + per-field
+//     second-person lines from profile.data, joined with '\n'. NO staleness
+//     note.
+//   - profile.confidence > 0 AND lastUpdated > 21 days ago → same as above,
+//     PLUS a blank line + localized staleness note (D-22).
+//
+// Per-dimension switch-case (CONTEXT.md Claude's Discretion default — v1
+// inline switch; config object deferred until M011/M012 add more dimensions).
+// Field shapes are read from src/memory/profiles/schemas.ts; null/empty
+// fields are skipped gracefully (no `null` literal in output).
+//
+// Second-person framing (D-20 + M010-07): every emitted line uses "You're",
+// "Your", "Ta/Ton/Tes", "Твой/Твоя/Твои". NEVER "Greg's...", "His...",
+// "He has...". The golden-snapshot test asserts this invariant.
 
 export function formatProfileForDisplay(
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   dimension: Dimension,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   profile: ProfileRow<unknown> | null,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   lang: Lang,
 ): string {
-  throw new Error('TODO: Task 2');
+  // D-21: null or zero-confidence → localized actionable progress indicator.
+  // No header, no body — just the "Chris needs more entries about..." line.
+  if (profile === null || profile.confidence === 0) {
+    return MSG.insufficientData[lang](dimension);
+  }
+
+  const confidencePct = Math.round(profile.confidence * 100);
+  const title = `${MSG.sectionTitle[dimension][lang]} (${MSG.confidence[lang]} ${confidencePct}%)`;
+  const lines: string[] = [title, ''];
+
+  switch (dimension) {
+    case 'jurisdictional': {
+      const d = profile.data as JurisdictionalProfileData;
+      const L = MSG.fields.jurisdictional[lang];
+      if (d.physical_location && d.current_country) {
+        lines.push(L.youAreIn(d.physical_location, d.current_country));
+      } else if (d.current_country) {
+        lines.push(L.youAreInCountry(d.current_country));
+      }
+      if (d.tax_residency) lines.push(L.yourTaxResidency(d.tax_residency));
+      if (d.residency_status?.length) {
+        lines.push(L.yourResidencyStatuses);
+        for (const r of d.residency_status) {
+          lines.push(`- ${r.type}: ${r.value}${r.since ? ` (since ${r.since})` : ''}`);
+        }
+      }
+      if (d.next_planned_move?.destination && d.next_planned_move.from_date) {
+        lines.push(L.yourNextMove(d.next_planned_move.destination, d.next_planned_move.from_date));
+      } else if (d.next_planned_move?.destination) {
+        lines.push(L.yourNextMoveDestOnly(d.next_planned_move.destination));
+      } else if (d.planned_move_date && d.next_planned_move) {
+        // Edge: from_date sits in planned_move_date instead of inside the object.
+        if (d.next_planned_move.destination) {
+          lines.push(L.yourNextMove(d.next_planned_move.destination, d.planned_move_date));
+        }
+      }
+      if (d.passport_citizenships?.length) {
+        lines.push(L.yourCitizenships(d.passport_citizenships.join(', ')));
+      }
+      if (d.active_legal_entities?.length) {
+        const ents = d.active_legal_entities.map((e) => `${e.name} (${e.jurisdiction})`).join(', ');
+        lines.push(L.yourLegalEntities(ents));
+      }
+      break;
+    }
+    case 'capital': {
+      const d = profile.data as CapitalProfileData;
+      const L = MSG.fields.capital[lang];
+      if (d.fi_phase) lines.push(L.yourFIPhase(d.fi_phase));
+      if (d.fi_target_amount) lines.push(L.yourFITarget(d.fi_target_amount));
+      if (d.estimated_net_worth) lines.push(L.yourNetWorth(d.estimated_net_worth));
+      if (d.runway_months != null) lines.push(L.yourRunway(d.runway_months));
+      if (d.next_sequencing_decision) lines.push(L.yourNextSequencing(d.next_sequencing_decision));
+      if (d.tax_optimization_status) lines.push(L.yourTaxOptimization(d.tax_optimization_status));
+      if (d.income_sources?.length) {
+        lines.push(L.yourIncomeSources);
+        for (const s of d.income_sources) {
+          lines.push(`- ${s.source} (${s.kind})`);
+        }
+      }
+      if (d.active_legal_entities?.length) {
+        const ents = d.active_legal_entities.map((e) => `${e.name} (${e.jurisdiction})`).join(', ');
+        lines.push(L.yourLegalEntities(ents));
+      }
+      if (d.major_allocation_decisions?.length) {
+        lines.push(L.yourMajorAllocations);
+        for (const a of d.major_allocation_decisions) {
+          lines.push(`- ${a.date}: ${a.description}`);
+        }
+      }
+      break;
+    }
+    case 'health': {
+      const d = profile.data as HealthProfileData;
+      const L = MSG.fields.health[lang];
+      if (d.case_file_narrative) lines.push(L.yourCaseFile(d.case_file_narrative));
+      if (d.open_hypotheses?.length) {
+        lines.push(L.yourOpenHypotheses);
+        for (const h of d.open_hypotheses) {
+          lines.push(`- ${h.name} [${h.status} since ${h.date_opened}]`);
+        }
+      }
+      if (d.pending_tests?.length) {
+        lines.push(L.yourPendingTests);
+        for (const t of d.pending_tests) {
+          // Avoid the "(scheduled, scheduled 2026-05-25)" redundancy when the
+          // status string already says "scheduled" — emit just the date in
+          // that case. For any other status (e.g., "awaiting referral"), keep
+          // the status word and append the date separately.
+          let label: string;
+          if (t.status.toLowerCase() === 'scheduled' && t.scheduled_date) {
+            label = `scheduled ${t.scheduled_date}`;
+          } else if (t.scheduled_date) {
+            label = `${t.status}, scheduled ${t.scheduled_date}`;
+          } else {
+            label = t.status;
+          }
+          lines.push(`- ${t.test_name} (${label})`);
+        }
+      }
+      if (d.active_treatments?.length) {
+        lines.push(L.yourActiveTreatments);
+        for (const t of d.active_treatments) {
+          const purp = t.purpose ? ` (${t.purpose})` : '';
+          lines.push(`- ${t.name} since ${t.started_date}${purp}`);
+        }
+      }
+      if (d.recent_resolved?.length) {
+        lines.push(L.yourRecentResolved);
+        for (const r of d.recent_resolved) {
+          lines.push(`- ${r.name} resolved ${r.resolved_date}: ${r.resolution}`);
+        }
+      }
+      const wb = d.wellbeing_trend;
+      if (wb && (wb.energy_30d_mean != null || wb.mood_30d_mean != null || wb.anxiety_30d_mean != null)) {
+        const parts: string[] = [];
+        if (wb.energy_30d_mean != null) parts.push(`energy=${wb.energy_30d_mean}`);
+        if (wb.mood_30d_mean != null) parts.push(`mood=${wb.mood_30d_mean}`);
+        if (wb.anxiety_30d_mean != null) parts.push(`anxiety=${wb.anxiety_30d_mean}`);
+        lines.push(`${L.yourWellbeingTrend} ${parts.join(', ')}`);
+      }
+      break;
+    }
+    case 'family': {
+      const d = profile.data as FamilyProfileData;
+      const L = MSG.fields.family[lang];
+      if (d.relationship_status) lines.push(L.yourRelationshipStatus(d.relationship_status));
+      if (d.children_plans) lines.push(L.yourChildrenPlans(d.children_plans));
+      if (d.active_dating_context) lines.push(L.yourDatingContext(d.active_dating_context));
+      const pcr = d.parent_care_responsibilities;
+      if (pcr && (pcr.notes || pcr.dependents?.length)) {
+        lines.push(L.yourParentCare);
+        if (pcr.notes) lines.push(`- ${pcr.notes}`);
+        if (pcr.dependents?.length) {
+          for (const dep of pcr.dependents) {
+            lines.push(`- ${dep}`);
+          }
+        }
+      }
+      if (d.partnership_criteria_evolution?.length) {
+        const active = d.partnership_criteria_evolution.filter((c) => c.still_active);
+        if (active.length > 0) {
+          lines.push(L.yourPartnershipCriteria);
+          for (const c of active) {
+            lines.push(`- ${c.date_noted}: ${c.text}`);
+          }
+        }
+      }
+      if (d.constraints?.length) {
+        lines.push(L.yourConstraints);
+        for (const c of d.constraints) {
+          lines.push(`- ${c.date_noted}: ${c.text}`);
+        }
+      }
+      if (d.milestones?.length) {
+        lines.push(L.yourMilestones);
+        for (const m of d.milestones) {
+          const notes = m.notes ? `: ${m.notes}` : '';
+          lines.push(`- ${m.date} ${m.type}${notes}`);
+        }
+      }
+      break;
+    }
+  }
+
+  // D-22 staleness note — appended after a blank-line separator when
+  // lastUpdated > 21 days ago. Same threshold as D-10 prompt-side gate; the
+  // user-facing wording differs ("may not reflect current situation" vs
+  // "may not reflect current state").
+  if (Date.now() - profile.lastUpdated.getTime() > STALENESS_MS) {
+    const dateStr = profile.lastUpdated.toISOString().slice(0, 10);
+    lines.push('', MSG.staleNote[lang](dateStr));
+  }
+
+  return lines.join('\n');
 }
 
 // ── Handler (Task 3 fills in the body) ──────────────────────────────────────
@@ -372,14 +567,3 @@ export async function handleProfileCommand(
   throw new Error('TODO: Task 3');
 }
 
-// Type-only consumers — referenced by formatProfileForDisplay in Task 2 once
-// the switch-case body lands. Re-exported via the import block at the top so
-// the file's surface is documented; suppress unused warnings in Task 1's
-// skeleton form via `void` rebinds. Removed in Task 2 when the casts land.
-type _Unused =
-  | JurisdictionalProfileData
-  | CapitalProfileData
-  | HealthProfileData
-  | FamilyProfileData;
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const _unusedSentinel: _Unused | undefined = undefined;
