@@ -1,11 +1,11 @@
 ---
 gsd_state_version: 1.0
 milestone: v2.6
-milestone_name: milestone
-status: completed
-stopped_at: Phase 40 context gathered
-last_updated: "2026-05-14T11:13:07.234Z"
-last_activity: 2026-05-14 -- Phase 40 marked complete
+milestone_name: M011 Psychological Profiles
+status: shipped
+shipped_at: "2026-05-14T13:09:00.000Z"
+last_updated: "2026-05-14T13:15:00.000Z"
+last_activity: 2026-05-14 -- v2.6 M011 archived; PMT-06 live milestone gate 3/3 green
 progress:
   total_phases: 4
   completed_phases: 4
@@ -22,17 +22,15 @@ See: .planning/PROJECT.md (symlink to /home/claude/chris/PLAN.md, updated 2026-0
 
 **Core value:** Greg can deposit any memory, thought, or feeling into Chris and later ask questions that Chris answers by searching everything Greg has ever told him — with full fidelity, no data loss, and genuine contextual understanding across English, French, and Russian. Memory is tiered: raw Pensieve for recent fidelity, episodic daily summaries for older context.
 
-**Current focus:** Phase 40 — Psychological Milestone Tests
+**Current focus:** No active milestone — v2.6 M011 shipped 2026-05-14; ready for `/gsd-new-milestone` to begin v2.7.
 
 ## Current Position
 
 ```
-v2.6 M011 Psychological Profiles
-Phase 37 / 40 — Not started
-Plan: 1 of 2
-Status: Phase 40 complete
+v2.6 M011 Psychological Profiles — SHIPPED 2026-05-14
+PMT-06 live milestone gate: 3/3 atomic green vs real Sonnet 4.6 (~$0.25)
 
-Progress: [░░░░░░░░░░] 0% (0/4 phases)
+Progress: [██████████] 100% (4/4 phases, 9 plans, 28/28 requirements)
 ```
 
 Phase: 40 — COMPLETE

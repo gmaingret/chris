@@ -1,5 +1,33 @@
 # Milestones
 
+## v2.6 M011 Psychological Profiles (Shipped: 2026-05-14)
+
+**Phases completed:** 4 phases, 9 plans, 28/28 requirements
+
+**Key accomplishments:**
+
+- Migration 0013 ships 3 psychological-profile tables (HEXACO/Schwartz/Attachment) atomically with full Never-Retrofit Checklist; `loadPsychologicalSubstrate` discriminated-union loader with SQL-level `source='telegram'` filter + 5000-word floor at substrate level; `getPsychologicalProfiles` never-throw reader + 3-layer Zod v3 parse defense; `psych-boundary-audit.test.ts` two-directional D047 enforcement.
+- `assemblePsychologicalProfilePrompt` shared builder + `PSYCHOLOGICAL_HARD_RULE_EXTENSION` constant (Phase 38 PGEN-01) — single source of truth for D027 trait-authority mitigation, reused verbatim by Phase 39's surface formatter. HARD CO-LOC #M11-2 — builder ships BEFORE either dimension generator.
+- HEXACO + Schwartz generators with **UNCONDITIONAL FIRE contract** (PGEN-06) — direct inverse of M010 GEN-07 idempotency. `substrate_hash` recorded for audit-trail but never short-circuits the Sonnet call. Verified by belt-and-suspenders: Phase 38 contract-level + Phase 40 fixture-driven three-cycle tests, both with D-24 verbatim docblock locking the contract.
+- 5th cron `'0 9 1 * *'` Europe/Paris registered alongside M010's Sunday 22:00 cron with `validatedCron` fail-fast + 12-month Luxon-based collision-check unit test confirming no same-hour overlap.
+- `PSYCHOLOGICAL_PROFILE_INJECTION_MAP` distinct constant (REFLECT/PSYCHOLOGY → `['hexaco', 'schwartz']`); COACH explicitly absent at the type-union level (compile-time defense) + grep-sweep negative-invariant test asserting zero psych vocabulary leaks into `coach.ts` (CI-time defense against future "let's also inject in COACH" PRs).
+- `/profile` Telegram command extended with HEXACO/Schwartz/Attachment sections via `formatPsychologicalProfileForDisplay` 4-branch state model (populated / insufficient-data / never-fired / attachment-deferred); EN/FR/RU localization slots with machine-translate-quality placeholders; golden inline-snapshot test (15 snapshots × 4 scenarios × FR/RU variants) — HARD CO-LOC #M11-3.
+- `--psych-profile-bias` boolean flag in `synthesize-delta.ts` with designed personality signature (HIGH O/C/H-H + S-D/B/U; LOW Conf/Pow). HARN sanity gate asserts `wordCount > 5000` + `OPENNESS_SIGNAL_PHRASES` retention (Pitfall §7 mitigation against Haiku style-transfer signature erasure). Post-ship fix `93b0432` strengthened the Haiku prompt with exemplar phrases — 5/6 phrases retained on 60-day fixture.
+- **Live PMT-06 milestone gate green** (2026-05-14T13:09Z, ~$0.25 spend, 57.5s) — 3-of-3 atomic against real Sonnet 4.6: zero hallucinated facts, zero trait-authority constructions matching 5 FORBIDDEN_TRAIT_AUTHORITY_PATTERNS × 16 HEXACO+Schwartz traits, both PSYCH_INJECTION_HEADER + PSYCHOLOGICAL_HARD_RULE_EXTENSION footer asserted present in real REFLECT-mode system prompts.
+
+**Key decisions locked:** D027 Hard Rule defended at 6 independent surfaces (constant + inference framing + surface footer + map key-union + COACH negative test + live regex sweep); UNCONDITIONAL FIRE inverse of M010 GEN-07; D047 operational/psychological boundary fence; substitution order psychological → operational → pensieve.
+
+**Known deferred items at close** (v2.6.1 candidates):
+- Loader word-count gap (m011-30days raw 12k→PG 4k; worked around with 60-day fixture)
+- m011-1000words contradictions FK violation (worked around inline)
+- M010 operational fixture schema_mismatch warns (unrelated to M011 assertions)
+- Attachment population orchestration (D028 / ATT-POP-01)
+- Host-side inter-period consistency math (CONS-01)
+- Real FR/RU translation polish (Phase 39 D-20)
+- Trait change-detection alerts (CONS-02)
+
+---
+
 ## v2.5 v2.5 (Shipped: 2026-05-13)
 
 **Phases completed:** 4 phases, 10 plans, 54 tasks
