@@ -44,7 +44,7 @@
 
 - [ ] **CONTRACT-01**: `stripMetadataColumns` strips `dataConsistency` at `src/memory/profiles/shared.ts:321-337` — every non-first fire no longer shows Sonnet its prior `data_consistency` value alongside the anti-drift directive. "Host computes, you don't emit" contract restored.
 - [ ] **CONTRACT-02**: `extract<X>PrevState` for jurisdictional/capital/health/family returns `null` (omits the prevState section entirely) when `substrateHash === ''` — first-fire after deploy no longer shows Sonnet empty fields + anti-drift directive (worst-case anchoring for the M010-03 profile-drift threat). 4 files: `jurisdictional.ts:59-66` + 3 siblings.
-- [ ] **CONTRACT-03**: Sonnet's `data_consistency` field from psychological inference persists in a dedicated column (new `psychological_profile_history.data_consistency` jsonb field or per-profile column) — currently logged then discarded at `psychological-shared.ts:619-628`. Unblocks future CONS-01 host-side consistency math.
+- [ ] **CONTRACT-03**: Sonnet's `data_consistency` field from psychological inference persists in a new `data_consistency real NOT NULL DEFAULT 0` column (CHECK 0..1) on `profile_hexaco`, `profile_schwartz`, `profile_attachment` — currently logged then discarded at `psychological-shared.ts:619-628`. Migration `0014_psychological_data_consistency_column`. `profile_history` snapshot picks it up automatically since it copies full rows. Unblocks future CONS-01 host-side consistency math.
 
 ### L10N — FR/RU localization (T6, 6 sub-areas)
 
@@ -68,8 +68,8 @@
 
 ### SCHEMA — Schema hygiene (T8, root cause of M010 schema_mismatch + defense-in-depth)
 
-- [ ] **SCHEMA-01**: Migration `0014_psychological_check_constraints` adds DB CHECK constraints on jsonb per-dim score ranges (HEXACO: 1.0-5.0, Schwartz: 0.0-7.0) and confidence (0.0-1.0) on `profile_hexaco`, `profile_schwartz`, `profile_attachment`. Defense-in-depth behind the existing Zod parse — a non-Zod-validated UPDATE can no longer slip out-of-range scores past the DB.
-- [ ] **SCHEMA-02**: Migration `0015_phase33_seed_defaults_backfill` populates Phase 33 seed default jsonb columns with required nullable fields (`energy_30d_mean`, `wellbeing_trend`, `parent_care_responsibilities`, etc.) — read-time `.strict()` no longer rejects → M010 `schema_mismatch` warns root-caused and eliminated.
+- [ ] **SCHEMA-01**: Migration `0015_psychological_check_constraints` adds DB CHECK constraints on jsonb per-dim score ranges (HEXACO: 1.0-5.0, Schwartz: 0.0-7.0) and confidence (0.0-1.0) on `profile_hexaco`, `profile_schwartz`, `profile_attachment`. Defense-in-depth behind the existing Zod parse — a non-Zod-validated UPDATE can no longer slip out-of-range scores past the DB. (Migration slot `0014` is taken by Phase 43's CONTRACT-03 column addition; SCHEMA migrations slot in at 0015+0016.)
+- [ ] **SCHEMA-02**: Migration `0016_phase33_seed_defaults_backfill` populates Phase 33 seed default jsonb columns with required nullable fields (`energy_30d_mean`, `wellbeing_trend`, `parent_care_responsibilities`, etc.) — read-time `.strict()` no longer rejects → M010 `schema_mismatch` warns root-caused and eliminated.
 
 ### DISP — Display polish (original v2.6.1 scope)
 
