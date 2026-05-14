@@ -43,7 +43,7 @@ See `.planning/milestones/v2.5-ROADMAP.md` for full phase details + `.planning/m
 
 - [x] **Phase 37: Psychological Substrate** — Migration 0013 (3 tables + Never-Retrofit Checklist), Zod schemas, substrate loader with source filter, word-count gate, boundary audit, reader API (completed 2026-05-13)
 - [x] **Phase 38: Psychological Inference Engine** — Prompt assembler fork, HEXACO + Schwartz generators, orchestrator, monthly cron, unconditional-fire contract (completed 2026-05-14)
-- [ ] **Phase 39: Psychological Surfaces** — Injection map, system-prompt formatter with Hard Rule extension, mode handler wiring, `/profile` command extension, golden-output snapshot
+- [x] **Phase 39: Psychological Surfaces** — Injection map, system-prompt formatter with Hard Rule extension, mode handler wiring, `/profile` command extension, golden-output snapshot (completed 2026-05-14)
 - [ ] **Phase 40: Psychological Milestone Tests** — `--psych-profile-bias` fixture flag, primed fixtures, sparse + populated + unconditional-fire integration tests, live 3-of-3 milestone gate
 
 ## Phase Details
@@ -135,7 +135,7 @@ Plans:
 - [x] 39-01-PLAN.md — Prompt-side surface: PSYCHOLOGICAL_PROFILE_INJECTION_MAP + formatPsychologicalProfilesForPrompt (D027 Hard Rule footer imported verbatim) + ChrisContextExtras.psychologicalProfiles + REFLECT/PSYCHOLOGY handler wiring + COACH negative-invariant regex-sweep test (PSURF-01, PSURF-02, PSURF-03, PSURF-05 COACH-isolation half)
 
 **Wave 2** *(depends on 39-01)*
-- [ ] 39-02-PLAN.md — Display-side surface (HARD CO-LOC #M11-3 atomic): formatPsychologicalProfileForDisplay pure function + 3-reply psychological loop replacing /profile line 627 + MSG.psychologicalSections EN/FR/RU + golden inline-snapshot test (PSURF-04, PSURF-05 display-formatter+golden-snapshot half)
+- [x] 39-02-PLAN.md — Display-side surface (HARD CO-LOC #M11-3 atomic): formatPsychologicalProfileForDisplay pure function + 3-reply psychological loop replacing /profile line 627 + MSG.psychologicalSections EN/FR/RU + golden inline-snapshot test (PSURF-04, PSURF-05 display-formatter+golden-snapshot half)
 
 ---
 
@@ -164,7 +164,7 @@ Plans:
 | 33-36 (v2.5) | 10/10, 22/22 reqs | Complete | 2026-05-13 |
 | 37. Psychological Substrate | 2/2 | Complete   | 2026-05-13 |
 | 38. Psychological Inference Engine | 3/3 | Complete   | 2026-05-14 |
-| 39. Psychological Surfaces | 1/2 | In Progress|  |
+| 39. Psychological Surfaces | 2/2 | Complete   | 2026-05-14 |
 | 40. Psychological Milestone Tests | 0/TBD | Not started | - |
 
 ---
