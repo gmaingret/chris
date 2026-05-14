@@ -42,6 +42,7 @@
  *      calendar-month boundary, below/above-threshold branches, Russian
  *      word counting, prevHistorySnapshot lookup)
  */
+import { createHash } from 'node:crypto';
 import { and, desc, eq, gte, isNull, lte, ne, or } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 import { db } from '../../db/connection.js';
@@ -92,19 +93,92 @@ export type PsychologicalSubstrate<T> =
       prevHistorySnapshot: T | null;
     };
 
-// ── Module-private helpers ──────────────────────────────────────────────
+// ── Public helpers (Plan 38-02 — RESEARCH Finding 2 + Finding 3) ────────
 
 /**
  * Map each psychological profile type to its `profile_table_name`
  * discriminator value in the polymorphic `profile_history` table. Phase 38's
  * write path inserts history rows with one of these literal values; this
  * loader's read path filters by the same string.
+ *
+ * Exported in Plan 38-02 (RESEARCH Finding 2) — generators import this to
+ * write `profile_history` rows; centralizing the discriminator prevents the
+ * 'typo in migration vs application code' silent-failure class flagged in
+ * PITFALLS.md (a typo would cause profile_history INSERTs to use a string
+ * that no reader filter ever matches, silently dropping the audit trail).
  */
-const PROFILE_TYPE_TO_TABLE_NAME: Record<PsychologicalProfileType, string> = {
+export const PROFILE_TYPE_TO_TABLE_NAME: Record<PsychologicalProfileType, string> = {
   hexaco: 'profile_hexaco',
   schwartz: 'profile_schwartz',
   attachment: 'profile_attachment',
 } as const;
+
+/**
+ * Discriminated outcome union for the Plan 38-02 generators (D-14).
+ *
+ * Three cases — note the deliberate ABSENCE of `'skipped_no_change'`
+ * (M010's 4-outcome union has it; M011's 3-outcome union DOES NOT). Per
+ * PGEN-06 UNCONDITIONAL FIRE, a matching prior substrate hash does NOT
+ * short-circuit the Sonnet call — substrate_hash is recorded on every fire
+ * but ignored for skip. The hash-skip branch from M010 shared.ts:399-409
+ * is DELETED in the Plan 38-02 generator helper. Surfacing a
+ * `'skipped_no_change'` outcome here would imply a hash-skip code path
+ * exists, which it intentionally does not.
+ *
+ * Outcome semantics:
+ *   - `updated` — Sonnet call succeeded, row upserted, profile_history row
+ *     written. `wordCount` reflects the substrate that was inferred from;
+ *     `overallConfidence` is the Sonnet-emitted value stored verbatim into
+ *     the row (D-08).
+ *   - `skipped_below_threshold` — substrate.belowThreshold === true.
+ *     Generator short-circuited BEFORE the Sonnet call; no row mutation;
+ *     no profile_history row. `wordCount` is the (sub-floor) substrate
+ *     count for logging context.
+ *   - `error` — anything from "currentRow missing" through Sonnet
+ *     rejection, Zod re-validate failure, DB write error. The orchestrator
+ *     (Plan 38-03) reads `error` for the partial-failure aggregation.
+ *     `durationMs` is set even on error so the cron alert can include it.
+ */
+export type PsychologicalProfileGenerationOutcome = {
+  profileType: 'hexaco' | 'schwartz';
+  outcome: 'updated' | 'skipped_below_threshold' | 'error';
+  error?: string;
+  wordCount?: number;
+  overallConfidence?: number;
+  durationMs: number;
+};
+
+/**
+ * Compute the substrate hash for the M011 psychological-profile fire.
+ *
+ * Sibling of M010's `computeSubstrateHash` (src/memory/profiles/shared.ts:298-311)
+ * with an M011-appropriate input shape per RESEARCH Finding 3 (Path A):
+ *   - NO `decisionIds` — Phase 37 substrate is corpus-only per PSCH-07
+ *     (D-20 divergence from M010); resolved decisions are NOT part of the
+ *     psychological substrate.
+ *   - Canonical JSON over {pensieveIds.sort(), episodicDates.sort(),
+ *     schemaVersion}; SHA-256 → 64-char lowercase hex string.
+ *   - ID-and-date-only (NOT content) — matches M010 D-15 discipline. Text
+ *     mutation on an existing pensieve row leaves the ID set unchanged →
+ *     hash matches. PGEN-06 UNCONDITIONAL FIRE renders this acceptable: the
+ *     hash is audit-trail-only; Sonnet is invoked regardless.
+ *
+ * Used by Plan 38-02 generators to record `substrate_hash` on every fire.
+ * The generator does NOT short-circuit on a matching prior hash (PGEN-06 /
+ * D-17) — the hash is persisted but not used for skip.
+ */
+export function computePsychologicalSubstrateHash(
+  corpus: ReadonlyArray<{ id: string }>,
+  episodicSummariesArg: ReadonlyArray<{ summaryDate: string }>,
+  schemaVersion: number,
+): string {
+  const canonicalJson = JSON.stringify({
+    episodicDates: episodicSummariesArg.map((s) => s.summaryDate).sort(),
+    pensieveIds: corpus.map((r) => r.id).sort(),
+    schemaVersion,
+  });
+  return createHash('sha256').update(canonicalJson).digest('hex');
+}
 
 /**
  * Inline whitespace-split word counter per 37-CONTEXT.md D-18. Returns
