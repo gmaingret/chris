@@ -60,6 +60,13 @@ export interface Args {
    * whitelist enforcement lives in the downstream script (T-36-02).
    */
   profileBias: readonly string[];
+  /**
+   * Phase 40 PMT-01 pass-through: `--psych-profile-bias` boolean flag
+   * forwarded verbatim to `scripts/synthesize-delta.ts`. M011 single-signature
+   * bias (HIGH O/C/H-H + S-D/B/U; LOW Conf/Pow). Distinct from the M010
+   * repeatable `profile-bias` above.
+   */
+  psychProfileBias: boolean;
 }
 
 export function parseCliArgs(argv: string[]): Args {
@@ -71,6 +78,7 @@ export function parseCliArgs(argv: string[]): Args {
     'no-refresh'?: boolean;
     'reseed-vcr'?: boolean;
     'profile-bias'?: string[];
+    'psych-profile-bias'?: boolean;
     help?: boolean;
   };
   try {
@@ -87,6 +95,8 @@ export function parseCliArgs(argv: string[]): Args {
         // in synthesize-delta.ts so a single source of truth governs accepted
         // dimensions.
         'profile-bias': { type: 'string', multiple: true },
+        // Phase 40 PMT-01 pass-through (M011 single-signature boolean).
+        'psych-profile-bias': { type: 'boolean', default: false },
         help: { type: 'boolean', default: false },
       },
       strict: true,
@@ -132,6 +142,7 @@ export function parseCliArgs(argv: string[]): Args {
     noRefresh: values['no-refresh'] ?? false,
     reseedVcr: values['reseed-vcr'] ?? false, // HARN-05
     profileBias: values['profile-bias'] ?? [],
+    psychProfileBias: values['psych-profile-bias'] ?? false,
   };
 }
 
@@ -156,6 +167,12 @@ function printUsage(): void {
   );
   console.log(
     '                  (Phase 36 D-03..D-09; dim ∈ {jurisdictional,capital,health,family}).',
+  );
+  console.log(
+    '  --psych-profile-bias  boolean; passed through to synthesize-delta.ts',
+  );
+  console.log(
+    '                        (Phase 40 PMT-01; M011 single-signature bias).',
   );
 }
 
@@ -259,6 +276,10 @@ export async function main(): Promise<void> {
     // pair on the downstream synthesize-delta argv.
     for (const dim of args.profileBias) {
       synthDeltaArgs.push('--profile-bias', dim);
+    }
+    // Phase 40 PMT-01 pass-through. Boolean flag forwarded as a bare token.
+    if (args.psychProfileBias) {
+      synthDeltaArgs.push('--psych-profile-bias');
     }
     logger.info(
       { args: synthDeltaArgs },
