@@ -97,3 +97,49 @@ describe('config: profileUpdaterCron fail-fast (Phase 34 GEN-01)', () => {
     );
   });
 });
+
+/**
+ * M011 Phase 38 Plan 38-03 — psychologicalProfileUpdaterCron env-validation tests.
+ *
+ * Same validatedCron fail-fast pattern as PROFILE_UPDATER_CRON; the silent-cron
+ * incident class (M008 EPI-04) is the same regardless of which cron is
+ * misconfigured. Container restart-loops on invalid cron until env is fixed.
+ *
+ * Locked decisions exercised:
+ *   - D-26 — default expression '0 9 1 * *' (1st of month at 09:00 Paris)
+ *   - D-28 — validatedCron fail-fast at module load on invalid env override
+ */
+describe('config: psychologicalProfileUpdaterCron fail-fast (Phase 38 PGEN-05)', () => {
+  const ORIGINAL_PSYCHOLOGICAL_PROFILE_UPDATER_CRON =
+    process.env.PSYCHOLOGICAL_PROFILE_UPDATER_CRON;
+
+  beforeEach(() => {
+    delete process.env.PSYCHOLOGICAL_PROFILE_UPDATER_CRON;
+  });
+
+  afterEach(() => {
+    if (ORIGINAL_PSYCHOLOGICAL_PROFILE_UPDATER_CRON !== undefined) {
+      process.env.PSYCHOLOGICAL_PROFILE_UPDATER_CRON =
+        ORIGINAL_PSYCHOLOGICAL_PROFILE_UPDATER_CRON;
+    } else {
+      delete process.env.PSYCHOLOGICAL_PROFILE_UPDATER_CRON;
+    }
+  });
+
+  it("default PSYCHOLOGICAL_PROFILE_UPDATER_CRON is '0 9 1 * *' (1st of month, 09:00) when env unset (D-26)", async () => {
+    // D-26 timing: monthly cadence; the 1st of every month at 09:00 Paris.
+    delete process.env.PSYCHOLOGICAL_PROFILE_UPDATER_CRON;
+    const mod = await import('../config.js?reload=' + Date.now());
+    expect(mod.config.psychologicalProfileUpdaterCron).toBe('0 9 1 * *');
+  });
+
+  it('rejects invalid PSYCHOLOGICAL_PROFILE_UPDATER_CRON at config load with /invalid PSYCHOLOGICAL_PROFILE_UPDATER_CRON/ message (D-28)', async () => {
+    // Cache-bust: force fresh import (config.ts reads env at module-load time).
+    // Silent-bad-cron prevention — node-cron's validate() catches the malformed
+    // expression and `validatedCron` re-throws as a config-level error.
+    process.env.PSYCHOLOGICAL_PROFILE_UPDATER_CRON = 'not-a-cron-expression';
+    await expect(import('../config.js?reload=' + Date.now())).rejects.toThrow(
+      /invalid PSYCHOLOGICAL_PROFILE_UPDATER_CRON/,
+    );
+  });
+});

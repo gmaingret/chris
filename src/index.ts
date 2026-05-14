@@ -12,6 +12,7 @@ import { registerCrons, type CronRegistrationStatus } from './cron-registration.
 import { runRitualSweep } from './rituals/scheduler.js';
 import { ritualConfirmationSweep } from './rituals/adjustment-dialogue.js';
 import { updateAllOperationalProfiles } from './memory/profile-updater.js';
+import { updateAllPsychologicalProfiles } from './memory/psychological-profile-updater.js';
 
 // Module-scoped registration status — populated by main() via registerCrons().
 // /health route reads this for the ritual_cron_registered field (RIT-12 part b).
@@ -70,6 +71,11 @@ export function createApp(deps?: { cronStatus?: CronRegistrationStatus }): expre
       // confirm the Sunday 22:00 Paris profile updater registered cleanly.
       // Field name VERBATIM snake_case per REQUIREMENTS GEN-01.
       profile_cron_registered: effectiveCronStatus?.profileUpdate === 'registered',
+      // M011 Phase 38 PGEN-05 — operator (Greg) reads /health post-deploy to
+      // confirm the 1st-of-month 09:00 Paris psychological profile updater
+      // registered cleanly. Field name VERBATIM snake_case per REQUIREMENTS
+      // PGEN-05 (Pitfall 6 — field-name typo regression guard at registration test).
+      psychological_profile_cron_registered: effectiveCronStatus?.psychologicalProfileUpdate === 'registered',
       timestamp: new Date().toISOString(),
     });
   });
@@ -101,6 +107,12 @@ async function main() {
     // Fire-and-forget (D-23 void return); outcomes observed via discriminated
     // 'chris.profile.<outcome>' logs + aggregate 'chris.profile.cron.complete'.
     runProfileUpdate: () => updateAllOperationalProfiles(),
+    // M011 Phase 38 PGEN-04 — 1st-of-month 09:00 Paris psychological profile
+    // updater fan-out (Promise.allSettled over HEXACO + Schwartz generators).
+    // Fire-and-forget (D-25 void return); outcomes observed via discriminated
+    // 'chris.psychological.<profileType>.<outcome>' logs + aggregate
+    // 'chris.psychological.cron.complete'.
+    runPsychologicalProfileUpdate: () => updateAllPsychologicalProfiles(),
   });
 
   const port = parseInt(process.env.PORT || '3000', 10);
