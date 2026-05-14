@@ -57,8 +57,10 @@
 import type { Context } from 'grammy';
 import {
   getOperationalProfiles,
+  getPsychologicalProfiles, // Phase 39 PSURF-04
   type ProfileRow,
   type Dimension,
+  type PsychologicalProfileType, // Phase 39 PSURF-04
 } from '../../memory/profiles.js';
 import type {
   JurisdictionalProfileData,
@@ -66,6 +68,12 @@ import type {
   HealthProfileData,
   FamilyProfileData,
 } from '../../memory/profiles/schemas.js';
+// Phase 39 PSURF-05 — psych data shapes for the pure formatter signature
+import type {
+  HexacoProfileData,
+  SchwartzProfileData,
+  AttachmentProfileData,
+} from '../../memory/profiles/psychological-schemas.js';
 import { getLastUserLanguage, langOf, type Lang } from '../../chris/language.js';
 import { logger } from '../../utils/logger.js';
 
@@ -177,9 +185,84 @@ const MSG = {
       `Примечание: данные профиля от ${date} — могут не отражать текущую ситуацию.`,
   },
   m011Placeholder: {
+    // Phase 35 placeholder — REPLACED by the Phase 39 PSURF-04 3-reply
+    // psychological loop in Task 3 (which also removes this key). Kept here
+    // through Tasks 1-2 so handleProfileCommand at line 627 stays compilable
+    // until Task 3 atomically swaps both the key (removed) and the use site
+    // (replaced by the for-of loop).
     English: 'Psychological profile: not yet available — see M011.',
     French: 'Profil psychologique : pas encore disponible — voir M011.',
     Russian: 'Психологический профиль: пока недоступен — см. M011.',
+  },
+  // Phase 39 PSURF-04 — psychological-profile localization keys per D-19 + D-20
+  // (machine-translate-quality FR + RU; reviewed at /gsd-verify-work; v2.6.1
+  // polish pass replaces with proper translations without snapshot churn).
+  //
+  // The 4-branch state model per CONTEXT.md D-19:
+  //   - attachment ALWAYS renders `notYetActive` (D028 deferred to v2.6.1)
+  //   - null OR never-fired (lastUpdated.getTime() === 0) → `neverFired`
+  //   - confidence === 0 → `insufficientData(N)` where N = max(0, 5000 - wordCountAtLastRun)
+  //   - populated → sectionTitle + per-dim score lines (formatter handles)
+  psychologicalSections: {
+    hexaco: {
+      sectionTitle: {
+        English: 'HEXACO Personality',
+        French: 'Personnalité HEXACO',
+        Russian: 'Личность HEXACO',
+      },
+      insufficientData: {
+        English: (n: number): string =>
+          `HEXACO: insufficient data — need ${n} more words.`,
+        French: (n: number): string =>
+          `HEXACO : données insuffisantes — il faut ${n} mots de plus.`,
+        Russian: (n: number): string =>
+          `HEXACO: недостаточно данных — нужно ещё ${n} слов.`,
+      },
+      neverFired: {
+        English:
+          'HEXACO: not yet inferred (first profile inference runs 1st of month, 09:00 Paris).',
+        French:
+          'HEXACO : pas encore inféré (première inférence le 1er du mois, 09h00 Paris).',
+        Russian:
+          'HEXACO: ещё не выведено (первая инференция 1-го числа месяца, 09:00 Париж).',
+      },
+    },
+    schwartz: {
+      sectionTitle: {
+        English: 'Schwartz Values',
+        French: 'Valeurs Schwartz',
+        Russian: 'Ценности Шварца',
+      },
+      insufficientData: {
+        English: (n: number): string =>
+          `Schwartz: insufficient data — need ${n} more words.`,
+        French: (n: number): string =>
+          `Schwartz : données insuffisantes — il faut ${n} mots de plus.`,
+        Russian: (n: number): string =>
+          `Шварц: недостаточно данных — нужно ещё ${n} слов.`,
+      },
+      neverFired: {
+        English:
+          'Schwartz: not yet inferred (first profile inference runs 1st of month, 09:00 Paris).',
+        French:
+          'Schwartz : pas encore inféré (première inférence le 1er du mois, 09h00 Paris).',
+        Russian:
+          'Шварц: ещё не выведено (первая инференция 1-го числа месяца, 09:00 Париж).',
+      },
+    },
+    attachment: {
+      // D-19: ALWAYS rendered in M011 regardless of activated flag (D028
+      // deferred to v2.6.1). The formatter early-returns this string for
+      // profileType === 'attachment' regardless of fixture state.
+      notYetActive: {
+        English:
+          'Attachment: not yet active (gated on D028 activation trigger — 2,000 words relational speech over 60 days).',
+        French:
+          "Attachement : pas encore actif (déclencheur D028 — 2 000 mots de parole relationnelle sur 60 jours).",
+        Russian:
+          'Привязанность: пока не активна (триггер D028 — 2 000 слов реляционной речи за 60 дней).',
+      },
+    },
   },
   genericError: {
     English: 'I ran into trouble reading your profiles. Try again in a moment.',
