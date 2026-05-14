@@ -1,0 +1,126 @@
+# v2.6.1 Code Review Cleanup — Requirements
+
+**Goal:** Eliminate the production-correctness, security, contract, localization, fixture, schema, and test-gate defects surfaced by a 14-phase parallel code-review sweep on 2026-05-14. Trigger: live UX defect at 17:00 Paris where the adjustment-dialogue prompt asserted "This daily daily_journal ritual isn't working" to Greg (FR locale).
+
+**Synthesis:** [.planning/milestones/v2.6.1-REVIEW-SYNTHESIS.md](milestones/v2.6.1-REVIEW-SYNTHESIS.md) — 45 BLOCKERs + 97 WARNINGs across 14 phases (24, 25, 26, 27, 28, 29, 30, 31, 34, 36, 37, 38, 39, 40). All phase-level findings written to per-phase `*-REVIEW.md`.
+
+**Phase numbering:** Continues from 40 → starts at **Phase 41**.
+
+---
+
+## v2.6.1 Requirements
+
+### ADJ — Adjustment-dialogue rework (T1, 7 BLOCKERs from Phase 28)
+
+- [ ] **ADJ-01**: User receives observational adjustment-dialogue copy ("I notice you've skipped the last 3 — does this ritual still serve you?") instead of "This {cadence} {name} ritual isn't working" assertion. Source: `src/rituals/adjustment-dialogue.ts:285`.
+- [ ] **ADJ-02**: Ritual display-name mapping replaces slug exposure in user-facing copy — "daily journal" not "daily daily_journal" — at the four affected lines (`adjustment-dialogue.ts:285, 308, 471, 733`). Slugs `fire_at`, `skip_threshold` also no longer leak into confirmation echoes.
+- [ ] **ADJ-03**: Adjustment-dialogue surface localized for FR/RU per Greg's detected locale — 8 `sendMessage` sites + Haiku judge prompt (`adjustment-dialogue.ts:151, 182, 285-286, 471, 531, 547, 733`). Pattern matches the existing `ACKNOWLEDGMENTS` map at `src/chris/refusal.ts:180-184`.
+- [ ] **ADJ-04**: `skip_count` resets to 0 on every yes/no/refusal completion path (`adjustment-dialogue.ts:529-535, :536-552, :125-185`, `skip-tracking.ts:286-313`). Eliminates the every-tick re-fire after threshold; restores SKIP-06 self-protection; makes the 30-day pause meaningful on wake-up.
+- [ ] **ADJ-05**: `mute_until` removed from Haiku-controllable field whitelist. A user reply parsed by Haiku into `{field: 'mute_until', new_value: <future>}` can no longer silently disable the entire ritual channel. Privilege escalation closed.
+- [ ] **ADJ-06**: Per-field type validation enforces config-patch shape before write in `confirmConfigPatch`. `{field: 'fire_at', new_value: 42}` is rejected at the boundary instead of bricking the ritual via `parseRitualConfig` throw on the next sweep.
+- [ ] **ADJ-07**: Integration test asserts that after an adjustment-dialogue completion (any path), the next-tick `runRitualSweep` does NOT re-fire `shouldFireAdjustmentDialogue` for the same ritual — closes the regression class around ADJ-04.
+
+### RACE — Atomicity / race fixes (T2, 6 BLOCKERs from Phases 25/27/29)
+
+- [ ] **RACE-01**: `tryFireRitualAtomic` uses `sql\`now()\`` for the SET clause and `lt(lastRunAt, sql\`now()\`)` for the predicate at `src/rituals/idempotency.ts:111-119` — defeats ms-resolution JS-clock collisions under the every-minute cron. M009 second-fire bug class permanently closed.
+- [ ] **RACE-02**: `ritualResponseWindowSweep` paired-insert (`window_missed` event + `fired_no_response` event + `skip_count` increment) runs inside a single transaction with the consume — silent audit-log + skip-counter data loss eliminated. Source: `src/rituals/scheduler.ts:374-425`.
+- [ ] **RACE-03**: Wellbeing rapid-tap completion is idempotent — concurrent third-tap can no longer fire `wellbeing_completed` event N times, edit the same Telegram message N times, or redundantly set `skip_count=0`. Source: `src/rituals/wellbeing.ts:227-258, 263-324`.
+- [ ] **RACE-04**: Wellbeing skip path uses `jsonb_set` merge (matching the tap path) instead of full-jsonb overwrite at `wellbeing.ts:328-346` — preserves concurrent partial taps; data-fidelity-mandate violation closed.
+- [ ] **RACE-05**: `findOpenWellbeingRow` filter tightened — DST-edge cross-day match impossible; stale prior-day NULL rows from `fired_no_response` no longer leak into today's tap. Source: `wellbeing.ts:422-450`.
+- [ ] **RACE-06**: Weekly-review fire is transactional — Telegram send success → `fire_event` INSERT + `ritual_responses.respondedAt` + `next_run_at` advance atomic. Telegram failure rolls back response-row update + Pensieve orphan + no longer advances `next_run_at` → no silent weekly miss. Source: `src/rituals/weekly-review.ts:627-691`.
+
+### CI — Test gate hardening (T3, 3 BLOCKERs from Phases 30/36/40)
+
+- [ ] **CI-01**: M010 milestone-gate test files fail CI when fixtures absent — replaces `existsSync(MANIFEST) ? describe : describe.skip` across `integration-m010-30days.test.ts:125-137`, `integration-m010-5days.test.ts:105-120`, `primed-sanity-m010.test.ts:171,239`, `live-anti-hallucination.test.ts:136`. CI environment variable `REQUIRE_FIXTURES=1` hard-fails when missing; local dev still skips.
+- [ ] **CI-02**: M011 milestone-gate tests fail CI when fixtures absent (same pattern); `scripts/synthesize-delta.ts:937` output-dir path bug fixed (`m011-1000words-5days` collision eliminated — operator regen lands at `m011-1000words` matching test reads).
+- [ ] **CI-03**: M009 milestone-gate tests fail CI when fixtures absent — D045 silent-skip pattern in `primed-sanity.test.ts` + `synthetic-fixture.test.ts` no longer hides regressions.
+
+### INJ — Prompt-injection mitigation (T4, 1 BLOCKER + 1 WARNING from Phases 34/38)
+
+- [ ] **INJ-01**: Operational profile prompt escapes user-controlled content before interpolation — Pensieve `content`, episodic `summary`, decision `decisionText`/`resolution` cannot reproduce `## CURRENT PROFILE STATE` or other reserved anchors. Forged profiles can no longer hijack the structured-output contract and persist via `onConflictDoUpdate`. Source: `src/memory/profile-prompt.ts:312-345`.
+- [ ] **INJ-02**: Psychological profile prompt applies the same defense-in-depth mitigation at `src/memory/psychological-profile-prompt.ts:393-403`.
+
+### CONTRACT — Inference contract enforcement (T5, 2 BLOCKERs + 1 WARNING from Phases 34/38)
+
+- [ ] **CONTRACT-01**: `stripMetadataColumns` strips `dataConsistency` at `src/memory/profiles/shared.ts:321-337` — every non-first fire no longer shows Sonnet its prior `data_consistency` value alongside the anti-drift directive. "Host computes, you don't emit" contract restored.
+- [ ] **CONTRACT-02**: `extract<X>PrevState` for jurisdictional/capital/health/family returns `null` (omits the prevState section entirely) when `substrateHash === ''` — first-fire after deploy no longer shows Sonnet empty fields + anti-drift directive (worst-case anchoring for the M010-03 profile-drift threat). 4 files: `jurisdictional.ts:59-66` + 3 siblings.
+- [ ] **CONTRACT-03**: Sonnet's `data_consistency` field from psychological inference persists in a dedicated column (new `psychological_profile_history.data_consistency` jsonb field or per-profile column) — currently logged then discarded at `psychological-shared.ts:619-628`. Unblocks future CONS-01 host-side consistency math.
+
+### L10N — FR/RU localization (T6, 6 sub-areas)
+
+- [ ] **L10N-01**: `/profile` Telegram output localized for FR/RU — 21 EN-only sites in `src/bot/handlers/profile.ts`: qualifier strings (lines 705, 706, 707), HEXACO dim labels (715-720), Schwartz dim labels (728-737), score-line tokens "/ 5.0" + "confidence" (791, 806). Folds in WR-02 (EN-tokens leak from v2.5 carry-forward).
+- [ ] **L10N-02**: `WEEKLY_REVIEW_HEADER` localized for FR/RU at `src/rituals/weekly-review.ts:68, 621` — the first M009 weekly review (2026-05-10 20:00 Paris) shipped an EN header above the FR body; subsequent fires get a locale-matched header.
+- [ ] **L10N-03**: Weekly-review FR regex at `src/rituals/weekly-review-sources.ts` handles curly apostrophes and rejects gibberish (current `qu['e]?est-ce que` matches `queest-ce que`, misses `qu'est-ce que` / `qu'est-ce que`). Use a canonical apostrophe-normalize step + strict pattern.
+- [ ] **L10N-04**: Daily journal PROMPTS in `src/rituals/journal.ts` respect Greg's detected locale — currently EN-only, sent without language detection. Pattern matches L10N-01 detection layer.
+- [ ] **L10N-05**: `qualifierFor` consolidated to single source of truth — currently duplicated at `src/memory/profiles.ts:675-679` and `src/bot/handlers/profile.ts:704-708`. Drift risk for the D027 mitigation surface eliminated; one canonical function, locale-aware.
+- [ ] **L10N-06**: `TEMPLATED_FALLBACK_EN` at `weekly-review.ts:357-360` becomes per-locale variants — first-fire didn't exercise this path (Sonnet succeeded), but the v2.4 carry-forward is closed.
+
+### FIX — Fixture-pipeline cleanup (T7, supersedes original LOAD-01/FK-01/FIX-01)
+
+- [ ] **FIX-01**: `synthesize-delta.ts` pre-filters `fusedContradictions` against `Set(fusedPensieve.map(p => p.id))` at line 934 — eliminates m011-1000words contradictions FK violation. Permanent replacement for the inline-empty-contradictions workaround.
+- [ ] **FIX-02**: Bias-prompt `phrasesClause` is independent of `dimensionHint` truthiness at `synthesize-delta.ts:584-594` — PMT-01 contract restored; precedence-rule coupling no longer defeats Pitfall §7. Plus strict-inequality boundary fix at `primed-sanity-m011.test.ts:141,188` (`wordCount === 5000` is below substrate's `< 5000` gate, not above).
+- [ ] **FIX-03**: `synthesize-episodic.ts` migration list derived from the migrations directory (currently hardcoded `0000..0005`, repo ships `0000..0013`) — operator regen lands a fully-migrated DB; `wellbeing_snapshots.jsonl` no longer silently dropped.
+- [ ] **FIX-04**: `scripts/fetch-prod-data.ts` SSH tunnel enforces `StrictHostKeyChecking=yes` + a vetted `UserKnownHostsFile` — MITM cannot capture `PROD_PG_PASSWORD` on a fresh runner or after a rotated server key.
+- [ ] **FIX-05**: `load-primed.ts` `pensieve_embeddings` vector(1024) coercion via explicit cast (e.g., `'[...]'::vector` or pgvector adapter) — first non-empty embeddings JSONL regen succeeds.
+- [ ] **FIX-06**: M010 operational primed fixtures refreshed — PMT-06 schema_mismatch warns (`family.parent_care_responsibilities` + `health.wellbeing_trend`) eliminated. Coordinated with SCHEMA-02 backfill.
+- [ ] **FIX-07**: HARN word-count assertion in `primed-sanity-m011.test.ts:89-100` uses a calendar-month-window-filtered count to match substrate population (`psychological-shared.ts:259-273`). No more "wordCount > 5000" pass when substrate sees 4,115. Resolves the original "loader word-count gap" — root cause was a window-slice mismatch, not a 3x loader loss.
+- [ ] **FIX-08**: Operator scripts (`fetch-prod-data`, `synthesize-episodic`, `regenerate-primed`) SIGINT handlers run `finally` cleanup — SSH tunnels, postgres clients, child docker compose projects no longer leak on Ctrl-C.
+
+### SCHEMA — Schema hygiene (T8, root cause of M010 schema_mismatch + defense-in-depth)
+
+- [ ] **SCHEMA-01**: Migration `0014_psychological_check_constraints` adds DB CHECK constraints on jsonb per-dim score ranges (HEXACO: 1.0-5.0, Schwartz: 0.0-7.0) and confidence (0.0-1.0) on `profile_hexaco`, `profile_schwartz`, `profile_attachment`. Defense-in-depth behind the existing Zod parse — a non-Zod-validated UPDATE can no longer slip out-of-range scores past the DB.
+- [ ] **SCHEMA-02**: Migration `0015_phase33_seed_defaults_backfill` populates Phase 33 seed default jsonb columns with required nullable fields (`energy_30d_mean`, `wellbeing_trend`, `parent_care_responsibilities`, etc.) — read-time `.strict()` no longer rejects → M010 `schema_mismatch` warns root-caused and eliminated.
+
+### DISP — Display polish (original v2.6.1 scope)
+
+- [ ] **DISP-01** (CIRC-01): `/profile` Schwartz section displays values ordered by circumplex (opposing values adjacent, e.g., `self_direction ↔ conformity`). Reader gains intuitive visual structure when comparing tradeoffs.
+- [ ] **DISP-02** (CROSS-VAL-01): `/profile` surfaces HEXACO × Schwartz cross-validation observations (e.g., "high openness + high self-direction → consistent"; "low conscientiousness + high tradition → uncommon, low confidence"). Reader sees inferred coherence, increasing trust in the profile.
+
+---
+
+## Future Requirements (deferred to v2.7+)
+
+**T9 — Test quality (stretch, deferred):**
+- Calendar bomb in `live-anti-hallucination.test.ts:164` (real `new Date()` against fixture range ending 2026-05-19; fails after ~2026-07-18 with misleading "Phase 35 wiring regression" message)
+- Tautological TEST-30 date-grounding assertion (tests templating not grounding)
+- Weak `.some()` prev-state defense in `integration-m010-30days.test.ts:358-362` (passes if 1 of 4 dims injects correctly)
+- Lying cleanup docstring + unscoped `db.delete(wellbeingSnapshots)` in `synthetic-fixture.test.ts:184-188`
+
+**T10 — Operational hygiene (deferred):**
+- cron-validate accepts 6-field expressions (every-second typo ships)
+- Scheduler reentrancy with no postgres advisory lock (channel-cap defense weakened)
+- Poison-pill `config_invalid` consumes per-tick slot forever
+- TOCTOU on `incrementRitualDailyCount` (every-minute cron violates the comment's "once per day" assumption)
+- Per-ritual `time_zone` vs system `proactiveTimezone` mismatch
+- Dead-code backward-compat constant `RITUAL_JOURNAL_SUBTYPES` (D-31-03 documented but not implemented)
+- `psychological-shared.ts` ballooned to 669 lines from Phase 38 merge — boundary drift
+- Duplicate error logging risk at `psychological-profile-updater.ts:191` + `cron-registration.ts:227` (operator double-alert against Proxmox monitor)
+
+**Deferred psychological-profile follow-on items:**
+- **CONS-01** — Host-side inter-period consistency math (needs ≥3 monthly fires + CONTRACT-03 unblock)
+- **CONS-02** — Trait change-detection alerts (≥0.5 month-over-month shifts)
+- **ATT-POP-01** — Attachment dimension population (D028 activation trigger: ≥2,000 words relational speech over 60 days)
+- **NARR-01** — Narrative psychological profile summary (high hallucination risk, deferred to M014)
+- **SAT-CAL-01** — `wordSaturation` constant tuning (post-empirical, 4-8 months M011 operation)
+
+**v2.5.1 backlog items still open:**
+- DIFF-2..7 (auto-change detection, narrative summaries, consistency checker, wellbeing-anchored health updates)
+- M010 `SATURATION` constant calibration
+
+---
+
+## Out of Scope
+
+- New features — v2.6.1 is purely cleanup. The only user-visible additions are CIRC-01 + CROSS-VAL-01 display polish.
+- Performance optimization (per gsd-code-reviewer v1 scope).
+- Refactor for refactor's sake. Every requirement here has a cited file:line in a phase REVIEW.md.
+
+---
+
+## Traceability
+
+Phase mapping populated by `gsd-roadmapper`.
+
+---
+
+*Created 2026-05-14 — `/gsd-new-milestone` workflow after 14-phase parallel code-review sweep. Total: 37 requirements across 9 categories (ADJ×7, RACE×6, CI×3, INJ×2, CONTRACT×3, L10N×6, FIX×8, SCHEMA×2, DISP×2).*
