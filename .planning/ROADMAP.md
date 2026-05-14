@@ -108,7 +108,7 @@ Plans:
 - [x] 38-01-PLAN.md — Shared prompt builder + structural test (PGEN-01; HARD CO-LOC #M11-2 anchor)
 
 **Wave 2** *(depends on 38-01)*
-- [ ] 38-02-PLAN.md — Schema extension + HEXACO + Schwartz generators + three-cycle UNCONDITIONAL-FIRE integration test (PGEN-02, PGEN-03, PGEN-06, PGEN-07; HARD CO-LOC #M11-2 second-half)
+- [x] 38-02-PLAN.md — Schema extension + HEXACO + Schwartz generators + three-cycle UNCONDITIONAL-FIRE integration test (PGEN-02, PGEN-03, PGEN-06, PGEN-07; HARD CO-LOC #M11-2 second-half)
 
 **Wave 3** *(depends on 38-02)*
 - [ ] 38-03-PLAN.md — Orchestrator + monthly cron + config + /health + cron-collision unit test (PGEN-04, PGEN-05)
@@ -156,7 +156,7 @@ Plans:
 | 25-32 (v2.4) | 23/23 + Phase 32 inline | Complete | 2026-05-11 |
 | 33-36 (v2.5) | 10/10, 22/22 reqs | Complete | 2026-05-13 |
 | 37. Psychological Substrate | 2/2 | Complete   | 2026-05-13 |
-| 38. Psychological Inference Engine | 1/3 | In Progress|  |
+| 38. Psychological Inference Engine | 2/3 | In Progress|  |
 | 39. Psychological Surfaces | 0/TBD | Not started | - |
 | 40. Psychological Milestone Tests | 0/TBD | Not started | - |
 
