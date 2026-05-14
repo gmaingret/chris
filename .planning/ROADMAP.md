@@ -42,7 +42,7 @@ See `.planning/milestones/v2.5-ROADMAP.md` for full phase details + `.planning/m
 </details>
 
 - [x] **Phase 37: Psychological Substrate** — Migration 0013 (3 tables + Never-Retrofit Checklist), Zod schemas, substrate loader with source filter, word-count gate, boundary audit, reader API (completed 2026-05-13)
-- [ ] **Phase 38: Psychological Inference Engine** — Prompt assembler fork, HEXACO + Schwartz generators, orchestrator, monthly cron, unconditional-fire contract
+- [x] **Phase 38: Psychological Inference Engine** — Prompt assembler fork, HEXACO + Schwartz generators, orchestrator, monthly cron, unconditional-fire contract (completed 2026-05-14)
 - [ ] **Phase 39: Psychological Surfaces** — Injection map, system-prompt formatter with Hard Rule extension, mode handler wiring, `/profile` command extension, golden-output snapshot
 - [ ] **Phase 40: Psychological Milestone Tests** — `--psych-profile-bias` fixture flag, primed fixtures, sparse + populated + unconditional-fire integration tests, live 3-of-3 milestone gate
 
@@ -111,7 +111,7 @@ Plans:
 - [x] 38-02-PLAN.md — Schema extension + HEXACO + Schwartz generators + three-cycle UNCONDITIONAL-FIRE integration test (PGEN-02, PGEN-03, PGEN-06, PGEN-07; HARD CO-LOC #M11-2 second-half)
 
 **Wave 3** *(depends on 38-02)*
-- [ ] 38-03-PLAN.md — Orchestrator + monthly cron + config + /health + cron-collision unit test (PGEN-04, PGEN-05)
+- [x] 38-03-PLAN.md — Orchestrator + monthly cron + config + /health + cron-collision unit test (PGEN-04, PGEN-05)
 
 ---
 
@@ -156,7 +156,7 @@ Plans:
 | 25-32 (v2.4) | 23/23 + Phase 32 inline | Complete | 2026-05-11 |
 | 33-36 (v2.5) | 10/10, 22/22 reqs | Complete | 2026-05-13 |
 | 37. Psychological Substrate | 2/2 | Complete   | 2026-05-13 |
-| 38. Psychological Inference Engine | 2/3 | In Progress|  |
+| 38. Psychological Inference Engine | 3/3 | Complete   | 2026-05-14 |
 | 39. Psychological Surfaces | 0/TBD | Not started | - |
 | 40. Psychological Milestone Tests | 0/TBD | Not started | - |
 
