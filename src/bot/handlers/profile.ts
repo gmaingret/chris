@@ -668,6 +668,165 @@ export function formatProfileForDisplay(
   return lines.join('\n');
 }
 
+// ── Phase 39 PSURF-05 — psychological-profile pure formatter ───────────────
+//
+// `formatPsychologicalProfileForDisplay(profileType, profile, lang)` mirrors
+// the operational `formatProfileForDisplay` above as the display-side surface
+// for M011 psychological profiles (HEXACO / Schwartz / Attachment). Pure
+// function — no DB, no logger, no ctx, no I/O. Composable with the 3-reply
+// loop in handleProfileCommand (Task 3) which calls it once per profile type.
+//
+// HARD CO-LOC #M11-3: this formatter + the golden inline-snapshot test in
+// profile-psychological.golden.test.ts ship in the SAME plan (39-02). The
+// snapshot is the regression net for the framing class — any third-person
+// leak, internal field-name leak, or D-09 per-dim filter regression fails
+// the snapshot review before deployment (M010-07 precedent).
+//
+// D-19 four-branch state model (in order; each branch returns early):
+//   1. profileType === 'attachment' → ALWAYS render `notYetActive` regardless
+//      of fixture state (D028 deferred to v2.6.1; M011 surface treats
+//      attachment as universally inactive).
+//   2. profile === null OR profile.lastUpdated.getTime() === 0 → render
+//      `neverFired` ("not yet inferred (first profile inference runs 1st of
+//      month, 09:00 Paris)"). The epoch sentinel comes from the Phase 37
+//      reader's D-22 cold-start coalesce (migration 0013 seeds last_updated=NULL).
+//   3. profile.confidence === 0 → render `insufficientData(N)` where
+//      N = max(0, 5000 - (profile.wordCountAtLastRun ?? 0)). The wordCount
+//      column is threaded by Plan 39-01 Task 1's ProfileRow<T> extension —
+//      no second DB read needed here.
+//   4. Populated → section title + per-dim Title-Case score lines with the
+//      D-07 confidence qualifier (<0.3 limited / 0.3-0.6 moderate / >=0.6
+//      substantial). The D-09 per-dim filter skips individual dimensions
+//      with null score OR confidence === 0 — prevents orphan "DIM Trait:
+//      insufficient data" lines AND the future-refactor regression class
+//      where `'Self-Direction: null'` accidentally leaks.
+//
+// Plain text only — NO parse_mode-flavored characters (`*`, `_`, backticks,
+// `===`, `---`). Telegram renders the string verbatim when ctx.reply is
+// called without parse_mode. D-17 invariant inherited from Phase 35 SURF-05.
+
+// D-07 — psychological-profile confidence qualifier mapping. M011 emits
+// English-only qualifier strings inside the per-dim score line; FR/RU
+// localization of the qualifier text is a v2.6.1 polish item (the score
+// line structure is otherwise English-templated). Module-private — only
+// used by formatPsychologicalProfileForDisplay below.
+function qualifierForPsych(c: number): string {
+  if (c >= 0.6) return 'substantial evidence';
+  if (c >= 0.3) return 'moderate evidence';
+  return 'limited evidence';
+}
+
+// Title-Case display labels for HEXACO dimensions. Hyphens preserved per
+// D-08 (Honesty-Humility). Module-private — display-side lives in
+// profile.ts, NOT imported from a shared module (Architectural Responsibility
+// Map separates prompt-side label tables from display-side label tables).
+const HEXACO_DIM_DISPLAY_LABELS: Readonly<Record<keyof HexacoProfileData, string>> = {
+  honesty_humility: 'Honesty-Humility',
+  emotionality: 'Emotionality',
+  extraversion: 'Extraversion',
+  agreeableness: 'Agreeableness',
+  conscientiousness: 'Conscientiousness',
+  openness: 'Openness',
+} as const;
+
+// Title-Case display labels for Schwartz values. Hyphens preserved per D-08
+// (Self-Direction). Per RESEARCH Deferred CIRC-01: alphabetical ordering in
+// M011 (Object.entries iteration order matches declaration order); circumplex
+// ordering is v2.6.1+.
+const SCHWARTZ_DIM_DISPLAY_LABELS: Readonly<Record<keyof SchwartzProfileData, string>> = {
+  self_direction: 'Self-Direction',
+  stimulation: 'Stimulation',
+  hedonism: 'Hedonism',
+  achievement: 'Achievement',
+  power: 'Power',
+  security: 'Security',
+  conformity: 'Conformity',
+  tradition: 'Tradition',
+  benevolence: 'Benevolence',
+  universalism: 'Universalism',
+} as const;
+
+export function formatPsychologicalProfileForDisplay(
+  profileType: 'hexaco' | 'schwartz' | 'attachment',
+  profile:
+    | ProfileRow<HexacoProfileData>
+    | ProfileRow<SchwartzProfileData>
+    | ProfileRow<AttachmentProfileData>
+    | null,
+  lang: Lang,
+): string {
+  // D-19 branch 1 — Attachment: ALWAYS "not yet active" in M011 (D028
+  // deferred to v2.6.1). Even with a populated attachment fixture, M011
+  // surface renders the deferred message — branches 2-4 below are
+  // unreachable for profileType === 'attachment'.
+  if (profileType === 'attachment') {
+    return MSG.psychologicalSections.attachment.notYetActive[lang];
+  }
+
+  // D-19 branch 2 — never-fired: null row OR epoch sentinel
+  // (lastUpdated.getTime() === 0). Phase 37 reader coalesces migration 0013
+  // seed rows' NULL last_updated → new Date(0).
+  if (profile === null || profile.lastUpdated.getTime() === 0) {
+    return MSG.psychologicalSections[profileType].neverFired[lang];
+  }
+
+  // D-19 branch 3 — insufficient data: overall_confidence === 0. N is the
+  // remaining word count Sonnet needs before the next inference fires
+  // (RESEARCH Open Q1 Option A — wordCountAtLastRun is threaded by
+  // readOnePsychologicalProfile in Plan 39-01 Task 1).
+  if (profile.confidence === 0) {
+    const wc = profile.wordCountAtLastRun ?? 0;
+    const N = Math.max(0, 5000 - wc);
+    return MSG.psychologicalSections[profileType].insufficientData[lang](N);
+  }
+
+  // D-19 branch 4 — populated: section title + per-dim Title-Case score lines
+  // with D-07 qualifier. D-09 per-dim filter (skip null score OR confidence
+  // === 0) is the regression detector for the future-refactor leak class.
+  const title = MSG.psychologicalSections[profileType].sectionTitle[lang];
+  const lines: string[] = [title, ''];
+
+  switch (profileType) {
+    case 'hexaco': {
+      const d = profile.data as HexacoProfileData;
+      for (const [key, label] of Object.entries(HEXACO_DIM_DISPLAY_LABELS) as Array<
+        [keyof HexacoProfileData, string]
+      >) {
+        const dim = d[key];
+        if (!dim) continue; // D-09 skip null
+        if (dim.score === null) continue; // D-09 skip null score
+        if (dim.confidence === 0) continue; // D-09 skip zero-confidence
+        lines.push(
+          `${label}: ${dim.score.toFixed(1)} / 5.0 (confidence ${dim.confidence.toFixed(1)} — ${qualifierForPsych(dim.confidence)})`,
+        );
+      }
+      break;
+    }
+    case 'schwartz': {
+      const d = profile.data as SchwartzProfileData;
+      for (const [key, label] of Object.entries(SCHWARTZ_DIM_DISPLAY_LABELS) as Array<
+        [keyof SchwartzProfileData, string]
+      >) {
+        const dim = d[key];
+        if (!dim) continue; // D-09 skip null
+        if (dim.score === null) continue; // D-09 skip null score
+        if (dim.confidence === 0) continue; // D-09 skip zero-confidence
+        lines.push(
+          `${label}: ${dim.score.toFixed(1)} / 5.0 (confidence ${dim.confidence.toFixed(1)} — ${qualifierForPsych(dim.confidence)})`,
+        );
+      }
+      break;
+    }
+    // Note: profileType === 'attachment' is unreachable here — branch 1
+    // early-returns above, so TypeScript narrows the switch discriminant to
+    // 'hexaco' | 'schwartz' and rejects an explicit `case 'attachment'`. The
+    // exhaustiveness invariant is enforced by the union signature at the
+    // function boundary; no `never`-check assertion is needed.
+  }
+
+  return lines.join('\n');
+}
+
 // ── Handler ─────────────────────────────────────────────────────────────────
 //
 // User-initiated `/profile` Telegram command. Reads all 4 operational profiles
