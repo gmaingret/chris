@@ -43,8 +43,11 @@
  *      word counting, prevHistorySnapshot lookup)
  */
 import { createHash } from 'node:crypto';
-import { and, desc, eq, gte, isNull, lte, ne, or } from 'drizzle-orm';
+import { and, desc, eq, gte, isNull, lte, ne, or, sql } from 'drizzle-orm';
+import type { PgTable, PgColumn } from 'drizzle-orm/pg-core';
+import type { z } from 'zod';
 import { DateTime } from 'luxon';
+import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { db } from '../../db/connection.js';
 import {
   pensieveEntries,
@@ -53,6 +56,13 @@ import {
 } from '../../db/schema.js';
 import { getEpisodicSummariesRange } from '../../pensieve/retrieve.js';
 import { MIN_SPEECH_WORDS } from '../confidence.js';
+import { anthropic, SONNET_MODEL } from '../../llm/client.js';
+import {
+  assemblePsychologicalProfilePrompt,
+  type PsychologicalProfilePromptType,
+  type PsychologicalProfileSubstrateView,
+} from '../psychological-profile-prompt.js';
+import { logger } from '../../utils/logger.js';
 
 // ── Public types ────────────────────────────────────────────────────────
 
@@ -306,4 +316,354 @@ export async function loadPsychologicalSubstrate<T = unknown>(
     prevHistorySnapshot:
       (prevSnapshotRow[0]?.snapshot as T | undefined) ?? null,
   };
+}
+
+// ── Per-generator runner helper (Plan 38-02 — D-11, D-14, PGEN-02, PGEN-03) ──
+
+/**
+ * Per-generator config consumed by `runPsychologicalProfileGenerator`. Each
+ * of the 2 generator files (hexaco.ts + schwartz.ts) declares one as a
+ * module-private constant and passes it into the runner.
+ *
+ * `flattenSonnetOutput` maps the Sonnet-emitted v3-parsed object (keyed by
+ * snake_case schema field names) to the Drizzle camelCase column names for
+ * the upsert. Each generator's column set differs (6 HEXACO dims vs 10
+ * Schwartz values), so each file declares its own flattener.
+ *
+ * Top-level boundary fields `data_consistency` + `overall_confidence` are
+ * NOT returned from `flattenSonnetOutput` — the runner writes them to
+ * dedicated row columns (`overallConfidence`) separately.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type PsychologicalProfileGeneratorConfig<TBoundaryData extends { data_consistency: number; overall_confidence: number }> = {
+  profileType: PsychologicalProfilePromptType;
+  v3SchemaBoundary: z.ZodType<TBoundaryData>;
+  // The v4 boundary schema — accepted as `any` because zod/v4 type-imports
+  // collide with the @anthropic-ai/sdk helper's expected ZodType<T> input;
+  // every call site locally tightens. Pattern mirrors M010 shared.ts:169.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  v4SchemaBoundary: any;
+  // The Drizzle profile table. Loose PgTable shape because each profile
+  // table has a different column set; the runner only reads universal
+  // columns (id, name, substrateHash, schemaVersion) and writes via
+  // onConflictDoUpdate on the name='primary' sentinel.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  table: PgTable & { name: PgColumn<any, any, any>; [key: string]: any };
+  profileTableName: 'profile_hexaco' | 'profile_schwartz';
+  flattenSonnetOutput: (parsed: TBoundaryData) => Record<string, unknown>;
+};
+
+/**
+ * Generic per-generator runner for the 2 M011 psychological profiles. The
+ * 11-step body per RESEARCH Finding 3 (Plan 38-02 "runPsychologicalProfileGenerator
+ * body"). Mirrors the structural shape of M010's runProfileGenerator with
+ * FOUR locked divergences:
+ *
+ *   1. Discriminated-union threshold narrow (RESEARCH Finding 4) — uses
+ *      `if (substrate.belowThreshold)` rather than M010's loose
+ *      `isAboveThreshold(entryCount)` check. TypeScript narrows substrate
+ *      to the above-threshold branch below the early-return, so `.corpus`
+ *      access is type-safe.
+ *
+ *   2. NO HASH-SKIP BRANCH (Pitfall 1 + PGEN-06 UNCONDITIONAL FIRE) —
+ *      substrate_hash is computed via `computePsychologicalSubstrateHash`
+ *      and persisted, but the M010 `if (currentRow.substrateHash ===
+ *      computedHash) return skip` branch (shared.ts:399-409) is DELETED.
+ *      Sonnet is invoked on every fire regardless of hash match. The
+ *      regression detector for any future "fix" that re-introduces
+ *      hash-skip is the 3-cycle integration test in Task 3.
+ *
+ *   3. NO `.refine()` CEILING (D-33) — M010's closure-captured volume-weight
+ *      `.refine()` overlay is absent. M011's word-count gating is upstream
+ *      in `loadPsychologicalSubstrate` (PSCH-08); the prompt-level
+ *      r ≈ .31–.41 empirical-limits framing is the only ceiling enforcement.
+ *
+ *   4. Host-injects `last_updated: new Date().toISOString()` per dim BETWEEN
+ *      the v4 parse and v3 re-validate (Pitfall 7). Phase 37 v4 dim schema
+ *      declares `last_updated: zV4.string()` (NOT `.datetime()`) but v3 dim
+ *      schema declares `last_updated: z.string().datetime().strict()` — a
+ *      Sonnet output with an invalid datetime would pass v4 but fail v3 and
+ *      return 'error'. The host-inject prevents this by overwriting the
+ *      per-dim `last_updated` with a server-side ISO string AFTER v4 parse,
+ *      BEFORE v3 re-validate.
+ *
+ * NO `computeProfileConfidence` call (D-08; PGEN-07) — Sonnet emits
+ * `overall_confidence` directly at the SDK boundary, and the host stores it
+ * verbatim into the row's overall_confidence column. NO host-side stddev /
+ * inter-period math (deferred to v2.6.1 / CONS-01 per D-20).
+ *
+ * Body order (Steps 1-11 per RESEARCH Finding 3 — fixed; do not reorder):
+ *   1. Discriminated-union threshold narrow (Finding 4)
+ *   2. Read current row by name='primary' sentinel
+ *   3. Compute substrate hash via computePsychologicalSubstrateHash
+ *   4. NO hash-skip branch (PGEN-06)
+ *   5. NO `.refine()` ceiling (D-33)
+ *   6. Build prompt with substrate.prevHistorySnapshot (Finding 3, D-09)
+ *   7. anthropic.messages.parse + zodOutputFormat(v4SchemaBoundary)
+ *   8. Host-inject `last_updated` per dim (Pitfall 7)
+ *   9. v3 boundary re-validate
+ *  10. Write profile_history row with prior currentRow snapshot
+ *  11. Upsert via name='primary' sentinel + log outcome
+ *
+ * Steps 7-11 are wrapped in try/catch — any throw inside the call chain is
+ * captured as outcome `'error'` with the message in `error`, then logged
+ * via `chris.psychological.${profileType}.error`. The orchestrator (Plan
+ * 38-03) calls both generators via `Promise.allSettled` for outer
+ * isolation; this inner catch ensures a single generator's failure produces
+ * a deterministic outcome rather than a rejected promise.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function runPsychologicalProfileGenerator<TBoundaryData extends { data_consistency: number; overall_confidence: number; [k: string]: any }>(
+  config: PsychologicalProfileGeneratorConfig<TBoundaryData>,
+  substrate: PsychologicalSubstrate<unknown>,
+): Promise<PsychologicalProfileGenerationOutcome> {
+  const startMs = Date.now();
+  const { profileType, v3SchemaBoundary, v4SchemaBoundary, table, profileTableName, flattenSonnetOutput } = config;
+
+  // Step 1 — discriminated-union threshold narrow (RESEARCH Finding 4).
+  // NOT a loose `isAboveThreshold(entryCount)` check (M010 pattern) — the
+  // word-count gate already fired at substrate load (PSCH-08); this narrow
+  // simply unboxes the discriminated union for the above-threshold branch
+  // so `.corpus`, `.episodicSummaries`, `.prevHistorySnapshot` access is
+  // type-safe below.
+  if (substrate.belowThreshold) {
+    logger.info(
+      { profileType, wordCount: substrate.wordCount, neededWords: substrate.neededWords, threshold: MIN_SPEECH_WORDS },
+      `chris.psychological.${profileType}.skipped_below_threshold`,
+    );
+    return {
+      profileType: profileType as 'hexaco' | 'schwartz',
+      outcome: 'skipped_below_threshold',
+      wordCount: substrate.wordCount,
+      durationMs: Date.now() - startMs,
+    };
+  }
+
+  // Step 2 — read current row by name='primary' sentinel (mirror M010
+  // shared.ts:386-391). The migration 0013 cold-start INSERT seeds this row
+  // with substrate_hash='' and dim values as jsonb null; if the row is
+  // missing the migration didn't run (or someone deleted it manually),
+  // which is an unrecoverable error class — surface it as outcome 'error'.
+  let currentRow: Record<string, unknown> | null;
+  try {
+    const rows = await db.select().from(table).where(eq(table.name, 'primary')).limit(1);
+    currentRow = (rows[0] ?? null) as Record<string, unknown> | null;
+    if (!currentRow) {
+      throw new Error(`${profileType}.psychological.generate: no 'primary' row found (cold-start seed missing — check migration 0013)`);
+    }
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    logger.warn(
+      { profileType, err: errMsg, durationMs: Date.now() - startMs },
+      `chris.psychological.${profileType}.error`,
+    );
+    return {
+      profileType: profileType as 'hexaco' | 'schwartz',
+      outcome: 'error',
+      error: errMsg,
+      durationMs: Date.now() - startMs,
+    };
+  }
+
+  // Step 3 — compute substrate hash. Uses the M011-appropriate sibling
+  // helper computePsychologicalSubstrateHash (RESEARCH Finding 3 Path A);
+  // sorts pensieveIds + episodicDates, includes schemaVersion, omits any
+  // decisionIds (substrate is corpus-only per PSCH-07 / D-20).
+  const computedHash = computePsychologicalSubstrateHash(
+    substrate.corpus,
+    substrate.episodicSummaries,
+    (currentRow.schemaVersion as number | undefined) ?? 1,
+  );
+
+  // Step 4 — PGEN-06 (D-17): UNCONDITIONAL FIRE. substrate_hash is recorded
+  // below but does NOT short-circuit the Sonnet call. The M010 hash-skip
+  // branch (src/memory/profiles/shared.ts:399-409, the
+  // `if (currentRow.substrateHash === computedHash) return skip` block) is
+  // DELETED here. Sonnet is invoked on every fire regardless of hash match.
+  // See psychological-profile-updater.ts (Plan 38-03) for the rationale
+  // comment at the orchestrator level. The 3-cycle integration test in
+  // src/memory/__tests__/psychological-profile-updater.integration.test.ts
+  // is the regression detector — Cycle 2 asserts cumulative 4 Sonnet calls
+  // on IDENTICAL substrate (NOT 2 — direct inverse of M010 PTEST-03).
+
+  // Step 5 — NO `.refine()` ceiling (D-33). The M010 closure-captured
+  // volume-weight overlay (shared.ts:417-420) is absent — M011's
+  // word-count gating already fired upstream at substrate load (PSCH-08);
+  // the prompt-level r ≈ .31–.41 empirical-limits framing is the only
+  // ceiling enforcement on the boundary schema.
+
+  // Step 6 — build prompt with substrate.prevHistorySnapshot threaded
+  // directly (RESEARCH Finding 3 + D-09; NO extractPrevState — that helper
+  // is M010-specific). PsychologicalProfileSubstrateView is the narrow
+  // structural type the prompt builder consumes; the substrate's full
+  // corpus rows are mapped to it preserving (id, epistemicTag, content,
+  // createdAt).
+  const view: PsychologicalProfileSubstrateView = {
+    corpus: substrate.corpus.map((e) => ({
+      id: e.id,
+      epistemicTag: e.epistemicTag,
+      content: e.content,
+      // createdAt is timestamp().defaultNow() in the schema — non-null at
+      // runtime even though Drizzle infers Date|null due to default-inference.
+      createdAt: e.createdAt ?? new Date(0),
+    })),
+    episodicSummaries: substrate.episodicSummaries.map((s) => ({
+      summaryDate: s.summaryDate,
+      summary: s.summary,
+    })),
+    wordCount: substrate.wordCount,
+  };
+  const prompt = assemblePsychologicalProfilePrompt(
+    profileType,
+    view,
+    substrate.prevHistorySnapshot,
+    substrate.wordCount,
+  );
+
+  // Steps 7-11 wrapped in try/catch for D-21 error isolation. The
+  // orchestrator (Plan 38-03) wraps the runner in Promise.allSettled for
+  // outer isolation; this inner catch ensures a single failure produces a
+  // deterministic 'error' outcome rather than a rejected promise.
+  try {
+    // Step 7 — anthropic.messages.parse with SONNET_MODEL + zodOutputFormat
+    // on the v4 boundary schema (mirror M010 shared.ts:457-480 verbatim).
+    // max_tokens: 4000 (M010 uses 2000) — HEXACO emits 6 dim objects ×
+    // {score, confidence, last_updated} + 2 top-level fields; Schwartz
+    // emits 10 dim objects + 2 top-level — at the upper bound of M010
+    // single-profile output.
+    const response = await anthropic.messages.parse({
+      model: SONNET_MODEL,
+      max_tokens: 4000,
+      system: [
+        {
+          type: 'text' as const,
+          text: prompt.system,
+          cache_control: { type: 'ephemeral' as const },
+        },
+      ],
+      messages: [
+        {
+          role: 'user' as const,
+          content: prompt.user,
+        },
+      ],
+      output_config: {
+        // SDK type/runtime mismatch per src/episodic/consolidate.ts:156 +
+        // src/rituals/weekly-review.ts:392 — same cast pattern.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        format: zodOutputFormat(v4SchemaBoundary as unknown as any),
+      },
+    });
+    if (response.parsed_output === null || response.parsed_output === undefined) {
+      throw new Error(`${profileType}.psychological.sonnet: parsed_output is null`);
+    }
+
+    // Step 8 — host-inject `last_updated` per dim BEFORE v3 re-validate
+    // (Pitfall 7). Phase 37 v4 dim schema declares
+    // `last_updated: zV4.string()` (NOT `.datetime()`) but v3 dim schema
+    // declares `last_updated: z.string().datetime().strict()`. A Sonnet
+    // output with an invalid datetime (or missing `last_updated`) would
+    // pass v4 but fail v3 and return 'error'. The host-inject overwrites
+    // per-dim `last_updated` with a server-side ISO string AFTER v4 parse,
+    // BEFORE v3 re-validate. The top-level boundary fields
+    // (`data_consistency`, `overall_confidence`) are NOT mutated — only
+    // per-dim objects.
+    const nowIso = new Date().toISOString();
+    const parsedRaw = response.parsed_output as Record<string, unknown>;
+    for (const dimKey of Object.keys(parsedRaw)) {
+      if (dimKey === 'data_consistency' || dimKey === 'overall_confidence') continue;
+      const dimValue = parsedRaw[dimKey];
+      if (dimValue !== null && typeof dimValue === 'object' && !Array.isArray(dimValue)) {
+        (dimValue as Record<string, unknown>).last_updated = nowIso;
+      }
+    }
+
+    // Step 9 — v3 boundary re-validate (M008/M009 D-29-02 discipline; v4
+    // emits at the SDK boundary, v3 is the contract source-of-truth).
+    const sonnetOut = v3SchemaBoundary.parse(parsedRaw);
+
+    // Step 10 — write profile_history row with prior currentRow snapshot
+    // BEFORE the upsert (mirror M010 shared.ts:495-501). PGEN-06: written
+    // on EVERY successful fire (not only on outcome 'updated' — M010 wrote
+    // only on update). Plan 38-02 D-14: the only paths that skip
+    // profile_history are 'skipped_below_threshold' (early return at Step 1
+    // before reaching here) and 'error' (caught below). The cold-start row
+    // from migration 0013 carries dim values as jsonb null; that null
+    // snapshot is written verbatim on the first fire as the "prior state"
+    // record.
+    if (currentRow.id) {
+      await db.insert(profileHistory).values({
+        profileTableName: profileTableName,
+        profileId: currentRow.id as string,
+        snapshot: currentRow as Record<string, unknown>,
+      });
+    }
+
+    // Step 11 — upsert via name='primary' sentinel (mirror M010
+    // shared.ts:514-541 with M011 column substitutions). jsonb encoding
+    // follows the M010 pattern: each dim value is JSON-stringified +
+    // SQL-cast to jsonb via `${serialized}::jsonb` to handle JS null
+    // correctly (the jsonb columns are .notNull() with default
+    // `'null'::jsonb` — Drizzle serializing JS null sends SQL NULL which
+    // violates the NOT NULL constraint).
+    const flat = flattenSonnetOutput(sonnetOut);
+    const flatEncoded: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(flat)) {
+      const serialized = v === undefined ? 'null' : JSON.stringify(v);
+      flatEncoded[k] = sql`${serialized}::jsonb`;
+    }
+
+    // PGEN-06: substrate_hash is recorded on every fire (audit-trail only;
+    // NOT used for skip — see Step 4 comment). The host stores Sonnet's
+    // overall_confidence verbatim per D-08 / PGEN-07.
+    const upsertValues: Record<string, unknown> = {
+      name: 'primary',
+      schemaVersion: (currentRow.schemaVersion as number | undefined) ?? 1,
+      substrateHash: computedHash,
+      overallConfidence: sonnetOut.overall_confidence,
+      wordCount: substrate.wordCount,
+      wordCountAtLastRun: substrate.wordCount,
+      ...flatEncoded,
+      lastUpdated: new Date(),
+    };
+    await db
+      .insert(table)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .values(upsertValues as any)
+      .onConflictDoUpdate({
+        target: table.name,
+        set: upsertValues,
+      });
+
+    logger.info(
+      {
+        profileType,
+        wordCount: substrate.wordCount,
+        overallConfidence: sonnetOut.overall_confidence,
+        dataConsistency: sonnetOut.data_consistency,
+        substrateHash: computedHash,
+        durationMs: Date.now() - startMs,
+      },
+      `chris.psychological.${profileType}.updated`,
+    );
+    return {
+      profileType: profileType as 'hexaco' | 'schwartz',
+      outcome: 'updated',
+      wordCount: substrate.wordCount,
+      overallConfidence: sonnetOut.overall_confidence,
+      durationMs: Date.now() - startMs,
+    };
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    logger.warn(
+      { profileType, err: errMsg, durationMs: Date.now() - startMs },
+      `chris.psychological.${profileType}.error`,
+    );
+    return {
+      profileType: profileType as 'hexaco' | 'schwartz',
+      outcome: 'error',
+      error: errMsg,
+      durationMs: Date.now() - startMs,
+    };
+  }
 }
