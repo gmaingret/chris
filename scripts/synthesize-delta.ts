@@ -566,6 +566,7 @@ function buildHaikuSystemPrompt(
   dateIso: string,
   nEntries: number,
   dimensionHint?: string,
+  signalPhrases?: readonly string[],
 ): string {
   const bullets = fewShot
     .map((e, i) => `  ${i + 1}. ${JSON.stringify((e as { content: string }).content)}`)
@@ -574,10 +575,20 @@ function buildHaikuSystemPrompt(
 
 Few-shot entries:
 ${bullets}`;
+  // Phase 40 PMT-01 Pitfall §7 mitigation: when psych-profile-bias is on,
+  // explicitly seed exemplar hedge phrases so Haiku is unlikely to average
+  // them away. HARN signal-phrase gate (primed-sanity-m011.test.ts) asserts
+  // ≥1 OPENNESS_SIGNAL_PHRASES retained — without this instruction Haiku
+  // produces conceptually-Openness content without the lexical markers the
+  // gate checks for.
+  const phrasesClause =
+    signalPhrases && signalPhrases.length
+      ? ` Where natural, weave in hedge phrases like ${signalPhrases.map((p) => `"${p}"`).join(', ')} to mark intellectual curiosity — at least 2-3 of the ${nEntries} entries should contain one of these phrases verbatim.`
+      : '';
   if (dimensionHint) {
     return `${base}
 
-Focus today's entries on ${dimensionHint}.`;
+Focus today's entries on ${dimensionHint}.${phrasesClause}`;
   }
   return base;
 }
@@ -845,7 +856,11 @@ export async function synthesize(opts: SynthesizeOptions): Promise<void> {
     const psychHint = psychDimensionHintFor(d, psychEnabled);
     const m010Hint = dimensionHintFor(d, profileBias);
     const hint = psychHint ?? m010Hint;
-    const systemPrompt = buildHaikuSystemPrompt(fewShot, dayDateStr, ENTRIES_PER_DAY, hint);
+    // Phase 40 PMT-01 Pitfall §7: when psych-bias is active, pass exemplar
+    // hedge phrases so Haiku is unlikely to average away the designed
+    // Openness signature. M010 path (m010Hint only) gets no phrases.
+    const signalPhrases = psychEnabled ? OPENNESS_SIGNAL_PHRASES : undefined;
+    const systemPrompt = buildHaikuSystemPrompt(fewShot, dayDateStr, ENTRIES_PER_DAY, hint, signalPhrases);
     const userPrompt = `Produce ${ENTRIES_PER_DAY} synthetic Telegram entries for ${dayDateStr}. Return as { entries: [{ content, createdAtHour, createdAtMinute }, ...] }.`;
 
     const request = {
