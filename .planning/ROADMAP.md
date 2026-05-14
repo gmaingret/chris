@@ -156,7 +156,7 @@ Plans:
 
 Plans:
 **Wave 1**
-- [ ] 40-01-PLAN.md — `--psych-profile-bias` flag + PSYCH_PROFILE_BIAS_KEYWORDS + OPENNESS_SIGNAL_PHRASES + m011-30days + m011-1000words primed fixtures + seedPsychProfileRows helper + CHAT_ID 99923 allocation + HARN signal-phrase sanity gate + 2 fixture-driven real-DB integration tests (PMT-01, PMT-02, PMT-03, PMT-04, PMT-05; same-file PMT-04+05 per D-22; D-24 INVERSE-OF-M010 docblock for PMT-05)
+- [x] 40-01-PLAN.md — `--psych-profile-bias` flag + PSYCH_PROFILE_BIAS_KEYWORDS + OPENNESS_SIGNAL_PHRASES + m011-30days + m011-1000words primed fixtures + seedPsychProfileRows helper + CHAT_ID 99923 allocation + HARN signal-phrase sanity gate + 2 fixture-driven real-DB integration tests (PMT-01, PMT-02, PMT-03, PMT-04, PMT-05; same-file PMT-04+05 per D-22; D-24 INVERSE-OF-M010 docblock for PMT-05)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 40-02-PLAN.md — Live 3-of-3 atomic anti-trait-authority milestone gate against real Sonnet 4.6 (PMT-06); three-way `describe.skipIf` per D045; 5 FORBIDDEN_TRAIT_AUTHORITY_PATTERNS VERBATIM from REQUIREMENTS PMT-06; FORBIDDEN_FACTS inherited from M010 PTEST-05 per RESEARCH Open Q2; BOTH PSYCH_INJECTION_HEADER + HARD_RULE_EXTENSION footer asserted per RESEARCH Open Q5; cost-discipline docblock per D046; M011 milestone-close gate
@@ -172,7 +172,7 @@ Plans:
 | 37. Psychological Substrate | 2/2 | Complete   | 2026-05-13 |
 | 38. Psychological Inference Engine | 3/3 | Complete   | 2026-05-14 |
 | 39. Psychological Surfaces | 2/2 | Complete   | 2026-05-14 |
-| 40. Psychological Milestone Tests | 0/2 | Not started | - |
+| 40. Psychological Milestone Tests | 1/2 | In Progress|  |
 
 ---
 
