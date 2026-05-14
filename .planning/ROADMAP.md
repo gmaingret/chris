@@ -149,10 +149,17 @@ Plans:
   3. Populated test (`m011-30days` fixture): HEXACO row has `overall_confidence > 0` with all 6 dims scored; Schwartz row has `overall_confidence > 0` with all 10 values scored; Openness >= 4.0 and Conformity <= 2.5 within ±0.8 tolerance; `profile_history` rows written for both.
   4. Unconditional-fire three-cycle test: Cycle 1 = 2 Sonnet calls; Cycle 2 with identical substrate = cumulative 4 (NOT 2, divergence from M010 PTEST-03); Cycle 3 with INSERTed new Pensieve entries = cumulative 6. The inverse-of-idempotency contract is the invariant being tested.
   5. Live 3-of-3 milestone gate (operator-invoked `RUN_LIVE_TESTS=1 ANTHROPIC_API_KEY=...`): (a) zero hallucinated facts about Greg, (b) zero trait-authority constructions matching adversarial patterns (`'consistent with your'`, `'given your [trait]'`, `'as someone with your'`, `'aligns with your'`, `'fits your'`), (c) three-way `describe.skipIf(!RUN_LIVE_TESTS || !ANTHROPIC_API_KEY || !FIXTURE_PRESENT)` per D045 — skips cleanly in <1s when any gate is absent.
-**Plans**: TBD
+**Plans**: 2 plans
 **UI hint**: no
 
 **Live test cost (PMT-06):** ~$0.20–0.30 per run (3 atomic iterations × 2 Sonnet 4.6 calls each). Operator-invoked only — not in CI. Budget callout required in test file docblock per D046.
+
+Plans:
+**Wave 1**
+- [ ] 40-01-PLAN.md — `--psych-profile-bias` flag + PSYCH_PROFILE_BIAS_KEYWORDS + OPENNESS_SIGNAL_PHRASES + m011-30days + m011-1000words primed fixtures + seedPsychProfileRows helper + CHAT_ID 99923 allocation + HARN signal-phrase sanity gate + 2 fixture-driven real-DB integration tests (PMT-01, PMT-02, PMT-03, PMT-04, PMT-05; same-file PMT-04+05 per D-22; D-24 INVERSE-OF-M010 docblock for PMT-05)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 40-02-PLAN.md — Live 3-of-3 atomic anti-trait-authority milestone gate against real Sonnet 4.6 (PMT-06); three-way `describe.skipIf` per D045; 5 FORBIDDEN_TRAIT_AUTHORITY_PATTERNS VERBATIM from REQUIREMENTS PMT-06; FORBIDDEN_FACTS inherited from M010 PTEST-05 per RESEARCH Open Q2; BOTH PSYCH_INJECTION_HEADER + HARD_RULE_EXTENSION footer asserted per RESEARCH Open Q5; cost-discipline docblock per D046; M011 milestone-close gate
 
 ---
 
@@ -165,7 +172,7 @@ Plans:
 | 37. Psychological Substrate | 2/2 | Complete   | 2026-05-13 |
 | 38. Psychological Inference Engine | 3/3 | Complete   | 2026-05-14 |
 | 39. Psychological Surfaces | 2/2 | Complete   | 2026-05-14 |
-| 40. Psychological Milestone Tests | 0/TBD | Not started | - |
+| 40. Psychological Milestone Tests | 0/2 | Not started | - |
 
 ---
 
