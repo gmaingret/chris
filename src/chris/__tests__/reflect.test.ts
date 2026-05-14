@@ -81,16 +81,22 @@ vi.mock('../personality.js', () => ({
   buildSystemPrompt: mockBuildSystemPrompt,
 }));
 
-// ── Mock memory/profiles (Phase 35 Plan 35-02 SURF-02) ─────────────────────
-// REFLECT is an in-scope mode per PROFILE_INJECTION_MAP — these mocks let us
-// assert the D-14 call order (getOperationalProfiles → formatProfilesForPrompt
-// → buildSystemPrompt) and the D-08/D-13 wire of operationalProfiles into
-// extras without exercising the real DB-reading code path.
+// ── Mock memory/profiles (Phase 35 Plan 35-02 SURF-02 + Phase 39 PSURF-03) ─
+// REFLECT is an in-scope mode per PROFILE_INJECTION_MAP + PSYCHOLOGICAL_PROFILE_INJECTION_MAP.
+// These mocks let us assert the D-14 + D-13/D-16 call order
+// (getOperationalProfiles → formatProfilesForPrompt → getPsychologicalProfiles
+// → formatPsychologicalProfilesForPrompt → buildSystemPrompt) and the wire of
+// operationalProfiles + psychologicalProfiles into extras without exercising
+// the real DB-reading code path.
 const mockGetOperationalProfiles = vi.fn();
 const mockFormatProfilesForPrompt = vi.fn();
+const mockGetPsychologicalProfiles = vi.fn();
+const mockFormatPsychologicalProfilesForPrompt = vi.fn();
 vi.mock('../../memory/profiles.js', () => ({
   getOperationalProfiles: mockGetOperationalProfiles,
   formatProfilesForPrompt: mockFormatProfilesForPrompt,
+  getPsychologicalProfiles: mockGetPsychologicalProfiles,
+  formatPsychologicalProfilesForPrompt: mockFormatPsychologicalProfilesForPrompt,
 }));
 
 // ── Mock pensieve store (should NOT be called) ─────────────────────────────
@@ -219,6 +225,15 @@ describe('handleReflect', () => {
     mockFormatProfilesForPrompt.mockReturnValue(
       '## Operational Profile (grounded context — not interpretation)\n\nfake-rendered-profile',
     );
+    // Phase 39 PSURF-03 — sane defaults so existing REFLECT tests don't
+    // need to set these per-case. Empty-string return means "no psych
+    // section to render" per D-05; personality.ts drops it cleanly.
+    mockGetPsychologicalProfiles.mockResolvedValue({
+      hexaco: null,
+      schwartz: null,
+      attachment: null,
+    });
+    mockFormatPsychologicalProfilesForPrompt.mockReturnValue('');
     mockCreate.mockResolvedValue(
       makeLLMResponse('I notice a recurring theme of self-doubt in your entries.'),
     );

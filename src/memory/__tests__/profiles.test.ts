@@ -524,3 +524,288 @@ describe('formatProfilesForPrompt — gates and rendering (D-09..D-13)', () => {
     expect(out.startsWith('## Operational Profile (grounded context — not interpretation)')).toBe(true);
   });
 });
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Phase 39 Plan 39-01 — PSYCHOLOGICAL_PROFILE_INJECTION_MAP +
+// formatPsychologicalProfilesForPrompt (D-05 / D-06 / D-07 / D-08 / D-09 / D-11)
+// Pure-function tests — NO vi.useFakeTimers (psych formatter has no
+// staleness check; monthly cron renders 21-day staleness irrelevant).
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+import type { PsychologicalProfiles } from '../profiles.js';
+import type {
+  HexacoProfileData,
+  SchwartzProfileData,
+  AttachmentProfileData,
+} from '../profiles/psychological-schemas.js';
+import { PSYCHOLOGICAL_HARD_RULE_EXTENSION } from '../psychological-profile-prompt.js';
+
+describe('PSYCHOLOGICAL_PROFILE_INJECTION_MAP — shape (Phase 39 D-04)', () => {
+  it("REFLECT equals ['hexaco', 'schwartz']", async () => {
+    const { PSYCHOLOGICAL_PROFILE_INJECTION_MAP } = await import('../profiles.js');
+    expect(PSYCHOLOGICAL_PROFILE_INJECTION_MAP.REFLECT).toEqual(['hexaco', 'schwartz']);
+  });
+
+  it("PSYCHOLOGY equals ['hexaco', 'schwartz']", async () => {
+    const { PSYCHOLOGICAL_PROFILE_INJECTION_MAP } = await import('../profiles.js');
+    expect(PSYCHOLOGICAL_PROFILE_INJECTION_MAP.PSYCHOLOGY).toEqual(['hexaco', 'schwartz']);
+  });
+
+  it('COACH is NOT a key in the map (D-14 negative invariant — D027 Hard Rule)', async () => {
+    const { PSYCHOLOGICAL_PROFILE_INJECTION_MAP } = await import('../profiles.js');
+    expect('COACH' in PSYCHOLOGICAL_PROFILE_INJECTION_MAP).toBe(false);
+  });
+
+  it('JOURNAL/INTERROGATE/PRODUCE/PHOTOS/ACCOUNTABILITY are NOT keys (D-15)', async () => {
+    const { PSYCHOLOGICAL_PROFILE_INJECTION_MAP } = await import('../profiles.js');
+    for (const m of ['JOURNAL', 'INTERROGATE', 'PRODUCE', 'PHOTOS', 'ACCOUNTABILITY'] as const) {
+      expect(m in PSYCHOLOGICAL_PROFILE_INJECTION_MAP).toBe(false);
+    }
+  });
+
+  it("'attachment' is NOT in any mode's array (Phase 38 D-23 — generator deferred)", async () => {
+    const { PSYCHOLOGICAL_PROFILE_INJECTION_MAP } = await import('../profiles.js');
+    expect(PSYCHOLOGICAL_PROFILE_INJECTION_MAP.REFLECT).not.toContain('attachment');
+    expect(PSYCHOLOGICAL_PROFILE_INJECTION_MAP.PSYCHOLOGY).not.toContain('attachment');
+  });
+});
+
+describe('formatPsychologicalProfilesForPrompt — gates and rendering (Phase 39 D-05..D-11)', () => {
+  const POPULATED_DATE = new Date('2026-06-01T12:00:00Z');
+  const EPOCH_DATE = new Date(0);
+
+  function makePsychRow<T>(
+    data: T,
+    confidence: number,
+    lastUpdated: Date,
+    schemaVersion = 1,
+  ): ProfileRow<T> {
+    return {
+      data,
+      confidence,
+      lastUpdated,
+      schemaVersion,
+      wordCount: 8000,
+      wordCountAtLastRun: 8000,
+    };
+  }
+
+  // All 6 HEXACO dims populated. Confidences chosen to exercise all three
+  // qualifier branches (D-07): <0.3 limited / 0.3-0.59 moderate / >=0.6 substantial.
+  const POPULATED_HEXACO_DATA: HexacoProfileData = {
+    honesty_humility: { score: 4.2, confidence: 0.6, last_updated: null },
+    emotionality: { score: 3.1, confidence: 0.4, last_updated: null },
+    extraversion: { score: 3.8, confidence: 0.5, last_updated: null },
+    agreeableness: { score: 4.0, confidence: 0.5, last_updated: null },
+    conscientiousness: { score: 4.5, confidence: 0.7, last_updated: null },
+    openness: { score: 4.3, confidence: 0.6, last_updated: null },
+  };
+
+  // All 10 Schwartz values populated.
+  const POPULATED_SCHWARTZ_DATA: SchwartzProfileData = {
+    self_direction: { score: 4.5, confidence: 0.7, last_updated: null },
+    stimulation: { score: 3.5, confidence: 0.5, last_updated: null },
+    hedonism: { score: 3.0, confidence: 0.4, last_updated: null },
+    achievement: { score: 4.0, confidence: 0.6, last_updated: null },
+    power: { score: 2.5, confidence: 0.3, last_updated: null },
+    security: { score: 3.8, confidence: 0.5, last_updated: null },
+    conformity: { score: 2.2, confidence: 0.25, last_updated: null },
+    tradition: { score: 2.0, confidence: 0.35, last_updated: null },
+    benevolence: { score: 4.2, confidence: 0.6, last_updated: null },
+    universalism: { score: 4.4, confidence: 0.85, last_updated: null },
+  };
+
+  const POPULATED_ATTACHMENT_DATA: AttachmentProfileData = {
+    anxious: { score: 2.5, confidence: 0.5, last_updated: null },
+    avoidant: { score: 2.0, confidence: 0.5, last_updated: null },
+    secure: { score: 4.0, confidence: 0.6, last_updated: null },
+  };
+
+  // All HEXACO dims null — for the all-zero-confidence and never-fired gates.
+  const EMPTY_HEXACO_DATA: HexacoProfileData = {
+    honesty_humility: null,
+    emotionality: null,
+    extraversion: null,
+    agreeableness: null,
+    conscientiousness: null,
+    openness: null,
+  };
+
+  const EMPTY_SCHWARTZ_DATA: SchwartzProfileData = {
+    self_direction: null,
+    stimulation: null,
+    hedonism: null,
+    achievement: null,
+    power: null,
+    security: null,
+    conformity: null,
+    tradition: null,
+    benevolence: null,
+    universalism: null,
+  };
+
+  const ALL_NULL: PsychologicalProfiles = {
+    hexaco: null,
+    schwartz: null,
+    attachment: null,
+  };
+
+  const ALL_ZERO_CONF: PsychologicalProfiles = {
+    hexaco: makePsychRow(EMPTY_HEXACO_DATA, 0, POPULATED_DATE),
+    schwartz: makePsychRow(EMPTY_SCHWARTZ_DATA, 0, POPULATED_DATE),
+    attachment: null,
+  };
+
+  const NEVER_FIRED: PsychologicalProfiles = {
+    hexaco: makePsychRow(EMPTY_HEXACO_DATA, 0.5, EPOCH_DATE),
+    schwartz: makePsychRow(EMPTY_SCHWARTZ_DATA, 0.5, EPOCH_DATE),
+    attachment: null,
+  };
+
+  const POPULATED: PsychologicalProfiles = {
+    hexaco: makePsychRow(POPULATED_HEXACO_DATA, 0.6, POPULATED_DATE),
+    schwartz: makePsychRow(POPULATED_SCHWARTZ_DATA, 0.55, POPULATED_DATE),
+    attachment: null,
+  };
+
+  it('returns "" when mode is not in PSYCHOLOGICAL_PROFILE_INJECTION_MAP (D-05.a)', async () => {
+    const { formatPsychologicalProfilesForPrompt } = await import('../profiles.js');
+    for (const m of [
+      'JOURNAL',
+      'INTERROGATE',
+      'PRODUCE',
+      'PHOTOS',
+      'ACCOUNTABILITY',
+      'COACH',
+      'UNKNOWN_MODE',
+    ]) {
+      // Even with fully populated profiles, COACH receives '' (D-14 + PITFALLS.md §1).
+      expect(formatPsychologicalProfilesForPrompt(POPULATED, m)).toBe('');
+    }
+  });
+
+  it('returns "" when all in-scope profiles are null (D-05.b)', async () => {
+    const { formatPsychologicalProfilesForPrompt } = await import('../profiles.js');
+    expect(formatPsychologicalProfilesForPrompt(ALL_NULL, 'REFLECT')).toBe('');
+    expect(formatPsychologicalProfilesForPrompt(ALL_NULL, 'PSYCHOLOGY')).toBe('');
+  });
+
+  it('returns "" when all in-scope profiles are zero-confidence (D-05.c)', async () => {
+    const { formatPsychologicalProfilesForPrompt } = await import('../profiles.js');
+    expect(formatPsychologicalProfilesForPrompt(ALL_ZERO_CONF, 'REFLECT')).toBe('');
+    expect(formatPsychologicalProfilesForPrompt(ALL_ZERO_CONF, 'PSYCHOLOGY')).toBe('');
+  });
+
+  it('returns "" when all in-scope profiles are never-fired (lastUpdated.getTime() === 0) (D-05.d)', async () => {
+    const { formatPsychologicalProfilesForPrompt } = await import('../profiles.js');
+    expect(formatPsychologicalProfilesForPrompt(NEVER_FIRED, 'REFLECT')).toBe('');
+    expect(formatPsychologicalProfilesForPrompt(NEVER_FIRED, 'PSYCHOLOGY')).toBe('');
+  });
+
+  it('populated REFLECT renders header + per-dim lines + footer (D-06)', async () => {
+    const { formatPsychologicalProfilesForPrompt } = await import('../profiles.js');
+    const out = formatPsychologicalProfilesForPrompt(POPULATED, 'REFLECT');
+    expect(out.startsWith('## Psychological Profile (inferred — low precision, never use as authority)')).toBe(true);
+    expect(out.endsWith(PSYCHOLOGICAL_HARD_RULE_EXTENSION)).toBe(true);
+  });
+
+  it('populated PSYCHOLOGY renders identically to REFLECT (same scope [hexaco, schwartz])', async () => {
+    const { formatPsychologicalProfilesForPrompt } = await import('../profiles.js');
+    const refl = formatPsychologicalProfilesForPrompt(POPULATED, 'REFLECT');
+    const psyc = formatPsychologicalProfilesForPrompt(POPULATED, 'PSYCHOLOGY');
+    expect(refl).toBe(psyc);
+  });
+
+  it('per-dim line format matches "<DIM> <Trait>: X.X / 5.0 (confidence Y.Y — <qualifier>)" (D-08)', async () => {
+    const { formatPsychologicalProfilesForPrompt } = await import('../profiles.js');
+    const out = formatPsychologicalProfilesForPrompt(POPULATED, 'REFLECT');
+    // openness has confidence 0.6 → substantial evidence
+    expect(out).toContain('HEXACO Openness: 4.3 / 5.0 (confidence 0.6 — substantial evidence)');
+    // emotionality has confidence 0.4 → moderate evidence
+    expect(out).toContain('HEXACO Emotionality: 3.1 / 5.0 (confidence 0.4 — moderate evidence)');
+  });
+
+  it('qualifier mapping: <0.3 → "limited", 0.3-0.59 → "moderate", >=0.6 → "substantial" (D-07)', async () => {
+    const { formatPsychologicalProfilesForPrompt } = await import('../profiles.js');
+    // Build a fixture exercising each qualifier band exactly. We use Schwartz
+    // because its values cross all three bands above.
+    const schwartz: SchwartzProfileData = {
+      self_direction: { score: 4.0, confidence: 0.85, last_updated: null }, // substantial
+      stimulation: { score: 3.0, confidence: 0.45, last_updated: null }, // moderate
+      hedonism: { score: 2.0, confidence: 0.25, last_updated: null }, // limited
+      achievement: null,
+      power: null,
+      security: null,
+      conformity: null,
+      tradition: null,
+      benevolence: null,
+      universalism: null,
+    };
+    const profiles: PsychologicalProfiles = {
+      hexaco: null,
+      schwartz: makePsychRow(schwartz, 0.5, POPULATED_DATE),
+      attachment: null,
+    };
+    const out = formatPsychologicalProfilesForPrompt(profiles, 'REFLECT');
+    expect(out).toContain('substantial evidence');
+    expect(out).toContain('moderate evidence');
+    expect(out).toContain('limited evidence');
+  });
+
+  it('partial-population: skip dims with null score OR confidence === 0 (D-09)', async () => {
+    const { formatPsychologicalProfilesForPrompt } = await import('../profiles.js');
+    const hexaco: HexacoProfileData = {
+      honesty_humility: null, // skipped — null dim
+      emotionality: { score: 3.0, confidence: 0, last_updated: null }, // skipped — zero confidence
+      extraversion: { score: 3.8, confidence: 0.5, last_updated: null },
+      agreeableness: { score: 4.0, confidence: 0.5, last_updated: null },
+      conscientiousness: { score: 4.5, confidence: 0.7, last_updated: null },
+      openness: { score: 4.3, confidence: 0.6, last_updated: null },
+    };
+    const profiles: PsychologicalProfiles = {
+      hexaco: makePsychRow(hexaco, 0.6, POPULATED_DATE),
+      schwartz: null,
+      attachment: null,
+    };
+    const out = formatPsychologicalProfilesForPrompt(profiles, 'REFLECT');
+    expect(out).not.toContain('Honesty-Humility');
+    expect(out).not.toContain('Emotionality');
+    expect(out).toContain('Extraversion');
+    expect(out).toContain('Agreeableness');
+    expect(out).toContain('Conscientiousness');
+    expect(out).toContain('Openness');
+  });
+
+  it('footer is appended at the BOTTOM of populated block (D-11 recency-bias)', async () => {
+    const { formatPsychologicalProfilesForPrompt } = await import('../profiles.js');
+    const out = formatPsychologicalProfilesForPrompt(POPULATED, 'REFLECT');
+    const iFooter = out.lastIndexOf(PSYCHOLOGICAL_HARD_RULE_EXTENSION);
+    expect(iFooter).toBeGreaterThan(out.lastIndexOf('HEXACO '));
+    expect(iFooter).toBeGreaterThan(out.lastIndexOf('Schwartz '));
+  });
+
+  it('footer text equals imported PSYCHOLOGICAL_HARD_RULE_EXTENSION verbatim (single source of truth)', async () => {
+    const { formatPsychologicalProfilesForPrompt } = await import('../profiles.js');
+    const out = formatPsychologicalProfilesForPrompt(POPULATED, 'REFLECT');
+    expect(out.includes(PSYCHOLOGICAL_HARD_RULE_EXTENSION)).toBe(true);
+  });
+
+  it('Schwartz dims use Title Case with hyphenation preserved (D-08)', async () => {
+    const { formatPsychologicalProfilesForPrompt } = await import('../profiles.js');
+    const out = formatPsychologicalProfilesForPrompt(POPULATED, 'REFLECT');
+    expect(out).toContain('Schwartz Self-Direction:');
+  });
+
+  it('attachment is never rendered even when in profiles object (D-04 — not in any mode\'s array)', async () => {
+    const { formatPsychologicalProfilesForPrompt } = await import('../profiles.js');
+    const profiles: PsychologicalProfiles = {
+      hexaco: makePsychRow(POPULATED_HEXACO_DATA, 0.6, POPULATED_DATE),
+      schwartz: makePsychRow(POPULATED_SCHWARTZ_DATA, 0.55, POPULATED_DATE),
+      attachment: makePsychRow(POPULATED_ATTACHMENT_DATA, 0.5, POPULATED_DATE),
+    };
+    const outReflect = formatPsychologicalProfilesForPrompt(profiles, 'REFLECT');
+    const outPsych = formatPsychologicalProfilesForPrompt(profiles, 'PSYCHOLOGY');
+    expect(outReflect).not.toContain('Attachment');
+    expect(outPsych).not.toContain('Attachment');
+  });
+});

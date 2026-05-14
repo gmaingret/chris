@@ -8,7 +8,12 @@ import {
   buildMessageHistory,
 } from '../../memory/context-builder.js';
 import { getRelationalMemories } from '../../memory/relational.js';
-import { getOperationalProfiles, formatProfilesForPrompt } from '../../memory/profiles.js';
+import {
+  getOperationalProfiles,
+  formatProfilesForPrompt,
+  getPsychologicalProfiles,                  // Phase 39 PSURF-03
+  formatPsychologicalProfilesForPrompt,      // Phase 39 PSURF-03
+} from '../../memory/profiles.js';
 import { buildSystemPrompt, type DeclinedTopic } from '../personality.js';
 import { LLMError } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
@@ -80,12 +85,21 @@ export async function handlePsychology(
   const profiles = await getOperationalProfiles();
   const operationalProfiles = formatProfilesForPrompt(profiles, 'PSYCHOLOGY');
 
+  // Phase 39 PSURF-03 — sequential await (D-16); same shape as REFLECT handler
+  // (mirror invariant per 39-PATTERNS.md §4). PSYCHOLOGY receives hexaco +
+  // schwartz per PSYCHOLOGICAL_PROFILE_INJECTION_MAP (D-04); the formatter
+  // returns '' when below threshold and personality.ts drops the empty
+  // string cleanly via .filter(Boolean).
+  const psychProfiles = await getPsychologicalProfiles();
+  const psychologicalProfiles = formatPsychologicalProfilesForPrompt(psychProfiles, 'PSYCHOLOGY');
+
   // Build conversation history and system prompt with both contexts
   const history = await buildMessageHistory(chatId);
   const systemPrompt = buildSystemPrompt('PSYCHOLOGY', pensieveContext, relationalContext, {
     language,
     declinedTopics,
     operationalProfiles,
+    psychologicalProfiles,
   });
 
   try {
