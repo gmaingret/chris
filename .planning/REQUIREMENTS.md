@@ -119,8 +119,59 @@
 
 ## Traceability
 
-Phase mapping populated by `gsd-roadmapper`.
+| Requirement | Phase | Status |
+|---|---|---|
+| ADJ-01 | Phase 41 | Pending |
+| ADJ-02 | Phase 41 | Pending |
+| ADJ-03 | Phase 41 | Pending |
+| ADJ-04 | Phase 41 | Pending |
+| ADJ-05 | Phase 41 | Pending |
+| ADJ-06 | Phase 41 | Pending |
+| ADJ-07 | Phase 41 | Pending |
+| RACE-01 | Phase 42 | Pending |
+| RACE-02 | Phase 42 | Pending |
+| RACE-03 | Phase 42 | Pending |
+| RACE-04 | Phase 42 | Pending |
+| RACE-05 | Phase 42 | Pending |
+| RACE-06 | Phase 42 | Pending |
+| INJ-01 | Phase 43 | Pending |
+| INJ-02 | Phase 43 | Pending |
+| CONTRACT-01 | Phase 43 | Pending |
+| CONTRACT-02 | Phase 43 | Pending |
+| CONTRACT-03 | Phase 43 | Pending |
+| CI-01 | Phase 44 | Pending |
+| CI-02 | Phase 44 | Pending |
+| CI-03 | Phase 44 | Pending |
+| SCHEMA-01 | Phase 45 | Pending |
+| SCHEMA-02 | Phase 45 | Pending |
+| FIX-01 | Phase 45 | Pending |
+| FIX-02 | Phase 45 | Pending |
+| FIX-03 | Phase 45 | Pending |
+| FIX-04 | Phase 45 | Pending |
+| FIX-05 | Phase 45 | Pending |
+| FIX-06 | Phase 45 | Pending |
+| FIX-07 | Phase 45 | Pending |
+| FIX-08 | Phase 45 | Pending |
+| L10N-01 | Phase 46 | Pending |
+| L10N-02 | Phase 46 | Pending |
+| L10N-03 | Phase 46 | Pending |
+| L10N-04 | Phase 46 | Pending |
+| L10N-05 | Phase 46 | Pending |
+| L10N-06 | Phase 46 | Pending |
+| DISP-01 | Phase 47 | Pending |
+| DISP-02 | Phase 47 | Pending |
+
+**Coverage:** 39/39 v2.6.1 requirements mapped to exactly one phase. No orphans.
+
+**Phase Summary:**
+- Phase 41 (Adjustment-Dialogue Rework): 7 requirements
+- Phase 42 (Atomicity & Race Fixes): 6 requirements
+- Phase 43 (Inference Security & Contract Enforcement): 5 requirements
+- Phase 44 (CI Milestone-Gate Hardening): 3 requirements
+- Phase 45 (Schema Hygiene & Fixture-Pipeline Cleanup): 10 requirements
+- Phase 46 (FR/RU Localization Comprehensive): 6 requirements
+- Phase 47 (Display Polish): 2 requirements
 
 ---
 
-*Created 2026-05-14 — `/gsd-new-milestone` workflow after 14-phase parallel code-review sweep. Total: 37 requirements across 9 categories (ADJ×7, RACE×6, CI×3, INJ×2, CONTRACT×3, L10N×6, FIX×8, SCHEMA×2, DISP×2).*
+*Created 2026-05-14 — `/gsd-new-milestone` workflow after 14-phase parallel code-review sweep. Total: 39 requirements across 9 categories (ADJ×7, RACE×6, CI×3, INJ×2, CONTRACT×3, L10N×6, FIX×8, SCHEMA×2, DISP×2). Roadmap mapped 2026-05-14 by `gsd-roadmapper` — 7 phases (41-47), all requirements mapped.*
