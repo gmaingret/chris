@@ -40,6 +40,13 @@ export interface ChrisContextExtras {
   language?: string;
   declinedTopics?: DeclinedTopic[];
   operationalProfiles?: string;
+  // Phase 39 PSURF-03 (D-10) — pre-rendered psychological-profile block
+  // produced by `formatPsychologicalProfilesForPrompt()` in
+  // `src/memory/profiles.ts`. Sibling to operationalProfiles; consumed
+  // by REFLECT and PSYCHOLOGY substitution bodies (D-11 three-way
+  // ordering: psychological → operational → pensieve). All other modes
+  // silently drop this field at the case-body level (D-12 + D-14).
+  psychologicalProfiles?: string;
 }
 
 /**
@@ -123,7 +130,7 @@ export function buildSystemPrompt(
   relationalContext?: string,
   extras?: ChrisContextExtras,
 ): string {
-  const { language, declinedTopics, operationalProfiles } = extras ?? {};
+  const { language, declinedTopics, operationalProfiles, psychologicalProfiles } = extras ?? {};
   const contextValue = pensieveContext || 'No relevant memories found.';
 
   // Phase 35 D-07: For REFLECT/COACH/PSYCHOLOGY, prepend the operational
@@ -143,9 +150,14 @@ export function buildSystemPrompt(
       modeBody = INTERROGATE_SYSTEM_PROMPT.replace('{pensieveContext}', contextValue);
       break;
     case 'REFLECT': {
-      const pensieveWithProfile = operationalProfiles
-        ? `${operationalProfiles}\n\n${contextValue}`
-        : contextValue;
+      // Phase 39 D-11 — psychological ABOVE operational ABOVE pensieve.
+      // .filter(Boolean) drops the empty-string return from
+      // formatPsychologicalProfilesForPrompt (when below threshold) and
+      // formatProfilesForPrompt (same contract), so no orphan blank-line
+      // separator is introduced when either or both are absent.
+      const pensieveWithProfile = [psychologicalProfiles, operationalProfiles, contextValue]
+        .filter(Boolean)
+        .join('\n\n');
       modeBody = REFLECT_SYSTEM_PROMPT
         .replace('{pensieveContext}', pensieveWithProfile)
         .replace('{relationalContext}', relationalContext || 'No observations accumulated yet.');
@@ -161,9 +173,11 @@ export function buildSystemPrompt(
       break;
     }
     case 'PSYCHOLOGY': {
-      const pensieveWithProfile = operationalProfiles
-        ? `${operationalProfiles}\n\n${contextValue}`
-        : contextValue;
+      // Phase 39 D-11 — same three-way ordering as REFLECT
+      // (psychological → operational → pensieve).
+      const pensieveWithProfile = [psychologicalProfiles, operationalProfiles, contextValue]
+        .filter(Boolean)
+        .join('\n\n');
       modeBody = PSYCHOLOGY_SYSTEM_PROMPT
         .replace('{pensieveContext}', pensieveWithProfile)
         .replace('{relationalContext}', relationalContext || 'No observations accumulated yet.');

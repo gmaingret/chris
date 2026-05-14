@@ -321,3 +321,81 @@ describe('extras.operationalProfiles injection (Phase 35 D-07)', () => {
     expect(withEmpty).not.toContain('## Operational Profile (grounded context — not interpretation)');
   });
 });
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Phase 39 Plan 39-01 — extras.psychologicalProfiles injection (D-11, D-14, D-15)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+describe('extras.psychologicalProfiles injection (Phase 39 D-11)', () => {
+  const PSYCH_BLOCK =
+    '## Psychological Profile (inferred — low precision, never use as authority)\n\nfake-hexaco-line';
+  const OP_BLOCK =
+    '## Operational Profile (grounded context — not interpretation)\n\nfake-op-line';
+  const PENSIEVE = 'PENSIEVE_MARKER';
+
+  it('REFLECT: psychological → operational → pensieve order (D-11)', () => {
+    const out = buildSystemPrompt('REFLECT', PENSIEVE, 'REL', {
+      psychologicalProfiles: PSYCH_BLOCK,
+      operationalProfiles: OP_BLOCK,
+    });
+    const iPsych = out.indexOf('fake-hexaco-line');
+    const iOp = out.indexOf('fake-op-line');
+    const iPensieve = out.indexOf(PENSIEVE);
+    expect(iPsych).toBeGreaterThan(-1);
+    expect(iOp).toBeGreaterThan(iPsych);
+    expect(iPensieve).toBeGreaterThan(iOp);
+  });
+
+  it('PSYCHOLOGY: psychological → operational → pensieve order (D-11)', () => {
+    const out = buildSystemPrompt('PSYCHOLOGY', PENSIEVE, 'REL', {
+      psychologicalProfiles: PSYCH_BLOCK,
+      operationalProfiles: OP_BLOCK,
+    });
+    const iPsych = out.indexOf('fake-hexaco-line');
+    const iOp = out.indexOf('fake-op-line');
+    const iPensieve = out.indexOf(PENSIEVE);
+    expect(iPsych).toBeGreaterThan(-1);
+    expect(iOp).toBeGreaterThan(iPsych);
+    expect(iPensieve).toBeGreaterThan(iOp);
+  });
+
+  it('COACH silently drops extras.psychologicalProfiles (D-14 + D-12)', () => {
+    const out = buildSystemPrompt('COACH', PENSIEVE, 'REL', {
+      operationalProfiles: OP_BLOCK,
+      psychologicalProfiles: 'should-not-appear-in-coach',
+    });
+    expect(out).not.toContain('should-not-appear-in-coach');
+    // Operational still renders for COACH (M010 wiring untouched).
+    expect(out).toContain('fake-op-line');
+  });
+
+  // Silent-drop sweep for the 5 modes that MUST NOT receive psych injection (D-15).
+  for (const mode of ['JOURNAL', 'INTERROGATE', 'PRODUCE', 'PHOTOS', 'ACCOUNTABILITY'] as const) {
+    it(`${mode} silently drops extras.psychologicalProfiles (D-15)`, () => {
+      const out = buildSystemPrompt(mode, PENSIEVE, 'REL', {
+        psychologicalProfiles: 'should-not-appear-in-' + mode.toLowerCase(),
+      });
+      expect(out).not.toContain('should-not-appear-in-' + mode.toLowerCase());
+    });
+  }
+
+  it('REFLECT with empty psychologicalProfiles string behaves identically to undefined', () => {
+    const withEmpty = buildSystemPrompt('REFLECT', PENSIEVE, 'REL', {
+      operationalProfiles: OP_BLOCK,
+      psychologicalProfiles: '',
+    });
+    const withoutField = buildSystemPrompt('REFLECT', PENSIEVE, 'REL', {
+      operationalProfiles: OP_BLOCK,
+    });
+    expect(withEmpty).toBe(withoutField);
+  });
+
+  it('REFLECT with empty psych + empty op renders pensieve cleanly (no orphan separators)', () => {
+    const out = buildSystemPrompt('REFLECT', PENSIEVE, 'REL', {
+      psychologicalProfiles: '',
+      operationalProfiles: '',
+    });
+    expect(out).not.toMatch(/{pensieveContext}\n\n\n/);
+    expect(out).toContain(PENSIEVE);
+  });
+});
