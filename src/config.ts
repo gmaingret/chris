@@ -85,4 +85,13 @@ export const config = {
   // D-25 fail-fast: invalid PROFILE_UPDATER_CRON throws at module load
   // (silent-bad-cron M008 EPI-04 incident class).
   profileUpdaterCron: validatedCron('PROFILE_UPDATER_CRON', '0 22 * * 0'),
+
+  // M011 Phase 38 PGEN-05 — psychological profile updater cron.
+  // Default '0 9 1 * *' = 1st of month at 09:00 in config.proactiveTimezone.
+  // UNCONDITIONAL fire per PGEN-06 (inverse of M010 GEN-07 hash-skip
+  // idempotency). substrate_hash recorded for audit-trail / forensic-replay
+  // only — NOT used for short-circuit.
+  // D-28 fail-fast: invalid PSYCHOLOGICAL_PROFILE_UPDATER_CRON throws at
+  // module load (silent-bad-cron M008 EPI-04 incident class).
+  psychologicalProfileUpdaterCron: validatedCron('PSYCHOLOGICAL_PROFILE_UPDATER_CRON', '0 9 1 * *'),
 } as const;

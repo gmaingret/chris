@@ -27,6 +27,8 @@ export interface CronRegistrationStatus {
   sync: 'registered' | 'failed' | 'disabled';
   /** M010 Phase 34 GEN-01 — operational profile updater (Sunday 22:00 Paris). */
   profileUpdate: 'registered' | 'failed';
+  /** M011 Phase 38 PGEN-05 — psychological profile updater (1st of month, 09:00 Paris). */
+  psychologicalProfileUpdate: 'registered' | 'failed';
 }
 
 export interface RegisterCronsDeps {
@@ -38,6 +40,8 @@ export interface RegisterCronsDeps {
     proactiveTimezone: string;
     /** M010 Phase 34 GEN-01 — Sunday 22:00 Paris profile updater. */
     profileUpdaterCron: string;
+    /** M011 Phase 38 PGEN-05 — 1st of month, 09:00 Paris. */
+    psychologicalProfileUpdaterCron: string;
   };
   runSweep: () => Promise<unknown>;
   runRitualSweep: () => Promise<unknown>;
@@ -50,6 +54,15 @@ export interface RegisterCronsDeps {
    * dimension generators). Fire-and-forget (Promise<void> per D-23).
    */
   runProfileUpdate: () => Promise<void>;
+  /**
+   * M011 Phase 38 PGEN-04 — `updateAllPsychologicalProfiles` fan-out
+   * via Promise.allSettled across HEXACO + Schwartz generators.
+   * Fire-and-forget (Promise<void> per D-25); outcomes observed via
+   * discriminated 'chris.psychological.<profileType>.<outcome>' logs.
+   * Attachment generator NOT included (deferred to v2.6.1 / ATT-POP-01
+   * per D-23 + REQUIREMENTS PGEN-04).
+   */
+  runPsychologicalProfileUpdate: () => Promise<void>;
   /** Optional — sync may be disabled in some envs (e.g. polling-only test runs). */
   runSync?: () => Promise<void>;
 }
@@ -71,6 +84,7 @@ export function registerCrons(deps: RegisterCronsDeps): CronRegistrationStatus {
     episodic: 'failed',
     sync: deps.runSync ? 'failed' : 'disabled',
     profileUpdate: 'failed',
+    psychologicalProfileUpdate: 'failed',
   };
 
   // Optional sync cron (only if runSync provided)
@@ -190,6 +204,34 @@ export function registerCrons(deps: RegisterCronsDeps): CronRegistrationStatus {
   logger.info(
     { cron: deps.config.profileUpdaterCron, timezone: deps.config.proactiveTimezone },
     'profile.cron.scheduled',
+  );
+
+  // M011 Phase 38 PGEN-05 — 1st-of-month 09:00 Paris psychological profile updater.
+  // UNCONDITIONAL fire monthly per PGEN-06 (inverse of M010 GEN-07 hash-skip
+  // idempotency). The orchestrator at src/memory/psychological-profile-updater.ts
+  // has its own outer try/catch + 'psychological.profile.cron.error' log,
+  // so this is a defense-in-depth wrapper (CRON-01 belt-and-suspenders pattern
+  // from src/episodic/cron.ts JSDoc) — if some unexpected error escapes the
+  // orchestrator's barrier (e.g. node-cron internal callback bug), it still
+  // does NOT crash the cron timer.
+  // Day-and-hour collision-avoidance with M010 Sunday 22:00 cron verified at
+  // registration time via 12-month Luxon next-fire enumeration unit test
+  // (D-27) — see src/rituals/__tests__/cron-registration.test.ts.
+  cron.schedule(
+    deps.config.psychologicalProfileUpdaterCron,
+    async () => {
+      try {
+        await deps.runPsychologicalProfileUpdate();
+      } catch (err) {
+        logger.error({ err }, 'psychological.profile.cron.error');
+      }
+    },
+    { timezone: deps.config.proactiveTimezone },
+  );
+  status.psychologicalProfileUpdate = 'registered';
+  logger.info(
+    { cron: deps.config.psychologicalProfileUpdaterCron, timezone: deps.config.proactiveTimezone },
+    'psychological.profile.cron.scheduled',
   );
 
   return status;
