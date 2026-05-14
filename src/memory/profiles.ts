@@ -649,3 +649,167 @@ function renderDimensionForPrompt<T>(dim: Dimension, row: ProfileRow<T>): string
     }
   }
 }
+
+// ── formatPsychologicalProfilesForPrompt — Phase 39 Plan 39-01 (PSURF-02) ──
+//
+// Pure function: renders the per-mode subset of psychological profiles into a
+// prompt-ready block with the verbatim header at the top and the imported
+// PSYCHOLOGICAL_HARD_RULE_EXTENSION footer at the bottom (D-11 recency-bias).
+// Returns "" on any of the four empty-string gates (D-05.a/b/c/d). No I/O,
+// no DB, no logger calls — testable in isolation by passing
+// PsychologicalProfiles fixtures.
+//
+// DISTINCT from the operational formatProfilesForPrompt above — different
+// scope, different render shape, different footer constant. The two
+// formatters intentionally do NOT share helper functions (D-03 sibling-but-
+// distinct discipline).
+
+// Verbatim header per D-06 — frames the data as low-precision at injection
+// time (first defense surface in the D027 mitigation chain).
+const PSYCH_INJECTION_HEADER =
+  '## Psychological Profile (inferred — low precision, never use as authority)';
+
+// D-07 qualifier mapping — module-private. The three bands (<0.3 / 0.3-0.59
+// / >=0.6) are locked by CONTEXT.md D-07 and exercised by the formatter
+// unit tests; future re-banding requires a CONTEXT update + test sync.
+function qualifierFor(c: number): string {
+  if (c >= 0.6) return 'substantial evidence';
+  if (c >= 0.3) return 'moderate evidence';
+  return 'limited evidence';
+}
+
+// Title-case dim labels per D-08; hyphens preserved (Honesty-Humility,
+// Self-Direction). Module-private — these are presentation strings, not a
+// shared vocabulary.
+const HEXACO_DIM_LABELS: Readonly<Record<keyof HexacoProfileData, string>> = {
+  honesty_humility: 'Honesty-Humility',
+  emotionality: 'Emotionality',
+  extraversion: 'Extraversion',
+  agreeableness: 'Agreeableness',
+  conscientiousness: 'Conscientiousness',
+  openness: 'Openness',
+} as const;
+
+const SCHWARTZ_DIM_LABELS: Readonly<Record<keyof SchwartzProfileData, string>> = {
+  self_direction: 'Self-Direction',
+  stimulation: 'Stimulation',
+  hedonism: 'Hedonism',
+  achievement: 'Achievement',
+  power: 'Power',
+  security: 'Security',
+  conformity: 'Conformity',
+  tradition: 'Tradition',
+  benevolence: 'Benevolence',
+  universalism: 'Universalism',
+} as const;
+
+/**
+ * Per-profile-type renderer (internal — not exported). For each populated
+ * dim (non-null AND confidence > 0 per D-09) emits one line of the form:
+ *
+ *   "<DIM_LABEL> <Trait>: X.X / 5.0 (confidence Y.Y — <qualifier>)"
+ *
+ * Score and confidence are formatted with 1 decimal place per D-08. Returns
+ * '' if all dims were filtered out — caller treats this as "no section to
+ * render".
+ *
+ * 'attachment' returns '' (no labels defined; D-04 prevents reaching here via
+ * the map, this is defense-in-depth).
+ */
+function renderPsychDimensions(
+  profileType: PsychologicalProfileType,
+  row:
+    | ProfileRow<HexacoProfileData>
+    | ProfileRow<SchwartzProfileData>
+    | ProfileRow<AttachmentProfileData>,
+): string {
+  const lines: string[] = [];
+
+  if (profileType === 'hexaco') {
+    const data = row.data as HexacoProfileData;
+    for (const key of Object.keys(HEXACO_DIM_LABELS) as Array<keyof HexacoProfileData>) {
+      const dim = data[key];
+      if (!dim) continue; // D-09 skip null
+      if (dim.score == null) continue; // D-09 skip missing score
+      if (dim.confidence === 0) continue; // D-09 skip zero-confidence
+      lines.push(
+        `HEXACO ${HEXACO_DIM_LABELS[key]}: ${dim.score.toFixed(1)} / 5.0 ` +
+          `(confidence ${dim.confidence.toFixed(1)} — ${qualifierFor(dim.confidence)})`,
+      );
+    }
+    return lines.join('\n');
+  }
+
+  if (profileType === 'schwartz') {
+    const data = row.data as SchwartzProfileData;
+    for (const key of Object.keys(SCHWARTZ_DIM_LABELS) as Array<keyof SchwartzProfileData>) {
+      const dim = data[key];
+      if (!dim) continue;
+      if (dim.score == null) continue;
+      if (dim.confidence === 0) continue;
+      lines.push(
+        `Schwartz ${SCHWARTZ_DIM_LABELS[key]}: ${dim.score.toFixed(1)} / 5.0 ` +
+          `(confidence ${dim.confidence.toFixed(1)} — ${qualifierFor(dim.confidence)})`,
+      );
+    }
+    return lines.join('\n');
+  }
+
+  // 'attachment' — no labels defined; D-04 already excludes attachment from
+  // every mode's array in PSYCHOLOGICAL_PROFILE_INJECTION_MAP, but this
+  // empty-return is defense-in-depth.
+  return '';
+}
+
+/**
+ * Format the psychological profiles for system-prompt injection in REFLECT
+ * or PSYCHOLOGY modes. Contract (Phase 39 D-05..D-11):
+ *
+ *   - `mode` not in PSYCHOLOGICAL_PROFILE_INJECTION_MAP → returns "" (D-05.a)
+ *   - all in-scope profiles null → returns "" (D-05.b)
+ *   - all in-scope profiles with overall_confidence === 0 → returns "" (D-05.c)
+ *   - all in-scope profiles never-fired (lastUpdated epoch === 0) → "" (D-05.d)
+ *   - populated → emits PSYCH_INJECTION_HEADER + per-dim lines +
+ *     PSYCHOLOGICAL_HARD_RULE_EXTENSION (IMPORTED VERBATIM at the bottom
+ *     per D-11 recency-bias attention)
+ *
+ * The Hard Rule footer is the load-bearing D027 mitigation per PITFALLS.md §1
+ * — small wording changes there dramatically change Sonnet's sycophancy
+ * resistance. The constant is imported (not redeclared) from
+ * `psychological-profile-prompt.ts` for single-source-of-truth discipline
+ * across the inference (Phase 38) and consumer (Phase 39) layers.
+ */
+export function formatPsychologicalProfilesForPrompt(
+  profiles: PsychologicalProfiles,
+  mode: string,
+): string {
+  const scope = (PSYCHOLOGICAL_PROFILE_INJECTION_MAP as Record<
+    string,
+    readonly PsychologicalProfileType[]
+  >)[mode];
+  if (!scope) return ''; // D-05.a
+
+  const sections: string[] = [];
+
+  for (const profileType of scope) {
+    const row = profiles[profileType];
+    if (!row) continue; // D-05.b — null row
+    if (row.confidence === 0) continue; // D-05.c — zero overall_confidence
+    if (row.lastUpdated.getTime() === 0) continue; // D-05.d — never-fired epoch
+    const block = renderPsychDimensions(profileType, row);
+    if (block.length > 0) sections.push(block);
+  }
+
+  if (sections.length === 0) return '';
+
+  // D-06 + D-11 — footer at BOTTOM (recency-bias); IMPORTED VERBATIM from
+  // src/memory/psychological-profile-prompt.ts:144 — DO NOT redeclare.
+  // PITFALLS.md §1 — this is the load-bearing D027 mitigation surface.
+  return [
+    PSYCH_INJECTION_HEADER,
+    '',
+    sections.join('\n\n'),
+    '',
+    PSYCHOLOGICAL_HARD_RULE_EXTENSION,
+  ].join('\n');
+}
