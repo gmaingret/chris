@@ -7,10 +7,11 @@
  * first-Sunday weekly_review UX failure class (third-person framing, leaked
  * internal field names, JSON-dump aesthetic).
  *
- * Outputs:
- *   - 5 ctx.reply calls per /profile invocation (D-18): one per dimension in
- *     declaration order (jurisdictional → capital → health → family) plus a
- *     final M011 psychological-profile placeholder.
+ * Outputs (post-Phase 39 PSURF-04):
+ *   - 7 ctx.reply calls per /profile invocation (D-18 operational + D-17 psych):
+ *     4 operational dimensions in declaration order
+ *     (jurisdictional → capital → health → family) followed by 3 psychological
+ *     sections (hexaco → schwartz → attachment).
  *   - Plain text only (D-17 + SURF-05) — no parse_mode argument anywhere.
  *     Greg's own Pensieve content occasionally contains `*` or `_` characters;
  *     without parse_mode those render verbatim, which is correct.
@@ -183,16 +184,6 @@ const MSG = {
       `Note : données du profil du ${date} — ne reflète peut-être pas la situation actuelle.`,
     Russian: (date: string): string =>
       `Примечание: данные профиля от ${date} — могут не отражать текущую ситуацию.`,
-  },
-  m011Placeholder: {
-    // Phase 35 placeholder — REPLACED by the Phase 39 PSURF-04 3-reply
-    // psychological loop in Task 3 (which also removes this key). Kept here
-    // through Tasks 1-2 so handleProfileCommand at line 627 stays compilable
-    // until Task 3 atomically swaps both the key (removed) and the use site
-    // (replaced by the for-of loop).
-    English: 'Psychological profile: not yet available — see M011.',
-    French: 'Profil psychologique : pas encore disponible — voir M011.',
-    Russian: 'Психологический профиль: пока недоступен — см. M011.',
   },
   // Phase 39 PSURF-04 — psychological-profile localization keys per D-19 + D-20
   // (machine-translate-quality FR + RU; reviewed at /gsd-verify-work; v2.6.1
@@ -829,12 +820,14 @@ export function formatPsychologicalProfileForDisplay(
 
 // ── Handler ─────────────────────────────────────────────────────────────────
 //
-// User-initiated `/profile` Telegram command. Reads all 4 operational profiles
-// in parallel (Phase 33 never-throw reader), renders each via the pure
-// formatProfileForDisplay, sends one ctx.reply per dimension in declaration
-// order, then a final reply with the M011 psychological-profile placeholder.
-// Total: 5 ctx.reply calls per /profile invocation (D-18). On error, sends a
-// single localized genericError reply + logger.warn — never silent.
+// User-initiated `/profile` Telegram command. Reads operational + psychological
+// profiles via two parallel never-throw readers (Phase 33 + Phase 37); renders
+// each via the pure formatProfileForDisplay / formatPsychologicalProfileForDisplay
+// formatters; sends one ctx.reply per profile, in declaration order. Phase 39
+// PSURF-04: the previous M011 placeholder reply is REPLACED by a 3-reply
+// for-of loop over ['hexaco', 'schwartz', 'attachment']. Total: 7 ctx.reply
+// calls per /profile invocation (4 operational + 3 psychological, D-18 + D-17).
+// On error: single localized genericError reply + logger.warn — never silent.
 //
 // Per D-17 + SURF-05: every ctx.reply takes a single plain-string argument
 // (no parse_mode). Per D-19: language sourced from in-memory
@@ -844,7 +837,7 @@ export function formatPsychologicalProfileForDisplay(
 //
 // Per ANTI-6: ZERO sub-argument parsing surface — ctx.message.text is ignored.
 // `/profile edit jurisdictional ...` would route to the same handler and emit
-// the same 5 replies. No regex, no split, no command-suffix logic.
+// the same 7 replies. No regex, no split, no command-suffix logic.
 
 export async function handleProfileCommand(ctx: Context): Promise<void> {
   const chatId = ctx.chat?.id;
@@ -854,7 +847,7 @@ export async function handleProfileCommand(ctx: Context): Promise<void> {
 
   try {
     const profiles = await getOperationalProfiles();
-    // D-18: 5 ctx.reply calls — 4 dimensions in declaration order + M011.
+    // D-18: 4 operational ctx.reply calls in declaration order.
     // Sequential awaits so Telegram receives the messages in the same order
     // they're emitted (parallelizing via Promise.all would not guarantee
     // message arrival order at the client). Per-dimension failure isolation:
@@ -866,7 +859,19 @@ export async function handleProfileCommand(ctx: Context): Promise<void> {
     for (const dim of dimensions) {
       await ctx.reply(formatProfileForDisplay(dim, profiles[dim], lang));
     }
-    await ctx.reply(MSG.m011Placeholder[lang]);
+
+    // Phase 39 PSURF-04 — REPLACES the M011 placeholder reply.
+    // D-17 + D-18: 3 psychological ctx.reply calls in locked order
+    // (HEXACO → Schwartz → Attachment). Sequential await (NOT Promise.all)
+    // preserves Telegram message order — same discipline as the operational
+    // loop above. Reader is never-throw (Phase 37); formatter is pure
+    // (Task 2). No per-profile try/catch — the outer catch handles any
+    // unexpected throw the same way it does for the operational replies.
+    const psychProfiles = await getPsychologicalProfiles();
+    const psychTypes: PsychologicalProfileType[] = ['hexaco', 'schwartz', 'attachment'];
+    for (const type of psychTypes) {
+      await ctx.reply(formatPsychologicalProfileForDisplay(type, psychProfiles[type], lang));
+    }
   } catch (err) {
     logger.warn(
       {
