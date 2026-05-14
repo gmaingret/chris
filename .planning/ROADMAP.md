@@ -125,10 +125,17 @@ Plans:
   3. The `/profile` Telegram command displays HEXACO and Schwartz sections for a populated profile; displays `"HEXACO: insufficient data — need N more words"` (N = 5000 − word_count, clamped ≥ 0) when below floor; displays `"Attachment: not yet active (gated on D028 activation trigger — 2,000 words relational speech over 60 days)"` in the Attachment section.
   4. Golden-output snapshot in `profile-psychological.golden.test.ts` covers: (a) all-populated, (b) all-insufficient, (c) one populated + one below-floor, (d) FR+RU language hook slots reserved; snapshot passes with zero diff.
   5. No call to `getPsychologicalProfiles` appears in `src/chris/modes/coach.ts`; COACH handler is not modified; D027 Hard Rule is not violated by trait-to-coaching-conclusion injection.
-**Plans**: TBD
+**Plans**: 2 plans
 **UI hint**: yes
 
 **HARD CO-LOC #M11-3:** `formatPsychologicalProfileForDisplay` pure function + golden-output inline snapshot test land in the SAME plan.
+
+Plans:
+**Wave 1**
+- [ ] 39-01-PLAN.md — Prompt-side surface: PSYCHOLOGICAL_PROFILE_INJECTION_MAP + formatPsychologicalProfilesForPrompt (D027 Hard Rule footer imported verbatim) + ChrisContextExtras.psychologicalProfiles + REFLECT/PSYCHOLOGY handler wiring + COACH negative-invariant regex-sweep test (PSURF-01, PSURF-02, PSURF-03, PSURF-05 COACH-isolation half)
+
+**Wave 2** *(depends on 39-01)*
+- [ ] 39-02-PLAN.md — Display-side surface (HARD CO-LOC #M11-3 atomic): formatPsychologicalProfileForDisplay pure function + 3-reply psychological loop replacing /profile line 627 + MSG.psychologicalSections EN/FR/RU + golden inline-snapshot test (PSURF-04, PSURF-05 display-formatter+golden-snapshot half)
 
 ---
 
@@ -157,7 +164,7 @@ Plans:
 | 33-36 (v2.5) | 10/10, 22/22 reqs | Complete | 2026-05-13 |
 | 37. Psychological Substrate | 2/2 | Complete   | 2026-05-13 |
 | 38. Psychological Inference Engine | 3/3 | Complete   | 2026-05-14 |
-| 39. Psychological Surfaces | 0/TBD | Not started | - |
+| 39. Psychological Surfaces | 0/2 | Planned | - |
 | 40. Psychological Milestone Tests | 0/TBD | Not started | - |
 
 ---
