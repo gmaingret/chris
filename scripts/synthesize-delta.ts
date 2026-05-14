@@ -192,6 +192,133 @@ export function dimensionHintFor(
   return PROFILE_BIAS_KEYWORDS[rotated].join(', ');
 }
 
+// ── Phase 40 Plan 01: --psych-profile-bias flag (PMT-01, Pitfall 7 mitigation) ─
+//
+// SIBLING extension to the Phase 36 M010 `--profile-bias` infrastructure
+// above. Boolean flag (NOT repeatable; D-03 — there is ONE psychological
+// signature for the milestone, not a 4-way rotation). When `--psych-profile-bias`
+// is set, EVERY synthetic day's Haiku style-transfer prompt receives the
+// SAME signature keyword hint built from PSYCH_PROFILE_BIAS_KEYWORDS.
+//
+// When `--psych-profile-bias` is omitted, the Haiku prompt is byte-identical
+// to the pre-Phase-40 shape — m009-21days + m010 regeneration are byte-stable
+// (VCR cache continues to hit; legacy invocations unaffected per D-08).
+//
+// Precedence rule (D-03): when BOTH `--profile-bias` (M010, per-day rotation)
+// AND `--psych-profile-bias` (M011, fixed signature) are set on a single
+// invocation, the psych hint wins — `psychHint ?? m010Hint` at the call
+// site. There is ONE signature per milestone per D-03; the M011 signature
+// is the dominant one when both are requested.
+//
+// VCR cache invalidation is automatic (D-08): the bias keywords change the
+// Haiku prompt hash → existing cache misses → fresh Anthropic call on first
+// regenerate run. Pitfall 7 mitigation: if Haiku style-transfer averages
+// toward Greg's habitual register and erases the designed signature, the
+// HARN signal-phrase gate (primed-sanity-m011.test.ts; OPENNESS_SIGNAL_PHRASES)
+// fails loud BEFORE the integration tests run.
+
+/**
+ * Per-trait keyword nudges for the M011 designed personality signature
+ * (PMT-01 D-05 verbatim). FLAT array (NOT a `Record<Dimension, ...>`) —
+ * there is ONE signature for the milestone, not a per-day rotation.
+ *
+ * Six trait categories from CONTEXT.md D-04 + D-05:
+ *   - Openness (HIGH)
+ *   - Conscientiousness (HIGH)
+ *   - Honesty-Humility (HIGH)
+ *   - Self-Direction (HIGH)
+ *   - Benevolence (HIGH)
+ *   - Universalism (HIGH)
+ *
+ * Conformity LOW + Power LOW are anti-signals — no explicit keywords;
+ * absence is detected as low score by Sonnet (D-05 verbatim).
+ *
+ * Plan 40-01 Task 4's HARN sanity gate imports this constant (single source
+ * of truth — NOT duplicated in test files).
+ */
+export const PSYCH_PROFILE_BIAS_KEYWORDS: readonly string[] = [
+  // Openness (HIGH)
+  'intellectual curiosity',
+  'novel ideas',
+  'unconventional approach',
+  'exploring possibilities',
+  'philosophical reflection',
+  'aesthetic appreciation',
+  // Conscientiousness (HIGH)
+  'planning',
+  'structured approach',
+  'follow-through',
+  'attention to detail',
+  'long-term goals',
+  'systematic',
+  // Honesty-Humility (HIGH)
+  'self-aware doubt',
+  'acknowledged uncertainty',
+  'ethical consideration',
+  'modest framing',
+  'fairness',
+  // Self-Direction (HIGH)
+  'autonomous choice',
+  'independent thinking',
+  'self-directed learning',
+  'personal goal-setting',
+  // Benevolence (HIGH)
+  'care for close relationships',
+  'generosity',
+  'loyalty',
+  "concern for friends' wellbeing",
+  // Universalism (HIGH)
+  'fairness across people',
+  'environmental concern',
+  'social justice',
+] as const;
+
+/**
+ * Canonical 6-phrase signature-retention list — load-bearing for the HARN
+ * signal-phrase gate per CONTEXT.md D-07 verbatim (Pitfall §7 / Pitfall 10
+ * PITFALLS.md). Without this gate, Haiku style-transfer averaging toward
+ * Greg's habitual register can erase the designed signature, causing PMT-04
+ * to fail not because the engine is broken but because the fixture lacks
+ * signal.
+ *
+ * The HARN gate asserts at least one of these phrases is present in
+ * synthesized telegram-source pensieve content. Haiku may transform but
+ * should retain at least one.
+ *
+ * Plan 40-01 Task 4 imports this constant (single source of truth — NOT
+ * duplicated in test files).
+ */
+export const OPENNESS_SIGNAL_PHRASES: readonly string[] = [
+  'worth exploring',
+  "I'd be curious",
+  'different angle',
+  'I wonder if',
+  'have you considered',
+  'another perspective',
+] as const;
+
+/**
+ * Compute the M011 psychological signature keyword-hint sentence for a given
+ * synthetic day index. Unlike M010's per-day rotation, M011 returns the SAME
+ * hint for any dayIndex (one signature per milestone per D-03).
+ *
+ * API symmetry with M010's `dimensionHintFor` (same parameter shape, same
+ * return type) — though `dayIndex` is unused. Kept in the signature so the
+ * per-day call site can compute both hints uniformly.
+ *
+ * Returns:
+ *   - `undefined` when `enabled === false` (operator omitted `--psych-profile-bias`)
+ *   - `PSYCH_PROFILE_BIAS_KEYWORDS.join(', ')` when `enabled === true`
+ */
+export function psychDimensionHintFor(
+  dayIndex: number,
+  enabled: boolean,
+): string | undefined {
+  if (!enabled) return undefined;
+  void dayIndex; // unused — single fixed signature per milestone (D-03)
+  return PSYCH_PROFILE_BIAS_KEYWORDS.join(', ');
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────
 
 export interface Args {
@@ -205,6 +332,14 @@ export interface Args {
    * Empty/omitted → legacy m009 behavior (byte-identical Haiku prompt).
    */
   profileBias?: readonly Dimension[];
+  /**
+   * Phase 40 D-03: boolean `--psych-profile-bias` — when true, every day's
+   * Haiku prompt receives the M011 designed-signature keyword hint built
+   * from `PSYCH_PROFILE_BIAS_KEYWORDS`. Omitted/false → legacy byte-identical
+   * Haiku prompt. When BOTH M010 AND M011 flags are set, the M011 hint wins
+   * (planner-locked precedence per D-03 — one signature per milestone).
+   */
+  psychProfileBias?: boolean;
 }
 
 export interface SynthesizeOptions extends Args {
@@ -254,6 +389,15 @@ Flags:
                    Appends per-dimension keyword hints to the Haiku style-transfer
                    prompt on a round-robin rotation across days (Phase 36 D-03..D-09,
                    PTEST-01). Omit for legacy m009 behavior (byte-identical prompts).
+  --psych-profile-bias
+                   boolean; when set, every day's Haiku prompt receives the M011
+                   designed-signature keyword hint from PSYCH_PROFILE_BIAS_KEYWORDS
+                   (Phase 40 D-03..D-08, PMT-01). Omit for legacy behavior. When
+                   both --profile-bias and --psych-profile-bias are set, psych hint
+                   wins (planner-locked precedence per D-03 — one signature per
+                   milestone). Pitfall §7 mitigation: HARN signal-phrase gate at
+                   primed-sanity-m011.test.ts asserts retention against Haiku
+                   register-averaging.
   --help           print this message and exit 0`,
   );
 }
@@ -266,6 +410,7 @@ export function parseCliArgs(argv: string[]): Args {
     milestone?: string;
     'no-refresh'?: boolean;
     'profile-bias'?: string[];
+    'psych-profile-bias'?: boolean;
     help?: boolean;
   };
   try {
@@ -280,6 +425,10 @@ export function parseCliArgs(argv: string[]): Args {
         // Phase 36 D-03: repeatable flag for per-dimension keyword nudges.
         // `multiple: true` returns string[] (empty array when omitted).
         'profile-bias': { type: 'string', multiple: true },
+        // Phase 40 D-03: boolean flag for M011 designed-signature keyword
+        // hint. SIBLING to --profile-bias (not a replacement). When both
+        // are set, psych hint wins at the per-day call site (D-03 precedence).
+        'psych-profile-bias': { type: 'boolean', default: false },
         help: { type: 'boolean', default: false },
       },
       strict: true,
@@ -338,6 +487,7 @@ export function parseCliArgs(argv: string[]): Args {
     milestone: raw.milestone,
     noRefresh: raw['no-refresh'] ?? false,
     profileBias,
+    psychProfileBias: raw['psych-profile-bias'] ?? false,
   };
 }
 
@@ -681,13 +831,20 @@ export async function synthesize(opts: SynthesizeOptions): Promise<void> {
   // undefined when biases is empty OR the rotated dim is not in the bias
   // list → buildHaikuSystemPrompt produces the byte-identical legacy prompt
   // shape (VCR cache hit preserved for m009 regeneration).
+  //
+  // Phase 40 D-03: when --psych-profile-bias is set, it's the dominant
+  // signature for the milestone (PMT-01 D-03 — one signature per milestone).
+  // Precedence: psychHint ?? m010Hint (psych wins when both flags supplied).
   const profileBias = opts.profileBias ?? [];
+  const psychEnabled = opts.psychProfileBias ?? false;
   const synthPensieve: Record<string, unknown>[] = [];
   for (let d = 0; d < synthDaysNeeded; d++) {
     const dayDate = synthStart.plus({ days: d });
     const dayDateStr = dayDate.toISODate()!;
     const fewShot = seededSample(organicPensieve, FEW_SHOT_N, opts.seed + d);
-    const hint = dimensionHintFor(d, profileBias);
+    const psychHint = psychDimensionHintFor(d, psychEnabled);
+    const m010Hint = dimensionHintFor(d, profileBias);
+    const hint = psychHint ?? m010Hint;
     const systemPrompt = buildHaikuSystemPrompt(fewShot, dayDateStr, ENTRIES_PER_DAY, hint);
     const userPrompt = `Produce ${ENTRIES_PER_DAY} synthetic Telegram entries for ${dayDateStr}. Return as { entries: [{ content, createdAtHour, createdAtMinute }, ...] }.`;
 
