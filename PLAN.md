@@ -323,45 +323,77 @@ Execution runs inside GSD v1 (`get-shit-done-cc`), not v2. GSD v1 operates as Cl
 
 ## Current State
 
-**Shipped:** v1.0 (2026-04-13), v2.0 M006 Trustworthy Chris (2026-04-15), v2.1 M007 Decision Archive (2026-04-18), v2.2 M008 Episodic Consolidation (2026-04-19), v2.3 Test Data Infrastructure (2026-04-20, archived 2026-04-25), v2.4 M009 Ritual Infrastructure + Daily Note + Weekly Review (2026-05-11), **v2.5 M010 Operational Profiles (2026-05-13)**.
+**Shipped:** v1.0 (2026-04-13), v2.0 M006 Trustworthy Chris (2026-04-15), v2.1 M007 Decision Archive (2026-04-18), v2.2 M008 Episodic Consolidation (2026-04-19), v2.3 Test Data Infrastructure (2026-04-20, archived 2026-04-25), v2.4 M009 Ritual Infrastructure + Daily Note + Weekly Review (2026-05-11), v2.5 M010 Operational Profiles (2026-05-13), **v2.6 M011 Psychological Profiles (2026-05-14)**.
 
 v2.5 closed: 22/22 requirements (PROF-01..05 + GEN-01..07 + SURF-01..05 + PTEST-01..05) satisfied across 4 phases / 10 plans / 54 tasks. Profile substrate (5 tables + reader API + Zod v3+v4 dual schemas + confidence helpers) shipped Phase 33. Sunday 22:00 Paris cron + 4 per-dimension generators with SHA-256 substrate-hash idempotency + Promise.allSettled isolation shipped Phase 34. REFLECT/COACH/PSYCHOLOGY profile injection via `PROFILE_INJECTION_MAP` per-mode subset + `/profile` Telegram command with golden-output formatter shipped Phase 35. Test pyramid (primed fixture + 3-cycle idempotency + sparse threshold + live 3-of-3 anti-hallucination against real Sonnet 4.6) shipped Phase 36. PTEST-05 milestone-gate confirmed 2026-05-13T11:30Z: 3-of-3 atomic GREEN with zero hallucinated facts. Container deployed to Proxmox 2026-05-13 01:43 UTC; first Sunday cron fire ETA 2026-05-17 22:00 Paris.
 
 Chris is deployed on self-hosted Proxmox (192.168.1.50) with profile inference live. The full reflection loop is now grounded: M008 episodic summaries + M007 resolved decisions + M009 daily journal + wellbeing + weekly review + M010 operational profile injection into REFLECT/COACH/PSYCHOLOGY.
 
-**Active milestone: v2.6 M011 Psychological Profiles** — kicked off 2026-05-13 via `/gsd-new-milestone`. See `## Current Milestone` below.
+**Active milestone: v2.6.1 Code Review Cleanup** — kicked off 2026-05-14 via `/gsd-new-milestone` after a 14-phase parallel `gsd-code-reviewer` sweep surfaced 45 BLOCKERs + 97 WARNINGs (`.planning/milestones/v2.6.1-REVIEW-SYNTHESIS.md`). Triggered by a live UX defect observed on 2026-05-14 17:00 Paris: the adjustment-dialogue prompt asserted "This daily daily_journal ritual isn't working" to Greg (FR locale). See `## Current Milestone` below.
 
-**Tech debt carried into v2.6+:**
-- **Phase 34 first-Sunday cron fire observation pending 2026-05-17** — naturally future-dated; container deployed and cron registered (boot log confirms `cron='0 22 * * 0' timezone='Europe/Paris'`). Operator observes via `ssh chris@192.168.1.50 'docker logs chris-chris-1 | grep chris.profile'` after 22:00 Paris on 2026-05-17.
+**Tech debt carried into v2.6.1+ (most folded into v2.6.1 themes T1–T8):**
+- **Phase 34 first-Sunday cron fire observation pending 2026-05-17** — naturally future-dated; container deployed and cron registered. Operator observes via `ssh chris@192.168.1.50 'docker logs chris-chris-1 | grep chris.profile'` after 22:00 Paris on 2026-05-17.
+- **First M011 cron fire pending 2026-06-01 09:00 Paris** — monthly psychological profile inference.
 - **v2.5.1 backlog from M010 deferred items** (DIFF-2..7): auto-detection of profile-change moments (DIFF-2), per-profile narrative summaries (DIFF-4), profile consistency checker (DIFF-5), wellbeing-anchored health updates (DIFF-6). SATURATION constant requires 4-8 weeks of real M010 operation to calibrate.
-- **WR-01 dead-code branch + WR-02 EN-tokens leak in FR/RU `/profile` output** (Phase 35 code review). Non-blocking polish items.
-- **v2.4 carry-forward unresolved**: synth-pipeline organic+synth fusion, FR/RU localization of templated weekly_review fallback, Phase 28 60s confirmation window real-clock UAT.
+- **CONS-01, CONS-02, ATT-POP-01, NARR-01, CIRC-01, CROSS-VAL-01, SAT-CAL-01** — v2.6.1 candidate items (CIRC-01 + CROSS-VAL-01 are IN v2.6.1; CONS-01/02/ATT-POP/NARR/SAT-CAL deferred to v2.7+ pending empirical data and v2.6.1-driven CONTRACT-03 unblock).
 - **Env-level vitest-4 fork-IPC hang under HuggingFace EACCES** — pre-existing; 5-file excluded-suite mitigation in `scripts/test.sh` keeps Docker gate green.
 - **12 human-UAT items carried from v2.1** — live Telegram feel, ACCOUNTABILITY tone, `/decisions` dashboard format, FR/RU localization.
 
 Archived detail: `.planning/milestones/v2.0-*`, `.planning/milestones/v2.1-*`, `.planning/milestones/v2.2-*`, `.planning/milestones/v2.3-*`, `.planning/milestones/v2.4-*`, `.planning/milestones/v2.5-*`, `.planning/milestones/v2.X-phases/` (phase directories for v2.0–v2.5; v2.3 phase archival is the only outstanding archive task).
 
-## Current Milestone: v2.6 M011 Psychological Profiles
+## Current Milestone: v2.6.1 Code Review Cleanup
+
+**Goal:** Eliminate the production-correctness, security, contract, localization, fixture, schema, and test-gate defects surfaced by a 14-phase parallel code-review sweep on 2026-05-14. Triggered by a live UX defect at 17:00 Paris where the adjustment-dialogue prompt asserted "This daily daily_journal ritual isn't working" to Greg (FR locale) — investigation surfaced 7 cascading bugs around that one surface alone, plus 45 BLOCKERs and 97 WARNINGs across 14 unreviewed phases (v2.3 → v2.6). This is a cleanup pass, not a feature milestone.
+
+**Target themes (T1–T8 from synthesis):**
+- **T1 — Adjustment-dialogue rework:** remove "isn't working" wrongful assertion + slug-doubling (4 sites) + EN-only sends in FR locale (8 sites + Haiku judge); reset `skip_count` on yes/no/refusal completion paths (currently re-fires every tick after threshold); remove `mute_until` from Haiku-controllable field whitelist (privilege escalation); add per-field type validation on Haiku config patches
+- **T2 — Atomicity / race fixes:** `tryFireRitualAtomic` ms-clock collision (M009 second-fire bug class re-armed); non-transactional paired-inserts in `ritualResponseWindowSweep`; wellbeing rapid-tap N-completion race; wellbeing skip path full-jsonb overwrite (data loss); wellbeing DST-edge stale row; weekly-review write-order race (Telegram failure leaves lies + orphans)
+- **T3 — CI milestone gate hardening:** M010 + M011 + M009 gates currently `describe.skip` against gitignored fixtures in CI → zero regression detection; fail-fast required
+- **T4 — Prompt injection mitigation:** operational + psychological inference Pensieve content escaping (forged `## CURRENT PROFILE STATE` block can hijack structured output, persists via `onConflictDoUpdate`)
+- **T5 — Inference contract enforcement:** strip `dataConsistency` from prevState (anchor leak); seed-row prevState omission; persist Sonnet's `data_consistency` field (unblocks CONS-01)
+- **T6 — FR/RU localization:** 30+ exact sites — 21 in `bot/handlers/profile.ts` (qualifier strings, HEXACO + Schwartz dim labels, score/confidence tokens); `WEEKLY_REVIEW_HEADER` (already fired EN above FR body 2026-05-10); broken FR regex with curly apostrophes; `qualifierFor` duplication
+- **T7 — Fixture pipeline cleanup:** contradictions FK pre-filter; bias-prompt `phrasesClause` decoupled from `dimensionHint`; M010 operational fixture refresh (schema_mismatch warns); migration list derivation (currently hardcoded 0000..0005); SSH `StrictHostKeyChecking` for prod fetch; vector(1024) coercion path; HARN word-count window-filtered to match substrate
+- **T8 — Schema hygiene:** Phase 33 seed defaults backfill (root cause of M010 schema_mismatch); DB CHECK constraints on jsonb score (1-5 HEXACO, 0-7 Schwartz) + confidence (0-1) ranges
+
+**Plus original scope items folded in:**
+- **CIRC-01** — Schwartz circumplex-ordered display in `/profile`
+- **CROSS-VAL-01** — HEXACO × Schwartz cross-validation in `/profile`
+
+**Out of scope for v2.6.1 (deferred to v2.7+):**
+- T9 (test quality — calendar bomb, tautological assertions, weak `.some()` defenses) — non-blocking, real but stretch
+- T10 (operational hygiene — cron-validate 6-field accept, scheduler reentrancy lock, poison-pill, dead code, file boundary drift)
+- v2.5.1 carry-forward items DIFF-2..7 (auto-change detection, narrative summaries, consistency checker)
+- CONS-01 / CONS-02 (need ≥3 monthly fires for empirical data + T5 CONTRACT-03 must land first)
+- ATT-POP-01 (waits for ≥2,000 words relational speech)
+- NARR-01 (high hallucination risk, deferred to M014)
+- SAT-CAL-01 (post-empirical 4-8 months M011 operation)
+
+**Key context / decisions in force:**
+- **Continues phase numbering from 40** → v2.6.1 starts at **Phase 41** (no `--reset-phase-numbers` flag). 14 REVIEW.md files written to phase directories; full synthesis at `.planning/milestones/v2.6.1-REVIEW-SYNTHESIS.md`.
+- **Live bug is patient zero:** the adjustment-dialogue copy bug from 2026-05-14 17:00 Paris is the trigger but not the goal. T1 is one of nine themes; the goal is to land all P0 findings before v2.7 feature work.
+- **No new features:** v2.6.1 is purely cleanup. Display polish (CIRC-01, CROSS-VAL-01) is the only user-visible addition; everything else is correctness, hardening, or quality.
+- **Adjustment-dialogue still fires daily after threshold:** `skip_count` reset bug means today's bad message could re-fire on the next sweep tick. T1 ADJ-04 is the highest-priority ship — first phase of v2.6.1.
+
+---
+
+<details>
+<summary>v2.6 M011 Psychological Profiles (shipped 2026-05-14 — historical)</summary>
 
 **Goal:** Layer empirically-grounded psychological trait inference on top of the M010 operational substrate. Two new profile dimensions — HEXACO six-factor personality and Schwartz ten universal values — updated on a slower (monthly) cadence than operational profiles, gated by a strict 5,000-word minimum threshold on Greg's own speech and surfaced with per-dimension confidence ranges. Attachment dimensions schema is defined alongside (population logic deferred to weekly-sweep activation trigger).
 
-**Target features:**
-- `profile_hexaco` table (6 dims: honesty_humility, emotionality, extraversion, agreeableness, conscientiousness, openness), per-dim `{score 1.0–5.0, confidence 0.0–1.0, last_updated}` jsonb + `overall_confidence` + Never-Retrofit Checklist columns (schema_version + substrate_hash + name UNIQUE 'primary')
-- `profile_schwartz` table (10 values: self_direction, stimulation, hedonism, achievement, power, security, conformity, tradition, benevolence, universalism), same per-dim structure
-- `profile_attachment` schema-only (anxious / avoidant / secure dimensions) — table exists, population gated on automatic activation trigger (2,000 words relational speech over 60 days)
-- Monthly cron — pulls previous-month episodic summaries + Pensieve entries (Greg's own speech only), Sonnet inference per profile, confidence reflects volume + inter-period consistency
-- 5,000-word floor — below threshold, row exists with `"insufficient data — need X more words"` per dimension and `overall_confidence=0`
-- `getPsychologicalProfiles()` reader API + Zod parse defense + integration into `PROFILE_INJECTION_MAP` so REFLECT / COACH / PSYCHOLOGY mode handlers receive psychological context alongside operational
-- `/profile` Telegram command extended with HEXACO + Schwartz sections (with insufficient-data branch + golden-output snapshot)
-- Synthetic-fixture test — 30+ days summaries + 6,000-word simulated dialogue with designed personality signature; verifies (a) 1,000 words → no profile, (b) 6,000 words → populated with confidence>0, (c) detected signature roughly matches designed within accuracy bounds
-- Live anti-hallucination 3-of-3 milestone-gate test against real Sonnet 4.6, dual-gated (`RUN_LIVE_TESTS=1` + `ANTHROPIC_API_KEY`), three-way `describe.skipIf` per D045
+**Delivered (28/28 requirements, 4 phases, 9 plans):**
+- `profile_hexaco` + `profile_schwartz` + `profile_attachment` tables with Never-Retrofit Checklist columns (Phase 37)
+- Monthly cron `'0 9 1 * *'` Europe/Paris, UNCONDITIONAL fire (PGEN-06 inverse of M010 GEN-07 idempotency), substrate_hash recorded for audit (Phase 38)
+- 5,000-word floor + `prevHistorySnapshot` threading + Sonnet self-reports `data_consistency` (host does NOT compute stddev — CONS-01 deferred)
+- `PSYCHOLOGICAL_PROFILE_INJECTION_MAP` distinct from operational, REFLECT + PSYCHOLOGY only (COACH structurally excluded) (Phase 39)
+- `/profile` extended with HEXACO + Schwartz + Attachment sections (Phase 39)
+- PMT-06 live milestone gate confirmed 2026-05-14T13:09Z: 3-of-3 atomic GREEN vs real Sonnet 4.6, zero hallucinated facts, zero trait-authority constructions (Phase 40)
+- Container deployed to Proxmox 2026-05-14T13:59Z; first M011 cron fire ETA 2026-06-01 09:00 Paris
+- D027 Hard Rule defended at 6 independent surfaces; D028 attachment activation trigger gated on relational_word_count ≥2,000
 
-**Key context / decisions in force:**
-- **Continues phase numbering from 36** → v2.6 starts at **Phase 37** (no `--reset-phase-numbers` flag).
-- **D047-to-be:** Psychological-vs-operational boundary — psychological profiles consume episodic + relational substrate, do NOT mix with operational profile fields, and may have a separate `PSYCHOLOGICAL_PROFILE_INJECTION_MAP` (TBD during planning).
-- **Pause discipline:** M010 used primed fixtures (D041) satisfying the data-substrate condition without calendar wait. M011 inherits the same flexibility. The first Sunday 22:00 Paris M010 cron fire observation (2026-05-17) is a parallel observability gate, NOT a hard prerequisite for M011 kickoff.
-- **Reuses M010 patterns:** Never-Retrofit Checklist (D042), substrate-hash idempotency three-cycle test (D044), three-way `describe.skipIf` for live tests (D045), live-test cost discipline ~$0.10-0.15 per run (D046), `PROFILE_INJECTION_MAP` per-mode subset (D043).
-- **John→Greg:** the M011 spec uses "John" — historical PRD artifact; all references treated as "Greg" per M006 Phase 11 unification.
+Phase artifacts: `.planning/milestones/v2.6-phases/`. Milestone audit: `.planning/milestones/v2.6-MILESTONE-AUDIT.md`.
+
+</details>
 
 ---
 
@@ -505,4 +537,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-13 — v2.6 M011 Psychological Profiles kicked off via `/gsd-new-milestone`. Replaced "Next Milestone v2.6" section with active "Current Milestone v2.6" block (HEXACO + Schwartz + attachment-schema target features, key decisions in force, phase numbering continues from 36 → starts at Phase 37). M010 detail block relabeled "shipped 2026-05-13 — historical." Awaiting REQUIREMENTS.md scoping then ROADMAP.md.*
+*Last updated: 2026-05-14 — v2.6.1 Code Review Cleanup kicked off via `/gsd-new-milestone`. Triggered by live UX defect (adjustment-dialogue "isn't working" message to Greg). 14 parallel `gsd-code-reviewer` agents on v2.3 → v2.6 unreviewed phases surfaced 45 BLOCKERs + 97 WARNINGs. T1–T8 themes folded into current milestone scope; T9/T10 deferred. v2.6 M011 details collapsed to historical block; phase numbering continues from 40 → starts at Phase 41. Awaiting REQUIREMENTS.md scoping then ROADMAP.md.*

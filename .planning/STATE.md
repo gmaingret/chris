@@ -1,18 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.6
-milestone_name: M011 Psychological Profiles
-status: shipped
-shipped_at: "2026-05-14T13:09:00.000Z"
-deployed_at: "2026-05-14T13:59:28.000Z"
-last_updated: "2026-05-14T14:00:00.000Z"
-last_activity: 2026-05-14 -- v2.6 M011 shipped, tagged, pushed, deployed to Proxmox
+milestone: v2.6.1
+milestone_name: Code Review Cleanup
+status: planning
+last_updated: "2026-05-14T15:45:47.820Z"
+last_activity: 2026-05-14
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 9
-  completed_plans: 9
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -27,17 +25,10 @@ See: .planning/PROJECT.md (symlink to /home/claude/chris/PLAN.md).
 
 ## Current Position
 
-```
-v2.6 M011 Psychological Profiles — SHIPPED 2026-05-14
-
-PMT-06 live milestone gate: 3/3 atomic green vs real Sonnet 4.6 (~$0.25 spend, 57.5s, 2026-05-14T13:09Z)
-Deployed to Proxmox: 2026-05-14T13:59Z (commit 8adeb85, tag v2.6)
-/health: psychological_profile_cron_registered=true
-
-Progress: [██████████] 100% (4/4 phases, 9 plans, 28/28 requirements)
-
-Next M011 cron fire: 2026-06-01 09:00 Paris
-```
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-14 — Milestone v2.6.1 started
 
 ## Shipped Milestones
 
