@@ -94,7 +94,7 @@ Plans:
   3. A second `updateAllPsychologicalProfiles()` call with identical substrate produces 2 MORE Sonnet calls (cumulative 4, NOT 2) — the unconditional-fire contract is verified; no hash-skip regression. Comment in `psychological-profile-updater.ts` explicitly documents divergence from M010 GEN-07 with rationale.
   4. `/health` reports `psychological_profile_cron_registered: true`; `cron.validate('0 9 1 * *')` passes fail-fast at config load; the registered cron expression does not collide with the Sunday 22:00 operational cron (verified at registration time).
   5. HEXACO generator failure via `Promise.allSettled` does not abort Schwartz; each settled result carries either `'updated'`, `'skipped_below_threshold'`, or `'error'` outcome; error is logged at `warn` level without throwing.
-**Plans**: TBD
+**Plans**: 3 plans
 **UI hint**: no
 
 **HARD CO-LOC #M11-2:** `assemblePsychologicalProfilePrompt` shared builder ships BEFORE either dimension generator — PGEN-01 is atomic with PGEN-02 and PGEN-03 generator skeletons.
@@ -102,6 +102,16 @@ Plans:
 **Monthly cost:** ~$0.05–0.10 per cron fire (2 Sonnet 4.6 calls — HEXACO + Schwartz, ~1 calendar month of episodic substrate per call).
 
 **Key divergence from M010:** The three-cycle unconditional-fire test for this phase asserts cumulative 4 Sonnet calls after Cycle 2 (identical substrate) — the inverse of M010's idempotency pattern. This is intentional and must not be "fixed."
+
+Plans:
+**Wave 1**
+- [ ] 38-01-PLAN.md — Shared prompt builder + structural test (PGEN-01; HARD CO-LOC #M11-2 anchor)
+
+**Wave 2** *(depends on 38-01)*
+- [ ] 38-02-PLAN.md — Schema extension + HEXACO + Schwartz generators + three-cycle UNCONDITIONAL-FIRE integration test (PGEN-02, PGEN-03, PGEN-06, PGEN-07; HARD CO-LOC #M11-2 second-half)
+
+**Wave 3** *(depends on 38-02)*
+- [ ] 38-03-PLAN.md — Orchestrator + monthly cron + config + /health + cron-collision unit test (PGEN-04, PGEN-05)
 
 ---
 
@@ -146,7 +156,7 @@ Plans:
 | 25-32 (v2.4) | 23/23 + Phase 32 inline | Complete | 2026-05-11 |
 | 33-36 (v2.5) | 10/10, 22/22 reqs | Complete | 2026-05-13 |
 | 37. Psychological Substrate | 2/2 | Complete   | 2026-05-13 |
-| 38. Psychological Inference Engine | 0/TBD | Not started | - |
+| 38. Psychological Inference Engine | 0/3 | Planned | - |
 | 39. Psychological Surfaces | 0/TBD | Not started | - |
 | 40. Psychological Milestone Tests | 0/TBD | Not started | - |
 
