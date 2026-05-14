@@ -45,6 +45,12 @@ import {
   type SchwartzProfileData,
   type AttachmentProfileData,
 } from './profiles/psychological-schemas.js';
+// Phase 39 PSURF-02 — imported VERBATIM as the load-bearing D027 mitigation
+// surface. `formatPsychologicalProfilesForPrompt` appends this constant at the
+// BOTTOM of every populated psychological-profile block (D-11 recency-bias).
+// Single source of truth across the inference layer (Phase 38) and the
+// surface-injection layer (Phase 39); NEVER redeclared. See PITFALLS.md §1.
+import { PSYCHOLOGICAL_HARD_RULE_EXTENSION } from './psychological-profile-prompt.js';
 import type { z } from 'zod';
 
 // Re-export PsychologicalProfileType so Phase 39+ consumers have a stable
@@ -60,6 +66,13 @@ export interface ProfileRow<T> {
   confidence: number;
   lastUpdated: Date;
   schemaVersion: number;
+  // Phase 39 Plan 39-01 (RESEARCH Open Q1 Option A) — populated only for
+  // psychological profile rows by readOnePsychologicalProfile. Operational
+  // rows leave them undefined. Consumed by Plan 39-02's `/profile` display
+  // formatter to render the "need N more words" insufficient-data branch
+  // without a second DB read.
+  wordCount?: number;
+  wordCountAtLastRun?: number;
 }
 
 export interface OperationalProfiles {
@@ -88,6 +101,30 @@ export const PROFILE_INJECTION_MAP: Readonly<Record<'REFLECT' | 'COACH' | 'PSYCH
   REFLECT: ['jurisdictional', 'capital', 'health', 'family'],
   COACH: ['capital', 'family'],
   PSYCHOLOGY: ['health', 'jurisdictional'],
+} as const;
+
+/**
+ * Phase 39 PSURF-01 — psychological profile injection map.
+ *
+ * DISTINCT from the operational PROFILE_INJECTION_MAP (D-03) — the two maps
+ * have different value types (Dimension[] vs PsychologicalProfileType[]) and
+ * merging would force a union type that loses nominal type-safety.
+ *
+ * COACH is structurally absent from the key union. Adding it would require a
+ * type change AND would trigger the negative-invariant test at
+ * src/chris/modes/__tests__/coach-psychological-isolation.test.ts. This is the
+ * primary D027 Hard Rule defense — trait → coaching-conclusion is circular
+ * reasoning per PITFALLS.md §1 (sycophancy injection via profile authority
+ * framing). See PROJECT.md D027.
+ *
+ * 'attachment' is NOT in any mode's array — Phase 38 D-23 deferred the
+ * attachment generator to v2.6.1; no data exists to inject in M011.
+ */
+export const PSYCHOLOGICAL_PROFILE_INJECTION_MAP: Readonly<
+  Record<'REFLECT' | 'PSYCHOLOGY', readonly PsychologicalProfileType[]>
+> = {
+  REFLECT: ['hexaco', 'schwartz'],
+  PSYCHOLOGY: ['hexaco', 'schwartz'],
 } as const;
 
 // ── Dispatcher: schema_version → Zod schema, per dimension ──────────────
@@ -375,6 +412,13 @@ async function readOnePsychologicalProfile<T>(
       // epoch sentinel so the ProfileRow<T>.lastUpdated: Date contract holds.
       lastUpdated: row.lastUpdated ?? new Date(0),
       schemaVersion: row.schemaVersion,
+      // Phase 39 Plan 39-01 (RESEARCH Open Q1 Option A) — thread the
+      // psychological-row word-count columns through so Plan 39-02's
+      // display formatter can render "need N more words" without a
+      // second DB read. Operational rows do NOT thread these (they have
+      // no such columns); the fields remain undefined there.
+      wordCount: row.wordCount,
+      wordCountAtLastRun: row.wordCountAtLastRun,
     };
   } catch (error) {
     // Layer 3: any uncaught throw (D-23 unknown_error).
