@@ -80,13 +80,18 @@ vi.mock('../personality.js', () => ({
   buildSystemPrompt: mockBuildSystemPrompt,
 }));
 
-// ── Mock memory/profiles (Phase 35 Plan 35-02 SURF-02) ─────────────────────
-// PSYCHOLOGY is an in-scope mode per PROFILE_INJECTION_MAP — mocks the D-14 chain.
+// ── Mock memory/profiles (Phase 35 Plan 35-02 SURF-02 + Phase 39 PSURF-03) ─
+// PSYCHOLOGY is in-scope per both PROFILE_INJECTION_MAP and
+// PSYCHOLOGICAL_PROFILE_INJECTION_MAP — mocks the full D-14 + D-13/D-16 chain.
 const mockGetOperationalProfiles = vi.fn();
 const mockFormatProfilesForPrompt = vi.fn();
+const mockGetPsychologicalProfiles = vi.fn();
+const mockFormatPsychologicalProfilesForPrompt = vi.fn();
 vi.mock('../../memory/profiles.js', () => ({
   getOperationalProfiles: mockGetOperationalProfiles,
   formatProfilesForPrompt: mockFormatProfilesForPrompt,
+  getPsychologicalProfiles: mockGetPsychologicalProfiles,
+  formatPsychologicalProfilesForPrompt: mockFormatPsychologicalProfilesForPrompt,
 }));
 
 // ── Mock pensieve store (should NOT be called) ─────────────────────────────
@@ -220,6 +225,15 @@ describe('handlePsychology', () => {
     mockFormatProfilesForPrompt.mockReturnValue(
       '## Operational Profile (grounded context — not interpretation)\n\nfake-rendered-profile',
     );
+    // Phase 39 PSURF-03 — sane defaults so existing PSYCHOLOGY tests don't
+    // need per-case setup. Empty-string return == "no psych section to
+    // render" per D-05; personality.ts drops it cleanly via .filter(Boolean).
+    mockGetPsychologicalProfiles.mockResolvedValue({
+      hexaco: null,
+      schwartz: null,
+      attachment: null,
+    });
+    mockFormatPsychologicalProfilesForPrompt.mockReturnValue('');
     mockCreate.mockResolvedValue(
       makeLLMResponse('This pattern of self-sabotage when things go well looks like a classic fear of success rooted in anxious attachment...'),
     );
