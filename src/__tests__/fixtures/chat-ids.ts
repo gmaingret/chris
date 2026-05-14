@@ -32,3 +32,6 @@ export const CHAT_ID_M009_SYNTHETIC_FIXTURE = BigInt(99921);
 
 /** Phase 36 Plan 02 PTEST-05 live 3-of-3 anti-hallucination test (src/memory/profiles/__tests__/live-anti-hallucination.test.ts). */
 export const CHAT_ID_LIVE_ANTI_HALLUCINATION = BigInt(99922);
+
+/** Phase 40 Plan 02 PMT-06 live 3-of-3 anti-trait-authority test (src/memory/profiles/__tests__/live-psych-anti-hallucination.test.ts). */
+export const CHAT_ID_LIVE_PSYCH_ANTI_HALLUCINATION = BigInt(99923);
