@@ -1,10 +1,14 @@
 /**
  * Phase 35 Plan 35-03 — /profile handler integration test (SURF-03, SURF-05).
+ * Phase 39 Plan 39-02 — extended for the 3-reply psychological loop (PSURF-04).
  *
- * Covers (D-18 + D-19 + D-31 + HARD CO-LOC #M10-5):
- *   1. emits exactly 5 ctx.reply calls when all 4 profiles are populated (D-18)
- *   2. reply order is jurisdictional → capital → health → family → M011
- *   3. all-null profiles → 5 replies with localized progress indicators (D-21)
+ * Covers (D-18 + D-19 + D-31 + HARD CO-LOC #M10-5 + #M11-3):
+ *   1. emits exactly 7 ctx.reply calls when all profiles are populated
+ *      (4 operational + 3 psychological per D-17 + D-18)
+ *   2. reply order is jurisdictional → capital → health → family →
+ *      hexaco → schwartz → attachment
+ *   3. all-null profiles → 7 replies with localized progress indicators
+ *      / never-fired strings / attachment-deferred string (D-21 + D-19)
  *   4. plain text invariant — ctx.reply called with exactly 1 arg per call,
  *      no parse_mode anywhere (D-17 + SURF-05)
  *   5. getOperationalProfiles throws → 1 genericError reply + logger.warn
@@ -13,12 +17,15 @@
  *
  * vi.mock hoisting + dynamic `await import(...)` follows the project's
  * canonical pattern (src/episodic/__tests__/cron.test.ts:52-99). The handler's
- * pure formatProfileForDisplay is exercised end-to-end through the mocked
- * Phase 33 reader; the golden-output review for the formatter lives in
- * src/bot/handlers/__tests__/profile.golden.test.ts.
+ * pure formatProfileForDisplay + formatPsychologicalProfileForDisplay are
+ * exercised end-to-end through the mocked Phase 33 + Phase 37 readers; the
+ * golden-output review for the formatters lives in
+ * src/bot/handlers/__tests__/profile.golden.test.ts (operational) and
+ * src/bot/handlers/__tests__/profile-psychological.golden.test.ts (psych).
  *
- * No DB I/O — getOperationalProfiles is mocked. Mirrors src/bot/handlers/
- * __tests__/summary.test.ts:77-91 for the buildCtx Grammy spy idiom.
+ * No DB I/O — getOperationalProfiles + getPsychologicalProfiles are mocked.
+ * Mirrors src/bot/handlers/__tests__/summary.test.ts:77-91 for the buildCtx
+ * Grammy spy idiom.
  *
  * D-02: vi.setSystemTime ONLY (forbidden: vi.useFakeTimers — breaks postgres.js
  * keep-alive timers). This file does no time-travel, so neither is invoked.
@@ -33,6 +40,11 @@ import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 
 vi.mock('../../../memory/profiles.js', () => ({
   getOperationalProfiles: vi.fn(),
+  getPsychologicalProfiles: vi.fn(async () => ({
+    hexaco: null,
+    schwartz: null,
+    attachment: null,
+  })),
 }));
 
 // Logger spies — same shape as cron.test.ts:73-85. Silences warn output and
@@ -193,29 +205,31 @@ afterAll(() => {
 // ── Tests ───────────────────────────────────────────────────────────────────
 
 describe('SURF-03: /profile handler', () => {
-  it('emits exactly 5 ctx.reply calls when all 4 profiles are populated (D-18)', async () => {
+  it('emits exactly 7 ctx.reply calls when all 4 operational + 3 psychological profile sections render (Phase 39 PSURF-04)', async () => {
     const { captured, ctx } = buildCtx();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await handleProfileCommand(ctx as any);
 
-    expect(captured).toHaveLength(5);
+    expect(captured).toHaveLength(7);
   });
 
-  it('reply order is jurisdictional → capital → health → family → M011 placeholder', async () => {
+  it('reply order is jurisdictional → capital → health → family → HEXACO → Schwartz → Attachment', async () => {
     const { captured, ctx } = buildCtx();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await handleProfileCommand(ctx as any);
 
-    expect(captured).toHaveLength(5);
+    expect(captured).toHaveLength(7);
     expect(captured[0]).toContain('Jurisdictional Profile');
     expect(captured[1]).toContain('Capital Profile');
     expect(captured[2]).toContain('Health Profile');
     expect(captured[3]).toContain('Family Profile');
-    // M011 placeholder is the verbatim "see M011" marker per D-18.
-    expect(captured[4]).toMatch(/M011|Psychological profile/i);
+    // Phase 39 PSURF-04: M011 placeholder replaced by 3 psychological sections.
+    expect(captured[4]).toMatch(/HEXACO/i);
+    expect(captured[5]).toMatch(/Schwartz/i);
+    expect(captured[6]).toMatch(/Attachment/i);
   });
 
-  it('gracefully handles all-null profiles → 5 replies with progress indicators (D-21)', async () => {
+  it('gracefully handles all-null profiles → 7 replies with progress indicators (D-21 + Phase 39 D-19)', async () => {
     vi.mocked(profilesModule.getOperationalProfiles).mockResolvedValueOnce({
       jurisdictional: null,
       capital: null,
@@ -227,8 +241,8 @@ describe('SURF-03: /profile handler', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await handleProfileCommand(ctx as any);
 
-    expect(captured).toHaveLength(5);
-    // Each of the 4 dimension replies is the localized progress indicator.
+    expect(captured).toHaveLength(7);
+    // Each of the 4 operational replies is the localized progress indicator.
     expect(captured[0]).toContain('Chris needs more entries');
     expect(captured[0]).toContain('location and tax situation');
     expect(captured[1]).toContain('Chris needs more entries');
@@ -237,8 +251,11 @@ describe('SURF-03: /profile handler', () => {
     expect(captured[2]).toContain('wellbeing');
     expect(captured[3]).toContain('Chris needs more entries');
     expect(captured[3]).toContain('relationships');
-    // 5th is still the M011 placeholder (unchanged regardless of profile state).
-    expect(captured[4]).toMatch(/M011|Psychological profile/i);
+    // Phase 39 D-19: null psych profiles → never-fired branch for HEXACO/Schwartz; Attachment always deferred.
+    expect(captured[4]).toMatch(/HEXACO/i);
+    expect(captured[5]).toMatch(/Schwartz/i);
+    expect(captured[6]).toMatch(/Attachment/i);
+    expect(captured[6]).toMatch(/D028|not yet active/i);
   });
 
   it('uses plain text — no parse_mode arg on any ctx.reply (SURF-05)', async () => {
@@ -246,7 +263,7 @@ describe('SURF-03: /profile handler', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await handleProfileCommand(ctx as any);
 
-    expect(capturedAllArgs).toHaveLength(5);
+    expect(capturedAllArgs).toHaveLength(7);
     // SURF-05 invariant: every ctx.reply call passes ONLY the text argument.
     // A future regression that adds `{ parse_mode: 'Markdown' }` as the second
     // arg fails this assertion immediately.
@@ -284,9 +301,9 @@ describe('SURF-03: /profile handler', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await handleProfileCommand(ctx as any);
 
-    // M011 placeholder English form must appear (FR/RU forms would differ).
-    expect(captured[4]).toContain('Psychological profile');
-    expect(captured[4]).toContain('see M011');
+    // Phase 39 PSURF-04: English HEXACO/Schwartz/Attachment section titles must appear.
+    expect(captured[4]).toMatch(/HEXACO/);
+    expect(captured[6]).toMatch(/Attachment/);
   });
 
   it('localizes to French when getLastUserLanguage returns French', async () => {
@@ -295,11 +312,13 @@ describe('SURF-03: /profile handler', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await handleProfileCommand(ctx as any);
 
-    expect(captured).toHaveLength(5);
+    expect(captured).toHaveLength(7);
     // Jurisdictional section title in French.
     expect(captured[0]).toContain('Profil juridictionnel');
-    // M011 placeholder in French.
-    expect(captured[4]).toMatch(/Profil psychologique.*M011/i);
+    // Phase 39 PSURF-04: French psychological section titles (machine-translate-quality).
+    // HEXACO and Schwartz are proper names — preserved across locales.
+    expect(captured[4]).toMatch(/HEXACO/i);
+    expect(captured[5]).toMatch(/Schwartz/i);
   });
 
   it('returns silently when ctx.chat is undefined (defensive early-return)', async () => {
