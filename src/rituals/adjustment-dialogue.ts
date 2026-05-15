@@ -42,8 +42,16 @@ import { bot } from '../bot/bot.js';
 import { anthropic, HAIKU_MODEL } from '../llm/client.js';
 import { detectRefusal } from '../chris/refusal.js';
 import { hasReachedEvasiveTrigger } from './skip-tracking.js';
-// Plan 41-01 ships EN-only; Plan 41-02 wires Lang detection on top
+// Plan 41-02 wires Lang detection across the 8 user-facing sites + Haiku prompt.
 import { displayName, configFieldLabel } from './display-names.js';
+import {
+  detectLanguage,
+  getLastUserLanguage,
+  getLastUserLanguageFromDb,
+  setLastUserLanguage,
+  langOf,
+  type Lang,
+} from '../chris/language.js';
 import { RITUAL_OUTCOME, parseRitualConfig, type RitualFireOutcome } from './types.js';
 
 // ── Constants (D-28-05 + D-28-06 locked spec) ─────────────────────────────
@@ -214,21 +222,34 @@ async function routeRefusal(
 
 // ── Zod schemas (v3+v4 dual — mirrors weekly-review.ts:131-186 pattern) ──────
 
-/** v3 — runtime contract; used for re-validation after SDK parse. */
+/**
+ * v3 — runtime contract; used for re-validation after SDK parse.
+ *
+ * Phase 41 ADJ-05 (D-41-06): the `field` enum drops `'mute_until'`. The
+ * `routeRefusal` not-now branch already writes `adjustment_mute_until`
+ * directly without Haiku input; allowing Haiku to set `mute_until` opens a
+ * parallel privilege-escalation path that defeats the refusal-first
+ * ordering (a parsed user reply could globally suppress the ritual channel
+ * by setting `mute_until` instead of `adjustment_mute_until`).
+ *
+ * Security: proposed_change.field is `z.enum(['fire_at', 'fire_dow',
+ * 'skip_threshold'])` — Haiku CANNOT inject other field names. v4 is the
+ * SDK boundary gate; v3 re-validates after parse to catch drift.
+ */
 const AdjustmentClassificationSchema = z.object({
   classification: z.enum(['change_requested', 'no_change', 'evasive']),
   proposed_change: z.object({
-    field: z.enum(['fire_at', 'fire_dow', 'skip_threshold', 'mute_until']),
+    field: z.enum(['fire_at', 'fire_dow', 'skip_threshold']),
     new_value: z.union([z.string(), z.number(), z.null()]),
   }).nullable(),
   confidence: z.number().min(0).max(1),
 });
 
-/** v4 — SDK boundary; no refine. Lock-step with v3. */
+/** v4 — SDK boundary; no refine. Lock-step with v3. Phase 41 ADJ-05 enum match. */
 const AdjustmentClassificationSchemaV4 = zV4.object({
   classification: zV4.enum(['change_requested', 'no_change', 'evasive']),
   proposed_change: zV4.object({
-    field: zV4.enum(['fire_at', 'fire_dow', 'skip_threshold', 'mute_until']),
+    field: zV4.enum(['fire_at', 'fire_dow', 'skip_threshold']),
     new_value: zV4.union([zV4.string(), zV4.number(), zV4.null()]),
   }).nullable(),
   confidence: zV4.number().min(0).max(1),
@@ -248,9 +269,11 @@ type ProposedChange = NonNullable<AdjustmentClassification['proposed_change']>;
  * confidence: 1.0, isFallback: true }.
  *
  * Security: proposed_change.field is z.enum(['fire_at', 'fire_dow',
- * 'skip_threshold', 'mute_until']) — Haiku CANNOT inject other field names
- * (T-28-02 mitigation). v4 schema is the SDK boundary gate; v3 re-validates
- * after parse to catch drift.
+ * 'skip_threshold']) — Haiku CANNOT inject other field names (T-28-02
+ * mitigation). Phase 41 ADJ-05 (D-41-06) dropped 'mute_until' to close the
+ * privilege-escalation surface (parsed user reply globally suppressing the
+ * ritual channel by overloading mute_until). v4 schema is the SDK boundary
+ * gate; v3 re-validates after parse to catch drift.
  */
 async function classifyAdjustmentReply(
   text: string,
@@ -625,10 +648,33 @@ export async function handleConfirmationReply(
 // ── Export 4: confirmConfigPatch ─────────────────────────────────────────────
 
 /**
+ * REJECT_ERROR_MSG — Phase 41 ADJ-06 locale-aware rejection messages.
+ *
+ * Sent when the candidate-parse gate (`parseRitualConfig(candidate)`) rejects
+ * a Haiku-proposed patch because the value type doesn't match
+ * RitualConfigSchema (e.g., `fire_at: 42` instead of `"21:30"`). Without this
+ * gate, the jsonb_set write succeeded and the next sweep tick crashed
+ * `parseRitualConfig` → ritual silently bricked via `config_invalid`.
+ */
+const REJECT_ERROR_MSG: Record<Lang, (fieldLbl: string) => string> = {
+  English: (f) => `That value doesn't look like the right type for ${f} — keeping current config.`,
+  French: (f) => `Cette valeur ne semble pas avoir le bon type pour ${f} — je garde la config actuelle.`,
+  Russian: (f) => `Это значение не похоже на правильный тип для ${f} — оставляю текущую конфигурацию.`,
+};
+
+/**
  * confirmConfigPatch — apply a proposed config patch to rituals.config.
  *
  * Per RESEARCH Landmine 1: writes use the discriminated envelope inside
  * patch jsonb — { kind: 'apply', field, old_value, new_value, source }.
+ *
+ * Phase 41 ADJ-06 (D-41-07): builds a candidate config in-memory and gates
+ * the jsonb_set write on `parseRitualConfig(candidate)`. ZodError routes to
+ * the rejected-audit path (no write, no crash, no `config_invalid` on next
+ * sweep). The user-facing rejection sendMessage is suppressed when actor is
+ * `auto_apply_on_timeout` — the cron-context reject path should not produce
+ * a deferred Telegram notification outside the original dialogue
+ * (PLAN-CHECK WARNING-3).
  *
  * Uses jsonb_set for atomic config mutation. Reads old_value before update
  * for audit trail. actor is varchar(32) — must be ≤32 chars.
@@ -649,7 +695,55 @@ export async function confirmConfigPatch(
   const oldValue = cfg[proposedChange.field];
   const newValue = proposedChange.new_value;
 
-  // STEP 2: Apply via jsonb_set
+  // STEP 2 (Phase 41 ADJ-06 / D-41-07): candidate-parse gate before write.
+  // Build the post-patch config in memory and run it through the same
+  // RitualConfigSchema that scheduler.ts's runRitualSweep parses on every
+  // tick. ZodError here → reject path; no jsonb_set, no crash downstream.
+  const candidate = { ...cfg, [proposedChange.field]: newValue };
+  try {
+    parseRitualConfig(candidate);
+  } catch (err) {
+    const errStr = err instanceof Error ? err.message : String(err);
+    logger.warn(
+      {
+        ritualId,
+        field: proposedChange.field,
+        attempted_new_value: newValue,
+        err: errStr,
+        actor,
+      },
+      'chris.adjustment.config_patch.invalid_type',
+    );
+
+    await db.insert(ritualConfigEvents).values({
+      ritualId,
+      actor,
+      patch: {
+        kind: 'rejected',
+        field: proposedChange.field,
+        attempted_new_value: newValue,
+        error: errStr,
+        source: actor === 'auto_apply_on_timeout' ? 'sweep' : 'reply',
+      },
+    });
+
+    // Suppress Telegram notification on the cron-context path (WARNING-3):
+    // ritualConfirmationSweep is the only `auto_apply_on_timeout` caller and
+    // it fires deferred — sending Greg a rejection message outside the
+    // original dialogue would surprise him with an out-of-band notification.
+    if (actor !== 'auto_apply_on_timeout') {
+      const locale: Lang = langOf(
+        await getLastUserLanguageFromDb(BigInt(config.telegramAuthorizedUserId)),
+      );
+      await bot.api.sendMessage(
+        Number(config.telegramAuthorizedUserId),
+        REJECT_ERROR_MSG[locale](configFieldLabel(proposedChange.field, locale)),
+      );
+    }
+    return;
+  }
+
+  // STEP 3: Apply via jsonb_set
   // postgres-js String() cast workaround per wellbeing.ts:148-150 JSDoc
   await db
     .update(rituals)
@@ -658,7 +752,7 @@ export async function confirmConfigPatch(
     })
     .where(eq(rituals.id, ritualId));
 
-  // STEP 3: INSERT ritual_config_events (discriminated envelope per Landmine 1)
+  // STEP 4: INSERT ritual_config_events (discriminated envelope per Landmine 1)
   await db.insert(ritualConfigEvents).values({
     ritualId,
     actor,
