@@ -42,7 +42,7 @@
  *   - 'fired_no_response' emitted by ritualResponseWindowSweep on 18h window expiry
  *   - 'fired' emitted on initial fire (added Phase 28); not previously tracked from wellbeing
  */
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { InlineKeyboard, type Context } from 'grammy';
 import { DateTime } from 'luxon';
 import { bot } from '../bot/bot.js';
@@ -265,9 +265,40 @@ async function completeSnapshot(
   openRow: typeof ritualResponses.$inferSelect,
   meta: WellbeingMetadata,
 ): Promise<void> {
+  // Phase 42 RACE-03 (D-42-06 + D-42-07): atomic completion-claim UPDATE
+  // BEFORE any side-effect work. Three concurrent third-tap callbacks can
+  // each reach this function under rapid-tap concurrency; without the claim
+  // guard, all three would each emit a duplicate wellbeing_completed
+  // ritual_fire_events row, call editMessageText three times, and
+  // redundantly set skip_count=0. The atomic UPDATE on
+  // `respondedAt IS NULL` is the canonical idempotency key (mirrors the
+  // tryFireRitualAtomic pattern from idempotency.ts — D-42-06): only ONE
+  // claim wins per ritual_responses row; losers silently return at DEBUG
+  // log level.
+  const [claimed] = await db
+    .update(ritualResponses)
+    .set({ respondedAt: new Date() })
+    .where(
+      and(
+        eq(ritualResponses.id, openRow.id),
+        isNull(ritualResponses.respondedAt),
+      ),
+    )
+    .returning({ id: ritualResponses.id });
+
+  if (!claimed) {
+    logger.debug(
+      { fireRowId: openRow.id },
+      'rituals.wellbeing.completion_race_lost',
+    );
+    return;
+  }
+
   const today = todayLocalDate();
 
-  // Single atomic insert with all 3 columns (per D-27-05)
+  // Single atomic insert with all 3 columns (per D-27-05). Idempotent via
+  // ON CONFLICT (snapshot_date) — but the completion-claim above already
+  // guarantees we are the ONLY caller running this code path for this row.
   await db
     .insert(wellbeingSnapshots)
     .values({
@@ -285,14 +316,12 @@ async function completeSnapshot(
       },
     });
 
-  // Mark ritual_responses row as responded
+  // Mark ritual_responses metadata with completed:true (respondedAt is
+  // already set by the claim UPDATE above).
   const completedMeta: WellbeingMetadata = { ...meta, completed: true };
   await db
     .update(ritualResponses)
-    .set({
-      respondedAt: new Date(),
-      metadata: completedMeta,
-    })
+    .set({ metadata: completedMeta })
     .where(eq(ritualResponses.id, openRow.id));
 
   // Phase 28 SKIP-01: emit ritual_fire_events for completed wellbeing snapshot.
@@ -329,19 +358,45 @@ async function handleSkip(
   ctx: Context,
   openRow: typeof ritualResponses.$inferSelect,
 ): Promise<void> {
-  const meta = (openRow.metadata ?? { partial: {} }) as WellbeingMetadata;
+  // Phase 42 RACE-04 (D-42-09): completion-claim guard FIRST. Two-way safety
+  // on the ritual_responses row — a skip arriving concurrently with a
+  // third-tap completion must produce exactly one winner. Same atomic
+  // UPDATE shape as RACE-03 in completeSnapshot above.
+  const [claimed] = await db
+    .update(ritualResponses)
+    .set({ respondedAt: new Date() })
+    .where(
+      and(
+        eq(ritualResponses.id, openRow.id),
+        isNull(ritualResponses.respondedAt),
+      ),
+    )
+    .returning({ id: ritualResponses.id });
 
-  // Mark as skipped — adjustment_eligible: false per WELL-04
-  const skippedMeta: WellbeingMetadata = {
-    ...meta,
-    skipped: true,
-    adjustment_eligible: false,
-  };
+  if (!claimed) {
+    logger.debug(
+      { fireRowId: openRow.id },
+      'rituals.wellbeing.skip_race_lost',
+    );
+    return;
+  }
+
+  // Phase 42 RACE-04 (D-42-08): nested jsonb_set merge for skipped +
+  // adjustment_eligible flags. The pre-RACE-04 code wrote a FULL-OBJECT
+  // metadata overwrite via `{...meta, skipped: true, adjustment_eligible:
+  // false}`, which silently discarded any concurrent metadata.partial.{e|m|a}
+  // tap that landed between findOpenWellbeingRow and this UPDATE. The nested
+  // jsonb_set pattern (mirror of the tap path at line 237) merges the two
+  // skip-flag fields into whatever metadata is currently in the column,
+  // preserving partial-tap state for downstream forensics. Closes the
+  // data-fidelity-mandate violation called out in Phase 27 BL-02.
   await db
     .update(ritualResponses)
     .set({
-      respondedAt: new Date(),
-      metadata: skippedMeta,
+      metadata: sql`jsonb_set(jsonb_set(
+        coalesce(${ritualResponses.metadata}, '{}'::jsonb),
+        '{skipped}', 'true'::jsonb, true),
+        '{adjustment_eligible}', 'false'::jsonb, true)`,
     })
     .where(eq(ritualResponses.id, openRow.id));
 
