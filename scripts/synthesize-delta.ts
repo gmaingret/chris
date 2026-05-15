@@ -585,12 +585,21 @@ ${bullets}`;
     signalPhrases && signalPhrases.length
       ? ` Where natural, weave in hedge phrases like ${signalPhrases.map((p) => `"${p}"`).join(', ')} to mark intellectual curiosity — at least 2-3 of the ${nEntries} entries should contain one of these phrases verbatim.`
       : '';
+  // FIX-02a (Phase 45 v2.6.1 D-07a): Decouple phrasesClause append from
+  // dimensionHint truthiness — phrasesClause must inject under its own
+  // `if (phrasesClause)` branch independent of the `if (dimensionHint)`
+  // branch so the PMT-01 signal-phrases contract holds even when no
+  // dimension hint is active (40-REVIEW.md §Tech-Debt #3 lines 134-136).
+  let result = base;
   if (dimensionHint) {
-    return `${base}
+    result = `${result}
 
-Focus today's entries on ${dimensionHint}.${phrasesClause}`;
+Focus today's entries on ${dimensionHint}.`;
   }
-  return base;
+  if (phrasesClause) {
+    result = `${result}${phrasesClause}`;
+  }
+  return result;
 }
 
 // ── Deterministic decisions generator (SYNTH-04) ──────────────────────────
@@ -931,7 +940,25 @@ export async function synthesize(opts: SynthesizeOptions): Promise<void> {
       String(a.id).localeCompare(String(b.id)),
   );
   const fusedDecisions = [...organicDecisions, ...synthDecisions];
-  const fusedContradictions = [...organicContradictions, ...synthContradictions];
+
+  // FIX-01 (Phase 45 v2.6.1 D-06): Pre-filter contradictions against the
+  // fused pensieve id set to eliminate FK violations on sparse-pensieve
+  // fixtures (m011-1000words). Drop orphans silently and emit ONE summary
+  // log event per synth run (40-REVIEW.md §Tech-Debt #2 lines 125-132).
+  const pensieveIds = new Set(fusedPensieve.map((p) => String(p.id)));
+  const rawContradictions = [...organicContradictions, ...synthContradictions];
+  const fusedContradictions = rawContradictions.filter(
+    (c) =>
+      pensieveIds.has(String(c.entry_a_id)) &&
+      pensieveIds.has(String(c.entry_b_id)),
+  );
+  const droppedCount = rawContradictions.length - fusedContradictions.length;
+  if (droppedCount > 0) {
+    logger.info(
+      { droppedCount, totalCount: rawContradictions.length },
+      'synth.contradictions.dropped',
+    );
+  }
 
   // Write fixture output. Plan 24-04 will consume this directory via loadPrimedFixture.
   const outDir = join(outRoot, `${opts.milestone}-${opts.targetDays}days`);
