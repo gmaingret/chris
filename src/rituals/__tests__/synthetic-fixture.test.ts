@@ -170,6 +170,21 @@ if (!FIXTURE_PRESENT) {
   );
 }
 
+// Phase 44 CI-03: REQUIRE_FIXTURES=1 env-gated hard-fail (M009 milestone-
+// shipping gate). CI sets this var so missing-fixture skips become loud
+// failures with a clear regen pointer; local dev (env unset) preserves the
+// existing skip-with-hint UX above.
+if (!FIXTURE_PRESENT && process.env.REQUIRE_FIXTURES === '1') {
+  describe('[CI-GATE] fixture present', () => {
+    it(`${FIXTURE_PATH} must exist when REQUIRE_FIXTURES=1`, () => {
+      throw new Error(
+        `Milestone-gate fixture missing: ${FIXTURE_PATH}. ` +
+          `Regenerate via: npx tsx scripts/regenerate-primed.ts --milestone m009 --target-days 21 --force --reseed-vcr`,
+      );
+    });
+  });
+}
+
 // ── 5. Helpers ──────────────────────────────────────────────────────────
 function dateAtLocalHour(isoDate: string, tz: string, hour: number, minute: number): Date {
   return DateTime.fromISO(isoDate, { zone: tz })
