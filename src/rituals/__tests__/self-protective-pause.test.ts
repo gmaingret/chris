@@ -48,6 +48,7 @@ import {
   rituals,
   ritualResponses,
   ritualConfigEvents,
+  ritualFireEvents,
 } from '../../db/schema.js';
 import { hasReachedEvasiveTrigger, autoReEnableExpiredMutes } from '../skip-tracking.js';
 
@@ -129,6 +130,11 @@ async function cleanFixtures() {
   if (seededRitualIds.length > 0) {
     await db.delete(ritualConfigEvents).where(inArray(ritualConfigEvents.ritualId, seededRitualIds));
     await db.delete(ritualResponses).where(inArray(ritualResponses.ritualId, seededRitualIds));
+    // Phase 41 D-41-05: autoReEnableExpiredMutes now emits a RESPONDED
+    // ritual_fire_events row paired with each re-enable so computeSkipCount
+    // replay sees an anchor. Cleanup must delete those rows before the
+    // parent rituals row, or the FK constraint blocks deletion.
+    await db.delete(ritualFireEvents).where(inArray(ritualFireEvents.ritualId, seededRitualIds));
     await db.delete(rituals).where(inArray(rituals.id, seededRitualIds));
     seededRitualIds = [];
   }

@@ -285,14 +285,29 @@ export async function autoReEnableExpiredMutes(now: Date = new Date()): Promise<
     // fails, others still process. Each update is idempotent.
     const cfg = row.config as Record<string, unknown>;
 
-    // Update: enable=true + clear mute_until via jsonb_set (RESEARCH Landmine 1 pattern)
+    // Phase 41 ADJ-04 site #4 / BL-10: when the 30-day mute expires, also
+    // reset skipCount=0 in the SAME UPDATE that flips enabled=true. Without
+    // this, the next sweep tick after re-enable would see the pre-pause skip
+    // count and immediately re-fire shouldFireAdjustmentDialogue.
     await db
       .update(rituals)
       .set({
         enabled: true,
+        skipCount: 0,
         config: sql`jsonb_set(${rituals.config}, '{mute_until}', 'null'::jsonb)`,
       })
       .where(eq(rituals.id, row.id));
+
+    // Phase 41 D-41-05: emit a RESPONDED fire-event paired with the reset
+    // so computeSkipCount replay sees a baseline anchor at the re-enable
+    // moment. Without it, replay would count pre-pause fired_no_response
+    // events as still active.
+    await db.insert(ritualFireEvents).values({
+      ritualId: row.id,
+      firedAt: new Date(),
+      outcome: RITUAL_OUTCOME.RESPONDED,
+      metadata: { source: 'auto_re_enable', ritualId: row.id },
+    });
 
     // Insert ritual_config_events — discriminated envelope per RESEARCH Landmine 1
     await db.insert(ritualConfigEvents).values({
