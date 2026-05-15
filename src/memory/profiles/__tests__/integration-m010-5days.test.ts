@@ -117,6 +117,19 @@ if (!FIXTURE_PRESENT) {
   );
 }
 
+// Phase 44 CI-01: REQUIRE_FIXTURES=1 env-gated hard-fail.
+if (!FIXTURE_PRESENT && process.env.REQUIRE_FIXTURES === '1') {
+  describe('[CI-GATE] fixture present', () => {
+    it(`${FIXTURE_PATH} must exist when REQUIRE_FIXTURES=1`, () => {
+      throw new Error(
+        `Milestone-gate fixture missing: ${FIXTURE_PATH}. ` +
+          `Regenerate via: npx tsx scripts/regenerate-primed.ts --milestone m010 --target-days 5 --profile-bias jurisdictional --profile-bias capital --profile-bias health --profile-bias family --seed 42 --no-refresh ` +
+          `(NOTE: m010-5days is manually constructed as a 5-entry pick from m010-30days; see tests/fixtures/primed/m010-5days/MANIFEST.json.)`,
+      );
+    });
+  });
+}
+
 const skipIfAbsent = FIXTURE_PRESENT ? describe : describe.skip;
 
 // ── NOW anchor — same band as the 30days test for window coverage ──────────
