@@ -168,6 +168,18 @@ if (!M30_PRESENT) {
   );
 }
 
+// Phase 44 CI-01: REQUIRE_FIXTURES=1 env-gated hard-fail (m010-30days).
+if (!M30_PRESENT && process.env.REQUIRE_FIXTURES === '1') {
+  describe('[CI-GATE] fixture present (m010-30days)', () => {
+    it(`${M30_PATH} must exist when REQUIRE_FIXTURES=1`, () => {
+      throw new Error(
+        `Milestone-gate fixture missing: ${M30_PATH}. ` +
+          `Regenerate via: npx tsx scripts/regenerate-primed.ts --milestone m010 --target-days 30 --profile-bias jurisdictional --profile-bias capital --profile-bias health --profile-bias family --seed 42 --no-refresh`,
+      );
+    });
+  });
+}
+
 const skipIfM30Absent = M30_PRESENT ? describe : describe.skip;
 
 skipIfM30Absent('primed-sanity-m010: m010-30days fixture (PTEST-01 HARN; D-10)', () => {
@@ -234,6 +246,19 @@ if (!M5_PRESENT) {
       `  (NOTE: synthesize-delta does not truncate organic input; the m010-5days\n` +
       `   fixture is manually constructed as a 5-entry pick from m010-30days.)`,
   );
+}
+
+// Phase 44 CI-01: REQUIRE_FIXTURES=1 env-gated hard-fail (m010-5days).
+if (!M5_PRESENT && process.env.REQUIRE_FIXTURES === '1') {
+  describe('[CI-GATE] fixture present (m010-5days)', () => {
+    it(`${M5_PATH} must exist when REQUIRE_FIXTURES=1`, () => {
+      throw new Error(
+        `Milestone-gate fixture missing: ${M5_PATH}. ` +
+          `Regenerate via: npx tsx scripts/regenerate-primed.ts --milestone m010 --target-days 5 --profile-bias jurisdictional --profile-bias capital --profile-bias health --profile-bias family --seed 42 --no-refresh ` +
+          `(NOTE: m010-5days is manually constructed as a 5-entry pick from m010-30days.)`,
+      );
+    });
+  });
 }
 
 const skipIfM5Absent = M5_PRESENT ? describe : describe.skip;
