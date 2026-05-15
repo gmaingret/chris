@@ -20,6 +20,7 @@ MIGRATION_11_SQL="src/db/migrations/0011_rename_daily_voice_note_to_journal.sql"
 MIGRATION_12_SQL="src/db/migrations/0012_operational_profiles.sql"
 MIGRATION_13_SQL="src/db/migrations/0013_psychological_profiles.sql"
 MIGRATION_14_SQL="src/db/migrations/0014_psychological_data_consistency_column.sql"
+MIGRATION_15_SQL="src/db/migrations/0015_psychological_check_constraints.sql"
 
 cleanup() {
   echo "🧹 Stopping test postgres..."
@@ -91,6 +92,41 @@ docker compose -f "$COMPOSE_FILE" exec -T postgres \
 # atomically in Plan 43-02 Task 3.
 docker compose -f "$COMPOSE_FILE" exec -T postgres \
   psql -U chris -d chris -v ON_ERROR_STOP=1 -q < "$MIGRATION_14_SQL"
+# Phase 45 Plan 01 / SCHEMA-01 — 19 per-dim CHECK constraints on psychological
+# jsonb columns (defense-in-depth behind Zod v3 read-time parse).
+# HARD CO-LOC #M11-45a: this apply line + 0015_*.sql + meta/0015_snapshot.json +
+# _journal.json idx-15 entry + the 19-constraint smoke gate below ALL ship
+# atomically in Plan 45-01 (CONTEXT D-04/D-18; slot 0015 because Phase 43 owns 0014).
+docker compose -f "$COMPOSE_FILE" exec -T postgres \
+  psql -U chris -d chris -v ON_ERROR_STOP=1 -q < "$MIGRATION_15_SQL"
+
+# Phase 45 SCHEMA-01 — post-migration CHECK-constraint smoke gate.
+# Per HARD CO-LOC #M11-45a: SQL migration + journal entry + this assertion
+# all ship together. Validates that all 19 new per-dim bounds constraints
+# (6 HEXACO + 10 Schwartz + 3 attachment) exist after migration apply.
+echo "🔍 Verifying migration 0015 CHECK constraints..."
+docker compose -f "$COMPOSE_FILE" exec -T postgres \
+  psql -U chris -d chris -v ON_ERROR_STOP=1 -tAq -c "
+    SELECT COUNT(*) FROM information_schema.check_constraints
+    WHERE constraint_name LIKE 'profile_hexaco_%_bounds'
+      AND constraint_name <> 'profile_hexaco_overall_confidence_bounds'
+      AND constraint_name <> 'profile_hexaco_data_consistency_bounds';
+  " | grep -q '^6$' || { echo '❌ Expected 6 profile_hexaco per-dim bounds constraints (HEXACO 6 dims); see migration 0015'; exit 1; }
+docker compose -f "$COMPOSE_FILE" exec -T postgres \
+  psql -U chris -d chris -v ON_ERROR_STOP=1 -tAq -c "
+    SELECT COUNT(*) FROM information_schema.check_constraints
+    WHERE constraint_name LIKE 'profile_schwartz_%_bounds'
+      AND constraint_name <> 'profile_schwartz_overall_confidence_bounds'
+      AND constraint_name <> 'profile_schwartz_data_consistency_bounds';
+  " | grep -q '^10$' || { echo '❌ Expected 10 profile_schwartz per-dim bounds constraints (Schwartz 10 dims); see migration 0015'; exit 1; }
+docker compose -f "$COMPOSE_FILE" exec -T postgres \
+  psql -U chris -d chris -v ON_ERROR_STOP=1 -tAq -c "
+    SELECT COUNT(*) FROM information_schema.check_constraints
+    WHERE constraint_name LIKE 'profile_attachment_%_bounds'
+      AND constraint_name <> 'profile_attachment_overall_confidence_bounds'
+      AND constraint_name <> 'profile_attachment_data_consistency_bounds';
+  " | grep -q '^3$' || { echo '❌ Expected 3 profile_attachment per-dim bounds constraints (attachment 3 dims); see migration 0015'; exit 1; }
+echo "✅ Migration 0015 CHECK constraints verified (6+10+3 = 19 per-dim bounds)"
 
 # Phase 25 (M009 v2.4) — post-migration substrate smoke gate.
 # Per HARD CO-LOCATION CONSTRAINT #7 + Pitfall 28: the SQL migration, the
