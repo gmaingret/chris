@@ -582,6 +582,12 @@ export async function fireWeeklyReview(
   );
   const language = detectedLanguage ?? 'French';
 
+  // Phase 42 RACE-06 (D-42-13): capture previousNextRunAt from the INPUT
+  // ritual row BEFORE tryFireRitualAtomic advances next_run_at. The
+  // RACE-06 catch branch reverts to this value on Telegram send failure
+  // so next Sunday's sweep retries.
+  const previousNextRunAt = ritual.nextRunAt;
+
   // 4. Build prompt input + generate observation
   const promptInput: WeeklyReviewPromptInput = {
     weekStart: weekStartIso,
@@ -620,9 +626,28 @@ export async function fireWeeklyReview(
   // 5. Render user-facing message with D031 header (WEEK-04)
   const userFacingMessage = `${WEEKLY_REVIEW_HEADER}\n\n${result.observation}\n\n${result.question}`;
 
-  // 6. Insert ritual_responses row BEFORE Telegram send (M007 D-28 pattern).
-  // promptText carries the rendered user-facing message so longitudinal
-  // analysis can replay the exact text Greg saw.
+  // Phase 42 RACE-06 (D-42-11 + D-42-12 + D-42-13): transactional fire pipeline.
+  //
+  // Pre-RACE-06 ordering was:
+  //   INSERT ritual_responses → Pensieve → UPDATE respondedAt → SEND → INSERT fire_event
+  // which marked respondedAt BEFORE the Telegram send. A transient Grammy
+  // failure (429 Too Many Requests, network drop) silently recorded "fired
+  // successfully" while no Telegram message was actually delivered — a silent
+  // weekly miss.
+  //
+  // New ordering (D-42-11):
+  //   1. INSERT ritual_responses (NO respondedAt)
+  //   2. Persist Pensieve entry
+  //   3. SEND Telegram (wrapped in try/catch)
+  //   4a. On success: db.transaction(tx.update respondedAt+pensieveEntryId
+  //                                  + tx.insert fire_event 'fired')
+  //   4b. On failure: insert fire_event 'fired' with metadata.telegram_failed=true
+  //                  + revert rituals.next_run_at to previousNextRunAt
+  //                  + leave ritual_responses.respondedAt = NULL
+  //                  + leave Pensieve entry intact (acceptable orphan — D-42-11)
+  //                  + rethrow err so outer runRitualSweep try/catch logs+continues
+
+  // STEP 1: Insert ritual_responses WITHOUT respondedAt.
   const firedAt = new Date();
   const [fireRow] = await db
     .insert(ritualResponses)
@@ -644,7 +669,7 @@ export async function fireWeeklyReview(
     throw new Error('rituals.weekly.fire: ritual_responses INSERT returned no row');
   }
 
-  // 7. Persist to Pensieve (WEEK-08) with explicit RITUAL_RESPONSE tag override
+  // STEP 2: Persist to Pensieve (WEEK-08) with explicit RITUAL_RESPONSE tag override
   // (D-07 — bypasses Haiku auto-tagger; the auto-tagger only updates entries
   // with epistemic_tag IS NULL, so pre-tagged entries are skipped by future
   // tagger invocations). epistemicTag parameter shipped by Phase 26 commit
@@ -662,32 +687,75 @@ export async function fireWeeklyReview(
     { epistemicTag: 'RITUAL_RESPONSE' },
   );
 
-  // 8. Update ritual_responses with pensieve_entry_id back-reference + respondedAt.
-  // respondedAt here marks the system's response (Pensieve write completed),
-  // not Greg's textual reply (which would set it via PP#5 in journal.ts —
-  // but PP#5 is journal-specific, NOT used by the weekly review).
+  // STEP 3: SEND Telegram — wrapped in try/catch (D-42-11). On success the
+  // bookkeeping commits transactionally. On failure: write a single
+  // telegram_failed audit row, revert next_run_at, rethrow.
+  try {
+    await bot.api.sendMessage(config.telegramAuthorizedUserId, userFacingMessage);
+  } catch (sendErr) {
+    // STEP 4b: catch branch — audit row + nextRunAt revert + rethrow.
+    // No new RitualFireOutcome string; reuse 'fired' with metadata
+    // discriminator (matching D-28's pattern). The catch branch does NOT
+    // write respondedAt (stays NULL) and does NOT delete the Pensieve entry
+    // (orphan acceptable per D-42-11 — the observation text is useful for
+    // forensics and the back-reference resolves on retry next Sunday).
+    await db.insert(ritualFireEvents).values({
+      ritualId: ritual.id,
+      firedAt,
+      outcome: RITUAL_OUTCOME.FIRED,
+      metadata: {
+        ritualResponseId: fireRow.id,
+        isFallback: result.isFallback,
+        weekStart: weekStartIso,
+        weekEnd: weekEndIso,
+        telegram_failed: true,
+      },
+    });
+    await db
+      .update(rituals)
+      .set({ nextRunAt: previousNextRunAt })
+      .where(eq(rituals.id, ritual.id));
+
+    logger.error(
+      {
+        ritualId: ritual.id,
+        fireRowId: fireRow.id,
+        pensieveEntryId: pensieveEntry.id,
+        previousNextRunAt: previousNextRunAt.toISOString(),
+        err: sendErr instanceof Error ? sendErr.message : String(sendErr),
+      },
+      'rituals.weekly.send_failed',
+    );
+    // Rethrow so the outer runRitualSweep per-row try/catch logs + continues
+    // (scheduler.ts:284 'rituals.fire.error' branch).
+    throw sendErr;
+  }
+
+  // STEP 4a: success branch — paired UPDATE respondedAt+pensieveEntryId +
+  // INSERT fire_event 'fired' inside db.transaction so both commit-or-rollback
+  // together (D-42-11 + D-42-16). If the INSERT fails, the UPDATE rolls back
+  // and the next sweep retries (next_run_at not reverted here because the
+  // Telegram send already succeeded — Greg saw the message — so reverting
+  // would cause double-delivery; the audit-log INSERT failure surfaces via
+  // outer error handler).
   const respondedAt = new Date();
-  await db
-    .update(ritualResponses)
-    .set({ pensieveEntryId: pensieveEntry.id, respondedAt })
-    .where(eq(ritualResponses.id, fireRow.id));
+  await db.transaction(async (tx) => {
+    await tx
+      .update(ritualResponses)
+      .set({ pensieveEntryId: pensieveEntry.id, respondedAt })
+      .where(eq(ritualResponses.id, fireRow.id));
 
-  // 9. Send to Telegram
-  await bot.api.sendMessage(config.telegramAuthorizedUserId, userFacingMessage);
-
-  // Phase 28 SKIP-01: emit ritual_fire_events on successful weekly review fire.
-  // Weekly review emits ONLY 'fired' from this handler (no 'responded' or
-  // 'fired_no_response' — see JSDoc note on skip-tracking for weekly review).
-  await db.insert(ritualFireEvents).values({
-    ritualId: ritual.id,
-    firedAt,
-    outcome: RITUAL_OUTCOME.FIRED,
-    metadata: {
-      ritualResponseId: fireRow.id,
-      isFallback: result.isFallback,
-      weekStart: weekStartIso,
-      weekEnd: weekEndIso,
-    },
+    await tx.insert(ritualFireEvents).values({
+      ritualId: ritual.id,
+      firedAt,
+      outcome: RITUAL_OUTCOME.FIRED,
+      metadata: {
+        ritualResponseId: fireRow.id,
+        isFallback: result.isFallback,
+        weekStart: weekStartIso,
+        weekEnd: weekEndIso,
+      },
+    });
   });
 
   logger.info(
