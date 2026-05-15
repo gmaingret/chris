@@ -61,8 +61,71 @@ const CONFIRMATION_WINDOW_SECONDS = 60; // D-28-06 locked spec
 const HAIKU_MAX_RETRIES = 2; // D-28-05 retry cap (mirrors Phase 29 pattern)
 const CONFIDENCE_DEFAULT_EVASIVE_THRESHOLD = 0.7; // CONTEXT.md "default-evasive on low confidence"
 
+// ── Phase 41 ADJ-03: per-area locale string maps ───────────────────────────
+// Each map covers exactly one user-facing rendering site. Mirrors the
+// `ACKNOWLEDGMENTS` exemplar from src/chris/refusal.ts:180-184. Plan 41-01
+// shipped the EN slot inline at each call site; Plan 41-02 wraps each in a
+// `Record<Lang, ...>` map with FR/RU peers. The EN strings are unchanged.
+
+const OBSERVATIONAL_PROMPT: Record<Lang, (name: string) => string> = {
+  English: (name) =>
+    `I noticed we've missed the ${name} a few times. Want to adjust something, or keep it as is?`,
+  French: (name) =>
+    `J'ai remarqué qu'on a sauté le rituel ${name} plusieurs fois. Tu veux ajuster quelque chose, ou on garde comme ça ?`,
+  Russian: (name) =>
+    `Я заметил, что мы пропустили ${name} несколько раз. Хочешь что-то изменить, или оставим как есть?`,
+};
+
+const HARD_DISABLE_ACK: Record<Lang, string> = {
+  English: 'OK, disabling this ritual. You can re-enable it manually anytime.',
+  French: "D'accord, je désactive ce rituel. Tu peux le réactiver manuellement à tout moment.",
+  Russian: 'Хорошо, отключаю этот ритуал. Ты можешь включить его вручную в любое время.',
+};
+
+const NOT_NOW_ACK: Record<Lang, string> = {
+  English: "OK, I'll skip the adjustment dialogue for 7 days. Skip-tracking continues.",
+  French: "D'accord, je passe le dialogue d'ajustement pendant 7 jours. Le suivi des sauts continue.",
+  Russian: 'Хорошо, пропускаю диалог настройки на 7 дней. Учёт пропусков продолжается.',
+};
+
+const AUTO_PAUSE_MSG: Record<Lang, (name: string, dateISO: string) => string> = {
+  English: (n, d) =>
+    `Pausing the ${n} for 30 days — feels like the timing isn't right. It will auto-re-enable on ${d}.`,
+  French: (n, d) =>
+    `Je mets le ${n} en pause pendant 30 jours — j'ai l'impression que le timing ne va pas. Réactivation auto le ${d}.`,
+  Russian: (n, d) =>
+    `Ставлю ${n} на паузу на 30 дней — кажется, момент не подходящий. Автоматическое включение ${d}.`,
+};
+
+const APPLIED_ACK: Record<Lang, (fieldLbl: string, newValue: string | number | null) => string> = {
+  English: (f, v) => `Applied: ${f} = ${v}`,
+  French: (f, v) => `Appliqué : ${f} = ${v}`,
+  Russian: (f, v) => `Применено: ${f} = ${v}`,
+};
+
+const KEPT_ACK: Record<Lang, (fieldLbl: string) => string> = {
+  English: (f) => `OK, keeping ${f} as is`,
+  French: (f) => `D'accord, je garde ${f} tel quel`,
+  Russian: (f) => `Хорошо, оставляю ${f} как есть`,
+};
+
+const CONFIRM_ECHO: Record<Lang, (fieldLbl: string, newValue: string | number | null) => string> = {
+  English: (f, v) => `Change ${f} to ${v} — OK? (auto-applies in 60s if no reply)`,
+  French: (f, v) => `Changer ${f} en ${v} — OK ? (s'applique auto dans 60 s sans réponse)`,
+  Russian: (f, v) => `Изменить ${f} на ${v} — OK? (применится автоматически через 60 сек без ответа)`,
+};
+
+// Phase 41 ADJ-03 (Plan 41-02 Cluster C / BL-03 second half):
+// Locale-agnostic Haiku judge prompt. The user may reply in English, French,
+// or Russian — handle all three uniformly. One example per language for each
+// of the 3 classification classes. Field list synced with the post-ADJ-05
+// enum (no `mute_until`).
 const ADJUSTMENT_JUDGE_PROMPT =
-  "You are classifying a user's reply to an adjustment-dialogue message about a recurring ritual. The ritual has been skipped too many times and the user was asked what should change. Classify the reply into exactly one category: 'change_requested' (user wants a specific change to the ritual config), 'no_change' (user says no change needed, or wants to keep going), or 'evasive' (user is vague, dismissive, or unclear). If change_requested, extract the proposed change field (one of: fire_at, fire_dow, skip_threshold, mute_until) and the new value. Output JSON: { classification: 'change_requested'|'no_change'|'evasive', proposed_change: { field, new_value } | null, confidence: number 0-1 }.";
+  "You are classifying a user's reply to an adjustment-dialogue message about a recurring ritual. The user may reply in English, French, or Russian — handle all three uniformly. The ritual has been skipped too many times and the user was asked what should change. Classify the reply into exactly one category:\n" +
+  "- 'change_requested' (user wants a specific change to the ritual config). Examples: EN \"move it to 9pm\", FR \"à 21h plutôt\", RU \"перенеси на 21:00\".\n" +
+  "- 'no_change' (user says no change needed, or wants to keep going). Examples: EN \"no change, all good\", FR \"rien à changer\", RU \"ничего не менять\".\n" +
+  "- 'evasive' (vague, dismissive, or unclear). Examples: EN \"idk lol\", FR \"bof\", RU \"не знаю\".\n" +
+  "If change_requested, extract the proposed change field (one of: fire_at, fire_dow, skip_threshold) and the new value. Output JSON: { classification: 'change_requested'|'no_change'|'evasive', proposed_change: { field, new_value } | null, confidence: number 0-1 }.";
 
 // ── M006 Refusal pre-check (Plan 28-04 SKIP-07 + RESEARCH Pitfall 2) ─────────
 
@@ -136,6 +199,7 @@ async function routeRefusal(
   ritualId: string,
   refusal: { isHardDisable: boolean; isNotNow: boolean; topic: string },
   text: string,
+  locale: Lang,
 ): Promise<void> {
   // Phase 41 ADJ-04 (D-41-05): refusals are completions — skip_count = 0
   // resets, paired with a RESPONDED fire-event, inside a transaction.
@@ -172,10 +236,7 @@ async function routeRefusal(
       'chris.adjustment.refused.manual_disable',
     );
 
-    await bot.api.sendMessage(
-      Number(config.telegramAuthorizedUserId),
-      'OK, disabling this ritual. You can re-enable it manually anytime.',
-    );
+    await bot.api.sendMessage(Number(config.telegramAuthorizedUserId), HARD_DISABLE_ACK[locale]);
   } else if (refusal.isNotNow) {
     // "not now" deferral — set adjustment_mute_until = now + 7 days
     const sevenDaysFromNow = new Date(Date.now() + 7 * 24 * 3600 * 1000);
@@ -213,10 +274,7 @@ async function routeRefusal(
       'chris.adjustment.refused.not_now',
     );
 
-    await bot.api.sendMessage(
-      Number(config.telegramAuthorizedUserId),
-      "OK, I'll skip the adjustment dialogue for 7 days. Skip-tracking continues.",
-    );
+    await bot.api.sendMessage(Number(config.telegramAuthorizedUserId), NOT_NOW_ACK[locale]);
   }
 }
 
@@ -331,16 +389,22 @@ async function classifyAdjustmentReply(
 export async function fireAdjustmentDialogue(
   ritual: typeof rituals.$inferSelect,
 ): Promise<RitualFireOutcome> {
-  // Phase 41 ADJ-01 / ADJ-02 (D-41-02 + D-41-03 BL-01 fix):
-  // Observational copy with display-name substitution. Cadence is no longer
-  // prefixed — the display name already encodes it ("evening journal" not
-  // "daily evening journal"). The WR-01 cadence ternary was here; removed
-  // because the slug fallback is monthly/quarterly-safe and metadata.cadence
-  // now uses ritual.type directly (forward-compat for M013).
-  const dispName = displayName(ritual.name, 'English');
-  const messageText = `I noticed we've missed the ${dispName} a few times. Want to adjust something, or keep it as is?`;
-
+  // Phase 41 ADJ-01 / ADJ-02 / ADJ-03 (D-41-02 + D-41-03 + D-41-04):
+  // Observational copy with display-name substitution, in Greg's detected
+  // locale. Cadence is no longer prefixed — the display name already encodes
+  // it ("evening journal" not "daily evening journal"). The WR-01 cadence
+  // ternary was here; removed because the slug fallback is monthly/quarterly-
+  // safe and metadata.cadence now uses ritual.type directly (forward-compat
+  // for M013).
+  //
+  // Locale resolution: cron-context handler with no user text in hand →
+  // DB-backed lookup (getLastUserLanguageFromDb scans the most recent USER
+  // conversation row). Falls back to English on null.
   const chatId = BigInt(config.telegramAuthorizedUserId);
+  const locale: Lang = langOf(await getLastUserLanguageFromDb(chatId));
+
+  const dispName = displayName(ritual.name, locale);
+  const messageText = OBSERVATIONAL_PROMPT[locale](dispName);
 
   // Send BEFORE inserting pending row — if Telegram fails, no stale binding
   // (mirrors journal.ts:340 sequencing)
@@ -418,6 +482,16 @@ export async function handleAdjustmentReply(
     throw new StorageError('ritual.adjustment.race_lost');
   }
 
+  // Phase 41 ADJ-03 / D-41-04: reply-side locale resolution. Run franc on
+  // Greg's text (with the previous session language as the short-message
+  // anchor per LANG-02), then persist for any subsequent sendMessage calls
+  // in the same reply path.
+  const chatIdStrAdj = String(chatId);
+  const prevLangAdj = getLastUserLanguage(chatIdStrAdj);
+  const detectedLangAdj = detectLanguage(text, prevLangAdj);
+  if (detectedLangAdj) setLastUserLanguage(chatIdStrAdj, detectedLangAdj);
+  const locale: Lang = langOf(detectedLangAdj);
+
   // STEP 1.5 (Plan 28-04): M006 refusal pre-check — load-bearing for SKIP-06.
   // RESEARCH Pitfall 2: refusals MUST short-circuit BEFORE the Haiku call to
   // prevent classifier mis-classifying refusal-as-evasive → spurious 30-day pause.
@@ -425,7 +499,7 @@ export async function handleAdjustmentReply(
   // metadata.classification='evasive' marker that hasReachedEvasiveTrigger reads.
   const refusal = isAdjustmentRefusal(text);
   if (refusal.isRefusal) {
-    await routeRefusal(pending.ritualId, refusal, text);
+    await routeRefusal(pending.ritualId, refusal, text, locale);
     return ''; // IN-02 silent-skip
   }
 
@@ -441,7 +515,7 @@ export async function handleAdjustmentReply(
   // STEP 4: Branch on classification
   if (classification === 'change_requested' && classified.proposed_change) {
     // Queue confirmation: echo + insert adjustment_confirmation pending row
-    await queueConfigPatchConfirmation(pending.ritualId, classified.proposed_change, chatId);
+    await queueConfigPatchConfirmation(pending.ritualId, classified.proposed_change, chatId, locale);
     logger.info(
       {
         ritualId: pending.ritualId,
@@ -521,9 +595,16 @@ export async function handleAdjustmentReply(
         'chris.adjustment.auto_paused',
       );
 
+      // Phase 41 ADJ-03: previous EN copy didn't reference the ritual; FR/RU
+      // variants do (more natural). Adding displayName here is additive — EN
+      // still reads naturally with "the evening journal".
+      const pauseDispName = displayName(
+        (await db.select({ name: rituals.name }).from(rituals).where(eq(rituals.id, pending.ritualId)))[0]?.name ?? pending.ritualId,
+        locale,
+      );
       await bot.api.sendMessage(
         Number(config.telegramAuthorizedUserId),
-        `Pausing this ritual for 30 days — feels like the timing isn't right. It will auto-re-enable on ${thirtyDaysFromNow.toISOString().slice(0, 10)}.`,
+        AUTO_PAUSE_MSG[locale](pauseDispName, thirtyDaysFromNow.toISOString().slice(0, 10)),
       );
     }
   }
@@ -564,6 +645,15 @@ export async function handleConfirmationReply(
     return '';
   }
 
+  // Phase 41 ADJ-03 / D-41-04: reply-side locale resolution (same pattern as
+  // handleAdjustmentReply). Detect from the confirmation text, persist for
+  // any subsequent sendMessage calls in the same reply path.
+  const chatIdStrCfm = String(chatId);
+  const prevLangCfm = getLastUserLanguage(chatIdStrCfm);
+  const detectedLangCfm = detectLanguage(text, prevLangCfm);
+  if (detectedLangCfm) setLastUserLanguage(chatIdStrCfm, detectedLangCfm);
+  const locale: Lang = langOf(detectedLangCfm);
+
   // STEP 2: Parse yes/no
   const normalized = text.trim().toLowerCase();
   const isYes = /^(yes|y|ok|confirm|apply|yeah|yep|sure|oui|da)$/i.test(normalized);
@@ -599,10 +689,10 @@ export async function handleConfirmationReply(
         metadata: { confirmationId: pending.id, source: 'user_yes' },
       });
     });
-    // ADJ-02 / WR-09: use display label, not raw slug, in the applied ack.
+    // ADJ-02 / ADJ-03 / WR-09: use display label + locale in the applied ack.
     await bot.api.sendMessage(
       chatId,
-      `Applied: ${configFieldLabel(proposedChange.field, 'English')} = ${proposedChange.new_value}`,
+      APPLIED_ACK[locale](configFieldLabel(proposedChange.field, locale), proposedChange.new_value),
     );
     logger.info(
       { ritualId: pending.ritualId, field: proposedChange.field, actor: 'user' },
@@ -631,10 +721,10 @@ export async function handleConfirmationReply(
         metadata: { confirmationId: pending.id, source: 'user_no' },
       });
     });
-    // ADJ-02 / BL-02 polish: name what was declined, not just "current config".
+    // ADJ-02 / ADJ-03 / BL-02 polish: name what was declined + locale.
     await bot.api.sendMessage(
       chatId,
-      `OK, keeping ${configFieldLabel(proposedChange.field, 'English')} as is`,
+      KEPT_ACK[locale](configFieldLabel(proposedChange.field, locale)),
     );
     logger.info(
       { ritualId: pending.ritualId, field: proposedChange.field },
@@ -885,15 +975,16 @@ async function queueConfigPatchConfirmation(
   ritualId: string,
   proposedChange: ProposedChange,
   chatId: number,
+  locale: Lang,
 ): Promise<void> {
   const firedAt = new Date();
   const expiresAt = new Date(firedAt.getTime() + CONFIRMATION_WINDOW_SECONDS * 1000);
 
   // Send confirmation echo before inserting pending row (mirrors journal sequencing)
-  // Phase 41 ADJ-02 / WR-09: use display label, not raw slug, in the confirmation echo.
+  // Phase 41 ADJ-02 / ADJ-03 / WR-09: display label + locale in the echo.
   await bot.api.sendMessage(
     chatId,
-    `Change ${configFieldLabel(proposedChange.field, 'English')} to ${proposedChange.new_value} — OK? (auto-applies in 60s if no reply)`,
+    CONFIRM_ECHO[locale](configFieldLabel(proposedChange.field, locale), proposedChange.new_value),
   );
 
   await db.insert(ritualPendingResponses).values({
