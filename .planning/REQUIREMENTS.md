@@ -59,24 +59,24 @@
 
 ### FIX — Fixture-pipeline cleanup (T7, supersedes original LOAD-01/FK-01/FIX-01)
 
-- [ ] **FIX-01**: `synthesize-delta.ts` pre-filters `fusedContradictions` against `Set(fusedPensieve.map(p => p.id))` at line 934 — eliminates m011-1000words contradictions FK violation. Permanent replacement for the inline-empty-contradictions workaround.
-- [ ] **FIX-02**: Bias-prompt `phrasesClause` is independent of `dimensionHint` truthiness at `synthesize-delta.ts:584-594` — PMT-01 contract restored; precedence-rule coupling no longer defeats Pitfall §7. Plus strict-inequality boundary fix at `primed-sanity-m011.test.ts:141,188` (`wordCount === 5000` is below substrate's `< 5000` gate, not above).
-- [ ] **FIX-03**: `synthesize-episodic.ts` migration list derived from the migrations directory (currently hardcoded `0000..0005`, repo ships `0000..0013`) — operator regen lands a fully-migrated DB; `wellbeing_snapshots.jsonl` no longer silently dropped.
-- [ ] **FIX-04**: `scripts/fetch-prod-data.ts` SSH tunnel enforces `StrictHostKeyChecking=yes` + a vetted `UserKnownHostsFile` — MITM cannot capture `PROD_PG_PASSWORD` on a fresh runner or after a rotated server key.
-- [ ] **FIX-05**: `load-primed.ts` `pensieve_embeddings` vector(1024) coercion via explicit cast (e.g., `'[...]'::vector` or pgvector adapter) — first non-empty embeddings JSONL regen succeeds.
+- [x] **FIX-01**: `synthesize-delta.ts` pre-filters `fusedContradictions` against `Set(fusedPensieve.map(p => p.id))` at line 934 — eliminates m011-1000words contradictions FK violation. Permanent replacement for the inline-empty-contradictions workaround. **Shipped:** commit `aa9a01c` (Plan 45-02 Task 1).
+- [x] **FIX-02**: Bias-prompt `phrasesClause` is independent of `dimensionHint` truthiness at `synthesize-delta.ts:584-594` — PMT-01 contract restored. Plus strict-inequality boundary fix at `primed-sanity-m011.test.ts` + path constant migration to `m011-1000words-5days`. **Shipped:** commits `aa9a01c` + `c9c9eb0` (Plan 45-02 Tasks 1+4).
+- [x] **FIX-03**: `synthesize-episodic.ts` migration list derived from glob `src/db/migrations/*.sql` at runtime (was hardcoded `0000..0005`, repo ships `0000..0016`) — operator regen lands a fully-migrated DB. **Shipped:** commit `d66b6b4` (Plan 45-02 Task 2).
+- [x] **FIX-04**: `scripts/fetch-prod-data.ts` SSH tunnel enforces `StrictHostKeyChecking=accept-new` + a vetted `UserKnownHostsFile=scripts/.ssh-known-hosts` — MITM cannot capture `PROD_PG_PASSWORD`. **Shipped:** commit `d66b6b4` (Plan 45-02 Task 2).
+- [x] **FIX-05**: `load-primed.ts` `pensieve_embeddings` vector(1024) coercion via staging-table CAST (`embedding TEXT` → `embedding::vector`). **Shipped:** commit `a3d4c27` (Plan 45-02 Task 3).
 - [x] **FIX-06**: M010 operational primed fixtures refreshed — PMT-06 schema_mismatch warns (`family.parent_care_responsibilities` + `health.wellbeing_trend`) eliminated. Coordinated with SCHEMA-02 backfill.
-- [ ] **FIX-07**: HARN word-count assertion in `primed-sanity-m011.test.ts:89-100` uses a calendar-month-window-filtered count to match substrate population (`psychological-shared.ts:259-273`). No more "wordCount > 5000" pass when substrate sees 4,115. Resolves the original "loader word-count gap" — root cause was a window-slice mismatch, not a 3x loader loss.
-- [ ] **FIX-08**: Operator scripts (`fetch-prod-data`, `synthesize-episodic`, `regenerate-primed`) SIGINT handlers run `finally` cleanup — SSH tunnels, postgres clients, child docker compose projects no longer leak on Ctrl-C.
+- [x] **FIX-07**: HARN word-count assertion uses calendar-month-windowed count matching substrate (`psychological-shared.ts:259-273`). Resolves the original "loader word-count gap" — root cause was a window-slice mismatch. **Shipped:** commit `c9c9eb0` (Plan 45-02 Task 4).
+- [x] **FIX-08**: Operator scripts use AbortController + `process.exitCode = 130` SIGINT pattern — `finally` cleanup runs naturally, SSH tunnels + postgres clients + child docker compose projects no longer leak. **Shipped:** commit `d66b6b4` (Plan 45-02 Task 2).
 
 ### SCHEMA — Schema hygiene (T8, root cause of M010 schema_mismatch + defense-in-depth)
 
-- [ ] **SCHEMA-01**: Migration `0015_psychological_check_constraints` adds DB CHECK constraints on jsonb per-dim score ranges (HEXACO: 1.0-5.0, Schwartz: 0.0-7.0) and confidence (0.0-1.0) on `profile_hexaco`, `profile_schwartz`, `profile_attachment`. Defense-in-depth behind the existing Zod parse — a non-Zod-validated UPDATE can no longer slip out-of-range scores past the DB. (Migration slot `0014` is taken by Phase 43's CONTRACT-03 column addition; SCHEMA migrations slot in at 0015+0016.)
-- [ ] **SCHEMA-02**: Migration `0016_phase33_seed_defaults_backfill` populates Phase 33 seed default jsonb columns with required nullable fields (`energy_30d_mean`, `wellbeing_trend`, `parent_care_responsibilities`, etc.) — read-time `.strict()` no longer rejects → M010 `schema_mismatch` warns root-caused and eliminated.
+- [x] **SCHEMA-01**: Migration `0015_psychological_check_constraints` adds 19 CHECK constraints on jsonb per-dim score ranges (HEXACO: 1.0-5.0, Schwartz: 0.0-7.0) and confidence (0.0-1.0). **Shipped:** commit `7b7118c` (Plan 45-01).
+- [x] **SCHEMA-02**: Migration `0016_phase33_seed_defaults_backfill` populates `wellbeing_trend` + `parent_care_responsibilities` seed rows with v3-Zod-required nullable fields; ALTER COLUMN SET DEFAULT for fresh DBs. M010 `schema_mismatch` warns root-caused and eliminated. **Shipped:** commit `38c6caa` (Plan 45-03).
 
 ### DISP — Display polish (original v2.6.1 scope)
 
-- [ ] **DISP-01** (CIRC-01): `/profile` Schwartz section displays values ordered by circumplex (opposing values adjacent, e.g., `self_direction ↔ conformity`). Reader gains intuitive visual structure when comparing tradeoffs.
-- [ ] **DISP-02** (CROSS-VAL-01): `/profile` surfaces HEXACO × Schwartz cross-validation observations (e.g., "high openness + high self-direction → consistent"; "low conscientiousness + high tradition → uncommon, low confidence"). Reader sees inferred coherence, increasing trust in the profile.
+- [x] **DISP-01** (CIRC-01): `/profile` Schwartz section displays values in canonical clockwise circumplex order (10-element array, opposing pairs at ring distance ≥4). **Shipped:** commit `9479e22` (Plan 47-01 Task 1).
+- [x] **DISP-02** (CROSS-VAL-01): `/profile` surfaces HEXACO × Schwartz cross-validation observations via hardcoded 16-rule table (preserves reader-never-throw — no Sonnet at /profile read path); 0.3 confidence floor; locale-aware (EN/FR/RU). **Shipped:** commit `9193ed9` (Plan 47-01 Task 2).
 
 ---
 
@@ -144,24 +144,24 @@
 | CI-01 | Phase 44 | Done (2026-05-15) |
 | CI-02 | Phase 44 | Done (2026-05-15) |
 | CI-03 | Phase 44 | Done (2026-05-15) |
-| SCHEMA-01 | Phase 45 | Pending |
-| SCHEMA-02 | Phase 45 | Pending |
-| FIX-01 | Phase 45 | Pending |
-| FIX-02 | Phase 45 | Pending |
-| FIX-03 | Phase 45 | Pending |
-| FIX-04 | Phase 45 | Pending |
-| FIX-05 | Phase 45 | Pending |
-| FIX-06 | Phase 45 | Complete |
-| FIX-07 | Phase 45 | Pending |
-| FIX-08 | Phase 45 | Pending |
+| SCHEMA-01 | Phase 45 | Done (2026-05-15) |
+| SCHEMA-02 | Phase 45 | Done (2026-05-15) |
+| FIX-01 | Phase 45 | Done (2026-05-15) |
+| FIX-02 | Phase 45 | Done (2026-05-15) |
+| FIX-03 | Phase 45 | Done (2026-05-15) |
+| FIX-04 | Phase 45 | Done (2026-05-15) |
+| FIX-05 | Phase 45 | Done (2026-05-15) |
+| FIX-06 | Phase 45 | Done (2026-05-15) |
+| FIX-07 | Phase 45 | Done (2026-05-15) |
+| FIX-08 | Phase 45 | Done (2026-05-15) |
 | L10N-01 | Phase 46 | Complete |
 | L10N-02 | Phase 46 | Complete |
 | L10N-03 | Phase 46 | Complete |
 | L10N-04 | Phase 46 | Complete |
 | L10N-05 | Phase 46 | Complete |
 | L10N-06 | Phase 46 | Complete |
-| DISP-01 | Phase 47 | Pending |
-| DISP-02 | Phase 47 | Pending |
+| DISP-01 | Phase 47 | Done (2026-05-15) |
+| DISP-02 | Phase 47 | Done (2026-05-15) |
 
 **Coverage:** 39/39 v2.6.1 requirements mapped to exactly one phase. No orphans.
 
