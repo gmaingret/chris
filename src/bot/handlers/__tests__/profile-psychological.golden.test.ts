@@ -200,15 +200,15 @@ describe('formatPsychologicalProfileForDisplay — Scenario 1: all-populated (EN
       "Schwartz Values
 
       Self-Direction: 4.5 / 5.0 (confidence 0.7 — substantial evidence)
-      Stimulation: 2.8 / 5.0 (confidence 0.3 — moderate evidence)
-      Hedonism: 3.2 / 5.0 (confidence 0.4 — moderate evidence)
-      Achievement: 4.0 / 5.0 (confidence 0.5 — moderate evidence)
-      Power: 2.5 / 5.0 (confidence 0.3 — moderate evidence)
-      Security: 3.5 / 5.0 (confidence 0.5 — moderate evidence)
-      Conformity: 2.2 / 5.0 (confidence 0.4 — moderate evidence)
-      Tradition: 2.8 / 5.0 (confidence 0.4 — moderate evidence)
+      Universalism: 4.3 / 5.0 (confidence 0.6 — substantial evidence)
       Benevolence: 4.4 / 5.0 (confidence 0.7 — substantial evidence)
-      Universalism: 4.3 / 5.0 (confidence 0.6 — substantial evidence)"
+      Tradition: 2.8 / 5.0 (confidence 0.4 — moderate evidence)
+      Conformity: 2.2 / 5.0 (confidence 0.4 — moderate evidence)
+      Security: 3.5 / 5.0 (confidence 0.5 — moderate evidence)
+      Power: 2.5 / 5.0 (confidence 0.3 — moderate evidence)
+      Achievement: 4.0 / 5.0 (confidence 0.5 — moderate evidence)
+      Hedonism: 3.2 / 5.0 (confidence 0.4 — moderate evidence)
+      Stimulation: 2.8 / 5.0 (confidence 0.3 — moderate evidence)"
     `);
   });
 
@@ -264,10 +264,10 @@ describe('formatPsychologicalProfileForDisplay — Scenario 3: mixed (D-09 per-d
       "Schwartz Values
 
       Self-Direction: 4.5 / 5.0 (confidence 0.7 — substantial evidence)
-      Achievement: 4.0 / 5.0 (confidence 0.5 — moderate evidence)
-      Security: 3.5 / 5.0 (confidence 0.5 — moderate evidence)
+      Universalism: 4.3 / 5.0 (confidence 0.6 — substantial evidence)
       Benevolence: 4.4 / 5.0 (confidence 0.7 — substantial evidence)
-      Universalism: 4.3 / 5.0 (confidence 0.6 — substantial evidence)"
+      Security: 3.5 / 5.0 (confidence 0.5 — moderate evidence)
+      Achievement: 4.0 / 5.0 (confidence 0.5 — moderate evidence)"
     `);
     // Explicit defense-in-depth non-snapshot assertions for D-09 filter:
     expect(out).not.toContain('Stimulation:'); // null filtered
@@ -340,15 +340,15 @@ describe('formatPsychologicalProfileForDisplay — Scenario 4: FR/RU language ho
       "Valeurs Schwartz
 
       Autonomie : 4,5 / 5,0 (confiance 0,7 — preuves substantielles)
-      Stimulation : 2,8 / 5,0 (confiance 0,3 — preuves modérées)
-      Hédonisme : 3,2 / 5,0 (confiance 0,4 — preuves modérées)
-      Accomplissement : 4,0 / 5,0 (confiance 0,5 — preuves modérées)
-      Pouvoir : 2,5 / 5,0 (confiance 0,3 — preuves modérées)
-      Sécurité : 3,5 / 5,0 (confiance 0,5 — preuves modérées)
-      Conformité : 2,2 / 5,0 (confiance 0,4 — preuves modérées)
-      Tradition : 2,8 / 5,0 (confiance 0,4 — preuves modérées)
+      Universalisme : 4,3 / 5,0 (confiance 0,6 — preuves substantielles)
       Bienveillance : 4,4 / 5,0 (confiance 0,7 — preuves substantielles)
-      Universalisme : 4,3 / 5,0 (confiance 0,6 — preuves substantielles)"
+      Tradition : 2,8 / 5,0 (confiance 0,4 — preuves modérées)
+      Conformité : 2,2 / 5,0 (confiance 0,4 — preuves modérées)
+      Sécurité : 3,5 / 5,0 (confiance 0,5 — preuves modérées)
+      Pouvoir : 2,5 / 5,0 (confiance 0,3 — preuves modérées)
+      Accomplissement : 4,0 / 5,0 (confiance 0,5 — preuves modérées)
+      Hédonisme : 3,2 / 5,0 (confiance 0,4 — preuves modérées)
+      Stimulation : 2,8 / 5,0 (confiance 0,3 — preuves modérées)"
     `);
     expect(out).toContain('Autonomie'); // FR Self-Direction
     expect(out).toContain('Bienveillance'); // FR Benevolence
@@ -362,15 +362,15 @@ describe('formatPsychologicalProfileForDisplay — Scenario 4: FR/RU language ho
       "Ценности Шварца
 
       Самостоятельность: 4,5 / 5,0 (уверенность 0,7 — существенные данные)
-      Стимуляция: 2,8 / 5,0 (уверенность 0,3 — умеренные данные)
-      Гедонизм: 3,2 / 5,0 (уверенность 0,4 — умеренные данные)
-      Достижения: 4,0 / 5,0 (уверенность 0,5 — умеренные данные)
-      Власть: 2,5 / 5,0 (уверенность 0,3 — умеренные данные)
-      Безопасность: 3,5 / 5,0 (уверенность 0,5 — умеренные данные)
-      Конформизм: 2,2 / 5,0 (уверенность 0,4 — умеренные данные)
-      Традиция: 2,8 / 5,0 (уверенность 0,4 — умеренные данные)
+      Универсализм: 4,3 / 5,0 (уверенность 0,6 — существенные данные)
       Благожелательность: 4,4 / 5,0 (уверенность 0,7 — существенные данные)
-      Универсализм: 4,3 / 5,0 (уверенность 0,6 — существенные данные)"
+      Традиция: 2,8 / 5,0 (уверенность 0,4 — умеренные данные)
+      Конформизм: 2,2 / 5,0 (уверенность 0,4 — умеренные данные)
+      Безопасность: 3,5 / 5,0 (уверенность 0,5 — умеренные данные)
+      Власть: 2,5 / 5,0 (уверенность 0,3 — умеренные данные)
+      Достижения: 4,0 / 5,0 (уверенность 0,5 — умеренные данные)
+      Гедонизм: 3,2 / 5,0 (уверенность 0,4 — умеренные данные)
+      Стимуляция: 2,8 / 5,0 (уверенность 0,3 — умеренные данные)"
     `);
     expect(out).toContain('Самостоятельность'); // RU Self-Direction
     expect(out).toContain('Благожелательность'); // RU Benevolence
@@ -384,10 +384,10 @@ describe('formatPsychologicalProfileForDisplay — Scenario 4: FR/RU language ho
       "Valeurs Schwartz
 
       Autonomie : 4,5 / 5,0 (confiance 0,7 — preuves substantielles)
-      Accomplissement : 4,0 / 5,0 (confiance 0,5 — preuves modérées)
-      Sécurité : 3,5 / 5,0 (confiance 0,5 — preuves modérées)
+      Universalisme : 4,3 / 5,0 (confiance 0,6 — preuves substantielles)
       Bienveillance : 4,4 / 5,0 (confiance 0,7 — preuves substantielles)
-      Universalisme : 4,3 / 5,0 (confiance 0,6 — preuves substantielles)"
+      Sécurité : 3,5 / 5,0 (confiance 0,5 — preuves modérées)
+      Accomplissement : 4,0 / 5,0 (confiance 0,5 — preuves modérées)"
     `);
     expect(out).not.toContain('Stimulation :'); // null filtered (D-09)
     expect(out).not.toContain('Hédonisme'); // zero-confidence filtered (D-09)
@@ -399,10 +399,10 @@ describe('formatPsychologicalProfileForDisplay — Scenario 4: FR/RU language ho
       "Ценности Шварца
 
       Самостоятельность: 4,5 / 5,0 (уверенность 0,7 — существенные данные)
-      Достижения: 4,0 / 5,0 (уверенность 0,5 — умеренные данные)
-      Безопасность: 3,5 / 5,0 (уверенность 0,5 — умеренные данные)
+      Универсализм: 4,3 / 5,0 (уверенность 0,6 — существенные данные)
       Благожелательность: 4,4 / 5,0 (уверенность 0,7 — существенные данные)
-      Универсализм: 4,3 / 5,0 (уверенность 0,6 — существенные данные)"
+      Безопасность: 3,5 / 5,0 (уверенность 0,5 — умеренные данные)
+      Достижения: 4,0 / 5,0 (уверенность 0,5 — умеренные данные)"
     `);
     expect(out).not.toContain('Стимуляция:'); // null filtered (D-09)
     expect(out).not.toContain('Гедонизм'); // zero-confidence filtered (D-09)
