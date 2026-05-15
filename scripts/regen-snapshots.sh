@@ -70,6 +70,8 @@ MIGRATION_13="${MIGRATIONS_DIR}/0013_psychological_profiles.sql"
 MIGRATION_14="${MIGRATIONS_DIR}/0014_psychological_data_consistency_column.sql"
 # 0015 — Phase 45 SCHEMA-01 per-dim CHECK constraints (HARD CO-LOC #M11-45a).
 MIGRATION_15="${MIGRATIONS_DIR}/0015_psychological_check_constraints.sql"
+# 0016 — Phase 45 SCHEMA-02 phase-33 seed-defaults backfill (HARD CO-LOC #M11-45b).
+MIGRATION_16="${MIGRATIONS_DIR}/0016_phase33_seed_defaults_backfill.sql"
 
 CHECK_ONLY=0
 if [[ "${1:-}" == "--check-only" ]]; then
@@ -139,6 +141,11 @@ OVR
 # be preserved (it ships in Plan 45-01, HARD CO-LOC #M11-45a); only the post-0015
 # acceptance-gate artifact (0016_snapshot.json named by drizzle's sequence-counter)
 # is wiped when this run produced it.
+#
+# Phase 45 extends this discipline to 0016 — committed 0016_snapshot.json must
+# be preserved (it ships in Plan 45-03, HARD CO-LOC #M11-45b); only the post-0016
+# acceptance-gate artifact (0017_snapshot.json named by drizzle's sequence-counter)
+# is wiped when this run produced it.
 REGEN_PRODUCED_ACCEPTANCE=0
 cleanup() {
   local rc=$?
@@ -164,18 +171,19 @@ cleanup() {
   find "${MIGRATIONS_DIR}" -maxdepth 1 -name "0014_acceptance_check*.sql" -delete 2>/dev/null || true
   find "${MIGRATIONS_DIR}" -maxdepth 1 -name "0015_acceptance_check*.sql" -delete 2>/dev/null || true
   find "${MIGRATIONS_DIR}" -maxdepth 1 -name "0016_acceptance_check*.sql" -delete 2>/dev/null || true
-  # Only delete the post-0015 snapshot if THIS run produced it — otherwise it
+  find "${MIGRATIONS_DIR}" -maxdepth 1 -name "0017_acceptance_check*.sql" -delete 2>/dev/null || true
+  # Only delete the post-0016 snapshot if THIS run produced it — otherwise it
   # is a legitimate committed snapshot from a future plan and must be preserved.
   # The committed Phase 25 0006_snapshot.json + Phase 26 0007_snapshot.json +
   # Phase 27 0008_snapshot.json + Phase 29 0009_snapshot.json + Phase 28
   # 0010_snapshot.json + Phase 31 0011_snapshot.json + Phase 33
   # 0012_snapshot.json + Phase 37 0013_snapshot.json + Phase 43
-  # 0014_snapshot.json + Phase 45 0015_snapshot.json (this plan) are NEVER
-  # touched here; only the post-0015 future-snapshot drizzle-kit emits during
-  # the acceptance generate (named 0016_snapshot.json by drizzle's
-  # sequence-counter) is wiped when this run produced it.
+  # 0014_snapshot.json + Phase 45 0015_snapshot.json + Phase 45 0016_snapshot.json
+  # (this plan) are NEVER touched here; only the post-0016 future-snapshot
+  # drizzle-kit emits during the acceptance generate (named 0017_snapshot.json
+  # by drizzle's sequence-counter) is wiped when this run produced it.
   if [[ "${REGEN_PRODUCED_ACCEPTANCE}" -eq 1 ]]; then
-    find "${META_DIR}" -name "0016_snapshot.json" -delete 2>/dev/null || true
+    find "${META_DIR}" -name "0017_snapshot.json" -delete 2>/dev/null || true
   fi
   exit "${rc}"
 }
@@ -401,15 +409,16 @@ apply_sql "${MIGRATION_12}"
 apply_sql "${MIGRATION_13}"
 apply_sql "${MIGRATION_14}"
 apply_sql "${MIGRATION_15}"
+apply_sql "${MIGRATION_16}"
 
 # Run generate from repo root. Use a distinctive name so any accidentally-
 # produced migration is easy to spot and cleanup.
 #
-# Mark that THIS run is responsible for any post-0015 snapshot that appears
+# Mark that THIS run is responsible for any post-0016 snapshot that appears
 # from here onward. The EXIT trap consults this flag before deleting any
-# 0016_snapshot.json so it never blows away a legitimate committed snapshot
-# on a script re-run after a future plan lands a real 0016 migration.
-# (The number after 0015 is 0016.)
+# 0017_snapshot.json so it never blows away a legitimate committed snapshot
+# on a script re-run after a future plan lands a real 0017 migration.
+# (The number after 0016 is 0017.)
 REGEN_PRODUCED_ACCEPTANCE=1
 set +e
 GEN_OUT=$(DATABASE_URL="${DB_URL}" npx drizzle-kit generate --name acceptance_check 2>&1)

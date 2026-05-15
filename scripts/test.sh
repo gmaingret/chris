@@ -21,6 +21,7 @@ MIGRATION_12_SQL="src/db/migrations/0012_operational_profiles.sql"
 MIGRATION_13_SQL="src/db/migrations/0013_psychological_profiles.sql"
 MIGRATION_14_SQL="src/db/migrations/0014_psychological_data_consistency_column.sql"
 MIGRATION_15_SQL="src/db/migrations/0015_psychological_check_constraints.sql"
+MIGRATION_16_SQL="src/db/migrations/0016_phase33_seed_defaults_backfill.sql"
 
 cleanup() {
   echo "🧹 Stopping test postgres..."
@@ -127,6 +128,36 @@ docker compose -f "$COMPOSE_FILE" exec -T postgres \
       AND constraint_name <> 'profile_attachment_data_consistency_bounds';
   " | grep -q '^3$' || { echo '❌ Expected 3 profile_attachment per-dim bounds constraints (attachment 3 dims); see migration 0015'; exit 1; }
 echo "✅ Migration 0015 CHECK constraints verified (6+10+3 = 19 per-dim bounds)"
+
+# Phase 45 Plan 03 / SCHEMA-02 — backfill v3-Zod-required nullable fields on
+# Phase 33 seed rows + ALTER COLUMN DEFAULT for future fresh DBs.
+# HARD CO-LOC #M11-45b: this apply line + 0016_*.sql + meta/0016_snapshot.json +
+# _journal.json idx-16 entry + the seed-row backfill smoke gate below ALL ship
+# atomically in Plan 45-03 (CONTEXT D-05/D-18; slot 0016 because 45-01 owns 0015).
+docker compose -f "$COMPOSE_FILE" exec -T postgres \
+  psql -U chris -d chris -v ON_ERROR_STOP=1 -q < "$MIGRATION_16_SQL"
+
+# Phase 45 SCHEMA-02 — post-migration seed-row backfill smoke gate.
+# Per HARD CO-LOC #M11-45b: SQL migration + journal entry + this assertion
+# all ship together. Validates that the cold-start seed rows now contain the
+# v3-Zod-required nullable fields, eliminating the M010 schema_mismatch warns.
+echo "🔍 Verifying migration 0016 seed-defaults backfill..."
+docker compose -f "$COMPOSE_FILE" exec -T postgres \
+  psql -U chris -d chris -v ON_ERROR_STOP=1 -tAq -c "
+    SELECT COUNT(*) FROM profile_health
+    WHERE substrate_hash = ''
+      AND wellbeing_trend ? 'energy_30d_mean'
+      AND wellbeing_trend ? 'mood_30d_mean'
+      AND wellbeing_trend ? 'anxiety_30d_mean';
+  " | grep -q '^1$' || { echo '❌ Expected profile_health seed row with all 3 wellbeing_trend nullable keys; see migration 0016'; exit 1; }
+docker compose -f "$COMPOSE_FILE" exec -T postgres \
+  psql -U chris -d chris -v ON_ERROR_STOP=1 -tAq -c "
+    SELECT COUNT(*) FROM profile_family
+    WHERE substrate_hash = ''
+      AND parent_care_responsibilities ? 'notes'
+      AND parent_care_responsibilities ? 'dependents';
+  " | grep -q '^1$' || { echo '❌ Expected profile_family seed row with notes+dependents keys; see migration 0016'; exit 1; }
+echo "✅ Migration 0016 seed-defaults backfill verified (2 cold-start seed rows populated)"
 
 # Phase 25 (M009 v2.4) — post-migration substrate smoke gate.
 # Per HARD CO-LOCATION CONSTRAINT #7 + Pitfall 28: the SQL migration, the
