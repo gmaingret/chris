@@ -134,6 +134,18 @@ if (!FIXTURE_PRESENT) {
   );
 }
 
+// Phase 44 CI-01: REQUIRE_FIXTURES=1 env-gated hard-fail.
+if (!FIXTURE_PRESENT && process.env.REQUIRE_FIXTURES === '1') {
+  describe('[CI-GATE] fixture present', () => {
+    it(`${FIXTURE_PATH} must exist when REQUIRE_FIXTURES=1`, () => {
+      throw new Error(
+        `Milestone-gate fixture missing: ${FIXTURE_PATH}. ` +
+          `Regenerate via: npx tsx scripts/regenerate-primed.ts --milestone m010 --target-days 30 --profile-bias jurisdictional --profile-bias capital --profile-bias health --profile-bias family --seed 42 --no-refresh`,
+      );
+    });
+  });
+}
+
 const skipIfAbsent = FIXTURE_PRESENT ? describe : describe.skip;
 
 // ── Valid v3-shape responses (lifted from generators.two-cycle.test.ts:114-174) ──
