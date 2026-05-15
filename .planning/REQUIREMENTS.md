@@ -62,7 +62,7 @@
 - [ ] **FIX-03**: `synthesize-episodic.ts` migration list derived from the migrations directory (currently hardcoded `0000..0005`, repo ships `0000..0013`) — operator regen lands a fully-migrated DB; `wellbeing_snapshots.jsonl` no longer silently dropped.
 - [ ] **FIX-04**: `scripts/fetch-prod-data.ts` SSH tunnel enforces `StrictHostKeyChecking=yes` + a vetted `UserKnownHostsFile` — MITM cannot capture `PROD_PG_PASSWORD` on a fresh runner or after a rotated server key.
 - [ ] **FIX-05**: `load-primed.ts` `pensieve_embeddings` vector(1024) coercion via explicit cast (e.g., `'[...]'::vector` or pgvector adapter) — first non-empty embeddings JSONL regen succeeds.
-- [ ] **FIX-06**: M010 operational primed fixtures refreshed — PMT-06 schema_mismatch warns (`family.parent_care_responsibilities` + `health.wellbeing_trend`) eliminated. Coordinated with SCHEMA-02 backfill.
+- [x] **FIX-06**: M010 operational primed fixtures refreshed — PMT-06 schema_mismatch warns (`family.parent_care_responsibilities` + `health.wellbeing_trend`) eliminated. Coordinated with SCHEMA-02 backfill.
 - [ ] **FIX-07**: HARN word-count assertion in `primed-sanity-m011.test.ts:89-100` uses a calendar-month-window-filtered count to match substrate population (`psychological-shared.ts:259-273`). No more "wordCount > 5000" pass when substrate sees 4,115. Resolves the original "loader word-count gap" — root cause was a window-slice mismatch, not a 3x loader loss.
 - [ ] **FIX-08**: Operator scripts (`fetch-prod-data`, `synthesize-episodic`, `regenerate-primed`) SIGINT handlers run `finally` cleanup — SSH tunnels, postgres clients, child docker compose projects no longer leak on Ctrl-C.
 
@@ -149,7 +149,7 @@
 | FIX-03 | Phase 45 | Pending |
 | FIX-04 | Phase 45 | Pending |
 | FIX-05 | Phase 45 | Pending |
-| FIX-06 | Phase 45 | Pending |
+| FIX-06 | Phase 45 | Complete |
 | FIX-07 | Phase 45 | Pending |
 | FIX-08 | Phase 45 | Pending |
 | L10N-01 | Phase 46 | Pending |

@@ -163,7 +163,7 @@ See `.planning/milestones/v2.6-ROADMAP.md` for full phase details + `.planning/m
 | 42. Atomicity & Race Fixes | 3/3 | Shipped 2026-05-15 | RACE-01..06 (6/6) |
 | 43. Inference Security & Contract Enforcement | 0/TBD | Not started | - |
 | 44. CI Milestone-Gate Hardening | 0/TBD | Not started | - |
-| 45. Schema Hygiene & Fixture-Pipeline Cleanup | 0/TBD | Not started | - |
+| 45. Schema Hygiene & Fixture-Pipeline Cleanup | 4/4 | Complete   | 2026-05-15 |
 | 46. FR/RU Localization Comprehensive | 0/TBD | Not started | - |
 | 47. Display Polish | 0/TBD | Not started | - |
 
