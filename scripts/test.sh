@@ -53,6 +53,42 @@ fi
 echo "🔍 Verifying migrations journal monotonicity (Phase 32 #3)..."
 npx tsx scripts/validate-journal-monotonic.ts
 
+# Phase 44 — REQUIRE_FIXTURES env-gated milestone-gate hardening (CI-01/02/03).
+#
+# Contract:
+#   - When REQUIRE_FIXTURES=1 is set, the M009/M010/M011 milestone-gate test
+#     suites EMIT one explicit `[CI-GATE] fixture present` failure per missing
+#     fixture instead of silently skipping. CI runners set this var so missing
+#     fixtures fail loud with a clear regen pointer; CI cannot report green
+#     when fixture-backed regression coverage is absent.
+#   - When REQUIRE_FIXTURES is unset (default, local dev), suites SKIP cleanly
+#     with the same regen-hint console.log they print today. Byte-identical
+#     local-dev UX preserved.
+#
+# Affected test files (gate-test injection sites):
+#   src/__tests__/fixtures/primed-sanity.test.ts          (M009 m009-21days)
+#   src/__tests__/fixtures/primed-sanity-m010.test.ts     (M010 m010-30days + m010-5days)
+#   src/__tests__/fixtures/primed-sanity-m011.test.ts     (M011 m011-30days + m011-1000words-5days)
+#   src/rituals/__tests__/synthetic-fixture.test.ts       (M009 milestone-shipping)
+#   src/memory/profiles/__tests__/integration-m010-30days.test.ts
+#   src/memory/profiles/__tests__/integration-m010-5days.test.ts
+#   src/memory/profiles/__tests__/integration-m011-30days.test.ts
+#   src/memory/profiles/__tests__/integration-m011-1000words.test.ts
+#   src/memory/profiles/__tests__/live-anti-hallucination.test.ts        (M010, orthogonal to RUN_LIVE_TESTS)
+#   src/memory/profiles/__tests__/live-psych-anti-hallucination.test.ts  (M011, orthogonal to RUN_LIVE_TESTS)
+#
+# Operator regen template (per-fixture variants live in each test's console.log
+# SKIP hint and in the [CI-GATE] error message):
+#   npx tsx scripts/regenerate-primed.ts --milestone <m009|m010|m011|m011-1000words> --target-days <N> [--profile-bias ...] [--psych-profile-bias] --seed 42 --force
+#
+# This script does NOT set REQUIRE_FIXTURES itself — opt-in by CI runner
+# config keeps local dev free of CI-style hard-fails. The gate is intentionally
+# vitest-layer (named failure per fixture) rather than shell-layer (single
+# exit code) for clearer operator signal: the test name carries the missing
+# fixture path and regen command directly. No shell-level `exit 1` gate is
+# added here; missing fixtures surface as named vitest failures when
+# REQUIRE_FIXTURES=1.
+
 echo "📦 Running migrations..."
 # -v ON_ERROR_STOP=1 forces psql to exit non-zero on SQL errors (without it,
 # psql exits 0 even on failure, which defeats `set -euo pipefail` and silently
