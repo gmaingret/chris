@@ -1,0 +1,31 @@
+phase-46-shape-confirmed-2026-05-15
+
+Task 0 verification (Plan 47-01):
+
+1. qualifierFor(c: number, lang: Lang): string
+   - LOCATED at src/chris/locale/strings.ts:67 (canonical post-Phase-46 location per L10N-05)
+   - Imported into profile.ts at line 79: `import { qualifierFor } from '../../chris/locale/strings.js';`
+   - Signature matches expected shape verbatim.
+
+2. HEXACO_DIM_DISPLAY_LABELS
+   - LOCATED at src/bot/handlers/profile.ts:736-769
+   - Shape: Readonly<Record<keyof HexacoProfileData, Record<Lang, string>>>
+   - NOTE divergence vs plan assumption: key-outer / lang-inner (MAP[key][lang]),
+     NOT lang-outer (MAP[lang][key]). Both shapes are functionally equivalent
+     for the rendering use case — the consumer reads MAP[key][lang] verbatim
+     in the existing Schwartz branch at :890-900 (post-Phase-46 actual code).
+     Task 1/2 code adapts to the actual shape.
+
+3. SCHWARTZ_DIM_DISPLAY_LABELS
+   - LOCATED at src/bot/handlers/profile.ts:777-830
+   - Same key-outer / lang-inner shape as HEXACO. Phase 47 SCHWARTZ_CIRCUMPLEX_ORDER
+     iteration uses MAP[key][lang] lookup.
+
+4. MSG.psychologicalSections.scoreLine[lang]
+   - LOCATED at src/bot/handlers/profile.ts:277-284 (inside the top-level MSG block,
+     directly under psychologicalSections — actual nesting differs slightly from
+     plan: it lives at MSG.scoreLine, NOT MSG.psychologicalSections.scoreLine).
+   - Phase 47 Task 1 refactor references MSG.scoreLine[lang] verbatim (matches
+     the existing post-Phase-46 callers at lines 884 + 899).
+
+Verdict: shape MATCH (with one cosmetic divergence noted). Phase 47 proceeds.

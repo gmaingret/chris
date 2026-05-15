@@ -771,7 +771,8 @@ const HEXACO_DIM_DISPLAY_LABELS: Readonly<
 // Phase 46 L10N-01 — Title-Case display labels for Schwartz values, now
 // per-locale. Hyphens preserved per D-08 (Self-Direction). Per RESEARCH
 // Deferred CIRC-01: alphabetical ordering in M011 (Object.entries iteration
-// order matches declaration order); circumplex ordering is v2.6.1+.
+// order matches declaration order); circumplex ordering is v2.6.1+ — DELIVERED
+// by Phase 47 DISP-01 via SCHWARTZ_CIRCUMPLEX_ORDER below.
 // FR/RU translations follow standard Schwartz-values academic Cyrillic +
 // French references; Greg reviews at /gsd-verify-work per CONTEXT.md D-06.
 const SCHWARTZ_DIM_DISPLAY_LABELS: Readonly<
@@ -828,6 +829,29 @@ const SCHWARTZ_DIM_DISPLAY_LABELS: Readonly<
     Russian: 'Универсализм',
   },
 } as const;
+
+// Phase 47 DISP-01 — canonical clockwise circumplex order. Adjacent pairs across
+// the 10-element ring form Schwartz's documented oppositions at distance 5:
+//   self_direction <-> conformity   (index 0 <-> 4)
+//   stimulation    <-> security     (index 9 <-> 5)
+//   hedonism       <-> tradition    (index 8 <-> 3)
+//   achievement    <-> benevolence  (index 7 <-> 2)
+//   power          <-> universalism (index 6 <-> 1)
+// The ring wraps at index 9 -> index 0 (stimulation <-> self_direction completes
+// the circle). NOT alphabetical, NOT by-score: the structural pairing IS the
+// reader value per DISP-01 (CONTEXT.md D-01/D-02).
+export const SCHWARTZ_CIRCUMPLEX_ORDER: readonly (keyof SchwartzProfileData)[] = [
+  'self_direction',
+  'universalism',
+  'benevolence',
+  'tradition',
+  'conformity',
+  'security',
+  'power',
+  'achievement',
+  'hedonism',
+  'stimulation',
+] as const;
 
 export function formatPsychologicalProfileForDisplay(
   profileType: 'hexaco' | 'schwartz' | 'attachment',
@@ -886,15 +910,20 @@ export function formatPsychologicalProfileForDisplay(
       break;
     }
     case 'schwartz': {
+      // Phase 47 DISP-01 — iterate SCHWARTZ_CIRCUMPLEX_ORDER (canonical
+      // clockwise circumplex) instead of Object.entries(SCHWARTZ_DIM_DISPLAY_LABELS)
+      // (declaration order). Adjacent pairs land at distance 5 on the 10-element
+      // ring, exposing Schwartz's documented oppositions to the reader. The
+      // D-09 per-dim filter is preserved verbatim — a filtered-out dim leaves
+      // a gap in the circumplex, which is the correct "we don't have evidence
+      // for this value" signal (CONTEXT.md D-05).
       const d = profile.data as SchwartzProfileData;
-      for (const [key, labels] of Object.entries(SCHWARTZ_DIM_DISPLAY_LABELS) as Array<
-        [keyof SchwartzProfileData, Record<Lang, string>]
-      >) {
+      for (const key of SCHWARTZ_CIRCUMPLEX_ORDER) {
         const dim = d[key];
         if (!dim) continue; // D-09 skip null
         if (dim.score === null) continue; // D-09 skip null score
         if (dim.confidence === 0) continue; // D-09 skip zero-confidence
-        const label = labels[lang];
+        const label = SCHWARTZ_DIM_DISPLAY_LABELS[key][lang];
         const qual = qualifierFor(dim.confidence, lang);
         lines.push(MSG.scoreLine[lang](label, dim.score, dim.confidence, qual));
       }
