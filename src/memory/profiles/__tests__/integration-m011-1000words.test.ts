@@ -120,7 +120,14 @@ import { seedPsychProfileRows } from '../../../__tests__/fixtures/seed-psych-pro
 
 // ── Fixture-presence gate (P-36-01 mitigation) ──────────────────────────────
 
-const FIXTURE_NAME = 'm011-1000words';
+// FIX-02b (Phase 45 v2.6.1 D-07b): align FIXTURE_NAME with
+// synthesize-delta.ts:937 output naming `${milestone}-${targetDays}days`.
+// Operator command `--milestone m011-1000words --target-days 5` produces
+// `m011-1000words-5days` on disk; the previous constant `m011-1000words`
+// (no `-5days`) caused existsSync to return false → entire describe block
+// silently skipped including the PMT-03 baseline test. Ref 40-REVIEW.md
+// §BL-01 Option-b lines 38-42.
+const FIXTURE_NAME = 'm011-1000words-5days';
 const FIXTURE_PATH = `tests/fixtures/primed/${FIXTURE_NAME}/MANIFEST.json`;
 const FIXTURE_PRESENT = existsSync(FIXTURE_PATH);
 

@@ -29,10 +29,14 @@ cd /home/claude/chris && npx tsx scripts/regenerate-primed.ts \
   --psych-profile-bias --force --seed 42
 
 # Verify both fixtures present + correct word-count band
+# NOTE: synthesize-delta writes output to `${milestone}-${targetDays}days`,
+# so --milestone m011-1000words --target-days 5 lands at m011-1000words-5days
+# (Phase 45 FIX-02b — name aligned with synthesize-delta's
+# `${milestone}-${targetDays}days` output).
 ls tests/fixtures/primed/m011-30days/MANIFEST.json \
-   tests/fixtures/primed/m011-1000words/MANIFEST.json
+   tests/fixtures/primed/m011-1000words-5days/MANIFEST.json
 wc -l tests/fixtures/primed/m011-30days/pensieve_entries.jsonl \
-      tests/fixtures/primed/m011-1000words/pensieve_entries.jsonl
+      tests/fixtures/primed/m011-1000words-5days/pensieve_entries.jsonl
 ```
 
 Expected: both MANIFEST.json files exist; m011-30days has ~90 entries
