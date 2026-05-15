@@ -255,6 +255,35 @@ const MSG = {
           'Привязанность: пока не активна (триггер D028 — 2 000 слов реляционной речи за 60 дней).',
       },
     },
+    // Phase 47 DISP-02 — HEXACO × Schwartz cross-validation observations.
+    // Rendered AFTER the 3 psychological sections (D-13). The observations
+    // reference both profiles by label, so the reader has already seen the
+    // underlying scores when they hit this section. D-17 invariant: plain
+    // ASCII only — `->` not `→`, no `*`, `_`, backticks, `===`, `---`.
+    // Tone: observational, not judgmental (CONTEXT.md <specifics>).
+    crossValidation: {
+      sectionTitle: {
+        English: 'Cross-pattern observations',
+        French: 'Observations transversales',
+        Russian: 'Сквозные наблюдения',
+      },
+      consistent: {
+        English: (hexacoLabel: string, schwartzLabel: string, qualifier: string): string =>
+          `high ${hexacoLabel.toLowerCase()} + high ${schwartzLabel.toLowerCase()} -> consistent (${qualifier})`,
+        French: (hexacoLabel: string, schwartzLabel: string, qualifier: string): string =>
+          `${hexacoLabel.toLowerCase()} élevé + ${schwartzLabel.toLowerCase()} élevé -> cohérent (${qualifier})`,
+        Russian: (hexacoLabel: string, schwartzLabel: string, qualifier: string): string =>
+          `высокий ${hexacoLabel.toLowerCase()} + высокий ${schwartzLabel.toLowerCase()} -> согласовано (${qualifier})`,
+      },
+      uncommon: {
+        English: (hexacoLabel: string, schwartzLabel: string, qualifier: string): string =>
+          `high ${hexacoLabel.toLowerCase()} + low ${schwartzLabel.toLowerCase()} -> uncommon pattern (${qualifier})`,
+        French: (hexacoLabel: string, schwartzLabel: string, qualifier: string): string =>
+          `${hexacoLabel.toLowerCase()} élevé + ${schwartzLabel.toLowerCase()} faible -> profil inhabituel (${qualifier})`,
+        Russian: (hexacoLabel: string, schwartzLabel: string, qualifier: string): string =>
+          `высокий ${hexacoLabel.toLowerCase()} + низкий ${schwartzLabel.toLowerCase()} -> необычный паттерн (${qualifier})`,
+      },
+    },
   },
   genericError: {
     English: 'I ran into trouble reading your profiles. Try again in a moment.',
@@ -853,6 +882,53 @@ export const SCHWARTZ_CIRCUMPLEX_ORDER: readonly (keyof SchwartzProfileData)[] =
   'stimulation',
 ] as const;
 
+// Phase 47 DISP-02 — cross-validation rule shape + table.
+// Hardcoded at module scope per CONTEXT.md D-06: NOT Sonnet at /profile-call
+// time (preserves Phase 39 D-22 reader-never-throw, no LLM failure surface for
+// a synchronous read), NOT computed at inference time (post-hoc rule
+// application IS what the display-side table does — moving it to write-time
+// adds a column without changing the logic; deferred to v2.7 if Greg reports
+// observable read latency, see CONTEXT.md <deferred>).
+//
+// Rules encode well-documented HEXACO x Schwartz literature correlations:
+//   openness ↔ self_direction/stimulation/universalism (positive)
+//   conscientiousness ↔ achievement/security/conformity (positive)
+//   honesty_humility ↔ benevolence/universalism (positive); NEG power (uncommon)
+//   agreeableness ↔ benevolence/universalism (positive)
+//   extraversion ↔ stimulation/hedonism/achievement (positive)
+//   emotionality ↔ tradition/security (positive, mixed in literature)
+type CrossValRule = {
+  hexacoDim: keyof HexacoProfileData;
+  schwartzDim: keyof SchwartzProfileData;
+  direction: 'positive' | 'negative';
+  observationKey: 'consistent' | 'uncommon';
+};
+
+export const CROSS_VALIDATION_RULES: readonly CrossValRule[] = [
+  // openness — exploration / change-openness cluster
+  { hexacoDim: 'openness',          schwartzDim: 'self_direction', direction: 'positive', observationKey: 'consistent' },
+  { hexacoDim: 'openness',          schwartzDim: 'stimulation',    direction: 'positive', observationKey: 'consistent' },
+  { hexacoDim: 'openness',          schwartzDim: 'universalism',   direction: 'positive', observationKey: 'consistent' },
+  // conscientiousness — order / achievement cluster
+  { hexacoDim: 'conscientiousness', schwartzDim: 'achievement',    direction: 'positive', observationKey: 'consistent' },
+  { hexacoDim: 'conscientiousness', schwartzDim: 'security',       direction: 'positive', observationKey: 'consistent' },
+  { hexacoDim: 'conscientiousness', schwartzDim: 'conformity',     direction: 'positive', observationKey: 'consistent' },
+  // honesty_humility — pro-social / anti-power cluster
+  { hexacoDim: 'honesty_humility',  schwartzDim: 'benevolence',    direction: 'positive', observationKey: 'consistent' },
+  { hexacoDim: 'honesty_humility',  schwartzDim: 'universalism',   direction: 'positive', observationKey: 'consistent' },
+  { hexacoDim: 'honesty_humility',  schwartzDim: 'power',          direction: 'negative', observationKey: 'uncommon'   },
+  // agreeableness — pro-social cluster
+  { hexacoDim: 'agreeableness',     schwartzDim: 'benevolence',    direction: 'positive', observationKey: 'consistent' },
+  { hexacoDim: 'agreeableness',     schwartzDim: 'universalism',   direction: 'positive', observationKey: 'consistent' },
+  // extraversion — energetic-engagement cluster
+  { hexacoDim: 'extraversion',      schwartzDim: 'stimulation',    direction: 'positive', observationKey: 'consistent' },
+  { hexacoDim: 'extraversion',      schwartzDim: 'hedonism',       direction: 'positive', observationKey: 'consistent' },
+  { hexacoDim: 'extraversion',      schwartzDim: 'achievement',    direction: 'positive', observationKey: 'consistent' },
+  // emotionality — safety / tradition cluster
+  { hexacoDim: 'emotionality',      schwartzDim: 'tradition',      direction: 'positive', observationKey: 'consistent' },
+  { hexacoDim: 'emotionality',      schwartzDim: 'security',       direction: 'positive', observationKey: 'consistent' },
+] as const;
+
 export function formatPsychologicalProfileForDisplay(
   profileType: 'hexaco' | 'schwartz' | 'attachment',
   profile:
@@ -939,6 +1015,75 @@ export function formatPsychologicalProfileForDisplay(
   return lines.join('\n');
 }
 
+// ── Phase 47 DISP-02 — HEXACO × Schwartz cross-validation observations ──────
+//
+// Pure function: computes cross-validation observations from HEXACO + Schwartz
+// profile data. No DB, no logger, no Sonnet, no I/O. Reader-never-throw
+// (Phase 39 D-22): defensive guards on every dim access — a future malformed
+// dim cannot throw the function; the rule loop silently skips.
+//
+// Returns '' when the section should be OMITTED entirely (D-14 empty-state,
+// matches Phase 39 WR-06 recommended fix pattern — empty section bodies are
+// user-hostile noise). Caller gates the ctx.reply on `crossVal !== ''`.
+//
+// Match criterion (D-08):
+//   - 'positive' direction: hexaco.score >= 3.5 (of 5.0) AND schwartz.score >= 5.0 (of 7.0)
+//   - 'negative' direction: hexaco.score >= 3.5 (of 5.0) AND schwartz.score <= 3.0 (of 7.0)
+//   HEXACO uses 5.0-max scale; Schwartz uses 7.0-max scale per substrate-loader
+//   gates (src/memory/profiles/psychological-shared.ts).
+//
+// Confidence floor (D-09): both dim confidences must be >= 0.3 (matches the
+// qualifier-band moderate-evidence floor — below = noise; two limited-evidence
+// dims combined give worse-than-coin-flip signal).
+//
+// Qualifier per observation (D-10): MIN(hexaco.confidence, schwartz.confidence)
+// passed through the locale-aware qualifierFor (Phase 46 L10N-05). Min-of-two
+// is correct — an observation is only as strong as its weakest input.
+export function computeCrossValidationObservations(
+  hexaco: ProfileRow<HexacoProfileData> | null,
+  schwartz: ProfileRow<SchwartzProfileData> | null,
+  lang: Lang,
+): string {
+  // D-14 omit cases (in order of cheapest check)
+  if (hexaco === null || schwartz === null) return '';
+  if (hexaco.lastUpdated.getTime() === 0 || schwartz.lastUpdated.getTime() === 0) return '';
+  if (hexaco.confidence === 0 || schwartz.confidence === 0) return '';
+
+  const hex = hexaco.data;
+  const sch = schwartz.data;
+  const observations: string[] = [];
+
+  for (const rule of CROSS_VALIDATION_RULES) {
+    const hDim = hex[rule.hexacoDim];
+    const sDim = sch[rule.schwartzDim];
+    if (!hDim || !sDim) continue; // D-09 defensive
+    if (hDim.score === null || sDim.score === null) continue;
+    if (hDim.confidence < 0.3 || sDim.confidence < 0.3) continue; // D-09 floor
+
+    const hHigh = hDim.score >= 3.5; // D-08 HEXACO threshold (5.0 scale)
+    let schwartzMatch: boolean;
+    if (rule.direction === 'positive') {
+      schwartzMatch = sDim.score >= 5.0; // D-08 Schwartz HIGH (7.0 scale)
+    } else {
+      schwartzMatch = sDim.score <= 3.0; // D-08 Schwartz LOW (7.0 scale)
+    }
+    if (!(hHigh && schwartzMatch)) continue;
+
+    const minConf = Math.min(hDim.confidence, sDim.confidence);
+    const hLabel = HEXACO_DIM_DISPLAY_LABELS[rule.hexacoDim][lang];
+    const sLabel = SCHWARTZ_DIM_DISPLAY_LABELS[rule.schwartzDim][lang];
+    const qualifier = qualifierFor(minConf, lang);
+
+    observations.push(
+      MSG.psychologicalSections.crossValidation[rule.observationKey][lang](hLabel, sLabel, qualifier),
+    );
+  }
+
+  if (observations.length === 0) return ''; // D-14 empty-state
+  const title = MSG.psychologicalSections.crossValidation.sectionTitle[lang];
+  return [title, '', ...observations].join('\n');
+}
+
 // ── Handler ─────────────────────────────────────────────────────────────────
 //
 // User-initiated `/profile` Telegram command. Reads operational + psychological
@@ -992,6 +1137,20 @@ export async function handleProfileCommand(ctx: Context): Promise<void> {
     const psychTypes: PsychologicalProfileType[] = ['hexaco', 'schwartz', 'attachment'];
     for (const type of psychTypes) {
       await ctx.reply(formatPsychologicalProfileForDisplay(type, psychProfiles[type], lang));
+    }
+
+    // Phase 47 DISP-02 — HEXACO × Schwartz cross-validation observations
+    // render AFTER the 3 psychological replies (D-13). Single additional
+    // ctx.reply, gated by crossVal !== '' so empty-state silently omits
+    // the reply entirely (D-14, matches Phase 39 WR-06).
+    // Total /profile reply count: 4 operational + 3 psychological + (0 or 1) cross-val.
+    const crossVal = computeCrossValidationObservations(
+      psychProfiles.hexaco,
+      psychProfiles.schwartz,
+      lang,
+    );
+    if (crossVal !== '') {
+      await ctx.reply(crossVal);
     }
   } catch (err) {
     logger.warn(
