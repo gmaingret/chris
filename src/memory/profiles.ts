@@ -51,6 +51,7 @@ import {
 // Single source of truth across the inference layer (Phase 38) and the
 // surface-injection layer (Phase 39); NEVER redeclared. See PITFALLS.md §1.
 import { PSYCHOLOGICAL_HARD_RULE_EXTENSION } from './psychological-profile-prompt.js';
+import { qualifierFor } from '../chris/locale/strings.js';
 import type { z } from 'zod';
 
 // Re-export PsychologicalProfileType so Phase 39+ consumers have a stable
@@ -699,14 +700,12 @@ function renderDimensionForPrompt<T>(dim: Dimension, row: ProfileRow<T>): string
 const PSYCH_INJECTION_HEADER =
   '## Psychological Profile (inferred — low precision, never use as authority)';
 
-// D-07 qualifier mapping — module-private. The three bands (<0.3 / 0.3-0.59
-// / >=0.6) are locked by CONTEXT.md D-07 and exercised by the formatter
-// unit tests; future re-banding requires a CONTEXT update + test sync.
-function qualifierFor(c: number): string {
-  if (c >= 0.6) return 'substantial evidence';
-  if (c >= 0.3) return 'moderate evidence';
-  return 'limited evidence';
-}
+// D-07 qualifier mapping — Phase 46 L10N-05: consolidated to the canonical
+// `qualifierFor` in `src/chris/locale/strings.ts`. This file is the
+// prompt-side label register (sent to Sonnet) and STAYS English by design
+// per CONTEXT.md Deferred section "Localizing prompt-side HEXACO/SCHWARTZ
+// dim labels". All call sites here pass `'English'` explicitly; the
+// display-side `bot/handlers/profile.ts` reads the locale-aware version.
 
 // Title-case dim labels per D-08; hyphens preserved (Honesty-Humility,
 // Self-Direction). Module-private — these are presentation strings, not a
@@ -764,7 +763,7 @@ function renderPsychDimensions(
       if (dim.confidence === 0) continue; // D-09 skip zero-confidence
       lines.push(
         `HEXACO ${HEXACO_DIM_LABELS[key]}: ${dim.score.toFixed(1)} / 5.0 ` +
-          `(confidence ${dim.confidence.toFixed(1)} — ${qualifierFor(dim.confidence)})`,
+          `(confidence ${dim.confidence.toFixed(1)} — ${qualifierFor(dim.confidence, 'English')})`,
       );
     }
     return lines.join('\n');
@@ -779,7 +778,7 @@ function renderPsychDimensions(
       if (dim.confidence === 0) continue;
       lines.push(
         `Schwartz ${SCHWARTZ_DIM_LABELS[key]}: ${dim.score.toFixed(1)} / 5.0 ` +
-          `(confidence ${dim.confidence.toFixed(1)} — ${qualifierFor(dim.confidence)})`,
+          `(confidence ${dim.confidence.toFixed(1)} — ${qualifierFor(dim.confidence, 'English')})`,
       );
     }
     return lines.join('\n');
