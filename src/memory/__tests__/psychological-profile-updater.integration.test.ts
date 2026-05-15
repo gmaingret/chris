@@ -296,6 +296,18 @@ describe('HARD CO-LOC #M11-2 — three-cycle UNCONDITIONAL FIRE (PGEN-06; PMT-05
     expect(hexacoRow_c1.substrateHash).toMatch(/^[0-9a-f]{64}$/);
     expect(schwartzRow_c1.substrateHash).toMatch(/^[0-9a-f]{64}$/);
 
+    // CONTRACT-03 / D-14 — Phase 38 WR-02 closure + W-01 schwartz extension
+    // Sonnet's data_consistency emission persists to the new column on
+    // BOTH profile_hexaco AND profile_schwartz. CHECK 0..1 constraint
+    // shipped in migration 0014 enforces the bounds at the DB level; this
+    // assertion verifies the application-layer wire-up (upsertValues key).
+    expect(typeof hexacoRow_c1.dataConsistency).toBe('number');
+    expect(hexacoRow_c1.dataConsistency).toBeGreaterThanOrEqual(0);
+    expect(hexacoRow_c1.dataConsistency).toBeLessThanOrEqual(1);
+    expect(typeof schwartzRow_c1.dataConsistency).toBe('number');
+    expect(schwartzRow_c1.dataConsistency).toBeGreaterThanOrEqual(0);
+    expect(schwartzRow_c1.dataConsistency).toBeLessThanOrEqual(1);
+
     const historyAfterC1 = await db
       .select()
       .from(profileHistory)

@@ -621,6 +621,12 @@ export async function runPsychologicalProfileGenerator<TBoundaryData extends { d
       schemaVersion: (currentRow.schemaVersion as number | undefined) ?? 1,
       substrateHash: computedHash,
       overallConfidence: sonnetOut.overall_confidence,
+      // Phase 43 CONTRACT-03 / D-14: persist Sonnet's emitted data_consistency
+      // to the new column on every fire. sonnetOut.data_consistency is a
+      // typed number from the v4 boundary parse (psychological-schemas.ts:166).
+      // profile_history snapshots auto-capture this via the polymorphic
+      // full-row copy at shared.ts:495-501 (no separate history wiring).
+      dataConsistency: sonnetOut.data_consistency,
       wordCount: substrate.wordCount,
       wordCountAtLastRun: substrate.wordCount,
       ...flatEncoded,
