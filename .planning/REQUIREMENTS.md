@@ -22,12 +22,12 @@
 
 ### RACE — Atomicity / race fixes (T2, 6 BLOCKERs from Phases 25/27/29)
 
-- [ ] **RACE-01**: `tryFireRitualAtomic` uses `sql\`now()\`` for the SET clause and `lt(lastRunAt, sql\`now()\`)` for the predicate at `src/rituals/idempotency.ts:111-119` — defeats ms-resolution JS-clock collisions under the every-minute cron. M009 second-fire bug class permanently closed.
-- [ ] **RACE-02**: `ritualResponseWindowSweep` paired-insert (`window_missed` event + `fired_no_response` event + `skip_count` increment) runs inside a single transaction with the consume — silent audit-log + skip-counter data loss eliminated. Source: `src/rituals/scheduler.ts:374-425`.
-- [ ] **RACE-03**: Wellbeing rapid-tap completion is idempotent — concurrent third-tap can no longer fire `wellbeing_completed` event N times, edit the same Telegram message N times, or redundantly set `skip_count=0`. Source: `src/rituals/wellbeing.ts:227-258, 263-324`.
-- [ ] **RACE-04**: Wellbeing skip path uses `jsonb_set` merge (matching the tap path) instead of full-jsonb overwrite at `wellbeing.ts:328-346` — preserves concurrent partial taps; data-fidelity-mandate violation closed.
-- [ ] **RACE-05**: `findOpenWellbeingRow` filter tightened — DST-edge cross-day match impossible; stale prior-day NULL rows from `fired_no_response` no longer leak into today's tap. Source: `wellbeing.ts:422-450`.
-- [ ] **RACE-06**: Weekly-review fire is transactional — Telegram send success → `fire_event` INSERT + `ritual_responses.respondedAt` + `next_run_at` advance atomic. Telegram failure rolls back response-row update + Pensieve orphan + no longer advances `next_run_at` → no silent weekly miss. Source: `src/rituals/weekly-review.ts:627-691`.
+- [x] **RACE-01**: `tryFireRitualAtomic` uses `sql\`now()\`` for the SET clause and `lt(lastRunAt, sql\`now()\`)` for the predicate at `src/rituals/idempotency.ts:111-119` — defeats ms-resolution JS-clock collisions under the every-minute cron. M009 second-fire bug class permanently closed.
+- [x] **RACE-02**: `ritualResponseWindowSweep` paired-insert (`window_missed` event + `fired_no_response` event + `skip_count` increment) runs inside a single transaction with the consume — silent audit-log + skip-counter data loss eliminated. Source: `src/rituals/scheduler.ts:374-425`.
+- [x] **RACE-03**: Wellbeing rapid-tap completion is idempotent — concurrent third-tap can no longer fire `wellbeing_completed` event N times, edit the same Telegram message N times, or redundantly set `skip_count=0`. Source: `src/rituals/wellbeing.ts:227-258, 263-324`.
+- [x] **RACE-04**: Wellbeing skip path uses `jsonb_set` merge (matching the tap path) instead of full-jsonb overwrite at `wellbeing.ts:328-346` — preserves concurrent partial taps; data-fidelity-mandate violation closed.
+- [x] **RACE-05**: `findOpenWellbeingRow` filter tightened — DST-edge cross-day match impossible; stale prior-day NULL rows from `fired_no_response` no longer leak into today's tap. Source: `wellbeing.ts:422-450`.
+- [x] **RACE-06**: Weekly-review fire is transactional — Telegram send success → `fire_event` INSERT + `ritual_responses.respondedAt` + `next_run_at` advance atomic. Telegram failure rolls back response-row update + Pensieve orphan + no longer advances `next_run_at` → no silent weekly miss. Source: `src/rituals/weekly-review.ts:627-691`.
 
 ### CI — Test gate hardening (T3, 3 BLOCKERs from Phases 30/36/40)
 
@@ -128,12 +128,12 @@
 | ADJ-05 | Phase 41 | Complete |
 | ADJ-06 | Phase 41 | Complete |
 | ADJ-07 | Phase 41 | Complete |
-| RACE-01 | Phase 42 | Pending |
-| RACE-02 | Phase 42 | Pending |
-| RACE-03 | Phase 42 | Pending |
-| RACE-04 | Phase 42 | Pending |
-| RACE-05 | Phase 42 | Pending |
-| RACE-06 | Phase 42 | Pending |
+| RACE-01 | Phase 42 | Done (2026-05-15) |
+| RACE-02 | Phase 42 | Done (2026-05-15) |
+| RACE-03 | Phase 42 | Done (2026-05-15) |
+| RACE-04 | Phase 42 | Done (2026-05-15) |
+| RACE-05 | Phase 42 | Done (2026-05-15) |
+| RACE-06 | Phase 42 | Done (2026-05-15) |
 | INJ-01 | Phase 43 | Pending |
 | INJ-02 | Phase 43 | Pending |
 | CONTRACT-01 | Phase 43 | Pending |

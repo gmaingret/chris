@@ -17,7 +17,7 @@
 ### v2.6.1 — Code Review Cleanup (in progress)
 
 - [x] **Phase 41: Adjustment-Dialogue Rework** — Live UX defect fix + skip_count reset + Haiku-whitelist privilege escalation closure
-- [ ] **Phase 42: Atomicity & Race Fixes** — Six independent production-correctness fixes sharing a concurrent-invocation test harness
+- [x] **Phase 42: Atomicity & Race Fixes** — Six independent production-correctness fixes sharing a concurrent-invocation test harness
 - [ ] **Phase 43: Inference Security & Contract Enforcement** — Prompt-injection escaping + "host computes, you don't emit" contract restoration across operational + psychological inference
 - [ ] **Phase 44: CI Milestone-Gate Hardening** — REQUIRE_FIXTURES env-gated hard-fail replaces silent skip across M009/M010/M011 gates
 - [ ] **Phase 45: Schema Hygiene & Fixture-Pipeline Cleanup** — Phase 33 seed defaults backfill (root cause) + DB CHECK constraints (defense-in-depth) + operator-script + fixture-pipeline cleanup
@@ -160,7 +160,7 @@ See `.planning/milestones/v2.6-ROADMAP.md` for full phase details + `.planning/m
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 41. Adjustment-Dialogue Rework | 2/2 | Shipped 2026-05-15 | ADJ-01..07 (7/7) |
-| 42. Atomicity & Race Fixes | 0/TBD | Not started | - |
+| 42. Atomicity & Race Fixes | 3/3 | Shipped 2026-05-15 | RACE-01..06 (6/6) |
 | 43. Inference Security & Contract Enforcement | 0/TBD | Not started | - |
 | 44. CI Milestone-Gate Hardening | 0/TBD | Not started | - |
 | 45. Schema Hygiene & Fixture-Pipeline Cleanup | 0/TBD | Not started | - |

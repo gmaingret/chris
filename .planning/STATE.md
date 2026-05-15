@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.6.1
 milestone_name: Code Review Cleanup
 status: executing
-last_updated: "2026-05-15T06:20:00.000Z"
+last_updated: "2026-05-15T07:05:00.000Z"
 last_activity: 2026-05-15
 progress:
   total_phases: 7
-  completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
-  percent: 14
+  completed_phases: 2
+  total_plans: 5
+  completed_plans: 5
+  percent: 29
 ---
 
 # Project State
@@ -25,12 +25,23 @@ See: .planning/PROJECT.md (symlink to /home/claude/chris/PLAN.md).
 
 ## Current Position
 
-Phase: Phase 41 (Adjustment-Dialogue Rework) — COMPLETE (Wave 1 of 5)
-Plans shipped: 41-01 + 41-02
-Status: All 3 tasks of 41-01 + all 3 tasks of 41-02 executed, committed, tested. Awaiting Wave 2 orchestrator dispatch (Phases 42 + 43).
-Last activity: 2026-05-15 — Phase 41 ships 7/7 ADJ requirements; all ritual tests green (215/215 pass + 1 skipped pre-existing); new no-refire test (5/5) added.
+Phase: Phase 42 (Atomicity & Race Fixes) — COMPLETE (Wave 2 of 7)
+Plans shipped: 42-01 + 42-02 + 42-03 (3 plans, 7 tasks, 8 commits)
+Status: All 6 RACE requirements green; full rituals suite 220/220 + 1 pre-existing skip. Awaiting Wave 3 orchestrator dispatch (Phase 43 — Inference Security & Contract Enforcement).
+Last activity: 2026-05-15 — Phase 42 ships 6/6 RACE requirements; concurrent-harness helper extracted; Docker harness 220/220 green.
 
-### Wave 1 commits
+### Phase 42 commits
+
+- `4eee98f` feat(42-01): shared concurrent-invocation test harness (D-42-01)
+- `7a45bcd` fix(42-01): RACE-01 — tryFireRitualAtomic uses postgres-clock (D-42-02)
+- `e34075b` fix(42-01): RACE-02 — wrap ritualResponseWindowSweep in db.transaction (D-42-04)
+- `8caca66` fix(42-02): RACE-03 + RACE-04 — wellbeing completion-claim + jsonb_set merge
+- `e9d4073` fix(42-02): RACE-05 — findOpenWellbeingRow 24h window guard + RACE-03/04/05 tests
+- `a6ec6f9` test(42-02): TEST-28 fixture alignment for RACE-05 24h window
+- `b1034f8` fix(42-03): RACE-06 — transactional weekly-review fire pipeline (D-42-11)
+- `2017212` test(42-03): RACE-06 regression — send-failure rollback contract
+
+### Phase 41 commits (shipped)
 
 - `066224d` feat(41-01): display-names.ts (ADJ-02)
 - `a032353` fix(41-01): observational copy + 3 completion-site skip_count resets (ADJ-01/02/04)
