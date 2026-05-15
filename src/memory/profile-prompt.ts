@@ -39,6 +39,7 @@
  * section-1 placement.
  */
 import { CONSTITUTIONAL_PREAMBLE } from '../chris/personality.js';
+import { sanitizeSubstrateText } from './profiles/shared.js';
 
 // ── Public types ────────────────────────────────────────────────────────────
 
@@ -315,7 +316,14 @@ function buildSubstrateBlock(substrate: ProfileSubstrateView): string {
       const truncated = entry.content.length > 200
         ? entry.content.slice(0, 197) + '...'
         : entry.content;
-      lines.push(`- ${date} [${entry.epistemicTag}] ${truncated}`);
+      // Phase 43 / INJ-01 + D-06: sanitize user-controlled content AFTER
+      // truncation (so the 200-char size guard still bounds total length),
+      // and apply the alphanumeric+_- allowlist to epistemicTag so a runtime-
+      // tagged Pensieve row cannot inject special characters or markdown
+      // anchors through the [${tag}] rendering channel.
+      const safeContent = sanitizeSubstrateText(truncated);
+      const safeTag = entry.epistemicTag.replace(/[^A-Za-z0-9_-]/g, '');
+      lines.push(`- ${date} [${safeTag}] ${safeContent}`);
     }
   }
 
@@ -328,7 +336,10 @@ function buildSubstrateBlock(substrate: ProfileSubstrateView): string {
       const truncated = s.summary.length > 200
         ? s.summary.slice(0, 197) + '...'
         : s.summary;
-      lines.push(`- ${s.summaryDate}: ${truncated}`);
+      // Phase 43 / INJ-01: episodic summaries are derived from past Pensieve
+      // entries (M008 consolidation), but the consolidation Sonnet may have
+      // copied user content verbatim — sanitize defensively.
+      lines.push(`- ${s.summaryDate}: ${sanitizeSubstrateText(truncated)}`);
     }
   }
 
@@ -341,7 +352,9 @@ function buildSubstrateBlock(substrate: ProfileSubstrateView): string {
       const date = d.resolvedAt.toISOString().slice(0, 10);
       const q = d.question.length > 100 ? d.question.slice(0, 97) + '...' : d.question;
       const r = d.resolution.length > 100 ? d.resolution.slice(0, 97) + '...' : d.resolution;
-      lines.push(`- ${date} Q: ${q} → R: ${r}`);
+      // Phase 43 / INJ-01: both decision question + resolution are
+      // user-controlled (Greg's own decision text); sanitize both.
+      lines.push(`- ${date} Q: ${sanitizeSubstrateText(q)} → R: ${sanitizeSubstrateText(r)}`);
     }
   }
 

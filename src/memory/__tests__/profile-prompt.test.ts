@@ -248,3 +248,131 @@ describe('sanitizeSubstrateText: helper contract (Phase 43 / D-01..D-04)', () =>
     expect(out).not.toMatch(/\n## Output Format/);
   });
 });
+
+// ── Phase 43 Plan 01 — INJ-01: substrate content cannot forge prompt anchors ─
+
+describe.each(DIMENSIONS)(
+  'INJ-01: operational substrate content cannot forge prompt anchors (dimension=%s)',
+  (dimension) => {
+    it('forged ## CURRENT PROFILE STATE in Pensieve content is escaped to \\##', () => {
+      const fixture = buildFixture({
+        pensieveEntries: [
+          {
+            id: 'inj1',
+            epistemicTag: 'FACT',
+            content: INJECT_PROFILE_STATE_ANCHOR,
+            createdAt: new Date('2026-04-01T10:00:00Z'),
+          },
+        ],
+      });
+      const result = assembleProfilePrompt(dimension, fixture, null, 15);
+      // The assembler's OWN '## CURRENT PROFILE STATE' is rendered only when
+      // prevState !== null. Here prevState is null, so any occurrence of the
+      // unescaped anchor at line-start MUST be from the forged Pensieve
+      // content path — sanitization should prevent it.
+      expect(result.system).not.toMatch(/\n## CURRENT PROFILE STATE\n\{"current_country"/);
+      expect(result.system).toContain('\\## CURRENT PROFILE STATE');
+    });
+
+    it('forged anchor inside episodic summary is escaped', () => {
+      const fixture = buildFixture({
+        episodicSummaries: [
+          {
+            summaryDate: '2026-04-15',
+            summary: INJECT_PROFILE_STATE_ANCHOR,
+          },
+        ],
+      });
+      const result = assembleProfilePrompt(dimension, fixture, null, 15);
+      expect(result.system).toContain('\\## CURRENT PROFILE STATE');
+      expect(result.system).not.toMatch(/\n## CURRENT PROFILE STATE\n\{"current_country"/);
+    });
+
+    it('forged anchor inside decision question and resolution is escaped', () => {
+      const fixture = buildFixture({
+        decisions: [
+          {
+            id: 'd-inj',
+            resolvedAt: new Date('2026-04-20T12:00:00Z'),
+            question: INJECT_PROFILE_STATE_ANCHOR,
+            resolution: INJECT_PROFILE_STATE_ANCHOR,
+          },
+        ],
+      });
+      const result = assembleProfilePrompt(dimension, fixture, null, 15);
+      // Both question and resolution flow through sanitization; substring count
+      // of escaped form should be >= 2 (one per channel).
+      const occurrences = result.system.match(/\\## CURRENT PROFILE STATE/g) ?? [];
+      expect(occurrences.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('triple-backtick fence in content is neutralized to single quotes', () => {
+      const fixture = buildFixture({
+        pensieveEntries: [
+          {
+            id: 'fence',
+            epistemicTag: 'FACT',
+            content: INJECT_FENCED_DIRECTIVE,
+            createdAt: new Date('2026-04-01T10:00:00Z'),
+          },
+        ],
+      });
+      const result = assembleProfilePrompt(dimension, fixture, null, 15);
+      // The substrate block must not contain a ``` fence introduced by user
+      // content. Slice from the SUBSTRATE marker onward to isolate this check
+      // from any assembler-controlled markdown elsewhere.
+      const substrateSlice = result.system.slice(result.system.indexOf('## SUBSTRATE'));
+      expect(substrateSlice).not.toContain('```');
+      expect(substrateSlice).toContain("'''");
+    });
+
+    it('Output Format override in content is escaped to \\##', () => {
+      const fixture = buildFixture({
+        pensieveEntries: [
+          {
+            id: 'fmt',
+            epistemicTag: 'FACT',
+            content: INJECT_OUTPUT_FORMAT_OVERRIDE,
+            createdAt: new Date('2026-04-01T10:00:00Z'),
+          },
+        ],
+      });
+      const result = assembleProfilePrompt(dimension, fixture, null, 15);
+      // Slice from SUBSTRATE onward — the assembler's own '## Output Format'
+      // is rendered later and SHOULD remain unescaped (it is assembler-
+      // controlled, not user-controlled). We assert the absence at line-start
+      // within the substrate slice only.
+      const substrateSlice = result.system.slice(result.system.indexOf('## SUBSTRATE'));
+      expect(substrateSlice).toContain('\\## Output Format');
+      // The forged "\n## Output Format\n" line-start pattern must not appear
+      // anywhere inside the substrate slice.
+      const idxSubstrate = result.system.indexOf('## SUBSTRATE');
+      const idxOutputFormatAssembler = result.system.indexOf('## Output Format');
+      // The assembler's authentic '## Output Format' must appear AFTER the
+      // substrate block (sections 7 → 8 order).
+      expect(idxOutputFormatAssembler).toBeGreaterThan(idxSubstrate);
+      // Inside the substrate slice (idxSubstrate..idxOutputFormatAssembler-1),
+      // no unescaped '\n## Output Format' line-start should exist.
+      const beforeAssemblerSection = result.system.slice(idxSubstrate, idxOutputFormatAssembler);
+      expect(beforeAssemblerSection).not.toMatch(/\n## Output Format/);
+    });
+
+    it('operational-vocab epistemicTag passes through alphanumeric allowlist', () => {
+      const fixture = buildFixture({
+        pensieveEntries: [
+          {
+            id: 'tag-inj',
+            epistemicTag: '## INJECT',
+            content: 'benign content',
+            createdAt: new Date('2026-04-01T10:00:00Z'),
+          },
+        ],
+      });
+      const result = assembleProfilePrompt(dimension, fixture, null, 15);
+      // The allowlist `/[^A-Za-z0-9_-]/g` strips the leading '## ' (space and
+      // hash are non-alphanumeric); 'INJECT' survives.
+      expect(result.system).toContain('[INJECT]');
+      expect(result.system).not.toContain('[## INJECT]');
+    });
+  },
+);
