@@ -33,9 +33,9 @@
 
 > **Mechanism:** `REQUIRE_FIXTURES=1` env-gated hard-fail per inline check pattern — see `.planning/phases/44-ci-milestone-gate-hardening/` for design and `scripts/test.sh` header comment for operator UX.
 
-- [ ] **CI-01**: M010 milestone-gate test files fail CI when fixtures absent — replaces `existsSync(MANIFEST) ? describe : describe.skip` across `integration-m010-30days.test.ts:125-137`, `integration-m010-5days.test.ts:105-120`, `primed-sanity-m010.test.ts:171,239`, `live-anti-hallucination.test.ts:136`. CI environment variable `REQUIRE_FIXTURES=1` hard-fails when missing; local dev still skips.
-- [ ] **CI-02**: M011 milestone-gate tests fail CI when fixtures absent (same pattern); `scripts/synthesize-delta.ts:937` output-dir path bug fixed (`m011-1000words-5days` collision eliminated — operator regen lands at `m011-1000words` matching test reads).
-- [ ] **CI-03**: M009 milestone-gate tests fail CI when fixtures absent — D045 silent-skip pattern in `primed-sanity.test.ts` + `synthetic-fixture.test.ts` no longer hides regressions.
+- [x] **CI-01**: M010 milestone-gate test files fail CI when fixtures absent — replaces `existsSync(MANIFEST) ? describe : describe.skip` across `integration-m010-30days.test.ts:125-137`, `integration-m010-5days.test.ts:105-120`, `primed-sanity-m010.test.ts:171,239`, `live-anti-hallucination.test.ts:136`. CI environment variable `REQUIRE_FIXTURES=1` hard-fails when missing; local dev still skips. **Shipped Phase 44-01 (T03/T04/T05/T06, 2026-05-15).**
+- [x] **CI-02**: M011 milestone-gate tests fail CI when fixtures absent (same pattern); `scripts/synthesize-delta.ts:937` output-dir path bug fixed (Phase 45 FIX-02b aligned test constants to operator-regen output `m011-1000words-5days`). **Shipped Phase 44-01 (T07/T08/T09/T10, 2026-05-15).**
+- [x] **CI-03**: M009 milestone-gate tests fail CI when fixtures absent — D045 silent-skip pattern in `primed-sanity.test.ts` + `synthetic-fixture.test.ts` no longer hides regressions. **Shipped Phase 44-01 (T01/T02, 2026-05-15).**
 
 ### INJ — Prompt-injection mitigation (T4, 1 BLOCKER + 1 WARNING from Phases 34/38)
 
@@ -141,9 +141,9 @@
 | CONTRACT-01 | Phase 43 | Done (2026-05-15) |
 | CONTRACT-02 | Phase 43 | Done (2026-05-15) |
 | CONTRACT-03 | Phase 43 | Done (2026-05-15) |
-| CI-01 | Phase 44 | Pending |
-| CI-02 | Phase 44 | Pending |
-| CI-03 | Phase 44 | Pending |
+| CI-01 | Phase 44 | Done (2026-05-15) |
+| CI-02 | Phase 44 | Done (2026-05-15) |
+| CI-03 | Phase 44 | Done (2026-05-15) |
 | SCHEMA-01 | Phase 45 | Pending |
 | SCHEMA-02 | Phase 45 | Pending |
 | FIX-01 | Phase 45 | Pending |

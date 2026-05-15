@@ -19,7 +19,7 @@
 - [x] **Phase 41: Adjustment-Dialogue Rework** — Live UX defect fix + skip_count reset + Haiku-whitelist privilege escalation closure
 - [x] **Phase 42: Atomicity & Race Fixes** — Six independent production-correctness fixes sharing a concurrent-invocation test harness
 - [x] **Phase 43: Inference Security & Contract Enforcement** — Prompt-injection escaping + "host computes, you don't emit" contract restoration across operational + psychological inference (shipped 2026-05-15)
-- [ ] **Phase 44: CI Milestone-Gate Hardening** — REQUIRE_FIXTURES env-gated hard-fail replaces silent skip across M009/M010/M011 gates
+- [x] **Phase 44: CI Milestone-Gate Hardening** — REQUIRE_FIXTURES env-gated hard-fail replaces silent skip across M009/M010/M011 gates (shipped 2026-05-15; 12 atomic commits, 10 test files + scripts/test.sh + REQUIREMENTS.md)
 - [ ] **Phase 45: Schema Hygiene & Fixture-Pipeline Cleanup** — Phase 33 seed defaults backfill (root cause) + DB CHECK constraints (defense-in-depth) + operator-script + fixture-pipeline cleanup
 - [ ] **Phase 46: FR/RU Localization Comprehensive** — Locale detection layer + 30+ EN-only sites localized across adjustment-dialogue, weekly-review, journal, /profile
 - [ ] **Phase 47: Display Polish** — Schwartz circumplex ordering + HEXACO × Schwartz cross-validation observations on /profile

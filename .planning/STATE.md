@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.6.1
 milestone_name: Code Review Cleanup
-status: "All 5 v2.6.1 Phase 43 requirements green (INJ-01 / INJ-02 / CONTRACT-01 / CONTRACT-02 / CONTRACT-03). Migration 0014_psychological_data_consistency_column shipped via HARD CO-LOC bundle; data_consistency column live on profile_hexaco + profile_schwartz + profile_attachment; CHECK 0..1 enforced. Full src/memory/__tests__/ Docker gate 242/242 green; rituals/pensieve/episodic 427/427 green. Awaiting Wave 4 orchestrator dispatch — note: NEXT phase is Phase **45** (not 44) because Phase 44 depends on Phase 45's FIX-02 fixture-path bug fix."
-stopped_at: v2.6.1 ROADMAP.md drafted — 7 phases (41-47), 39/39 requirements mapped, STATE.md updated, REQUIREMENTS.md traceability populated
-last_updated: "2026-05-15T11:42:17.678Z"
-last_activity: 2026-05-15 — Phase 43 ships 5/5 requirements; migration 0014 applied cleanly; 47+ new test assertions added.
+status: "All 3 v2.6.1 Phase 44 requirements green (CI-01 / CI-02 / CI-03). REQUIRE_FIXTURES=1 env-gated hard-fail injected across 10 M009/M010/M011 milestone-gate test files (12 [CI-GATE] blocks: 8 Family A + 4 Family B). Local-dev UX byte-identical (env unset → skip-with-hint); CI (env=1) → 1 named failure per missing fixture with regen pointer + vitest exit non-zero. scripts/test.sh contract documented; REQUIREMENTS.md cross-link added. End-to-end verified via real vitest invocation (m009-21days moved aside → [CI-GATE] failure surfaced with full regen command, exit=1)."
+stopped_at: Phase 44 complete (12 commits 463bac6..fd13d6f); awaiting orchestrator dispatch of Phase 46 (Phase 45 already shipped pre-44 per dependency sequencing)
+last_updated: "2026-05-15T11:55:00.000Z"
+last_activity: 2026-05-15 — Phase 44 ships 3/3 CI requirements; 12 atomic per-task commits; 10 test files + scripts/test.sh + REQUIREMENTS.md modified.
 progress:
   total_phases: 7
-  completed_phases: 4
-  total_plans: 17
-  completed_plans: 11
-  percent: 65
+  completed_phases: 5
+  total_plans: 18
+  completed_plans: 12
+  percent: 72
 ---
 
 # Project State
@@ -26,10 +26,25 @@ See: .planning/PROJECT.md (symlink to /home/claude/chris/PLAN.md).
 
 ## Current Position
 
-Phase: Phase 43 (Inference Security & Contract Enforcement) — COMPLETE (Wave 3 of 7)
-Plans shipped: 43-01 + 43-02 (2 plans, 10 tasks, 9 commits + 1 docs commit)
-Status: All 5 v2.6.1 Phase 43 requirements green (INJ-01 / INJ-02 / CONTRACT-01 / CONTRACT-02 / CONTRACT-03). Migration 0014_psychological_data_consistency_column shipped via HARD CO-LOC bundle; data_consistency column live on profile_hexaco + profile_schwartz + profile_attachment; CHECK 0..1 enforced. Full src/memory/__tests__/ Docker gate 242/242 green; rituals/pensieve/episodic 427/427 green. Awaiting Wave 4 orchestrator dispatch — note: NEXT phase is Phase **45** (not 44) because Phase 44 depends on Phase 45's FIX-02 fixture-path bug fix.
-Last activity: 2026-05-15 — Phase 43 ships 5/5 requirements; migration 0014 applied cleanly; 47+ new test assertions added.
+Phase: Phase 44 (CI Milestone-Gate Hardening) — COMPLETE (Wave 5 of 7)
+Plans shipped: 44-01 (1 plan, 12 tasks, 12 atomic commits)
+Status: All 3 v2.6.1 Phase 44 requirements green (CI-01 / CI-02 / CI-03). REQUIRE_FIXTURES=1 env-gated hard-fail injected across 10 milestone-gate test files (12 [CI-GATE] gate-test blocks total: 8 Family A single-fixture + 4 Family B dual-fixture). Family C live-* tests gate ORTHOGONALLY to RUN_LIVE_TESTS (no paid Anthropic call possible from CI gate, D-07). scripts/test.sh contract documented; REQUIREMENTS.md cross-link added under CI section. End-to-end verified via real vitest run (m009-21days moved aside → [CI-GATE] failure surfaced with regen command + vitest exit=1). Local-dev UX byte-identical (env unset → existing skip-with-hint preserved).
+Last activity: 2026-05-15 — Phase 44 ships 3/3 CI requirements via 12 atomic commits; 12 files modified (10 test files + scripts/test.sh + REQUIREMENTS.md).
+
+### Phase 44 commits
+
+- `463bac6` feat(44-01): T01 CI-03 — REQUIRE_FIXTURES gate-test on primed-sanity.test.ts
+- `3027099` feat(44-01): T02 CI-03 — REQUIRE_FIXTURES gate-test on synthetic-fixture.test.ts
+- `13e09fb` feat(44-01): T03 CI-01 — REQUIRE_FIXTURES dual gate-tests on primed-sanity-m010.test.ts
+- `a380417` feat(44-01): T04 CI-01 — REQUIRE_FIXTURES gate-test on integration-m010-30days.test.ts
+- `d6d6587` feat(44-01): T05 CI-01 — REQUIRE_FIXTURES gate-test on integration-m010-5days.test.ts
+- `50a07e5` feat(44-01): T06 CI-01 — REQUIRE_FIXTURES gate-test on live-anti-hallucination.test.ts (orthogonal)
+- `4cc86f0` feat(44-01): T07 CI-02 — REQUIRE_FIXTURES dual gate-tests on primed-sanity-m011.test.ts
+- `8e1eba7` feat(44-01): T08 CI-02 — REQUIRE_FIXTURES gate-test on integration-m011-30days.test.ts
+- `a1495ca` feat(44-01): T09 CI-02 — REQUIRE_FIXTURES gate-test on integration-m011-1000words.test.ts
+- `c4438a6` feat(44-01): T10 CI-02 — REQUIRE_FIXTURES gate-test on live-psych-anti-hallucination.test.ts (sync, no beforeAll)
+- `64f7ee0` docs(44-01): T11 — scripts/test.sh REQUIRE_FIXTURES contract documentation
+- `fd13d6f` docs(44-01): T12 — REQUIREMENTS.md CI-section cross-link to Phase 44 mechanism
 
 ### Phase 43 commits
 
