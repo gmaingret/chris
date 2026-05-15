@@ -58,6 +58,23 @@ if (!FIXTURE_PRESENT) {
   );
 }
 
+// Phase 44 CI-02: REQUIRE_FIXTURES=1 env-gated hard-fail.
+// D-07 ORTHOGONALITY: this gate is independent of RUN_LIVE_TESTS /
+// ANTHROPIC_API_KEY. The three-way describe.skipIf below stays untouched.
+// The new gate-test is a single synchronous throw — NO beforeAll, NO async
+// (Anti-Pattern #3 / WR-07 from Phase 40 REVIEW: don't replicate the
+// Pitfall-6 belt-and-suspenders pattern; the gate-test has no DB/LLM calls).
+if (!FIXTURE_PRESENT && process.env.REQUIRE_FIXTURES === '1') {
+  describe('[CI-GATE] fixture present', () => {
+    it(`${FIXTURE_PATH} must exist when REQUIRE_FIXTURES=1`, () => {
+      throw new Error(
+        `Milestone-gate fixture missing: ${FIXTURE_PATH}. ` +
+          `Regenerate via: npx tsx scripts/regenerate-primed.ts --milestone m011 --target-days 30 --psych-profile-bias --force --seed 42`,
+      );
+    });
+  });
+}
+
 // FORBIDDEN_TRAIT_AUTHORITY_PATTERNS — REQUIREMENTS PMT-06 verbatim (D-30 b,
 // PITFALLS.md §1 D027 sycophancy injection load-bearing mitigation).
 // Module-private (NOT exported — V10 Malicious Code mitigation: prevents
