@@ -467,7 +467,19 @@ function todayLocalDate(): string {
 /**
  * Find today's open ritual_responses row for the daily_wellbeing ritual.
  *
- * "Open" = responded_at IS NULL AND fired_at::date matches today's local date.
+ * "Open" = responded_at IS NULL AND fired_at::date matches today's local date
+ *          AND fired_at within the past 24 hours (Phase 42 RACE-05 D-42-10).
+ *
+ * The 24-hour absolute-window AND-clause is belt-and-suspenders defense
+ * against DST-edge cross-day matching. The pre-RACE-05 query relied ONLY on
+ * `date_trunc('day', fired_at AT TIME ZONE tz) = today::date`. Under a DST
+ * transition (spring-forward 02:00 → 03:00 or fall-back 03:00 → 02:00 in
+ * Europe/Paris), the local-day boundary can shift such that a prior-day
+ * fired_no_response open row could match today's date_trunc. Adding
+ * `fired_at >= now() - interval '24 hours'` makes that impossible at the
+ * absolute (UTC) clock level — wellbeing fires at 10:00 Paris local so the
+ * next fire is always ≥22 hours away even under the worst DST transition.
+ *
  * Returns null if no open row exists (snapshot already completed/skipped, or
  * stale callback after window expiry).
  *
@@ -496,6 +508,7 @@ async function findOpenWellbeingRow(): Promise<typeof ritualResponses.$inferSele
         AND ${ritualResponses.respondedAt} IS NULL
         AND date_trunc('day', ${ritualResponses.firedAt} AT TIME ZONE ${tz})
             = ${today}::date
+        AND ${ritualResponses.firedAt} >= now() - interval '24 hours'
       `,
     )
     .orderBy(sql`${ritualResponses.firedAt} DESC`)

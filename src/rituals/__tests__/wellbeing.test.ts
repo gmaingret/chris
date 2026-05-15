@@ -42,7 +42,8 @@
  *     npx vitest run src/rituals/__tests__/wellbeing.test.ts
  */
 import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from 'vitest';
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq, sql as drzSql } from 'drizzle-orm';
+import { runConcurrently } from '../../__tests__/helpers/concurrent-harness.js';
 
 // Mock bot.api.sendMessage to avoid real Telegram calls.
 // vi.hoisted ensures the mock fn is available when the vi.mock factory runs
@@ -277,8 +278,9 @@ describe('wellbeing handler (Phase 27 WELL-01..05)', () => {
     expect(row!.metadata).toMatchObject({ partial: { e: 3, m: 4 } });
   });
 
-  // ── Test 5 — Rapid-tap concurrency against REAL Docker postgres (WELL-02 + D-27-05) ──
-  it('Test 5: rapid-tap concurrency — Promise.all of 3 callbacks merges all 3 dims (race-safe)', async () => {
+  // ── Test 5 — Rapid-tap concurrency against REAL Docker postgres ────────
+  //           (WELL-02 + D-27-05 + Phase 42 RACE-03 D-42-06)
+  it('Test 5: rapid-tap concurrency — Promise.all of 3 callbacks merges all 3 dims AND emits exactly ONE wellbeing_completed (RACE-03)', async () => {
     const [ritual] = await db.select().from(rituals).where(eq(rituals.id, testRitualId));
     const cfg = parseRitualConfig(ritual!.config);
     await fireWellbeing(ritual!, cfg);
@@ -287,14 +289,23 @@ describe('wellbeing handler (Phase 27 WELL-01..05)', () => {
     // jsonb_set atomicity. Mocks would silently pass broken merge logic
     // (last-write-wins). This is the test that mandates D-27-10's "real
     // Docker postgres" requirement.
-    await Promise.all([
+    //
+    // Phase 42 RACE-03 tightening (D-42-06): under the OLD code, three
+    // concurrent callbacks could each reach completeSnapshot and each emit
+    // a duplicate WELLBEING_COMPLETED ritual_fire_events row, call
+    // editMessageText three times, redundantly set skip_count=0 three
+    // times. The atomic completion-claim UPDATE makes the side-effect path
+    // winner-only. The assertion below for "exactly ONE wellbeing_completed"
+    // pins the RACE-03 contract.
+    const ctxs = [
+      simulateCallbackQuery({ callbackData: 'r:w:e:3' }),
+      simulateCallbackQuery({ callbackData: 'r:w:m:4' }),
+      simulateCallbackQuery({ callbackData: 'r:w:a:2' }),
+    ];
+    await runConcurrently(3, (i) =>
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      handleWellbeingCallback(simulateCallbackQuery({ callbackData: 'r:w:e:3' }) as any, 'r:w:e:3'),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      handleWellbeingCallback(simulateCallbackQuery({ callbackData: 'r:w:m:4' }) as any, 'r:w:m:4'),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      handleWellbeingCallback(simulateCallbackQuery({ callbackData: 'r:w:a:2' }) as any, 'r:w:a:2'),
-    ]);
+      handleWellbeingCallback(ctxs[i]! as any, ctxs[i]!.callbackQuery.data),
+    );
 
     // After Promise.all, metadata.partial must have ALL 3 keys (no overwrites).
     const [row] = await db
@@ -309,6 +320,28 @@ describe('wellbeing handler (Phase 27 WELL-01..05)', () => {
     expect(snapshot!.energy).toBe(3);
     expect(snapshot!.mood).toBe(4);
     expect(snapshot!.anxiety).toBe(2);
+
+    // RACE-03 contract: EXACTLY ONE wellbeing_completed fire_event under
+    // three-way concurrent completion. The completion-claim UPDATE on
+    // `respondedAt IS NULL` is the canonical idempotency key.
+    const completedEvents = await db
+      .select()
+      .from(ritualFireEvents)
+      .where(
+        and(
+          eq(ritualFireEvents.ritualId, testRitualId),
+          eq(ritualFireEvents.outcome, 'wellbeing_completed'),
+        ),
+      );
+    expect(completedEvents).toHaveLength(1);
+
+    // RACE-03 contract: EXACTLY ONE editMessageText call across all 3
+    // contexts (only the claim winner runs the Telegram side-effect).
+    const editMessageTextCalls = ctxs.reduce(
+      (sum, c) => sum + c.editMessageText.mock.calls.length,
+      0,
+    );
+    expect(editMessageTextCalls).toBe(1);
   });
 
   // ── Test 6 — Completion-gated write + emit outcome (WELL-02 + WELL-03) ──
@@ -419,5 +452,108 @@ describe('wellbeing handler (Phase 27 WELL-01..05)', () => {
       .from(ritualResponses)
       .where(eq(ritualResponses.ritualId, testRitualId));
     expect(row!.metadata).toMatchObject({ partial: {} });
+  });
+
+  // ── Test 9 — RACE-04: handleSkip jsonb_set merge preserves partial taps ─
+  it('RACE-04: handleSkip preserves concurrent partial taps via nested jsonb_set merge (D-42-08)', async () => {
+    const [ritual] = await db.select().from(rituals).where(eq(rituals.id, testRitualId));
+    const cfg = parseRitualConfig(ritual!.config);
+    await fireWellbeing(ritual!, cfg);
+
+    // Simulate that a partial tap arrived BEFORE the skip — e.g., Greg
+    // tapped energy=3 and then skipped before completing the other 2 dims.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await handleWellbeingCallback(simulateCallbackQuery({ callbackData: 'r:w:e:3' }) as any, 'r:w:e:3');
+
+    // Verify partial state landed
+    const [rowBefore] = await db
+      .select()
+      .from(ritualResponses)
+      .where(eq(ritualResponses.ritualId, testRitualId));
+    expect(rowBefore!.metadata).toMatchObject({ partial: { e: 3 } });
+
+    // Skip — the pre-RACE-04 code did a full-object overwrite that discarded
+    // metadata.partial.e. Post-RACE-04, nested jsonb_set merges {skipped:
+    // true, adjustment_eligible: false} INTO whatever metadata is there.
+    const skipCtx = simulateCallbackQuery({ callbackData: 'r:w:skip' });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await handleWellbeingCallback(skipCtx as any, 'r:w:skip');
+
+    // Re-read; partial.e MUST still be 3 (preserved); skipped + adjustment_eligible flipped.
+    const [rowAfter] = await db
+      .select()
+      .from(ritualResponses)
+      .where(eq(ritualResponses.ritualId, testRitualId));
+    expect(rowAfter!.metadata).toMatchObject({
+      partial: { e: 3 },
+      skipped: true,
+      adjustment_eligible: false,
+    });
+    expect(rowAfter!.respondedAt).not.toBeNull();
+  });
+
+  // ── Test 10 — RACE-05: findOpenWellbeingRow 24-hour absolute-window guard ─
+  it('RACE-05: findOpenWellbeingRow rejects 25h-old open row and returns 1h-old open row (D-42-10)', async () => {
+    // We exercise findOpenWellbeingRow indirectly via handleWellbeingCallback —
+    // the function is non-exported. The contract: a tap callback arriving
+    // when the only open row is >24 hours old should hit the no_open_row
+    // path; a tap when the open row is fresh should land the partial.
+
+    // Setup: directly insert an open ritual_responses row with firedAt =
+    // 25 hours ago (server-side via sql`now() - interval '25 hours'`).
+    const [stale] = await db
+      .insert(ritualResponses)
+      .values({
+        ritualId: testRitualId,
+        firedAt: new Date(),
+        promptText: 'stale wellbeing prompt',
+        metadata: { partial: {} },
+      })
+      .returning({ id: ritualResponses.id });
+
+    // Force fired_at to 25 hours in the past (must use server-side time to
+    // be DST-stable + match the now() the production WHERE evaluates).
+    await db.execute(
+      drzSql`UPDATE ritual_responses SET fired_at = now() - interval '25 hours' WHERE id = ${stale!.id}`,
+    );
+
+    // Tap a stale row — should be rejected by the 24h window AND-clause;
+    // the callback should hit the "no_open_row" path and return without
+    // touching metadata.
+    const staleCtx = simulateCallbackQuery({ callbackData: 'r:w:e:3' });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await handleWellbeingCallback(staleCtx as any, 'r:w:e:3');
+
+    const [staleAfter] = await db
+      .select()
+      .from(ritualResponses)
+      .where(eq(ritualResponses.id, stale!.id));
+    // metadata.partial.e must still be {} — no row was found, no UPDATE ran
+    expect(staleAfter!.metadata).toMatchObject({ partial: {} });
+    // answerCallbackQuery called with "Snapshot already closed" (no_open_row branch)
+    expect(staleCtx.answerCallbackQuery).toHaveBeenCalledWith({
+      text: 'Snapshot already closed',
+    });
+
+    // Now insert a FRESH open row (firedAt = now()), expected to be returned.
+    // First clear the stale row so the query has only one candidate.
+    await db
+      .delete(ritualResponses)
+      .where(eq(ritualResponses.id, stale!.id));
+
+    const [ritual] = await db.select().from(rituals).where(eq(rituals.id, testRitualId));
+    const cfg = parseRitualConfig(ritual!.config);
+    await fireWellbeing(ritual!, cfg); // inserts a fresh open row
+
+    const freshCtx = simulateCallbackQuery({ callbackData: 'r:w:e:4' });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await handleWellbeingCallback(freshCtx as any, 'r:w:e:4');
+
+    // Fresh row tap landed — metadata.partial.e = 4
+    const [freshAfter] = await db
+      .select()
+      .from(ritualResponses)
+      .where(eq(ritualResponses.ritualId, testRitualId));
+    expect(freshAfter!.metadata).toMatchObject({ partial: { e: 4 } });
   });
 });
