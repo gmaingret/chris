@@ -349,6 +349,15 @@ function stripPsychologicalMetadataColumns(row: Record<string, any>): Record<str
     schemaVersion,
     substrateHash,
     overallConfidence,
+    // Phase 43 CONTRACT-03 / D-12: the new dataConsistency column on the 3
+    // psychological profile tables (migration 0014) must be discarded here.
+    // The per-dim v3/v4 row schemas (HexacoProfileSchemaV3 etc.) are .strict()
+    // and do NOT declare data_consistency at the row-shape level (that field
+    // lives only on the SDK-boundary variants — V3Boundary / V4Boundary —
+    // used by the upsert path, not the reader). Leaving it in `rest` would
+    // produce 'Unrecognized key(s) in object: data_consistency' parse errors
+    // on every row read post-migration-0014.
+    dataConsistency,
     wordCount,
     wordCountAtLastRun,
     lastUpdated,
@@ -358,7 +367,8 @@ function stripPsychologicalMetadataColumns(row: Record<string, any>): Record<str
     ...rest
   } = row;
   void id; void name; void schemaVersion; void substrateHash;
-  void overallConfidence; void wordCount; void wordCountAtLastRun;
+  void overallConfidence; void dataConsistency;
+  void wordCount; void wordCountAtLastRun;
   void lastUpdated; void createdAt;
   void relationalWordCount; void activated;
 

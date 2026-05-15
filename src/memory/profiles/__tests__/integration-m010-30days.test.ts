@@ -349,17 +349,21 @@ skipIfAbsent('integration-m010-30days: PTEST-02 + PTEST-03 (HARD CO-LOC #M10-6)'
     expect(mockAnthropicParse).toHaveBeenCalledTimes(4);
     expect(outcomes1.every((o) => o.outcome === 'profile_updated')).toBe(true);
 
-    // M010-10 prev-state injection check: inspect Cycle 1 call args for
-    // CURRENT PROFILE STATE. The seed row has prev-state values
-    // (current_country='Russia' etc.) so the prevState block IS rendered
-    // (extractJurisdictionalPrevState returns the stripped row, not null).
-    // Per D-20: assert the substring appears in at least one call's system
-    // prompt.
+    // Phase 43 CONTRACT-02 / D-10 — M010-03 anti-drift anchoring defense:
+    // Seed rows (Phase 33 D-11 substrate_hash='' sentinel) now route through
+    // extract<X>PrevState that returns null when substrateHash === ''. The
+    // assembler then OMITS the '## CURRENT PROFILE STATE' block entirely on
+    // first-fire-after-deploy, avoiding the empty-fields + anti-drift
+    // directive collision that previously anchored Sonnet to the empty seed.
+    //
+    // Pre-Phase-43 contract was: "seed row has prev-state values so the
+    // prevState block IS rendered" — that anchoring is exactly what CONTRACT-02
+    // closes. The flipped assertion below documents the new contract.
     const cycle1Prompts = mockAnthropicParse.mock.calls.map(
       (c) => ((c[0] as { system: Array<{ text: string }> }).system[0]?.text ?? ''),
     );
     const hasPrevState = cycle1Prompts.some((p) => p.includes('CURRENT PROFILE STATE'));
-    expect(hasPrevState).toBe(true);
+    expect(hasPrevState).toBe(false);
 
     const historyAfterC1 = await db.select().from(profileHistory);
     expect(historyAfterC1).toHaveLength(4);

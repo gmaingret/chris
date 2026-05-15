@@ -827,10 +827,17 @@ describe('formatPsychologicalProfilesForPrompt — gates and rendering (Phase 39
 // strip is retained as-is; `confidence` is still discarded there because it
 // is exposed as ProfileRow.confidence at the row level (not in .data).
 describe('CONTRACT-01: shared.ts stripMetadataColumns discards dataConsistency (D-09)', () => {
+  // NOTE: substrateHash must be a real SHA-256 hex (not '') because the
+  // Phase 43 CONTRACT-02 change makes extract<X>PrevState return null for
+  // substrateHash === '' (Phase 33 D-11 seed sentinel). The CONTRACT-01
+  // strip assertion only meaningfully applies on post-first-fire rows.
+  const POPULATED_HASH = 'a'.repeat(64);
+
   it('shared.ts strip via JURISDICTIONAL_PROFILE_CONFIG.extractPrevState: snake-cased output omits data_consistency + confidence', async () => {
     const { JURISDICTIONAL_PROFILE_CONFIG } = await import('../profiles/jurisdictional.js');
     const rowWithBothMeta = {
       ...jurisdictionalRow,
+      substrateHash: POPULATED_HASH,
       confidence: 0.42,
       dataConsistency: 0.55,
     };
@@ -847,6 +854,7 @@ describe('CONTRACT-01: shared.ts stripMetadataColumns discards dataConsistency (
     const { CAPITAL_PROFILE_CONFIG } = await import('../profiles/capital.js');
     const rowWithBothMeta = {
       ...capitalRow,
+      substrateHash: POPULATED_HASH,
       confidence: 0.42,
       dataConsistency: 0.65,
     };
@@ -863,8 +871,8 @@ describe('CONTRACT-01: shared.ts stripMetadataColumns discards dataConsistency (
     const { FAMILY_PROFILE_CONFIG } = await import('../profiles/family.js');
 
     for (const [config, row] of [
-      [HEALTH_PROFILE_CONFIG, { ...healthRow, confidence: 0.5, dataConsistency: 0.7 }],
-      [FAMILY_PROFILE_CONFIG, { ...familyRow, confidence: 0.4, dataConsistency: 0.6 }],
+      [HEALTH_PROFILE_CONFIG, { ...healthRow, substrateHash: POPULATED_HASH, confidence: 0.5, dataConsistency: 0.7 }],
+      [FAMILY_PROFILE_CONFIG, { ...familyRow, substrateHash: POPULATED_HASH, confidence: 0.4, dataConsistency: 0.6 }],
     ] as const) {
       const stripped = config.extractPrevState(row);
       expect(stripped).not.toBeNull();
