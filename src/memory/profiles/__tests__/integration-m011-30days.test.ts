@@ -222,6 +222,18 @@ if (!FIXTURE_PRESENT) {
   );
 }
 
+// Phase 44 CI-02: REQUIRE_FIXTURES=1 env-gated hard-fail.
+if (!FIXTURE_PRESENT && process.env.REQUIRE_FIXTURES === '1') {
+  describe('[CI-GATE] fixture present', () => {
+    it(`${FIXTURE_PATH} must exist when REQUIRE_FIXTURES=1`, () => {
+      throw new Error(
+        `Milestone-gate fixture missing: ${FIXTURE_PATH}. ` +
+          `Regenerate via: npx tsx scripts/regenerate-primed.ts --milestone m011 --target-days 30 --psych-profile-bias --force --seed 42`,
+      );
+    });
+  });
+}
+
 const skipIfAbsent = FIXTURE_PRESENT ? describe : describe.skip;
 
 // ── Time anchors per PATTERNS.md — calendar-month boundaries ───────────────
