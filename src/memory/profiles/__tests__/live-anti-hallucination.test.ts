@@ -85,6 +85,22 @@ if (!FIXTURE_PRESENT) {
   );
 }
 
+// Phase 44 CI-01: REQUIRE_FIXTURES=1 env-gated hard-fail.
+// D-07 ORTHOGONALITY: this gate is independent of RUN_LIVE_TESTS /
+// ANTHROPIC_API_KEY (the cost-budgeted three-way describe.skipIf below
+// stays untouched). CI sets REQUIRE_FIXTURES=1 but NOT RUN_LIVE_TESTS, so
+// fixture-absence fails loud here WITHOUT making a paid Anthropic call.
+if (!FIXTURE_PRESENT && process.env.REQUIRE_FIXTURES === '1') {
+  describe('[CI-GATE] fixture present', () => {
+    it(`${FIXTURE_PATH} must exist when REQUIRE_FIXTURES=1`, () => {
+      throw new Error(
+        `Milestone-gate fixture missing: ${FIXTURE_PATH}. ` +
+          `Regenerate via: npx tsx scripts/regenerate-primed.ts --milestone m010 --target-days 30 --profile-bias jurisdictional --profile-bias capital --profile-bias health --profile-bias family --force --seed 42`,
+      );
+    });
+  });
+}
+
 // D-29 FORBIDDEN_FACTS — finalized against the actual generated
 // m010-30days fixture content per T-36-02-V11-02. Every entry below was
 // verified absent via:
