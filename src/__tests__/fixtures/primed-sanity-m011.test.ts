@@ -184,6 +184,18 @@ if (!M30_PRESENT) {
   );
 }
 
+// Phase 44 CI-02: REQUIRE_FIXTURES=1 env-gated hard-fail (m011-30days).
+if (!M30_PRESENT && process.env.REQUIRE_FIXTURES === '1') {
+  describe('[CI-GATE] fixture present (m011-30days)', () => {
+    it(`${M30_PATH} must exist when REQUIRE_FIXTURES=1`, () => {
+      throw new Error(
+        `Milestone-gate fixture missing: ${M30_PATH}. ` +
+          `Regenerate via: npx tsx scripts/regenerate-primed.ts --milestone m011 --target-days 30 --psych-profile-bias --force --seed 42`,
+      );
+    });
+  });
+}
+
 const skipIfM30Absent = M30_PRESENT ? describe : describe.skip;
 
 skipIfM30Absent('primed-sanity-m011: m011-30days fixture (PMT-01 HARN; D-06)', () => {
@@ -241,6 +253,20 @@ if (!M1K_PRESENT) {
       `  npx tsx scripts/regenerate-primed.ts --milestone m011-1000words --target-days 5 ` +
       `--psych-profile-bias --force --seed 42`,
   );
+}
+
+// Phase 44 CI-02: REQUIRE_FIXTURES=1 env-gated hard-fail (m011-1000words-5days).
+// Path source: Phase 45 FIX-02b aligned the test constant to operator
+// regen output (`${milestone}-${targetDays}days` = `m011-1000words-5days`).
+if (!M1K_PRESENT && process.env.REQUIRE_FIXTURES === '1') {
+  describe('[CI-GATE] fixture present (m011-1000words-5days)', () => {
+    it(`${M1K_PATH} must exist when REQUIRE_FIXTURES=1`, () => {
+      throw new Error(
+        `Milestone-gate fixture missing: ${M1K_PATH}. ` +
+          `Regenerate via: npx tsx scripts/regenerate-primed.ts --milestone m011-1000words --target-days 5 --psych-profile-bias --force --seed 42`,
+      );
+    });
+  });
 }
 
 const skipIfM1KAbsent = M1K_PRESENT ? describe : describe.skip;
