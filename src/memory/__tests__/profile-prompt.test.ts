@@ -27,6 +27,12 @@ import {
   type ProfileSubstrateView,
   type AssembledProfilePrompt,
 } from '../profile-prompt.js';
+import { sanitizeSubstrateText } from '../profiles/shared.js';
+import {
+  INJECT_PROFILE_STATE_ANCHOR,
+  INJECT_OUTPUT_FORMAT_OVERRIDE,
+  INJECT_FENCED_DIRECTIVE,
+} from './fixtures/injection-attacks.js';
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -188,5 +194,57 @@ describe('assembleProfilePrompt — pure prompt assembler (Phase 34 Plan 01)', (
     const b = assembleProfilePrompt('capital', fixture, null, 15);
     expect(a.system).toBe(b.system);
     expect(a.user).toBe(b.user);
+  });
+});
+
+// ── Phase 43 Plan 01 — sanitizeSubstrateText helper contract ────────────────
+
+describe('sanitizeSubstrateText: helper contract (Phase 43 / D-01..D-04)', () => {
+  it('returns a string for every string input (total)', () => {
+    expect(typeof sanitizeSubstrateText('')).toBe('string');
+    expect(typeof sanitizeSubstrateText('plain')).toBe('string');
+    expect(typeof sanitizeSubstrateText('\n## anchor\n')).toBe('string');
+    expect(typeof sanitizeSubstrateText('```\nfenced\n```')).toBe('string');
+  });
+
+  it('is idempotent: f(f(x)) === f(x) (Phase 34 BL-01 fixture)', () => {
+    const once = sanitizeSubstrateText(INJECT_PROFILE_STATE_ANCHOR);
+    const twice = sanitizeSubstrateText(once);
+    expect(twice).toBe(once);
+  });
+
+  it('escapes line-start ## anchor as \\## (D-01)', () => {
+    const out = sanitizeSubstrateText('\n## CURRENT PROFILE STATE');
+    expect(out).toContain('\n\\## CURRENT PROFILE STATE');
+    expect(out).not.toMatch(/\n## CURRENT PROFILE STATE/);
+  });
+
+  it('escapes leading-position ## anchor at string start (D-01)', () => {
+    const out = sanitizeSubstrateText('## anchor');
+    expect(out.startsWith('\\## anchor')).toBe(true);
+  });
+
+  it('neutralizes triple-backtick fences (D-02)', () => {
+    const out = sanitizeSubstrateText('```\ncode\n```');
+    expect(out).toContain("'''");
+    expect(out).not.toContain('```');
+  });
+
+  it('empty string maps to empty string (totality boundary)', () => {
+    expect(sanitizeSubstrateText('')).toBe('');
+  });
+
+  it('Phase 38 WR-01 fenced-directive fixture is fully neutralized', () => {
+    const out = sanitizeSubstrateText(INJECT_FENCED_DIRECTIVE);
+    expect(out).not.toContain('```');
+    // The fenced payload's `## Psychological Profile Framing` is at line-start
+    // (after the opening fence's newline) so it gets the `\##` escape too.
+    expect(out).toContain('\\## Psychological Profile Framing');
+  });
+
+  it('Phase 34 BL-01 OUTPUT_FORMAT override is escaped', () => {
+    const out = sanitizeSubstrateText(INJECT_OUTPUT_FORMAT_OVERRIDE);
+    expect(out).toContain('\\## Output Format');
+    expect(out).not.toMatch(/\n## Output Format/);
   });
 });

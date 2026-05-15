@@ -310,6 +310,45 @@ export function computeSubstrateHash(
   return createHash('sha256').update(json).digest('hex');
 }
 
+// ── Substrate sanitization (Phase 43 Plan 01 — INJ-01 / D-01..D-04) ─────────
+
+/**
+ * Defense-in-depth escape for user-controlled substrate strings before they
+ * are interpolated into a Sonnet system prompt. Closes the Phase 34 BL-01
+ * (operational) and Phase 38 WR-01 (psychological, fenced-directive) injection
+ * classes documented in
+ * `.planning/milestones/v2.5-phases/34-inference-engine/34-REVIEW.md` and
+ * `.planning/milestones/v2.6-phases/38-psychological-inference-engine/38-REVIEW.md`.
+ *
+ * Two transforms applied in order (D-01 + D-02):
+ *   1. `(^|\n)(#+\s)` → `$1\$2` — every line-start markdown header sequence is
+ *      prefixed with a literal backslash. The hash remains visible in the
+ *      audit trail (`\## CURRENT PROFILE STATE`) but no longer parses as a
+ *      section anchor that Sonnet would treat as authoritative framing.
+ *   2. ` ``` ` → `'''` — triple-backtick fences are rewritten so a Pensieve
+ *      entry cannot delimit a synthetic fenced-code block containing forged
+ *      directives.
+ *
+ * Contract (locked by 43-01-PLAN.md Task 2 contract tests):
+ *   - Total: every string input returns a string. Never throws.
+ *   - Idempotent: `f(f(x)) === f(x)`. The first pass produces `\##` (backslash
+ *     before hash) which does NOT match the source pattern again (the regex
+ *     requires the hash to be at line-start or immediately after a newline;
+ *     `\##` has a backslash before the hash so the second pass is a no-op).
+ *
+ * Boundary rule (D-04 + D047): the psychological prompt assembler
+ * `src/memory/psychological-profile-prompt.ts` MUST NOT import this helper.
+ * D047 (Phase 38 WR-05) forbids cross-vocabulary imports between the
+ * operational and psychological boundaries; psychological-profile-prompt.ts
+ * re-implements the same regex pair locally. Three lines of regex is below
+ * the cost of a shared abstraction.
+ */
+export function sanitizeSubstrateText(text: string): string {
+  return text
+    .replace(/(^|\n)(#+\s)/g, '$1\\$2')
+    .replace(/```/g, "'''");
+}
+
 // ── Generic per-dimension generator helper (D-08 / Claude's Discretion) ─────
 
 /**
