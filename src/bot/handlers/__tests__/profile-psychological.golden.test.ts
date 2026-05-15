@@ -278,38 +278,134 @@ describe('formatPsychologicalProfileForDisplay — Scenario 3: mixed (D-09 per-d
 });
 
 // ── Scenario 4: FR / RU language hook slots ─────────────────────────────────
+//
+// Phase 46 L10N-01 — FR/RU dim labels + qualifier strings + score-line slug
+// are now fully localized. Snapshots are regenerated to lock the v2.6.1
+// translations; Greg reviews seed text at /gsd-verify-work per CONTEXT.md D-06.
 
 describe('formatPsychologicalProfileForDisplay — Scenario 4: FR/RU language hook slots', () => {
-  it('hexaco populated (FR) — section title localized; structural snapshot locked', () => {
+  it('hexaco populated (FR) — dim labels + qualifier + slug localized', () => {
     const out = formatPsychologicalProfileForDisplay('hexaco', hexacoPopulated, 'French');
     expect(out).toMatchInlineSnapshot(`
       "Personnalité HEXACO
 
-      Honesty-Humility: 4.2 / 5.0 (confidence 0.6 — substantial evidence)
-      Emotionality: 3.1 / 5.0 (confidence 0.4 — moderate evidence)
-      Extraversion: 3.8 / 5.0 (confidence 0.5 — moderate evidence)
-      Agreeableness: 4.0 / 5.0 (confidence 0.5 — moderate evidence)
-      Conscientiousness: 4.5 / 5.0 (confidence 0.7 — substantial evidence)
-      Openness: 4.3 / 5.0 (confidence 0.6 — substantial evidence)"
+      Honnêteté-Humilité : 4,2 / 5,0 (confiance 0,6 — preuves substantielles)
+      Émotionnalité : 3,1 / 5,0 (confiance 0,4 — preuves modérées)
+      Extraversion : 3,8 / 5,0 (confiance 0,5 — preuves modérées)
+      Amabilité : 4,0 / 5,0 (confiance 0,5 — preuves modérées)
+      Conscienciosité : 4,5 / 5,0 (confiance 0,7 — preuves substantielles)
+      Ouverture : 4,3 / 5,0 (confiance 0,6 — preuves substantielles)"
     `);
-    expect(out).toContain('Personnalité HEXACO'); // FR section title (D-20)
-    expect(out).not.toContain('HEXACO Personality'); // no EN leak
+    // Defense-in-depth: explicit FR-token presence + EN-leak rejection
+    expect(out).toContain('Personnalité HEXACO');
+    expect(out).toContain('Honnêteté-Humilité'); // FR dim label
+    expect(out).toContain('preuves substantielles'); // FR qualifier band
+    expect(out).toContain('confiance'); // FR confidence token
+    expect(out).toContain('/ 5,0'); // FR comma-decimal slug (no "5.0")
+    expect(out).not.toContain('HEXACO Personality');
+    expect(out).not.toContain('Honesty-Humility'); // no EN dim label leak
+    expect(out).not.toContain('substantial evidence'); // no EN qualifier leak
+    expect(out).not.toContain('/ 5.0'); // no EN dot-decimal slug leak
+    expect(out).not.toContain('confidence '); // no EN confidence token leak
   });
 
-  it('hexaco populated (RU) — section title localized; structural snapshot locked', () => {
+  it('hexaco populated (RU) — dim labels + qualifier + slug localized', () => {
     const out = formatPsychologicalProfileForDisplay('hexaco', hexacoPopulated, 'Russian');
     expect(out).toMatchInlineSnapshot(`
       "Личность HEXACO
 
-      Honesty-Humility: 4.2 / 5.0 (confidence 0.6 — substantial evidence)
-      Emotionality: 3.1 / 5.0 (confidence 0.4 — moderate evidence)
-      Extraversion: 3.8 / 5.0 (confidence 0.5 — moderate evidence)
-      Agreeableness: 4.0 / 5.0 (confidence 0.5 — moderate evidence)
-      Conscientiousness: 4.5 / 5.0 (confidence 0.7 — substantial evidence)
-      Openness: 4.3 / 5.0 (confidence 0.6 — substantial evidence)"
+      Честность-Скромность: 4,2 / 5,0 (уверенность 0,6 — существенные данные)
+      Эмоциональность: 3,1 / 5,0 (уверенность 0,4 — умеренные данные)
+      Экстраверсия: 3,8 / 5,0 (уверенность 0,5 — умеренные данные)
+      Доброжелательность: 4,0 / 5,0 (уверенность 0,5 — умеренные данные)
+      Добросовестность: 4,5 / 5,0 (уверенность 0,7 — существенные данные)
+      Открытость опыту: 4,3 / 5,0 (уверенность 0,6 — существенные данные)"
     `);
-    expect(out).toContain('Личность HEXACO'); // RU section title (D-20)
+    // Defense-in-depth: explicit RU-token presence + EN-leak rejection
+    expect(out).toContain('Личность HEXACO');
+    expect(out).toContain('Честность-Скромность'); // RU dim label
+    expect(out).toContain('существенные данные'); // RU qualifier band
+    expect(out).toContain('уверенность'); // RU confidence token
+    expect(out).toContain('/ 5,0'); // RU comma-decimal slug
     expect(out).not.toContain('HEXACO Personality');
+    expect(out).not.toContain('Honesty-Humility');
+    expect(out).not.toContain('substantial evidence');
+    expect(out).not.toContain('/ 5.0');
+    expect(out).not.toContain('confidence ');
+  });
+
+  it('schwartz populated (FR) — all 10 values localized', () => {
+    const out = formatPsychologicalProfileForDisplay('schwartz', schwartzPopulated, 'French');
+    expect(out).toMatchInlineSnapshot(`
+      "Valeurs Schwartz
+
+      Autonomie : 4,5 / 5,0 (confiance 0,7 — preuves substantielles)
+      Stimulation : 2,8 / 5,0 (confiance 0,3 — preuves modérées)
+      Hédonisme : 3,2 / 5,0 (confiance 0,4 — preuves modérées)
+      Accomplissement : 4,0 / 5,0 (confiance 0,5 — preuves modérées)
+      Pouvoir : 2,5 / 5,0 (confiance 0,3 — preuves modérées)
+      Sécurité : 3,5 / 5,0 (confiance 0,5 — preuves modérées)
+      Conformité : 2,2 / 5,0 (confiance 0,4 — preuves modérées)
+      Tradition : 2,8 / 5,0 (confiance 0,4 — preuves modérées)
+      Bienveillance : 4,4 / 5,0 (confiance 0,7 — preuves substantielles)
+      Universalisme : 4,3 / 5,0 (confiance 0,6 — preuves substantielles)"
+    `);
+    expect(out).toContain('Autonomie'); // FR Self-Direction
+    expect(out).toContain('Bienveillance'); // FR Benevolence
+    expect(out).not.toContain('Self-Direction');
+    expect(out).not.toContain('Benevolence');
+  });
+
+  it('schwartz populated (RU) — all 10 values localized', () => {
+    const out = formatPsychologicalProfileForDisplay('schwartz', schwartzPopulated, 'Russian');
+    expect(out).toMatchInlineSnapshot(`
+      "Ценности Шварца
+
+      Самостоятельность: 4,5 / 5,0 (уверенность 0,7 — существенные данные)
+      Стимуляция: 2,8 / 5,0 (уверенность 0,3 — умеренные данные)
+      Гедонизм: 3,2 / 5,0 (уверенность 0,4 — умеренные данные)
+      Достижения: 4,0 / 5,0 (уверенность 0,5 — умеренные данные)
+      Власть: 2,5 / 5,0 (уверенность 0,3 — умеренные данные)
+      Безопасность: 3,5 / 5,0 (уверенность 0,5 — умеренные данные)
+      Конформизм: 2,2 / 5,0 (уверенность 0,4 — умеренные данные)
+      Традиция: 2,8 / 5,0 (уверенность 0,4 — умеренные данные)
+      Благожелательность: 4,4 / 5,0 (уверенность 0,7 — существенные данные)
+      Универсализм: 4,3 / 5,0 (уверенность 0,6 — существенные данные)"
+    `);
+    expect(out).toContain('Самостоятельность'); // RU Self-Direction
+    expect(out).toContain('Благожелательность'); // RU Benevolence
+    expect(out).not.toContain('Self-Direction');
+    expect(out).not.toContain('Benevolence');
+  });
+
+  it('schwartz mixed (FR) — D-09 per-dim filter preserved across locale; FR populated dims rendered', () => {
+    const out = formatPsychologicalProfileForDisplay('schwartz', schwartzMixed, 'French');
+    expect(out).toMatchInlineSnapshot(`
+      "Valeurs Schwartz
+
+      Autonomie : 4,5 / 5,0 (confiance 0,7 — preuves substantielles)
+      Accomplissement : 4,0 / 5,0 (confiance 0,5 — preuves modérées)
+      Sécurité : 3,5 / 5,0 (confiance 0,5 — preuves modérées)
+      Bienveillance : 4,4 / 5,0 (confiance 0,7 — preuves substantielles)
+      Universalisme : 4,3 / 5,0 (confiance 0,6 — preuves substantielles)"
+    `);
+    expect(out).not.toContain('Stimulation :'); // null filtered (D-09)
+    expect(out).not.toContain('Hédonisme'); // zero-confidence filtered (D-09)
+  });
+
+  it('schwartz mixed (RU) — D-09 per-dim filter preserved across locale; RU populated dims rendered', () => {
+    const out = formatPsychologicalProfileForDisplay('schwartz', schwartzMixed, 'Russian');
+    expect(out).toMatchInlineSnapshot(`
+      "Ценности Шварца
+
+      Самостоятельность: 4,5 / 5,0 (уверенность 0,7 — существенные данные)
+      Достижения: 4,0 / 5,0 (уверенность 0,5 — умеренные данные)
+      Безопасность: 3,5 / 5,0 (уверенность 0,5 — умеренные данные)
+      Благожелательность: 4,4 / 5,0 (уверенность 0,7 — существенные данные)
+      Универсализм: 4,3 / 5,0 (уверенность 0,6 — существенные данные)"
+    `);
+    expect(out).not.toContain('Стимуляция:'); // null filtered (D-09)
+    expect(out).not.toContain('Гедонизм'); // zero-confidence filtered (D-09)
   });
 
   it('hexaco insufficient (FR) — N-word countdown localized', () => {

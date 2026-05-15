@@ -76,6 +76,7 @@ import type {
   AttachmentProfileData,
 } from '../../memory/profiles/psychological-schemas.js';
 import { getLastUserLanguage, langOf, type Lang } from '../../chris/language.js';
+import { qualifierFor } from '../../chris/locale/strings.js';
 import { logger } from '../../utils/logger.js';
 
 // ── Lang narrowing ──────────────────────────────────────────────────────────
@@ -259,6 +260,27 @@ const MSG = {
     English: 'I ran into trouble reading your profiles. Try again in a moment.',
     French: "J'ai eu un souci en récupérant tes profils. Réessaie dans un instant.",
     Russian: 'Возникла проблема при чтении твоих профилей. Попробуй через мгновение.',
+  },
+  // Phase 46 L10N-01 — per-locale score-line template for HEXACO/Schwartz
+  // populated-branch rendering. Resolves the 46-PLAN-CHECK warning about the
+  // prior mixed-decimal "4.2 / 5,0" output by aligning the slug separator
+  // with the value separator on a per-locale basis:
+  //   - English keeps dot decimals + "/ 5.0" via toFixed(1) — BYTE-IDENTICAL
+  //     to the prior implementation so the EN snapshot survives unchanged
+  //     (Phase 39 D-25 test-stability lock).
+  //   - French + Russian use comma decimals + "/ 5,0" by replacing the dot
+  //     produced by toFixed(1) with a comma. Avoids toLocaleString rounding
+  //     differences (e.g. 0.35 → toFixed=0.3 vs toLocaleString=0.4) that
+  //     would force EN snapshot regen.
+  // The "confidence" token is the same word used in MSG.confidence above so
+  // the score line stays in lockstep with /profile's other confidence label.
+  scoreLine: {
+    English: (label: string, score: number, conf: number, qual: string): string =>
+      `${label}: ${score.toFixed(1)} / 5.0 (confidence ${conf.toFixed(1)} — ${qual})`,
+    French: (label: string, score: number, conf: number, qual: string): string =>
+      `${label} : ${score.toFixed(1).replace('.', ',')} / 5,0 (confiance ${conf.toFixed(1).replace('.', ',')} — ${qual})`,
+    Russian: (label: string, score: number, conf: number, qual: string): string =>
+      `${label}: ${score.toFixed(1).replace('.', ',')} / 5,0 (уверенность ${conf.toFixed(1).replace('.', ',')} — ${qual})`,
   },
   fields: {
     jurisdictional: {
@@ -696,45 +718,115 @@ export function formatProfileForDisplay(
 // `===`, `---`). Telegram renders the string verbatim when ctx.reply is
 // called without parse_mode. D-17 invariant inherited from Phase 35 SURF-05.
 
-// D-07 — psychological-profile confidence qualifier mapping. M011 emits
-// English-only qualifier strings inside the per-dim score line; FR/RU
-// localization of the qualifier text is a v2.6.1 polish item (the score
-// line structure is otherwise English-templated). Module-private — only
-// used by formatPsychologicalProfileForDisplay below.
-function qualifierForPsych(c: number): string {
-  if (c >= 0.6) return 'substantial evidence';
-  if (c >= 0.3) return 'moderate evidence';
-  return 'limited evidence';
-}
+// Phase 46 L10N-05 — psychological-profile confidence qualifier mapping is
+// now the canonical locale-aware `qualifierFor` imported from
+// `src/chris/locale/strings.ts`. The previous module-local
+// `qualifierForPsych` (English-only) has been retired; both call sites
+// below pass `lang` so FR/RU output ships locale-appropriate band labels
+// (preuves substantielles / существенные данные / etc.).
 
-// Title-Case display labels for HEXACO dimensions. Hyphens preserved per
-// D-08 (Honesty-Humility). Module-private — display-side lives in
-// profile.ts, NOT imported from a shared module (Architectural Responsibility
-// Map separates prompt-side label tables from display-side label tables).
-const HEXACO_DIM_DISPLAY_LABELS: Readonly<Record<keyof HexacoProfileData, string>> = {
-  honesty_humility: 'Honesty-Humility',
-  emotionality: 'Emotionality',
-  extraversion: 'Extraversion',
-  agreeableness: 'Agreeableness',
-  conscientiousness: 'Conscientiousness',
-  openness: 'Openness',
+// Phase 46 L10N-01 — Title-Case display labels for HEXACO dimensions, now
+// per-locale. Hyphens preserved per D-08 (Honesty-Humility). Module-private
+// — display-side lives in profile.ts, NOT imported from a shared module
+// (Architectural Responsibility Map separates prompt-side label tables —
+// which stay English in `src/memory/profiles.ts` — from display-side label
+// tables here). FR + RU follow standard psychological-translation
+// conventions (HEXACO French has accepted academic translations); Greg
+// reviews at /gsd-verify-work per CONTEXT.md D-06.
+const HEXACO_DIM_DISPLAY_LABELS: Readonly<
+  Record<keyof HexacoProfileData, Record<Lang, string>>
+> = {
+  honesty_humility: {
+    English: 'Honesty-Humility',
+    French: 'Honnêteté-Humilité',
+    Russian: 'Честность-Скромность',
+  },
+  emotionality: {
+    English: 'Emotionality',
+    French: 'Émotionnalité',
+    Russian: 'Эмоциональность',
+  },
+  extraversion: {
+    English: 'Extraversion',
+    French: 'Extraversion',
+    Russian: 'Экстраверсия',
+  },
+  agreeableness: {
+    English: 'Agreeableness',
+    French: 'Amabilité',
+    Russian: 'Доброжелательность',
+  },
+  conscientiousness: {
+    English: 'Conscientiousness',
+    French: 'Conscienciosité',
+    Russian: 'Добросовестность',
+  },
+  openness: {
+    English: 'Openness',
+    French: 'Ouverture',
+    Russian: 'Открытость опыту',
+  },
 } as const;
 
-// Title-Case display labels for Schwartz values. Hyphens preserved per D-08
-// (Self-Direction). Per RESEARCH Deferred CIRC-01: alphabetical ordering in
-// M011 (Object.entries iteration order matches declaration order); circumplex
-// ordering is v2.6.1+.
-const SCHWARTZ_DIM_DISPLAY_LABELS: Readonly<Record<keyof SchwartzProfileData, string>> = {
-  self_direction: 'Self-Direction',
-  stimulation: 'Stimulation',
-  hedonism: 'Hedonism',
-  achievement: 'Achievement',
-  power: 'Power',
-  security: 'Security',
-  conformity: 'Conformity',
-  tradition: 'Tradition',
-  benevolence: 'Benevolence',
-  universalism: 'Universalism',
+// Phase 46 L10N-01 — Title-Case display labels for Schwartz values, now
+// per-locale. Hyphens preserved per D-08 (Self-Direction). Per RESEARCH
+// Deferred CIRC-01: alphabetical ordering in M011 (Object.entries iteration
+// order matches declaration order); circumplex ordering is v2.6.1+.
+// FR/RU translations follow standard Schwartz-values academic Cyrillic +
+// French references; Greg reviews at /gsd-verify-work per CONTEXT.md D-06.
+const SCHWARTZ_DIM_DISPLAY_LABELS: Readonly<
+  Record<keyof SchwartzProfileData, Record<Lang, string>>
+> = {
+  self_direction: {
+    English: 'Self-Direction',
+    French: 'Autonomie',
+    Russian: 'Самостоятельность',
+  },
+  stimulation: {
+    English: 'Stimulation',
+    French: 'Stimulation',
+    Russian: 'Стимуляция',
+  },
+  hedonism: {
+    English: 'Hedonism',
+    French: 'Hédonisme',
+    Russian: 'Гедонизм',
+  },
+  achievement: {
+    English: 'Achievement',
+    French: 'Accomplissement',
+    Russian: 'Достижения',
+  },
+  power: {
+    English: 'Power',
+    French: 'Pouvoir',
+    Russian: 'Власть',
+  },
+  security: {
+    English: 'Security',
+    French: 'Sécurité',
+    Russian: 'Безопасность',
+  },
+  conformity: {
+    English: 'Conformity',
+    French: 'Conformité',
+    Russian: 'Конформизм',
+  },
+  tradition: {
+    English: 'Tradition',
+    French: 'Tradition',
+    Russian: 'Традиция',
+  },
+  benevolence: {
+    English: 'Benevolence',
+    French: 'Bienveillance',
+    Russian: 'Благожелательность',
+  },
+  universalism: {
+    English: 'Universalism',
+    French: 'Universalisme',
+    Russian: 'Универсализм',
+  },
 } as const;
 
 export function formatPsychologicalProfileForDisplay(
@@ -780,31 +872,31 @@ export function formatPsychologicalProfileForDisplay(
   switch (profileType) {
     case 'hexaco': {
       const d = profile.data as HexacoProfileData;
-      for (const [key, label] of Object.entries(HEXACO_DIM_DISPLAY_LABELS) as Array<
-        [keyof HexacoProfileData, string]
+      for (const [key, labels] of Object.entries(HEXACO_DIM_DISPLAY_LABELS) as Array<
+        [keyof HexacoProfileData, Record<Lang, string>]
       >) {
         const dim = d[key];
         if (!dim) continue; // D-09 skip null
         if (dim.score === null) continue; // D-09 skip null score
         if (dim.confidence === 0) continue; // D-09 skip zero-confidence
-        lines.push(
-          `${label}: ${dim.score.toFixed(1)} / 5.0 (confidence ${dim.confidence.toFixed(1)} — ${qualifierForPsych(dim.confidence)})`,
-        );
+        const label = labels[lang];
+        const qual = qualifierFor(dim.confidence, lang);
+        lines.push(MSG.scoreLine[lang](label, dim.score, dim.confidence, qual));
       }
       break;
     }
     case 'schwartz': {
       const d = profile.data as SchwartzProfileData;
-      for (const [key, label] of Object.entries(SCHWARTZ_DIM_DISPLAY_LABELS) as Array<
-        [keyof SchwartzProfileData, string]
+      for (const [key, labels] of Object.entries(SCHWARTZ_DIM_DISPLAY_LABELS) as Array<
+        [keyof SchwartzProfileData, Record<Lang, string>]
       >) {
         const dim = d[key];
         if (!dim) continue; // D-09 skip null
         if (dim.score === null) continue; // D-09 skip null score
         if (dim.confidence === 0) continue; // D-09 skip zero-confidence
-        lines.push(
-          `${label}: ${dim.score.toFixed(1)} / 5.0 (confidence ${dim.confidence.toFixed(1)} — ${qualifierForPsych(dim.confidence)})`,
-        );
+        const label = labels[lang];
+        const qual = qualifierFor(dim.confidence, lang);
+        lines.push(MSG.scoreLine[lang](label, dim.score, dim.confidence, qual));
       }
       break;
     }
