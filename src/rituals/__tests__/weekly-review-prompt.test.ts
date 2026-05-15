@@ -100,8 +100,11 @@ describe('assembleWeeklyReviewPrompt — pure prompt assembler (Phase 29 Plan 01
     expect(CONSTITUTIONAL_PREAMBLE.startsWith('## Core Principles (Always Active)')).toBe(true);
   });
 
-  it('D031 header constant — WEEKLY_REVIEW_HEADER === exact verbatim spec text (WEEK-04)', () => {
-    expect(WEEKLY_REVIEW_HEADER).toBe('Observation (interpretation, not fact):');
+  it('D031 header constant — WEEKLY_REVIEW_HEADER.English === exact verbatim spec text (WEEK-04)', () => {
+    // Phase 46 L10N-02: WEEKLY_REVIEW_HEADER is now Record<Lang, string>;
+    // EN value is locked verbatim by PROJECT.md D031 + WEEK-04 — the FR/RU
+    // seed translations are reviewer-approved at /gsd-verify-work.
+    expect(WEEKLY_REVIEW_HEADER.English).toBe('Observation (interpretation, not fact):');
   });
 
   it('pattern-only directive — output contains "PATTERNS across the week" verbatim (WEEK-07)', () => {

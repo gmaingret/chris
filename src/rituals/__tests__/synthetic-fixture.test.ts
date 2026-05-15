@@ -926,7 +926,15 @@ skipIfAbsent('M009 synthetic fixture (14 days; TEST-23..30)', () => {
       expect(fallbackLogObj?.attempts, 'attempts === MAX_RETRIES + 1 (3)').toBe(3);
 
       // Assert sent message contains the templated fallback question per
-      // weekly-review.ts:358 TEMPLATED_FALLBACK_EN constant.
+      // weekly-review.ts TEMPLATED_FALLBACK constant.
+      //
+      // Phase 46 L10N-06: TEMPLATED_FALLBACK is now Record<Lang, ...>; the
+      // m009-21days fixture does NOT populate the conversations table, so
+      // getLastUserLanguageFromDb returns null and weekly-review falls back
+      // to 'French' (Greg's primary locale, weekly-review.ts:583). The
+      // fallback message therefore renders the French question. If the
+      // fixture is later regenerated with seeded English conversations,
+      // update this assertion to match the detected locale.
       const week2SendCalls = mockSendMessage.mock.calls;
       expect(
         week2SendCalls.length,
@@ -935,8 +943,8 @@ skipIfAbsent('M009 synthetic fixture (14 days; TEST-23..30)', () => {
       const week2MessageText = String(week2SendCalls[0]?.[1] ?? '');
       expect(
         week2MessageText,
-        'fallback message uses TEMPLATED_FALLBACK_EN question',
-      ).toContain('What stood out to you about this week?');
+        'fallback message uses TEMPLATED_FALLBACK.French question (default fallback locale)',
+      ).toContain("Qu'est-ce qui t'a marqué cette semaine ?");
     },
   );
 });

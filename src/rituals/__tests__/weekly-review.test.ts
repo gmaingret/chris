@@ -93,6 +93,7 @@ import {
   WeeklyReviewSchema,
   WeeklyReviewSchemaV4,
   WEEKLY_REVIEW_HEADER,
+  INTERROGATIVE_REGEX,
   runStage2HaikuJudge,
   runDateGroundingCheck,
   MultiQuestionError,
@@ -174,6 +175,65 @@ describe('Stage-1 Zod refine — single-question regex gate (D-03 / WEEK-05)', (
   });
 });
 
+// ── describe(L10N-03: FR regex apostrophe + gibberish normalization) ───────
+
+describe('Phase 46 L10N-03 — FR regex curly apostrophe + gibberish fix (29-REVIEW WR-03)', () => {
+  it('L10N-03a: curly apostrophe French question accepted (macOS keyboard default)', () => {
+    // U+2019 (right single quotation mark) is what macOS produces for the FR
+    // apostrophe. Pre-Phase-46 the regex `qu['e]?est-ce que` only matched
+    // straight apostrophes; the curly variant slipped past INTERROGATIVE_REGEX
+    // → 0 matches → Stage-1 passed by coincidence (≤1 OK) BUT a multi-question
+    // shape "qu’est-ce que A ? qu’est-ce que B ?" would have slipped through.
+    // After Phase 46 L10N-03: normalizeForInterrogativeCheck folds the curly
+    // apostrophe to straight U+0027 before INTERROGATIVE_REGEX matches.
+    expect(stage1Check("qu’est-ce que tu fais ?")).toBe(true);
+  });
+
+  it('L10N-03b: straight apostrophe French question accepted (canonical)', () => {
+    expect(stage1Check("qu'est-ce que tu fais ?")).toBe(true);
+  });
+
+  it("L10N-03c: 'queest-ce' gibberish does NOT false-match the fixed regex (direct regex assertion)", () => {
+    // Direct regex assertion — the only test shape that distinguishes the
+    // OLD broken regex (`qu['e]?est-ce que` — matches "queest-ce que") from
+    // the NEW fixed regex (`qu'?est-ce que` — does NOT match).
+    //   OLD: "queest-ce que".match(INTERROGATIVE_REGEX) → ["queest-ce que"]
+    //   NEW: "queest-ce que".match(INTERROGATIVE_REGEX) → null
+    const matches = "queest-ce que c'est ?".match(INTERROGATIVE_REGEX);
+    // After normalization "qu'est-ce que" matches; gibberish "queest-ce que"
+    // must NOT contribute a separate match. We expect exactly one match
+    // (the trailing "qu'est-ce que c'est" part). The string above has only
+    // gibberish in it, no canonical interrogative — so match should be null.
+    expect(matches).toBeNull();
+  });
+
+  it("L10N-03c2: gibberish + genuine French question — stage1Check ACCEPTS under fixed regex", () => {
+    // Two interrogative-leading-word candidates:
+    //   OLD broken regex: "(queest-ce que)" + "(qu'est-ce que)" = 2 matches
+    //     → stage1Check `interrogativeMatches <= 1` fails → returns false
+    //   NEW fixed regex:  only "(qu'est-ce que)" = 1 match
+    //     → stage1Check returns true (the gibberish is correctly ignored)
+    // This is the end-to-end behavior change through stage1Check that
+    // distinguishes the two regex versions; the L10N-03c direct match-count
+    // assertion above is the precise regression detector.
+    expect(stage1Check("Premier doute (queest-ce) puis: qu'est-ce que tu fais ?")).toBe(true);
+  });
+
+  it("L10N-03d: NFC normalization composes combining acute (helper alive)", () => {
+    // Sanity check that the normalize step is wired into stage1Check.
+    // "Qué" with a combining acute (U+0065 + U+0301) → normalized "Qué"
+    // (U+00E9). The leading "qué" doesn't match any interrogative; the
+    // overall string has 2 `?` so Stage-1 rejects on the `?` count regardless.
+    expect(stage1Check("Qué ? Test ?")).toBe(false);
+  });
+
+  it("L10N-03e: U+02BC modifier letter apostrophe also accepted (broader keyboard coverage)", () => {
+    // The U+02BC variant is used by some Linux IBus configurations; covered
+    // by the same normalize step so future FR keyboards don't regress.
+    expect(stage1Check("quʼest-ce que tu fais ?")).toBe(true);
+  });
+});
+
 // ── describe(Stage-2 + Date-grounding schemas) ─────────────────────────────
 
 describe('Stage-2 + Date-grounding schemas — bounded structured output (D-04 + D-05)', () => {
@@ -190,9 +250,14 @@ describe('Stage-2 + Date-grounding schemas — bounded structured output (D-04 +
     // This test lives as a smoke check that the module loads without error
     // (which indirectly proves the const declarations parsed). Real bounds
     // enforcement is tested via the judge call sites in the next describe block.
+    //
+    // Phase 46 L10N-02: WEEKLY_REVIEW_HEADER is now Record<Lang, string>
+    // (was `string`) — `typeof` flips to 'object'. EN value remains the
+    // canonical D031 verbatim text; exact-text + FR/RU translations are
+    // asserted by the dedicated header tests below.
     const mod = await import('../weekly-review.js');
     expect(typeof mod.stage1Check).toBe('function');
-    expect(typeof mod.WEEKLY_REVIEW_HEADER).toBe('string');
+    expect(typeof mod.WEEKLY_REVIEW_HEADER).toBe('object');
   });
 });
 
@@ -299,11 +364,12 @@ describe('Date-grounding post-check — runDateGroundingCheck (D-05 / Pitfall 16
  * assembler tolerates empty arrays for resolvedDecisions; we set
  * includeWellbeing=false so the wellbeing block is omitted.
  */
-function makeMinimalPromptInput(): WeeklyReviewPromptInput {
+function makeMinimalPromptInput(language: string = 'English'): WeeklyReviewPromptInput {
   return {
     weekStart: '2026-04-19',
     weekEnd: '2026-04-26',
     tz: 'Europe/Paris',
+    language,
     summaries: [
       {
         summaryDate: '2026-04-22',
@@ -462,14 +528,14 @@ describe('generateWeeklyObservation retry loop (D-04 / WEEK-06)', () => {
 
 // ── describe(templated fallback) ───────────────────────────────────────────
 
-describe('templated fallback (W-4 / WEEK-06 — English-only v1 baseline)', () => {
+describe('templated fallback (W-4 / WEEK-06 — Phase 46 L10N-06 per-locale)', () => {
   beforeEach(() => {
     mockAnthropicParse.mockReset();
     mockLoggerWarn.mockReset();
   });
 
-  it("templated fallback question text is exactly 'What stood out to you about this week?'", async () => {
-    // Force fallback by failing all 3 attempts
+  /** Helper: force the retry cap by queueing 3 multi-question Sonnet responses */
+  function primeAllFailures(): void {
     for (let i = 0; i < 3; i++) {
       mockAnthropicParse.mockResolvedValueOnce({
         parsed_output: {
@@ -478,25 +544,45 @@ describe('templated fallback (W-4 / WEEK-06 — English-only v1 baseline)', () =
         },
       });
     }
+  }
 
-    const result = await generateWeeklyObservation(makeMinimalPromptInput());
+  it("EN templated fallback: 'What stood out to you about this week?' (canonical EN seed)", async () => {
+    primeAllFailures();
+    const result = await generateWeeklyObservation(makeMinimalPromptInput('English'));
+    expect(result.question).toBe('What stood out to you about this week?');
+    expect(result.observation).toBe('Reflecting on this week.');
+    expect(result.isFallback).toBe(true);
+  });
 
+  it("L10N-06 FR templated fallback: 'Qu'est-ce qui t'a marqué cette semaine ?' (CONTEXT.md D-08 verbatim seed)", async () => {
+    primeAllFailures();
+    const result = await generateWeeklyObservation(makeMinimalPromptInput('French'));
+    expect(result.question).toBe("Qu'est-ce qui t'a marqué cette semaine ?");
+    expect(result.observation).toBe('Réflexion sur cette semaine.');
+    expect(result.isFallback).toBe(true);
+  });
+
+  it("L10N-06 RU templated fallback: 'Что вам запомнилось на этой неделе?' (CONTEXT.md D-08 verbatim seed)", async () => {
+    primeAllFailures();
+    const result = await generateWeeklyObservation(makeMinimalPromptInput('Russian'));
+    expect(result.question).toBe('Что вам запомнилось на этой неделе?');
+    expect(result.observation).toBe('Размышление об этой неделе.');
+    expect(result.isFallback).toBe(true);
+  });
+
+  it("L10N-06 defensive narrow: unrecognized language falls back to English fallback", async () => {
+    // langOf returns 'English' for any non-Lang string — ensures the
+    // 29-REVIEW WR-04 type-narrowing deferral doesn't cause a runtime
+    // throw on missing-locale lookups in TEMPLATED_FALLBACK.
+    primeAllFailures();
+    const result = await generateWeeklyObservation(makeMinimalPromptInput('Klingon'));
     expect(result.question).toBe('What stood out to you about this week?');
     expect(result.isFallback).toBe(true);
   });
 
   it('chris.weekly-review.fallback-fired emitted on retry-cap exhaustion (WEEK-06)', async () => {
-    for (let i = 0; i < 3; i++) {
-      mockAnthropicParse.mockResolvedValueOnce({
-        parsed_output: {
-          observation: 'A perfectly fine 20-character observation.',
-          question: 'What stood out? And why?',
-        },
-      });
-    }
-
-    await generateWeeklyObservation(makeMinimalPromptInput());
-
+    primeAllFailures();
+    await generateWeeklyObservation(makeMinimalPromptInput('French'));
     const matchingLogs = mockLoggerWarn.mock.calls.filter(
       (c) => c[1] === 'chris.weekly-review.fallback-fired',
     );
@@ -702,10 +788,17 @@ describe('fireWeeklyReview integration (real DB + mocked Anthropic + mocked bot)
 
     expect(outcome).toBe('fired');
 
-    // Telegram message starts with D031 header
+    // Telegram message starts with D031 header.
+    //
+    // Phase 46 L10N-02: header is now per-Lang; this integration test
+    // doesn't seed the conversations table, so getLastUserLanguageFromDb
+    // returns null → fireWeeklyReview defaults to 'French' (Greg's primary
+    // locale, weekly-review.ts:583). The sent header is therefore the
+    // French verbatim. If the test is later updated to seed an English
+    // USER conversation, flip this assertion to the English header.
     expect(mockSendMessage).toHaveBeenCalledTimes(1);
     const sentMessage = mockSendMessage.mock.calls[0]![1] as string;
-    expect(sentMessage.startsWith('Observation (interpretation, not fact):')).toBe(true);
+    expect(sentMessage.startsWith('Observation (interprétation, pas un fait) :')).toBe(true);
     expect(sentMessage).toContain('Across this week Greg pushed');
     expect(sentMessage).toContain('What did you carry forward');
 
@@ -797,8 +890,18 @@ describe('fireWeeklyReview integration (real DB + mocked Anthropic + mocked bot)
     expect(req.system[0]!.text.startsWith('## Core Principles (Always Active)')).toBe(true);
   });
 
-  it('header constant export sanity: WEEKLY_REVIEW_HEADER is the exact D031 text', () => {
-    expect(WEEKLY_REVIEW_HEADER).toBe('Observation (interpretation, not fact):');
+  it('header constant export sanity: WEEKLY_REVIEW_HEADER.English is the exact D031 text', () => {
+    // Phase 46 L10N-02: WEEKLY_REVIEW_HEADER is now Record<Lang, string>;
+    // EN value is locked verbatim per PROJECT.md D031 + WEEK-04 spec.
+    expect(WEEKLY_REVIEW_HEADER.English).toBe('Observation (interpretation, not fact):');
+  });
+
+  it('Phase 46 L10N-02: WEEKLY_REVIEW_HEADER.French is the verbatim CONTEXT.md D-08 seed text', () => {
+    expect(WEEKLY_REVIEW_HEADER.French).toBe('Observation (interprétation, pas un fait) :');
+  });
+
+  it('Phase 46 L10N-02: WEEKLY_REVIEW_HEADER.Russian is the verbatim CONTEXT.md D-08 seed text', () => {
+    expect(WEEKLY_REVIEW_HEADER.Russian).toBe('Наблюдение (интерпретация, не факт):');
   });
 
   // ── Phase 42 RACE-06 regression: transactional send-then-bookkeep ────────

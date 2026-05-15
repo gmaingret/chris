@@ -44,7 +44,8 @@ import { db } from '../db/connection.js';
 import { rituals, ritualFireEvents, ritualResponses } from '../db/schema.js';
 import { logger } from '../utils/logger.js';
 import { storePensieveEntry } from '../pensieve/store.js';
-import { getLastUserLanguageFromDb } from '../chris/language.js';
+import { getLastUserLanguageFromDb, langOf, type Lang } from '../chris/language.js';
+import { normalizeForInterrogativeCheck } from '../chris/locale/strings.js';
 import {
   assembleWeeklyReviewPrompt,
   type WeeklyReviewPromptInput,
@@ -59,13 +60,25 @@ import { RITUAL_OUTCOME, type RitualConfig, type RitualFireOutcome } from './typ
  * D031 boundary marker — verbatim user-facing header prepended to the weekly
  * review observation message at Telegram-send time (Plan 29-02 consumes).
  *
- * Spec: REQUIREMENTS.md WEEK-04 + PROJECT.md D031 — exact text, no trailing
- * punctuation, no whitespace tweaks. Greg sees this prefix on every Sunday
- * 20:00 Paris weekly review message; it explicitly frames the prose as
- * Chris's interpretation, not authoritative narrative — protecting against
- * Pitfall 17 (sycophantic / authoritative-tone weekly observations).
+ * Per-Lang record (Phase 46 L10N-02); EN value remains canonical per
+ * PROJECT.md D031 + WEEK-04 spec — exact text, no trailing punctuation, no
+ * whitespace tweaks. Greg sees the locale-matched prefix on every Sunday
+ * 20:00 Paris weekly review message (FR by default for Greg's account);
+ * it explicitly frames the prose as Chris's interpretation, not
+ * authoritative narrative — protecting against Pitfall 17 (sycophantic /
+ * authoritative-tone weekly observations).
+ *
+ * FR + RU seed translations per CONTEXT.md D-08 (verbatim from 29-REVIEW
+ * BL-03 reviewer suggestion); Greg reviews at /gsd-verify-work. The
+ * fire-side consumer in `fireWeeklyReview` reads
+ * `WEEKLY_REVIEW_HEADER[language]` with an English fallback so out-of-union
+ * `language` strings are safe.
  */
-export const WEEKLY_REVIEW_HEADER = 'Observation (interpretation, not fact):';
+export const WEEKLY_REVIEW_HEADER: Record<Lang, string> = {
+  English: 'Observation (interpretation, not fact):',
+  French: 'Observation (interprétation, pas un fait) :',
+  Russian: 'Наблюдение (интерпретация, не факт):',
+} as const;
 
 // ── Stage-1 Zod refine (D-03 / WEEK-05 — Pitfall 14) ────────────────────────
 
@@ -79,6 +92,14 @@ export const WEEKLY_REVIEW_HEADER = 'Observation (interpretation, not fact):';
  * questions slip through a `?`-count-only check (e.g., "Qu'est-ce qui t'a
  * surpris cette semaine. Et qu'est-ce qui t'a semblé familier.").
  *
+ * Phase 46 L10N-03 (29-REVIEW WR-03): FR variants `qu'est-ce que` /
+ * `qu'est-ce qui` use the canonical straight apostrophe (U+0027) ONLY;
+ * inputs are NFC-normalized and curly apostrophes (U+2019, etc.) are
+ * replaced via `normalizeForInterrogativeCheck` BEFORE this regex runs.
+ * The earlier `qu['e]?est-ce que` character class also false-matched the
+ * gibberish `queest-ce que` — fixed by dropping `e` from the class so the
+ * apostrophe is optional but the letter `e` is not (D-16).
+ *
  * Flags:
  *   g — count all matches (not just first)
  *   i — case-insensitive (Greg may write "What" or "what")
@@ -89,9 +110,14 @@ export const WEEKLY_REVIEW_HEADER = 'Observation (interpretation, not fact):';
  *   - FR: qu'est-ce que, qu'est-ce qui, comment, pourquoi, quoi, quand, où,
  *         quel, quelle, quels, quelles, qui
  *   - RU: почему, что, как, когда, где, кто, какой, какая, какое, какие, зачем
+ *
+ * Phase 46 L10N-03 test-only export: re-exported below so unit tests can
+ * directly assert `INTERROGATIVE_REGEX.match()` returns null for gibberish.
+ * Production code imports `stage1Check` instead (and uses this regex
+ * internally); the export is purely a regression-test seam.
  */
-const INTERROGATIVE_REGEX =
-  /\b(what|why|how|when|where|which|who|qu['e]?est-ce que|qu['e]?est-ce qui|comment|pourquoi|quoi|quand|où|quel|quelle|quels|quelles|qui|почему|что|как|когда|где|кто|какой|какая|какое|какие|зачем)\b/giu;
+export const INTERROGATIVE_REGEX =
+  /\b(what|why|how|when|where|which|who|qu'?est-ce que|qu'?est-ce qui|comment|pourquoi|quoi|quand|où|quel|quelle|quels|quelles|qui|почему|что|как|когда|где|кто|какой|какая|какое|какие|зачем)\b/giu;
 
 /**
  * Stage-1 single-question gate. Pure function — no LLM, no I/O.
@@ -112,9 +138,15 @@ const INTERROGATIVE_REGEX =
  * the WeeklyReviewSchema `.refine()` call. Both paths exercise the same gate.
  */
 export function stage1Check(question: string): boolean {
-  const questionMarks = (question.match(/\?/g) ?? []).length;
+  // Phase 46 L10N-03: NFC-normalize + curly→straight apostrophe BEFORE
+  // both the `?` count and the INTERROGATIVE_REGEX match. The `?` count
+  // is unaffected by NFC (the question mark composes trivially), but
+  // running the normalized string through both gates is cleaner and
+  // future-proof for any other NFC-sensitive token added later.
+  const normalized = normalizeForInterrogativeCheck(question);
+  const questionMarks = (normalized.match(/\?/g) ?? []).length;
   if (questionMarks !== 1) return false;
-  const interrogativeMatches = (question.match(INTERROGATIVE_REGEX) ?? []).length;
+  const interrogativeMatches = (normalized.match(INTERROGATIVE_REGEX) ?? []).length;
   return interrogativeMatches <= 1;
 }
 
@@ -340,23 +372,31 @@ export async function runDateGroundingCheck(
 export const MAX_RETRIES = 2;
 
 /**
- * Templated single-question fallback. Ships ENGLISH-ONLY as the v1 baseline
- * per CONTEXT.md "Claude's Discretion" + W-4 lock. FR/RU localization is
- * explicitly DEFERRED to v2.5.
+ * Templated single-question fallback — per-locale variants.
  *
- * This is a deliberate scope cut to ship Phase 29 within the LLM quality
- * budget. When Greg's `franc` last-message-language detection is wired in
- * future work, v2.5 will branch this fallback by language. Until then, the
- * fallback ships single-language; this comment block IS the boundary marker
- * so future-Greg knows where the deferral lies.
+ * Phase 46 L10N-06 (was TEMPLATED_FALLBACK_EN): the v2.4 carry-forward
+ * comment block IS the historical boundary marker — the earlier deferral
+ * noted only EN existed; v2.6.1 closes that boundary. FR + RU verbatim seed
+ * translations per CONTEXT.md D-08 (verbatim from 29-REVIEW WR-01 reviewer
+ * suggestion). Greg reviews at /gsd-verify-work.
  *
- * Hardcoded text per Pitfall 14 explicit example. Logged via
- * 'chris.weekly-review.fallback-fired' (NOT silent — visibility into how
- * often Sonnet is failing the runtime gates).
+ * Triggered when the retry-cap (MAX_RETRIES=2 → 3 attempts) exhausts.
+ * Logged via 'chris.weekly-review.fallback-fired' (NOT silent — visibility
+ * into how often Sonnet is failing the runtime gates).
  */
-const TEMPLATED_FALLBACK_EN = {
-  observation: 'Reflecting on this week.',
-  question: 'What stood out to you about this week?',
+const TEMPLATED_FALLBACK: Record<Lang, { observation: string; question: string }> = {
+  English: {
+    observation: 'Reflecting on this week.',
+    question: 'What stood out to you about this week?',
+  },
+  French: {
+    observation: 'Réflexion sur cette semaine.',
+    question: "Qu'est-ce qui t'a marqué cette semaine ?",
+  },
+  Russian: {
+    observation: 'Размышление об этой неделе.',
+    question: 'Что вам запомнилось на этой неделе?',
+  },
 } as const;
 
 /**
@@ -464,12 +504,17 @@ export async function generateWeeklyObservation(
       const errMsg = err instanceof Error ? err.message : String(err);
       logger.warn({ err: errMsg, attempt }, 'rituals.weekly.regen.retry');
       if (attempt === MAX_RETRIES) {
-        // Cap reached — emit fallback log + return EN-only templated text
+        // Cap reached — emit fallback log + return locale-matched templated
+        // text (Phase 46 L10N-06). `langOf` defensively narrows since
+        // WeeklyReviewPromptInput.language is currently typed as `string`
+        // (29-REVIEW WR-04 narrowing fix is out of L10N scope); on
+        // unrecognized values it falls back to 'English'.
         logger.warn(
           { err: errMsg, attempts: MAX_RETRIES + 1 },
           'chris.weekly-review.fallback-fired',
         );
-        return { ...TEMPLATED_FALLBACK_EN, isFallback: true };
+        const fallbackLang = langOf(input.language ?? null);
+        return { ...TEMPLATED_FALLBACK[fallbackLang], isFallback: true };
       }
       // continue loop for next attempt
     }
@@ -623,8 +668,15 @@ export async function fireWeeklyReview(
 
   const result = await generateWeeklyObservation(promptInput);
 
-  // 5. Render user-facing message with D031 header (WEEK-04)
-  const userFacingMessage = `${WEEKLY_REVIEW_HEADER}\n\n${result.observation}\n\n${result.question}`;
+  // 5. Render user-facing message with D031 header (WEEK-04). Phase 46
+  // L10N-02: header is now per-Lang; `language` is already resolved at
+  // line :583 via `getLastUserLanguageFromDb` + `?? 'French'` fallback,
+  // but defensively narrow once more with `langOf` because the
+  // WeeklyReviewPromptInput.language type is currently `string`
+  // (29-REVIEW WR-04 narrowing fix is out of L10N scope).
+  const headerLang = langOf(language);
+  const headerText = WEEKLY_REVIEW_HEADER[headerLang];
+  const userFacingMessage = `${headerText}\n\n${result.observation}\n\n${result.question}`;
 
   // Phase 42 RACE-06 (D-42-11 + D-42-12 + D-42-13): transactional fire pipeline.
   //
