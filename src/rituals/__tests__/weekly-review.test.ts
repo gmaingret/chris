@@ -800,4 +800,100 @@ describe('fireWeeklyReview integration (real DB + mocked Anthropic + mocked bot)
   it('header constant export sanity: WEEKLY_REVIEW_HEADER is the exact D031 text', () => {
     expect(WEEKLY_REVIEW_HEADER).toBe('Observation (interpretation, not fact):');
   });
+
+  // ── Phase 42 RACE-06 regression: transactional send-then-bookkeep ────────
+  it('RACE-06: send-failure leaves respondedAt NULL + telegram_failed audit row + nextRunAt reverted + Pensieve orphan preserved (D-42-11)', async () => {
+    // Seed minimal substrate so we get past the sparse-data short-circuit.
+    await db.insert(episodicSummaries).values({
+      summaryDate: '2026-04-22',
+      summary: 'A normal day. Greg made steady progress on Project Chris.',
+      importance: 5,
+      topics: ['work'],
+      emotionalArc: 'steady',
+      keyQuotes: [],
+      sourceEntryIds: [],
+    });
+
+    // Capture originalNextRunAt so we can assert it's reverted on failure.
+    // We seed with a known concrete nextRunAt value and pass that exact row
+    // into fireWeeklyReview — the production code captures input.nextRunAt
+    // as previousNextRunAt BEFORE tryFireRitualAtomic (which weekly_review
+    // does NOT actually call in this handler — fireWeeklyReview captures
+    // ritual.nextRunAt directly per D-42-13).
+    const originalNextRunAt = new Date('2026-05-17T18:00:00.000Z');
+    const [ritual] = await db
+      .insert(rituals)
+      .values({
+        name: FIXTURE_RITUAL_NAME,
+        type: 'weekly',
+        nextRunAt: originalNextRunAt,
+        enabled: true,
+        config: FIXTURE_RITUAL_CONFIG,
+      })
+      .returning();
+    expect(ritual).toBeDefined();
+    const cfg = parseRitualConfig(ritual!.config);
+
+    // Prime full success for the Sonnet + Haiku + date-grounding calls;
+    // the FAILURE is only at the Telegram-send boundary.
+    primeFullSuccess(
+      'A short observation from the week.',
+      'What stood out this week?',
+    );
+
+    // Force bot.api.sendMessage to throw (simulates 429 Too Many Requests).
+    mockSendMessage.mockReset();
+    mockSendMessage.mockRejectedValueOnce(new Error('429 Too Many Requests'));
+
+    // Act + Assert: fireWeeklyReview must rethrow (per D-42-11 spec).
+    await expect(fireWeeklyReview(ritual!, cfg)).rejects.toThrow(
+      /429 Too Many Requests/,
+    );
+
+    // (a) ritual_responses.respondedAt IS NULL — system did NOT mark "fired
+    // successfully" since the Telegram send failed.
+    const responses = await db
+      .select()
+      .from(ritualResponses)
+      .where(eq(ritualResponses.ritualId, ritual!.id));
+    expect(responses).toHaveLength(1);
+    expect(responses[0]!.respondedAt).toBeNull();
+
+    // (b) exactly ONE ritual_fire_events row with metadata.telegram_failed = true.
+    const events = await db
+      .select()
+      .from(ritualFireEvents)
+      .where(eq(ritualFireEvents.ritualId, ritual!.id));
+    expect(events).toHaveLength(1);
+    expect(events[0]!.outcome).toBe('fired');
+    expect(events[0]!.metadata).toMatchObject({ telegram_failed: true });
+
+    // (c) rituals.nextRunAt reverted to originalNextRunAt — next Sunday's
+    // sweep will retry.
+    const [updatedRitual] = await db
+      .select()
+      .from(rituals)
+      .where(eq(rituals.id, ritual!.id));
+    expect(updatedRitual!.nextRunAt.toISOString()).toBe(
+      originalNextRunAt.toISOString(),
+    );
+
+    // (d) Pensieve entry exists — orphan is acceptable per D-42-11.
+    const pensieveRows = await db
+      .select()
+      .from(pensieveEntries)
+      .where(sql`metadata->>'kind' = 'weekly_review'`);
+    expect(pensieveRows).toHaveLength(1);
+
+    // (e) ERROR log emitted with the canonical event key.
+    const sendFailedLogs = mockLoggerError.mock.calls.filter(
+      (c) => c[1] === 'rituals.weekly.send_failed',
+    );
+    expect(sendFailedLogs).toHaveLength(1);
+    const payload = sendFailedLogs[0]![0] as {
+      ritualId: string;
+      previousNextRunAt: string;
+    };
+    expect(payload.previousNextRunAt).toBe(originalNextRunAt.toISOString());
+  });
 });
