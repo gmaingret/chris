@@ -376,3 +376,173 @@ describe.each(DIMENSIONS)(
     });
   },
 );
+
+// ── Phase 43 Plan 02 — CONTRACT-02: seed-row first-fire omits prevState ─────
+//
+// extract<X>PrevState for all 4 operational dimensions must return null when
+// row.substrateHash === '' (Phase 33 D-11 seed-row sentinel). When null is
+// returned, assembleProfilePrompt omits the '## CURRENT PROFILE STATE' block
+// entirely (existing Phase 34 D-07 structural invariant) — avoiding the
+// M010-03 anchoring-to-empty-fields failure mode that fires on every first-
+// fire-after-deploy.
+//
+// Plan D-11 mandates `.every()` discipline: each of the 4 dimensions must
+// independently pass — describe.each parametrizes the assertion across all 4.
+
+describe('CONTRACT-02: seed-row first-fire omits ## CURRENT PROFILE STATE (D-10)', () => {
+  // Per-dimension seed-row fixtures shaped like a Phase 33 D-11 cold-start
+  // INSERT. substrateHash='' is the sentinel; all jsonb fields are the
+  // database column defaults from migration 0012.
+
+  // Dimension-specific JSONB defaults derived from migration 0012 column
+  // defaults + the Phase 33 seed-row pattern. Kept inline (not refactored
+  // into a shared helper) because dim-specific shape variance is the whole
+  // point — a shared helper would obscure the per-dim schema contract.
+  const seedRowJurisdictional = {
+    id: 'seed-jur',
+    name: 'primary',
+    schemaVersion: 1,
+    substrateHash: '',
+    confidence: 0,
+    dataConsistency: 0,
+    currentCountry: null,
+    physicalLocation: null,
+    residencyStatus: [],
+    taxResidency: null,
+    activeLegalEntities: [],
+    nextPlannedMove: { destination: null, from_date: null },
+    plannedMoveDate: null,
+    passportCitizenships: [],
+    lastUpdated: new Date('2026-05-01T00:00:00Z'),
+    createdAt: new Date('2026-05-01T00:00:00Z'),
+  };
+
+  const seedRowCapital = {
+    id: 'seed-cap',
+    name: 'primary',
+    schemaVersion: 1,
+    substrateHash: '',
+    confidence: 0,
+    dataConsistency: 0,
+    fiPhase: null,
+    fiTargetAmount: null,
+    estimatedNetWorth: null,
+    runwayMonths: null,
+    nextSequencingDecision: null,
+    incomeSources: [],
+    majorAllocationDecisions: [],
+    taxOptimizationStatus: null,
+    activeLegalEntities: [],
+    lastUpdated: new Date('2026-05-01T00:00:00Z'),
+    createdAt: new Date('2026-05-01T00:00:00Z'),
+  };
+
+  const seedRowHealth = {
+    id: 'seed-hea',
+    name: 'primary',
+    schemaVersion: 1,
+    substrateHash: '',
+    confidence: 0,
+    dataConsistency: 0,
+    openHypotheses: [],
+    pendingTests: [],
+    activeTreatments: [],
+    recentResolved: [],
+    caseFileNarrative: null,
+    wellbeingTrend: {},
+    lastUpdated: new Date('2026-05-01T00:00:00Z'),
+    createdAt: new Date('2026-05-01T00:00:00Z'),
+  };
+
+  const seedRowFamily = {
+    id: 'seed-fam',
+    name: 'primary',
+    schemaVersion: 1,
+    substrateHash: '',
+    confidence: 0,
+    dataConsistency: 0,
+    relationshipStatus: null,
+    partnershipCriteriaEvolution: [],
+    childrenPlans: null,
+    parentCareResponsibilities: {},
+    activeDatingContext: null,
+    milestones: [],
+    constraints: [],
+    lastUpdated: new Date('2026-05-01T00:00:00Z'),
+    createdAt: new Date('2026-05-01T00:00:00Z'),
+  };
+
+  describe.each([
+    ['jurisdictional', seedRowJurisdictional],
+    ['capital', seedRowCapital],
+    ['health', seedRowHealth],
+    ['family', seedRowFamily],
+  ] as const)('dimension=%s', (dim, seedRow) => {
+    it('extract<X>PrevState returns null when substrateHash === "" (seed-row sentinel)', async () => {
+      const { JURISDICTIONAL_PROFILE_CONFIG } = await import('../profiles/jurisdictional.js');
+      const { CAPITAL_PROFILE_CONFIG } = await import('../profiles/capital.js');
+      const { HEALTH_PROFILE_CONFIG } = await import('../profiles/health.js');
+      const { FAMILY_PROFILE_CONFIG } = await import('../profiles/family.js');
+      const config = {
+        jurisdictional: JURISDICTIONAL_PROFILE_CONFIG,
+        capital: CAPITAL_PROFILE_CONFIG,
+        health: HEALTH_PROFILE_CONFIG,
+        family: FAMILY_PROFILE_CONFIG,
+      }[dim];
+      const result = config.extractPrevState(seedRow);
+      expect(result).toBeNull();
+    });
+
+    it('assembled prompt omits ## CURRENT PROFILE STATE on seed-row first fire', async () => {
+      const { JURISDICTIONAL_PROFILE_CONFIG } = await import('../profiles/jurisdictional.js');
+      const { CAPITAL_PROFILE_CONFIG } = await import('../profiles/capital.js');
+      const { HEALTH_PROFILE_CONFIG } = await import('../profiles/health.js');
+      const { FAMILY_PROFILE_CONFIG } = await import('../profiles/family.js');
+      const config = {
+        jurisdictional: JURISDICTIONAL_PROFILE_CONFIG,
+        capital: CAPITAL_PROFILE_CONFIG,
+        health: HEALTH_PROFILE_CONFIG,
+        family: FAMILY_PROFILE_CONFIG,
+      }[dim];
+      const fixture = buildFixture();
+      const prevState = config.extractPrevState(seedRow); // null
+      const result = assembleProfilePrompt(dim, fixture, prevState, fixture.pensieveEntries.length);
+      expect(result.system).not.toContain('## CURRENT PROFILE STATE');
+    });
+
+    it('extract<X>PrevState returns null when row is null entirely (table-empty)', async () => {
+      const { JURISDICTIONAL_PROFILE_CONFIG } = await import('../profiles/jurisdictional.js');
+      const { CAPITAL_PROFILE_CONFIG } = await import('../profiles/capital.js');
+      const { HEALTH_PROFILE_CONFIG } = await import('../profiles/health.js');
+      const { FAMILY_PROFILE_CONFIG } = await import('../profiles/family.js');
+      const config = {
+        jurisdictional: JURISDICTIONAL_PROFILE_CONFIG,
+        capital: CAPITAL_PROFILE_CONFIG,
+        health: HEALTH_PROFILE_CONFIG,
+        family: FAMILY_PROFILE_CONFIG,
+      }[dim];
+      expect(config.extractPrevState(null)).toBeNull();
+    });
+
+    it('extract<X>PrevState returns non-null when substrateHash is populated (post-first-fire row)', async () => {
+      const { JURISDICTIONAL_PROFILE_CONFIG } = await import('../profiles/jurisdictional.js');
+      const { CAPITAL_PROFILE_CONFIG } = await import('../profiles/capital.js');
+      const { HEALTH_PROFILE_CONFIG } = await import('../profiles/health.js');
+      const { FAMILY_PROFILE_CONFIG } = await import('../profiles/family.js');
+      const config = {
+        jurisdictional: JURISDICTIONAL_PROFILE_CONFIG,
+        capital: CAPITAL_PROFILE_CONFIG,
+        health: HEALTH_PROFILE_CONFIG,
+        family: FAMILY_PROFILE_CONFIG,
+      }[dim];
+      // 64-char hex hash mimics a real SHA-256 substrate_hash from a prior
+      // successful fire — extract<X>PrevState should NOT return null.
+      const populatedRow = {
+        ...seedRow,
+        substrateHash: 'a'.repeat(64),
+        confidence: 0.4,
+      };
+      expect(config.extractPrevState(populatedRow)).not.toBeNull();
+    });
+  });
+});

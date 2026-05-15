@@ -35,10 +35,17 @@ function flattenFamilyOutput(
   };
 }
 
+/**
+ * Map the camelCase DB row → snake_case jsonb subset for the prompt's
+ * previous-state block. Returns null when the row is missing or carries the
+ * Phase 33 D-11 seed-row sentinel (substrateHash === ''). Phase 43
+ * CONTRACT-02 / D-10 — M010-03 anti-drift defense.
+ */
 function extractFamilyPrevState(
   row: Record<string, unknown> | null,
 ): unknown | null {
   if (!row) return null;
+  if (row.substrateHash === '') return null;
   return stripMetadataColumns(row);
 }
 

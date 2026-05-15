@@ -55,14 +55,21 @@ function flattenJurisdictionalOutput(
 
 /**
  * Map the camelCase DB row → snake_case jsonb subset for the prompt's
- * previous-state block. Returns null when the row is missing entirely
- * (table never seeded). Phase 33 seed rows are returned non-null so Sonnet
- * sees "insufficient data" markers from the seed (D-07 anti-drift).
+ * previous-state block. Returns null when:
+ *   - the row is missing entirely (table never seeded), OR
+ *   - row.substrateHash === '' (Phase 33 D-11 seed-row sentinel — first
+ *     fire ever; Phase 43 CONTRACT-02 / D-10 M010-03 anti-drift defense).
+ *
+ * When null is returned, assembleProfilePrompt omits the
+ * ## CURRENT PROFILE STATE block entirely (Phase 34 D-07 structural
+ * invariant), avoiding the empty-fields + anti-drift directive collision
+ * that anchors Sonnet's first-fire output toward the empty seed.
  */
 function extractJurisdictionalPrevState(
   row: Record<string, unknown> | null,
 ): unknown | null {
   if (!row) return null;
+  if (row.substrateHash === '') return null;
   return stripMetadataColumns(row);
 }
 
