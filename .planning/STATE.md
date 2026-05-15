@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.6.1
 milestone_name: Code Review Cleanup
-status: "All 6 v2.6.1 Phase 46 requirements green (L10N-01..06). 4 plans shipped: 46-01 locale-strings infra (canonical qualifierFor + normalizeForInterrogativeCheck); 46-02 /profile 21 EN-only sites localized (HEXACO/Schwartz dim labels + scoreLine template + qualifier import) — FR/RU golden snapshots added, EN snapshots byte-identical; 46-03 weekly-review cluster (WEEKLY_REVIEW_HEADER per-Lang + INTERROGATIVE_REGEX gibberish fix + curly-apostrophe normalize + TEMPLATED_FALLBACK per-Lang); 46-04 daily journal PROMPTS per-Lang with cron-context getLastUserLanguageFromDb (CAP-01 cardinality lock, PROMPT_SET_VERSION stays v1). Sunday 2026-05-17 20:00 Paris first fire will ship FR header + FR observation + FR question end-to-end. 4 plan-check warnings addressed inline (decimal format consistency, depends_on note, translation review table in 46-02 summary, T2/T4 invariant via L10N-03c direct regex assertion). 772 tests pass across 43 files (live-integration.test.ts unreachable here — requires Anthropic key)."
-stopped_at: Phase 46 complete (10 commits 6185b0f..685678b); awaiting orchestrator dispatch of Phase 47 (Display Polish — depends on Phase 46 qualifierFor)
-last_updated: "2026-05-15T12:25:00.000Z"
-last_activity: 2026-05-15 — Phase 46 ships 6/6 L10N requirements; 10 atomic commits across 4 plans; 11 production files + tests modified.
+status: "MILESTONE v2.6.1 COMPLETE — 39/39 requirements shipped across 7 phases (41-47). Phase 47 (Display Polish) shipped 2026-05-15 with 3 atomic commits (9479e22 DISP-01 circumplex + 9193ed9 DISP-02 cross-val + ec238dc golden tests). DISP-01: Schwartz circumplex order via SCHWARTZ_CIRCUMPLEX_ORDER (canonical clockwise 10-element ring); DISP-02: 16-rule HEXACO×Schwartz cross-validation rule table + computeCrossValidationObservations pure function + MSG.psychologicalSections.crossValidation EN/FR/RU + handler ctx.reply append (gated on crossVal !== ''). New golden test profile-psychological-crossval.golden.test.ts (24 tests, 5 suites: circumplex EN/FR/RU, cross-val populated EN/FR/RU, omit cases, array invariants, rule-table invariants). Phase 39 golden snapshot updated for Schwartz circumplex order (6 snapshots regenerated; HEXACO+attachment+insufficient-data+never-fired untouched — scope-leak guard passed). Reader-never-throw discipline preserved (Phase 39 D-22) — no Sonnet at /profile call, hardcoded rule table per CONTEXT.md D-06. D-17 plain-text invariant preserved (->'  not '→'). Total /profile reply count: 4 operational + 3 psychological + (0 or 1) cross-val. Build clean. 85/85 targeted tests pass."
+stopped_at: Phase 47 complete (3 commits 9479e22..ec238dc); v2.6.1 milestone COMPLETE — ready for /gsd-complete-milestone or /gsd-ship.
+last_updated: "2026-05-15T12:55:00.000Z"
+last_activity: 2026-05-15 — Phase 47 ships final 2 v2.6.1 requirements (DISP-01 + DISP-02); 3 atomic commits; 1 production file + 2 test files (1 new); milestone v2.6.1 complete (39/39 requirements across 7 phases).
 progress:
   total_phases: 7
-  completed_phases: 6
-  total_plans: 22
-  completed_plans: 16
-  percent: 86
+  completed_phases: 7
+  total_plans: 23
+  completed_plans: 23
+  percent: 100
 ---
 
 # Project State
@@ -26,14 +26,19 @@ See: .planning/PROJECT.md (symlink to /home/claude/chris/PLAN.md).
 
 ## Current Position
 
-Phase: Phase 46 (FR/RU Localization Comprehensive) — COMPLETE (Wave 6 of 7)
-Plans shipped: 46-01 (4 tasks) + 46-02 (4 tasks) + 46-03 (4 tasks) + 46-04 (4 tasks) = 16 tasks, 10 atomic commits
-Status: All 6 v2.6.1 Phase 46 requirements green (L10N-01..06). 4 plans shipped end-to-end. Sunday 2026-05-17 20:00 Paris first fire will ship FR header + FR observation + FR question via `getLastUserLanguageFromDb` cron-context detection; daily 21:00 Paris journal fires now route to French prompts by default. Plan-check 4 warnings addressed inline:
-- W#1 decimal format consistency: EN keeps toFixed(1) byte-identical; FR/RU use toFixed(1).replace('.', ',') for consistent comma decimals
-- W#2 46-04 depends_on note: acknowledged in 46-04 SUMMARY (over-conservative in plan frontmatter; no practical impact under sequential execution)
-- W#3 D-06 translation review table: included in 46-02 SUMMARY as a 20-row table for Greg's /gsd-verify-work red-pen pass
-- W#4 T2/T4 invariant asymmetry: resolved via L10N-03c direct INTERROGATIVE_REGEX match-count assertion + L10N-03c2 stage1Check end-to-end behavior change test (parent addendum from commit 9da2c42)
-Last activity: 2026-05-15 — Phase 46 ships 6/6 L10N requirements via 10 atomic commits; 11 files modified.
+Phase: Phase 47 (Display Polish) — COMPLETE (Wave 7 of 7); v2.6.1 milestone COMPLETE.
+Plans shipped: 47-01 (5 tasks) = 5 tasks, 3 atomic commits.
+Status: All 2 Phase 47 requirements green (DISP-01 + DISP-02). DISP-01: Schwartz section in /profile renders in canonical clockwise circumplex order via new SCHWARTZ_CIRCUMPLEX_ORDER readonly array; iteration uses the array instead of Object.entries on the label map. DISP-02: 16-rule CROSS_VALIDATION_RULES table + computeCrossValidationObservations pure function + MSG.psychologicalSections.crossValidation EN/FR/RU + handler ctx.reply append. Reader-never-throw discipline preserved (no Sonnet at /profile read; hardcoded rule table per CONTEXT.md D-06). D-17 plain-text invariant preserved. Total /profile reply count: 4 operational + 3 psychological + (0 or 1) cross-val. Build clean; targeted tests 85/85 green.
+
+v2.6.1 milestone summary: 39/39 requirements shipped across 7 phases (41-47), 23 plans, ~62 atomic commits. Ready for /gsd-complete-milestone or /gsd-ship.
+
+Last activity: 2026-05-15 — Phase 47 ships final 2 v2.6.1 requirements via 3 atomic commits; 1 production file + 1 new test file + 1 updated Phase 39 test file.
+
+### Phase 47 commits (shipped)
+
+- `9479e22` feat(47-01): DISP-01 — Schwartz circumplex order in /profile
+- `9193ed9` feat(47-01): DISP-02 — HEXACO × Schwartz cross-validation observations
+- `ec238dc` test(47-01): DISP-01 + DISP-02 golden snapshots + Phase 39 churn
 
 ### Phase 46 commits
 

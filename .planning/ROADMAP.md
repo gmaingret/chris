@@ -22,7 +22,7 @@
 - [x] **Phase 44: CI Milestone-Gate Hardening** — REQUIRE_FIXTURES env-gated hard-fail replaces silent skip across M009/M010/M011 gates (shipped 2026-05-15; 12 atomic commits, 10 test files + scripts/test.sh + REQUIREMENTS.md)
 - [ ] **Phase 45: Schema Hygiene & Fixture-Pipeline Cleanup** — Phase 33 seed defaults backfill (root cause) + DB CHECK constraints (defense-in-depth) + operator-script + fixture-pipeline cleanup
 - [x] **Phase 46: FR/RU Localization Comprehensive** — Locale detection layer + 30+ EN-only sites localized across adjustment-dialogue, weekly-review, journal, /profile
-- [ ] **Phase 47: Display Polish** — Schwartz circumplex ordering + HEXACO × Schwartz cross-validation observations on /profile
+- [x] **Phase 47: Display Polish** — Schwartz circumplex ordering + HEXACO × Schwartz cross-validation observations on /profile — shipped 2026-05-15 (DISP-01 + DISP-02; 3 atomic commits)
 
 <details>
 <summary>✅ v2.4 M009 Ritual Infrastructure + Daily Note + Weekly Review (Phases 25-32) — SHIPPED 2026-05-11</summary>
@@ -165,7 +165,7 @@ See `.planning/milestones/v2.6-ROADMAP.md` for full phase details + `.planning/m
 | 44. CI Milestone-Gate Hardening | 0/TBD | Not started | - |
 | 45. Schema Hygiene & Fixture-Pipeline Cleanup | 4/4 | Complete   | 2026-05-15 |
 | 46. FR/RU Localization Comprehensive | 4/4 | Complete | 10 commits |
-| 47. Display Polish | 0/TBD | Not started | - |
+| 47. Display Polish | 1/1 | Shipped 2026-05-15 | DISP-01..02 (2/2); 3 commits |
 
 ## Archived Milestones
 
