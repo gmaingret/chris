@@ -220,9 +220,28 @@ function runScript(script: string, args: string[]): Promise<void> {
 // ── Main ────────────────────────────────────────────────────────────────
 
 export async function main(): Promise<void> {
+  // FIX-08 (Phase 45 v2.6.1 D-17 + 24-REVIEW.md §WR-05): AbortController +
+  // process.exitCode pattern instead of synchronous direct-130-exit.
+  // Previously the synchronous exit killed the parent before the child had
+  // time to honor SIGTERM, leaving orphan tsx subprocesses on operator
+  // Ctrl-C. New pattern: signal child with SIGTERM, race a 5s timer; if the
+  // child has not exited by 5s, force SIGKILL. The event loop drains
+  // naturally as the child's exit listener resolves the in-flight Promise
+  // and any `finally` blocks above this run cleanup.
+  // Ref: 24-REVIEW.md §BL-04 line 51 + §WR-05 lines 91-95.
+  const abortController = new AbortController();
   const sigHandler = (): void => {
-    if (activeChild) activeChild.kill('SIGTERM');
-    process.exit(130);
+    process.exitCode = 130;
+    abortController.abort();
+    if (activeChild) {
+      activeChild.kill('SIGTERM');
+      const killTimer = setTimeout(() => {
+        if (activeChild && activeChild.exitCode === null) {
+          activeChild.kill('SIGKILL');
+        }
+      }, 5000);
+      activeChild.on('exit', () => clearTimeout(killTimer));
+    }
   };
   process.on('SIGINT', sigHandler);
   process.on('SIGTERM', sigHandler);

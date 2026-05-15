@@ -67,6 +67,17 @@ async function probeConnect(port: number): Promise<boolean> {
   });
 }
 
+// FIX-04 SSH hardening (Phase 45 v2.6.1):
+//   StrictHostKeyChecking=accept-new — auto-trust the host key on first
+//   contact (so fresh runners + new operators work without manual
+//   `ssh-keyscan`), but refuse on key MISMATCH (closing the
+//   MITM-after-rotation window).
+//   UserKnownHostsFile=scripts/.ssh-known-hosts — vetted, repo-committed.
+//   Bootstrap: if scripts/.ssh-known-hosts has no host entry for
+//   192.168.1.50, the first connect populates it; operator MUST commit
+//   the line back to the repo so subsequent runs see the known key.
+//   To rotate: explicit PR replacing the line.
+//   Reference: 24-REVIEW.md §BL-03 lines 41-45.
 async function openTunnel(
   ChrisErrorCtor: typeof import('../src/utils/errors.js').ChrisError,
 ): Promise<ChildProcess> {
@@ -82,6 +93,10 @@ async function openTunnel(
       'ConnectTimeout=10',
       '-o',
       'ServerAliveInterval=30',
+      '-o',
+      'StrictHostKeyChecking=accept-new',
+      '-o',
+      'UserKnownHostsFile=scripts/.ssh-known-hosts',
       SSH_TARGET,
     ],
     { stdio: ['ignore', 'pipe', 'pipe'] },
@@ -270,8 +285,18 @@ export async function main(): Promise<void> {
   let ssh: ChildProcess | null = null;
   let client: ReturnType<typeof postgres> | null = null;
 
+  // FIX-08 (Phase 45 v2.6.1 D-17): AbortController + process.exitCode pattern
+  // instead of synchronous direct-130-exit. The previous synchronous-exit
+  // chain (then-exit-130 inside the SIGINT handler) raced the
+  // event loop — process.exit() could fire before closeTunnel resolved,
+  // leaking SSH tunnel pids (orphan pid 4145976 traced 2026-04-26).
+  // Setting exitCode + abort() lets the finally block below run naturally
+  // and close the SSH tunnel + postgres client before Node exits.
+  // Ref: 24-REVIEW.md §BL-04 line 51.
+  const abortController = new AbortController();
   const sigHandler = (): void => {
-    void closeTunnel(ssh).then(() => process.exit(130));
+    process.exitCode = 130;
+    abortController.abort();
   };
   process.on('SIGINT', sigHandler);
   process.on('SIGTERM', sigHandler);

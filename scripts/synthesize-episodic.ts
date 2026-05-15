@@ -34,6 +34,7 @@ import {
   rm,
   stat,
   rename,
+  readdir,
 } from 'node:fs/promises';
 import { createReadStream, createWriteStream } from 'node:fs';
 import { createInterface } from 'node:readline';
@@ -45,14 +46,23 @@ import type postgres from 'postgres';
 import { ChrisError } from '../src/utils/errors.js';
 
 const COMPOSE_FILE = 'docker-compose.local.yml';
-const MIGRATIONS: readonly string[] = [
-  'src/db/migrations/0000_curved_colonel_america.sql',
-  'src/db/migrations/0001_add_photos_psychology_mode.sql',
-  'src/db/migrations/0002_decision_archive.sql',
-  'src/db/migrations/0003_add_decision_epistemic_tag.sql',
-  'src/db/migrations/0004_decision_trigger_suppressions.sql',
-  'src/db/migrations/0005_episodic_summaries.sql',
-];
+
+// FIX-03 (Phase 45 v2.6.1 D-08): Derive the migration list from the on-disk
+// glob of `src/db/migrations/*.sql` at runtime. Previously the array was
+// hardcoded `0000..0005`, silently dropping every later migration (e.g.
+// 0006_rituals_wellbeing.sql, wellbeing_snapshots) when the schema evolved.
+// The `.sql` filter naturally excludes the `meta/` subdirectory (drizzle-kit
+// snapshots) — readdir returns `meta` as an entry whose name has no
+// `.sql` extension. Lexicographic sort preserves apply-order invariant.
+// Ref: 24-REVIEW.md §BL-01 lines 29-33; matches scripts/test.sh:43-47 pattern.
+async function loadMigrations(): Promise<string[]> {
+  const files = await readdir('src/db/migrations');
+  return files
+    .filter((f) => f.endsWith('.sql'))
+    .sort()
+    .map((f) => `src/db/migrations/${f}`);
+}
+
 const DEFAULT_DB_PORT = 5435; // D-04-corrected: distinct from regen-snapshots.sh (Pitfall 5)
 
 // ── CLI parsing ─────────────────────────────────────────────────────────
@@ -234,6 +244,7 @@ async function upDocker(dbPort: number): Promise<DockerState> {
 }
 
 async function applyMigrations(state: DockerState): Promise<void> {
+  const MIGRATIONS = await loadMigrations();
   for (const mig of MIGRATIONS) {
     try {
       execSync(
@@ -477,8 +488,16 @@ export async function dumpEpisodicSummaries(
 
 export async function main(): Promise<void> {
   let state: DockerState | null = null;
+  // FIX-08 (Phase 45 v2.6.1 D-17): AbortController + process.exitCode pattern
+  // instead of synchronous direct-130-exit. The synchronous exit skipped
+  // the `finally` block at the bottom of main(), leaking the throwaway Docker
+  // project. Setting exitCode + abort() lets the event loop drain naturally;
+  // `finally { await downDocker(state) }` then runs before Node exits.
+  // Ref: 24-REVIEW.md §BL-04 line 51.
+  const abortController = new AbortController();
   const sigHandler = (): void => {
-    void downDocker(state).then(() => process.exit(130));
+    process.exitCode = 130;
+    abortController.abort();
   };
   process.on('SIGINT', sigHandler);
   process.on('SIGTERM', sigHandler);

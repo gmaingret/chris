@@ -1,0 +1,28 @@
+# Repo-vetted SSH host key fingerprints for scripts/fetch-prod-data.ts.
+#
+# Phase 45 FIX-04 (v2.6.1, 2026-05-14):
+# StrictHostKeyChecking=accept-new + this file together close the MITM
+# window at first connect AND key rotation. The first operator to clone
+# the repo populates this file (ssh-keyscan auto-fills on first contact);
+# subsequent operators consume the committed keys without prompting; key
+# rotation requires an explicit PR replacing the line(s) below.
+#
+# Bootstrap (initial seed already populated by Phase 45 plan executor):
+#   ssh-keyscan -H 192.168.1.50 >> scripts/.ssh-known-hosts
+#   git add scripts/.ssh-known-hosts && git commit
+#
+# Rotation:
+#   1. Operator pre-commits new host line(s) (ssh-keyscan -H 192.168.1.50)
+#   2. PR review verifies fingerprint match against an out-of-band channel
+#      (e.g. console-of-record at the Proxmox host).
+#   3. Merge → all runners + CI pick up the new key.
+#
+# Host: 192.168.1.50 (Proxmox prod node — Chris bot runtime + Postgres).
+# Reference: 24-REVIEW.md §BL-03 lines 41-45.
+#
+# Hashed entries below (`|1|...`) are HMAC-SHA1 salted per OpenSSH default
+# (HashKnownHosts yes) — the hostname is not directly recoverable from the
+# line but matches `192.168.1.50` on connect.
+|1|tLczBtPb+xPSRvauhhKiUh93yN4=|ZFfWv2o3PZ65hGdEsksiuNDekCk= ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDUjadfGMTpiRP8ZU7cgc+4iJ6FPAApd2qu2ZiuU0QFL33rXq3wCqCpRYOzMW2YUHqHK31h3U4IehOt6yDbkL2MKm1G05alY5XO0uVcj5M9QesRV8tciJnpeVlVNUPjWHoDcTsDku5KVSZnnV89gXNW//gkCXamKq8gKqueQLWg73ffAom+30a3T6Xvb+GODis7JpDIohO7y1K7KezJ8stTysHCipDj0thKw1YaspUP1O0zCm93TJHeh/SxDaz8EdxHo5M24m0bxromoN8/hemK+aM04ObponwWgtw6xQEtXrYvO2NZD8QHcQ/Ug2L2GHnZvsfGuDfQUamgQTq7NkYmLJ+ZVwsrtURmY3sTeLjSchsTrZB0IwKAtK7kadiMFUqgFX8nWbakzdWdcUbaQEERfkeAqTwBx7TIFpt+ITicvVbRWNkW6QShu0Nq4Eq1+sWpb61W6KstSAZ+7SQzmnfQVwTylU9J3FeE9biQj/hTAiN4Y0Alaoy7r4/VxMUnzOM=
+|1|FK6yHUd+p2YmrBqbtQgE8vknq/8=|Q4TfpJOXdG92RX5fNzZjBZIe4Xs= ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBCC1vcIDB1QqkEm768e/VNRUUKrNdykNqfoEtNkXtOU92g9AdIk4luoHu2MeoxqR6tfmL+5hJVrfkVG0XYvQLN4=
+|1|9tPnsPDyjLLx15YB5V9lfuuAcgw=|wecjk+FIpDBeRWeXvkISeHJ5Oow= ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIvK9mW7ZPe7rKHTYRj3t5lvA107eXXqdzesYxWUMiyG
