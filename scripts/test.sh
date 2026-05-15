@@ -19,6 +19,7 @@ MIGRATION_10_SQL="src/db/migrations/0010_adjustment_dialogue.sql"
 MIGRATION_11_SQL="src/db/migrations/0011_rename_daily_voice_note_to_journal.sql"
 MIGRATION_12_SQL="src/db/migrations/0012_operational_profiles.sql"
 MIGRATION_13_SQL="src/db/migrations/0013_psychological_profiles.sql"
+MIGRATION_14_SQL="src/db/migrations/0014_psychological_data_consistency_column.sql"
 
 cleanup() {
   echo "🧹 Stopping test postgres..."
@@ -84,6 +85,12 @@ docker compose -f "$COMPOSE_FILE" exec -T postgres \
   psql -U chris -d chris -v ON_ERROR_STOP=1 -q < "$MIGRATION_12_SQL"
 docker compose -f "$COMPOSE_FILE" exec -T postgres \
   psql -U chris -d chris -v ON_ERROR_STOP=1 -q < "$MIGRATION_13_SQL"
+# Phase 43 Plan 02 / CONTRACT-03 — data_consistency column on the 3 psych tables.
+# HARD CO-LOC #M11-1: this apply line + schema.ts dataConsistency column adds +
+# 0014_*.sql + meta/0014_snapshot.json + _journal.json idx-14 entry ALL ship
+# atomically in Plan 43-02 Task 3.
+docker compose -f "$COMPOSE_FILE" exec -T postgres \
+  psql -U chris -d chris -v ON_ERROR_STOP=1 -q < "$MIGRATION_14_SQL"
 
 # Phase 25 (M009 v2.4) — post-migration substrate smoke gate.
 # Per HARD CO-LOCATION CONSTRAINT #7 + Pitfall 28: the SQL migration, the

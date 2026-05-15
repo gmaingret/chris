@@ -667,6 +667,10 @@ export const profileHexaco = pgTable(
     schemaVersion: integer('schema_version').notNull().default(1),
     substrateHash: text('substrate_hash').notNull().default(''),
     overallConfidence: real('overall_confidence').notNull().default(0),
+    // Phase 43 CONTRACT-03 / D-12: persists Sonnet's emitted data_consistency
+    // on every fire (audit trail + future CONS-01 host-side consistency math).
+    // Symmetric with operational profiles' dataConsistency column (line 549, etc.).
+    dataConsistency: real('data_consistency').notNull().default(0),
     wordCount: integer('word_count').notNull().default(0),
     wordCountAtLastRun: integer('word_count_at_last_run').notNull().default(0),
     honestyHumility: jsonb('honesty_humility').$type<HexacoProfileData['honesty_humility']>().notNull().default(sql`'null'::jsonb`),
@@ -680,6 +684,7 @@ export const profileHexaco = pgTable(
   },
   (table) => [
     check('profile_hexaco_overall_confidence_bounds', sql`${table.overallConfidence} >= 0 AND ${table.overallConfidence} <= 1`),
+    check('profile_hexaco_data_consistency_bounds', sql`${table.dataConsistency} >= 0 AND ${table.dataConsistency} <= 1`),
   ],
 );
 
@@ -691,6 +696,8 @@ export const profileSchwartz = pgTable(
     schemaVersion: integer('schema_version').notNull().default(1),
     substrateHash: text('substrate_hash').notNull().default(''),
     overallConfidence: real('overall_confidence').notNull().default(0),
+    // Phase 43 CONTRACT-03 / D-12 — see profileHexaco for rationale.
+    dataConsistency: real('data_consistency').notNull().default(0),
     wordCount: integer('word_count').notNull().default(0),
     wordCountAtLastRun: integer('word_count_at_last_run').notNull().default(0),
     selfDirection: jsonb('self_direction').$type<SchwartzProfileData['self_direction']>().notNull().default(sql`'null'::jsonb`),
@@ -708,6 +715,7 @@ export const profileSchwartz = pgTable(
   },
   (table) => [
     check('profile_schwartz_overall_confidence_bounds', sql`${table.overallConfidence} >= 0 AND ${table.overallConfidence} <= 1`),
+    check('profile_schwartz_data_consistency_bounds', sql`${table.dataConsistency} >= 0 AND ${table.dataConsistency} <= 1`),
   ],
 );
 
@@ -719,6 +727,8 @@ export const profileAttachment = pgTable(
     schemaVersion: integer('schema_version').notNull().default(1),
     substrateHash: text('substrate_hash').notNull().default(''),
     overallConfidence: real('overall_confidence').notNull().default(0),
+    // Phase 43 CONTRACT-03 / D-12 — see profileHexaco for rationale.
+    dataConsistency: real('data_consistency').notNull().default(0),
     wordCount: integer('word_count').notNull().default(0),
     wordCountAtLastRun: integer('word_count_at_last_run').notNull().default(0),
     // D-07 attachment-only metadata columns (population deferred to D028
@@ -734,6 +744,7 @@ export const profileAttachment = pgTable(
   },
   (table) => [
     check('profile_attachment_overall_confidence_bounds', sql`${table.overallConfidence} >= 0 AND ${table.overallConfidence} <= 1`),
+    check('profile_attachment_data_consistency_bounds', sql`${table.dataConsistency} >= 0 AND ${table.dataConsistency} <= 1`),
   ],
 );
 
