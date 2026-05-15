@@ -40,7 +40,15 @@ export async function runConcurrently<T>(
 }
 
 export function freezeClock(at: Date | number): () => void {
-  vi.useFakeTimers();
+  // IMPORTANT: only fake the Date constructor / system clock — NOT
+  // setTimeout/setInterval/setImmediate/queueMicrotask/etc. Faking the
+  // timer functions breaks postgres.js's internal connection-pool
+  // bookkeeping (idle-timeout reaper, retry backoff, prepared-statement
+  // GC), which causes every subsequent DB call to hang forever in a
+  // suite that talks to real postgres. The race semantics RACE-01
+  // closes are about JS `Date.now()` collisions vs postgres `now()`,
+  // so freezing just `Date` is exactly the failure surface under test.
+  vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(at);
   return () => {
     vi.useRealTimers();
