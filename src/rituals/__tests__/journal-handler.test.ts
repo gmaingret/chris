@@ -26,12 +26,26 @@ import { eq } from 'drizzle-orm';
 
 // Mock bot.api.sendMessage to avoid real Telegram calls.
 // vi.hoisted ensures the mock fn is available when the vi.mock factory runs.
-const { mockSendMessage } = vi.hoisted(() => ({
+const { mockSendMessage, mockGetLastUserLanguageFromDb } = vi.hoisted(() => ({
   mockSendMessage: vi.fn(),
+  mockGetLastUserLanguageFromDb: vi.fn(),
 }));
 vi.mock('../../bot/bot.js', () => ({
   bot: { api: { sendMessage: mockSendMessage } },
 }));
+
+// Phase 46 L10N-04: fireJournal now calls getLastUserLanguageFromDb to pick
+// a locale-appropriate prompt. Mock the language module's cron-context API
+// so tests can pin the detected locale without seeding the conversations
+// table. Default mock returns null → fireJournal falls back to 'French'
+// (Greg's primary locale).
+vi.mock('../../chris/language.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../chris/language.js')>();
+  return {
+    ...actual,
+    getLastUserLanguageFromDb: mockGetLastUserLanguageFromDb,
+  };
+});
 
 import { db, sql } from '../../db/connection.js';
 import {
@@ -66,6 +80,11 @@ describe('fireJournal handler (Phase 26 VOICE-02 + VOICE-03)', () => {
     await cleanup();
     mockSendMessage.mockReset();
     mockSendMessage.mockResolvedValue({ message_id: 12345 });
+    // Default: no language detected → fireJournal falls back to French
+    // (Greg's primary locale). Tests that need a specific locale override
+    // this mock in-test before calling fireJournal.
+    mockGetLastUserLanguageFromDb.mockReset();
+    mockGetLastUserLanguageFromDb.mockResolvedValue(null);
   });
 
   afterAll(async () => {
@@ -75,7 +94,7 @@ describe('fireJournal handler (Phase 26 VOICE-02 + VOICE-03)', () => {
     // in the last describe's afterAll.
   });
 
-  it('sends Telegram message with one of 6 spec prompts + inserts pending row WITH prompt_text + updates prompt_bag', async () => {
+  it('sends Telegram message with one of 6 spec prompts (default-French locale) + inserts pending row WITH prompt_text + updates prompt_bag', async () => {
     const [ritual] = await db
       .insert(rituals)
       .values({
@@ -101,8 +120,14 @@ describe('fireJournal handler (Phase 26 VOICE-02 + VOICE-03)', () => {
     expect(outcome).toBe('fired');
     expect(mockSendMessage).toHaveBeenCalledTimes(1);
     const sentPrompt = mockSendMessage.mock.calls[0]![1] as string;
-    expect(PROMPTS).toContain(sentPrompt);
-    // Pending row with prompt_text (amended D-26-02 — checker B4)
+    // Phase 46 L10N-04: PROMPTS is now Record<Lang, readonly string[]>.
+    // Default locale (no conversation history) is French. Assert the sent
+    // prompt is in the French array — also assert it is NOT in the English
+    // array to prove the locale-aware wiring is live.
+    expect(PROMPTS.French).toContain(sentPrompt);
+    expect(PROMPTS.English).not.toContain(sentPrompt);
+    // Pending row with prompt_text (amended D-26-02 — checker B4) — text
+    // stored verbatim from the locale-resolved send (longitudinal trail).
     const pending = await db.select().from(ritualPendingResponses);
     expect(pending).toHaveLength(1);
     expect(pending[0]!.ritualId).toBe(ritual!.id);
@@ -183,6 +208,122 @@ describe('fireJournal handler (Phase 26 VOICE-02 + VOICE-03)', () => {
     );
     const pending = await db.select().from(ritualPendingResponses);
     expect(pending).toHaveLength(0);
+  });
+
+  // ── Phase 46 L10N-04 — locale-aware prompt selection ─────────────────────
+
+  it('L10N-04 (FR detected): sends a French prompt when getLastUserLanguageFromDb returns French', async () => {
+    mockGetLastUserLanguageFromDb.mockResolvedValueOnce('French');
+    const [ritual] = await db
+      .insert(rituals)
+      .values({
+        name: FIXTURE_RITUAL_NAME,
+        type: 'daily',
+        nextRunAt: new Date(),
+        enabled: true,
+        config: {
+          fire_at: '21:00',
+          prompt_bag: [0],
+          skip_threshold: 3,
+          mute_until: null,
+          time_zone: 'Europe/Paris',
+          prompt_set_version: 'v1',
+          schema_version: 1,
+        },
+      })
+      .returning();
+    const cfg = parseRitualConfig(ritual!.config);
+    await fireJournal(ritual!, cfg);
+    const sentPrompt = mockSendMessage.mock.calls[0]![1] as string;
+    expect(PROMPTS.French).toContain(sentPrompt);
+    expect(sentPrompt).toBe("Qu'est-ce qui a compté aujourd'hui ?"); // prompt_bag[0]=0
+  });
+
+  it('L10N-04 (RU detected): sends a Russian prompt when getLastUserLanguageFromDb returns Russian', async () => {
+    mockGetLastUserLanguageFromDb.mockResolvedValueOnce('Russian');
+    const [ritual] = await db
+      .insert(rituals)
+      .values({
+        name: FIXTURE_RITUAL_NAME,
+        type: 'daily',
+        nextRunAt: new Date(),
+        enabled: true,
+        config: {
+          fire_at: '21:00',
+          prompt_bag: [0],
+          skip_threshold: 3,
+          mute_until: null,
+          time_zone: 'Europe/Paris',
+          prompt_set_version: 'v1',
+          schema_version: 1,
+        },
+      })
+      .returning();
+    const cfg = parseRitualConfig(ritual!.config);
+    await fireJournal(ritual!, cfg);
+    const sentPrompt = mockSendMessage.mock.calls[0]![1] as string;
+    expect(PROMPTS.Russian).toContain(sentPrompt);
+    expect(sentPrompt).toBe('Что было важным сегодня?'); // prompt_bag[0]=0
+  });
+
+  it('L10N-04 (EN detected): sends an English prompt when getLastUserLanguageFromDb returns English', async () => {
+    mockGetLastUserLanguageFromDb.mockResolvedValueOnce('English');
+    const [ritual] = await db
+      .insert(rituals)
+      .values({
+        name: FIXTURE_RITUAL_NAME,
+        type: 'daily',
+        nextRunAt: new Date(),
+        enabled: true,
+        config: {
+          fire_at: '21:00',
+          prompt_bag: [0],
+          skip_threshold: 3,
+          mute_until: null,
+          time_zone: 'Europe/Paris',
+          prompt_set_version: 'v1',
+          schema_version: 1,
+        },
+      })
+      .returning();
+    const cfg = parseRitualConfig(ritual!.config);
+    await fireJournal(ritual!, cfg);
+    const sentPrompt = mockSendMessage.mock.calls[0]![1] as string;
+    expect(PROMPTS.English).toContain(sentPrompt);
+    expect(sentPrompt).toBe('What mattered today?'); // prompt_bag[0]=0
+  });
+
+  it('L10N-04 (null fallback): defaults to French when conversations table has no USER message', async () => {
+    // mockGetLastUserLanguageFromDb default is mockResolvedValue(null) per
+    // beforeEach. fireJournal calls `langOf(detectedLang ?? 'French')` →
+    // resolved lang = 'French'. The first test above already covers this
+    // happy path implicitly via PROMPTS.French; this test pins the
+    // CONTRACT explicitly so a future regression that flips the fallback
+    // to 'English' surfaces as a named failure.
+    mockGetLastUserLanguageFromDb.mockResolvedValueOnce(null);
+    const [ritual] = await db
+      .insert(rituals)
+      .values({
+        name: FIXTURE_RITUAL_NAME,
+        type: 'daily',
+        nextRunAt: new Date(),
+        enabled: true,
+        config: {
+          fire_at: '21:00',
+          prompt_bag: [0],
+          skip_threshold: 3,
+          mute_until: null,
+          time_zone: 'Europe/Paris',
+          prompt_set_version: 'v1',
+          schema_version: 1,
+        },
+      })
+      .returning();
+    const cfg = parseRitualConfig(ritual!.config);
+    await fireJournal(ritual!, cfg);
+    const sentPrompt = mockSendMessage.mock.calls[0]![1] as string;
+    expect(PROMPTS.French).toContain(sentPrompt);
+    expect(sentPrompt).toBe("Qu'est-ce qui a compté aujourd'hui ?"); // FR prompt_bag[0]=0
   });
 });
 

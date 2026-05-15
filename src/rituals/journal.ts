@@ -40,24 +40,91 @@ import { dayBoundaryUtc } from '../episodic/sources.js';
 import { RITUAL_OUTCOME, type RitualConfig, type RitualFireOutcome } from './types.js';
 import { bot } from '../bot/bot.js';
 import { computeNextRunAt } from './cadence.js';
+import { getLastUserLanguageFromDb, langOf, type Lang } from '../chris/language.js';
 
 // ── Constants (M009 Phase 26 — VOICE-02 + VOICE-03 + VOICE-04 tunables) ────
 
 /**
- * PROMPT-SET v1 — exactly 6 prompts, spec order, frozen at module load.
+ * PROMPT-SET v1 — per-locale array of 6 prompts (Phase 46 L10N-04).
+ *
+ * CAP-01 cardinality lock (asserted below at module load): every locale
+ * MUST have the same prompt count so `rituals.config.prompt_bag` indices
+ * stay valid across locale switching. PROMPT_SET_VERSION stays at 'v1'
+ * because the array length and conceptual ordering are preserved — only
+ * the text is localized. Bumping to 'v2' is required ONLY if lengths
+ * diverge (e.g., a future split where the EN "even if small" clause
+ * becomes two FR sentences).
+ *
+ * FR uses tu-form per CONTEXT.md D-07 (matches `Ta phase FI`, `Tes
+ * traitements` in profile.ts). RU uses ты-form (matches `Твой статус`).
+ * Greg reviews FR + RU seeds at /gsd-verify-work per D-06.
+ *
  * Bumping a prompt's wording requires a new PROMPT_SET_VERSION + reset of
- * any persisted prompt_bag entries (which index into this array).
+ * any persisted prompt_bag entries (which index into these arrays).
  */
-export const PROMPTS = [
-  'What mattered today?',
-  "What's still on your mind?",
-  'What did today change?',
-  'What surprised you today?',
-  'What did you decide today, even if it was small?',
-  'What did you avoid today?',
-] as const;
+export const PROMPTS: Readonly<Record<Lang, readonly string[]>> = {
+  English: [
+    'What mattered today?',
+    "What's still on your mind?",
+    'What did today change?',
+    'What surprised you today?',
+    'What did you decide today, even if it was small?',
+    'What did you avoid today?',
+  ],
+  French: [
+    "Qu'est-ce qui a compté aujourd'hui ?",
+    "Qu'est-ce qui te trotte encore dans la tête ?",
+    "Qu'est-ce qu'aujourd'hui a changé ?",
+    "Qu'est-ce qui t'a surpris aujourd'hui ?",
+    "Qu'as-tu décidé aujourd'hui, même de petit ?",
+    "Qu'as-tu évité aujourd'hui ?",
+  ],
+  Russian: [
+    'Что было важным сегодня?',
+    'Что ещё не выходит у тебя из головы?',
+    'Что изменил сегодняшний день?',
+    'Что тебя сегодня удивило?',
+    'Что ты сегодня решил, пусть и небольшое?',
+    'Чего ты сегодня избегал?',
+  ],
+} as const;
 
-/** Bumping to 'v2' invalidates all stored prompt_bag indices. */
+// CAP-01 cardinality lock: all locales MUST have the same prompt count so
+// rituals.config.prompt_bag indices remain valid across locale switching.
+// Bumping PROMPT_SET_VERSION is required only if these lengths must diverge
+// (matches the same discipline as ABORT_PHRASES_EN/FR/RU in
+// src/decisions/triggers-fixtures.ts:25).
+const PROMPT_COUNTS = {
+  English: PROMPTS.English.length,
+  French: PROMPTS.French.length,
+  Russian: PROMPTS.Russian.length,
+};
+if (
+  PROMPT_COUNTS.English !== PROMPT_COUNTS.French ||
+  PROMPT_COUNTS.English !== PROMPT_COUNTS.Russian
+) {
+  throw new Error(
+    `PROMPTS cardinality mismatch: EN=${PROMPT_COUNTS.English}, FR=${PROMPT_COUNTS.French}, RU=${PROMPT_COUNTS.Russian}. ` +
+      `Bump PROMPT_SET_VERSION + reset prompt_bag if lengths must diverge.`,
+  );
+}
+
+/**
+ * Locale-agnostic prompt cardinality used by the shuffled-bag rotation
+ * (chooseNextPromptIndex) and the test suite. Asserted equal across locales
+ * by the CAP-01 module-load guard above; reading EN is the canonical
+ * "length-of-prompt-array" everywhere the rotation primitive cares.
+ */
+export const PROMPTS_COUNT = PROMPTS.English.length;
+
+/**
+ * Bumping to 'v2' invalidates all stored prompt_bag indices.
+ *
+ * Phase 46 L10N-04: shape changed from `readonly string[]` to
+ * `Record<Lang, readonly string[]>`, but index semantics are PRESERVED —
+ * bag indices remain valid because all locales have the same cardinality
+ * (CAP-01 module-load assertion above). No version bump needed.
+ */
 export const PROMPT_SET_VERSION = 'v1' as const;
 
 /**
@@ -107,9 +174,12 @@ export function chooseNextPromptIndex(
   lastIndex?: number,
 ): { index: number; newBag: number[] } {
   if (currentBag.length === 0) {
-    // Refill: Fisher-Yates shuffle of [0..PROMPTS.length-1].
+    // Refill: Fisher-Yates shuffle of [0..PROMPTS_COUNT-1]. PROMPTS_COUNT
+    // is the locale-agnostic length (CAP-01 guarantees per-locale lengths
+    // agree). Phase 46 L10N-04: PROMPTS shape is Record<Lang, ...>, so the
+    // bare `.length` of the prior implementation no longer applies.
     const fresh: number[] = [];
-    for (let i = 0; i < PROMPTS.length; i++) fresh.push(i);
+    for (let i = 0; i < PROMPTS_COUNT; i++) fresh.push(i);
     for (let i = fresh.length - 1; i > 0; i--) {
       const j = Math.floor(rng() * (i + 1));
       [fresh[i], fresh[j]] = [fresh[j]!, fresh[i]!];
@@ -355,7 +425,7 @@ export async function fireJournal(
   // not-yet-used index in the CURRENT bag (the future). The previous code
   // read the wrong end of the bag, so on cycle-boundary refill (bag.length
   // === 0) it fell back to undefined and the no-consecutive-duplicate guard
-  // had no signal — producing a back-to-back duplicate ~1/PROMPTS.length
+  // had no signal — producing a back-to-back duplicate ~1/PROMPTS_COUNT
   // (~17%) of the time. Persist the prior fired index in cfg.last_fired_prompt_idx
   // and read it back here. First fire after migration sees undefined → no
   // history → no guard, which is correct (no prior fire to duplicate).
@@ -366,11 +436,20 @@ export async function fireJournal(
     Math.random,
     lastIdx,
   );
-  const prompt = PROMPTS[promptIdx]!;
+
+  // Phase 46 L10N-04 — cron-context language detection.
+  // M009 first-Sunday lesson: in-memory `sessionLanguage` is empty after
+  // process restart; cron handlers MUST read from DB. Default to 'French'
+  // on null per CONTEXT.md specifics (Greg's primary locale). The same
+  // pattern is used in weekly-review.ts:580-583 for the cross-cron
+  // boundary discipline.
+  const chatId = BigInt(config.telegramAuthorizedUserId);
+  const detectedLang = await getLastUserLanguageFromDb(chatId);
+  const lang: Lang = langOf(detectedLang ?? 'French');
+  const prompt = PROMPTS[lang][promptIdx]!;
 
   // STEP 2: Send Telegram message FIRST. If this throws, no pending row is
   //         inserted, so PP#5 won't have a stale binding.
-  const chatId = BigInt(config.telegramAuthorizedUserId);
   await bot.api.sendMessage(Number(chatId), prompt);
 
   // STEP 3: Insert ritual_pending_responses row WITH prompt_text (amended D-26-02).

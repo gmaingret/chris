@@ -24,6 +24,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   PROMPTS,
+  PROMPTS_COUNT,
   PROMPT_SET_VERSION,
   RESPONSE_WINDOW_HOURS,
   RITUAL_SUPPRESS_DEPOSIT_THRESHOLD,
@@ -31,25 +32,29 @@ import {
 } from '../journal.js';
 
 describe('journal constants (VOICE-02)', () => {
-  it('PROMPTS contains 6 strings in D-26-01 spec order', () => {
-    expect(PROMPTS).toHaveLength(6);
-    expect(PROMPTS[0]).toBe('What mattered today?');
-    expect(PROMPTS[1]).toBe("What's still on your mind?");
-    expect(PROMPTS[2]).toBe('What did today change?');
-    expect(PROMPTS[3]).toBe('What surprised you today?');
-    expect(PROMPTS[4]).toBe('What did you decide today, even if it was small?');
-    expect(PROMPTS[5]).toBe('What did you avoid today?');
+  it('PROMPTS.English contains 6 strings in D-26-01 spec order', () => {
+    // Phase 46 L10N-04: PROMPTS shape changed from `readonly string[]` to
+    // `Record<Lang, readonly string[]>`. EN array is the canonical spec
+    // order; FR/RU follow same conceptual ordering (same index → same
+    // conceptual prompt). CAP-01 cardinality lock enforced at module load.
+    expect(PROMPTS.English).toHaveLength(6);
+    expect(PROMPTS.English[0]).toBe('What mattered today?');
+    expect(PROMPTS.English[1]).toBe("What's still on your mind?");
+    expect(PROMPTS.English[2]).toBe('What did today change?');
+    expect(PROMPTS.English[3]).toBe('What surprised you today?');
+    expect(PROMPTS.English[4]).toBe('What did you decide today, even if it was small?');
+    expect(PROMPTS.English[5]).toBe('What did you avoid today?');
   });
 
-  it('PROMPTS is readonly (as const tuple)', () => {
+  it('PROMPTS.English is readonly (as const tuple) — TS-enforced', () => {
     // The `as const` modifier produces a readonly tuple. TypeScript enforces
-    // this at compile time; at runtime we assert the array is frozen by
-    // proxying through a typeof check. (Object.isFrozen is FALSE on `as
-    // const` arrays — the freezing is purely structural at the type level.
-    // This test exists to anchor the contract: any future maintainer who
-    // tries to push() onto PROMPTS will get a TS compile error.)
-    const lengthBefore = PROMPTS.length;
+    // this at compile time; at runtime we assert array length is preserved.
+    const lengthBefore = PROMPTS.English.length;
     expect(lengthBefore).toBe(6);
+  });
+
+  it('PROMPTS_COUNT exposes the locale-agnostic cardinality', () => {
+    expect(PROMPTS_COUNT).toBe(6);
   });
 
   it('PROMPT_SET_VERSION is v1', () => {
@@ -127,6 +132,55 @@ describe('chooseNextPromptIndex smoke tests (VOICE-03 — full property test in 
       const union = new Set([result.index, ...result.newBag]);
       expect(union.size).toBe(6);
       for (let i = 0; i < 6; i++) expect(union.has(i)).toBe(true);
+    }
+  });
+});
+
+// ── PROMPTS per-locale shape (Phase 46 L10N-04) ─────────────────────────────
+
+describe('PROMPTS — per-locale shape (L10N-04)', () => {
+  it('L10N-04a: PROMPTS has English, French, Russian keys', () => {
+    expect(PROMPTS).toHaveProperty('English');
+    expect(PROMPTS).toHaveProperty('French');
+    expect(PROMPTS).toHaveProperty('Russian');
+  });
+
+  it('L10N-04b: CAP-01 cardinality — all locales have 6 prompts', () => {
+    // Asserted at module load too (the import would throw if mismatched).
+    // This redundant test makes the invariant visible in test output.
+    expect(PROMPTS.English.length).toBe(6);
+    expect(PROMPTS.French.length).toBe(6);
+    expect(PROMPTS.Russian.length).toBe(6);
+  });
+
+  it('L10N-04c: index 0 maps to the same conceptual prompt across locales', () => {
+    expect(PROMPTS.English[0]).toBe('What mattered today?');
+    expect(PROMPTS.French[0]).toBe("Qu'est-ce qui a compté aujourd'hui ?");
+    expect(PROMPTS.Russian[0]).toBe('Что было важным сегодня?');
+  });
+
+  it('L10N-04d: every FR prompt uses tu-form (no vous-form regression)', () => {
+    // tu-form invariant per CONTEXT.md D-07. Catches a future translator
+    // accidentally switching to vous-form which would clash with profile.ts
+    // ('Ta phase FI', 'Tes traitements') and the established register.
+    for (const fr of PROMPTS.French) {
+      expect(fr).not.toMatch(/\bvous\b|\bavez-vous\b/i);
+    }
+  });
+
+  it('L10N-04e: every RU prompt uses ты/тебя/твой forms (no вы regression)', () => {
+    // ты-form invariant per CONTEXT.md D-07. Matches profile.ts RU register
+    // ('Твой статус', 'Ты сейчас в').
+    for (const ru of PROMPTS.Russian) {
+      expect(ru).not.toMatch(/\bвы\b/i);
+    }
+  });
+
+  it('L10N-04f: every prompt ends with a question mark (cross-locale invariant)', () => {
+    for (const lang of ['English', 'French', 'Russian'] as const) {
+      for (const p of PROMPTS[lang]) {
+        expect(p.endsWith('?')).toBe(true);
+      }
     }
   });
 });
