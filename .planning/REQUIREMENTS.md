@@ -12,13 +12,13 @@
 
 ### ADJ — Adjustment-dialogue rework (T1, 7 BLOCKERs from Phase 28)
 
-- [ ] **ADJ-01**: User receives observational adjustment-dialogue copy ("I notice you've skipped the last 3 — does this ritual still serve you?") instead of "This {cadence} {name} ritual isn't working" assertion. Source: `src/rituals/adjustment-dialogue.ts:285`.
-- [ ] **ADJ-02**: Ritual display-name mapping replaces slug exposure in user-facing copy — "daily journal" not "daily daily_journal" — at the four affected lines (`adjustment-dialogue.ts:285, 308, 471, 733`). Slugs `fire_at`, `skip_threshold` also no longer leak into confirmation echoes.
-- [ ] **ADJ-03**: Adjustment-dialogue surface localized for FR/RU per Greg's detected locale — 8 `sendMessage` sites + Haiku judge prompt (`adjustment-dialogue.ts:151, 182, 285-286, 471, 531, 547, 733`). Pattern matches the existing `ACKNOWLEDGMENTS` map at `src/chris/refusal.ts:180-184`.
-- [ ] **ADJ-04**: `skip_count` resets to 0 on every yes/no/refusal completion path (`adjustment-dialogue.ts:529-535, :536-552, :125-185`, `skip-tracking.ts:286-313`). Eliminates the every-tick re-fire after threshold; restores SKIP-06 self-protection; makes the 30-day pause meaningful on wake-up.
-- [ ] **ADJ-05**: `mute_until` removed from Haiku-controllable field whitelist. A user reply parsed by Haiku into `{field: 'mute_until', new_value: <future>}` can no longer silently disable the entire ritual channel. Privilege escalation closed.
-- [ ] **ADJ-06**: Per-field type validation enforces config-patch shape before write in `confirmConfigPatch`. `{field: 'fire_at', new_value: 42}` is rejected at the boundary instead of bricking the ritual via `parseRitualConfig` throw on the next sweep.
-- [ ] **ADJ-07**: Integration test asserts that after an adjustment-dialogue completion (any path), the next-tick `runRitualSweep` does NOT re-fire `shouldFireAdjustmentDialogue` for the same ritual — closes the regression class around ADJ-04.
+- [x] **ADJ-01**: User receives observational adjustment-dialogue copy ("I notice you've skipped the last 3 — does this ritual still serve you?") instead of "This {cadence} {name} ritual isn't working" assertion. Source: `src/rituals/adjustment-dialogue.ts:285`.
+- [x] **ADJ-02**: Ritual display-name mapping replaces slug exposure in user-facing copy — "daily journal" not "daily daily_journal" — at the four affected lines (`adjustment-dialogue.ts:285, 308, 471, 733`). Slugs `fire_at`, `skip_threshold` also no longer leak into confirmation echoes.
+- [x] **ADJ-03**: Adjustment-dialogue surface localized for FR/RU per Greg's detected locale — 8 `sendMessage` sites + Haiku judge prompt (`adjustment-dialogue.ts:151, 182, 285-286, 471, 531, 547, 733`). Pattern matches the existing `ACKNOWLEDGMENTS` map at `src/chris/refusal.ts:180-184`.
+- [x] **ADJ-04**: `skip_count` resets to 0 on every yes/no/refusal completion path (`adjustment-dialogue.ts:529-535, :536-552, :125-185`, `skip-tracking.ts:286-313`). Eliminates the every-tick re-fire after threshold; restores SKIP-06 self-protection; makes the 30-day pause meaningful on wake-up.
+- [x] **ADJ-05**: `mute_until` removed from Haiku-controllable field whitelist. A user reply parsed by Haiku into `{field: 'mute_until', new_value: <future>}` can no longer silently disable the entire ritual channel. Privilege escalation closed.
+- [x] **ADJ-06**: Per-field type validation enforces config-patch shape before write in `confirmConfigPatch`. `{field: 'fire_at', new_value: 42}` is rejected at the boundary instead of bricking the ritual via `parseRitualConfig` throw on the next sweep.
+- [x] **ADJ-07**: Integration test asserts that after an adjustment-dialogue completion (any path), the next-tick `runRitualSweep` does NOT re-fire `shouldFireAdjustmentDialogue` for the same ritual — closes the regression class around ADJ-04.
 
 ### RACE — Atomicity / race fixes (T2, 6 BLOCKERs from Phases 25/27/29)
 
@@ -121,13 +121,13 @@
 
 | Requirement | Phase | Status |
 |---|---|---|
-| ADJ-01 | Phase 41 | Pending |
-| ADJ-02 | Phase 41 | Pending |
-| ADJ-03 | Phase 41 | Pending |
-| ADJ-04 | Phase 41 | Pending |
-| ADJ-05 | Phase 41 | Pending |
-| ADJ-06 | Phase 41 | Pending |
-| ADJ-07 | Phase 41 | Pending |
+| ADJ-01 | Phase 41 | Complete |
+| ADJ-02 | Phase 41 | Complete |
+| ADJ-03 | Phase 41 | Complete |
+| ADJ-04 | Phase 41 | Complete |
+| ADJ-05 | Phase 41 | Complete |
+| ADJ-06 | Phase 41 | Complete |
+| ADJ-07 | Phase 41 | Complete |
 | RACE-01 | Phase 42 | Pending |
 | RACE-02 | Phase 42 | Pending |
 | RACE-03 | Phase 42 | Pending |

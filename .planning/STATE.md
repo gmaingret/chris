@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.6.1
 milestone_name: Code Review Cleanup
-status: planning
-last_updated: "2026-05-14T16:00:00.000Z"
-last_activity: 2026-05-14
+status: executing
+last_updated: "2026-05-15T06:20:00.000Z"
+last_activity: 2026-05-15
 progress:
   total_phases: 7
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  completed_phases: 1
+  total_plans: 2
+  completed_plans: 2
+  percent: 14
 ---
 
 # Project State
@@ -25,10 +25,20 @@ See: .planning/PROJECT.md (symlink to /home/claude/chris/PLAN.md).
 
 ## Current Position
 
-Phase: Phase 41 (Adjustment-Dialogue Rework) — not yet planned
-Plan: —
-Status: Roadmap drafted; awaiting `/gsd-plan-phase 41`
-Last activity: 2026-05-14 — v2.6.1 ROADMAP.md created with 7 phases (41-47), 39/39 requirements mapped
+Phase: Phase 41 (Adjustment-Dialogue Rework) — COMPLETE (Wave 1 of 5)
+Plans shipped: 41-01 + 41-02
+Status: All 3 tasks of 41-01 + all 3 tasks of 41-02 executed, committed, tested. Awaiting Wave 2 orchestrator dispatch (Phases 42 + 43).
+Last activity: 2026-05-15 — Phase 41 ships 7/7 ADJ requirements; all ritual tests green (215/215 pass + 1 skipped pre-existing); new no-refire test (5/5) added.
+
+### Wave 1 commits
+
+- `066224d` feat(41-01): display-names.ts (ADJ-02)
+- `a032353` fix(41-01): observational copy + 3 completion-site skip_count resets (ADJ-01/02/04)
+- `6ade27b` fix(41-01): autoReEnableExpiredMutes skip_count reset (ADJ-04 site #4)
+- `60fcbdd` fix(41-02): tighten Haiku whitelist + candidate-parse gate (ADJ-05/06)
+- `76d0f98` fix(41-02): FR/RU localization across 8 sites + Haiku prompt (ADJ-03)
+- `ff0e59b` test(41-02): no-refire integration test, 5 cases (ADJ-07)
+- `f3bb8ad` test(41): synthetic-fixture TEST-27 copy assertion update (cascade fix)
 
 ## Shipped Milestones
 
