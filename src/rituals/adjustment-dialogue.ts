@@ -42,6 +42,8 @@ import { bot } from '../bot/bot.js';
 import { anthropic, HAIKU_MODEL } from '../llm/client.js';
 import { detectRefusal } from '../chris/refusal.js';
 import { hasReachedEvasiveTrigger } from './skip-tracking.js';
+// Plan 41-01 ships EN-only; Plan 41-02 wires Lang detection on top
+import { displayName, configFieldLabel } from './display-names.js';
 import { RITUAL_OUTCOME, parseRitualConfig, type RitualFireOutcome } from './types.js';
 
 // ── Constants (D-28-05 + D-28-06 locked spec) ─────────────────────────────
@@ -127,18 +129,34 @@ async function routeRefusal(
   refusal: { isHardDisable: boolean; isNotNow: boolean; topic: string },
   text: string,
 ): Promise<void> {
+  // Phase 41 ADJ-04 (D-41-05): refusals are completions — skip_count = 0
+  // resets, paired with a RESPONDED fire-event, inside a transaction.
+  // sendMessage stays outside (BL-11 deferred). The skipCount reset merges
+  // into the same SET clause as enabled/config so it's a single UPDATE.
   if (refusal.isHardDisable) {
     // Hard disable — set enabled=false (manual, permanent until operator re-enables)
-    await db.update(rituals).set({ enabled: false }).where(eq(rituals.id, ritualId));
+    await db.transaction(async (tx) => {
+      await tx
+        .update(rituals)
+        .set({ enabled: false, skipCount: 0 })
+        .where(eq(rituals.id, ritualId));
 
-    await db.insert(ritualConfigEvents).values({
-      ritualId,
-      actor: 'adjustment_dialogue_refusal',
-      patch: {
-        kind: 'manual_disable',
-        source: 'user_drop_it_or_disable',
-        user_text: text.slice(0, 200),
-      },
+      await tx.insert(ritualConfigEvents).values({
+        ritualId,
+        actor: 'adjustment_dialogue_refusal',
+        patch: {
+          kind: 'manual_disable',
+          source: 'user_drop_it_or_disable',
+          user_text: text.slice(0, 200),
+        },
+      });
+
+      await tx.insert(ritualFireEvents).values({
+        ritualId,
+        firedAt: new Date(),
+        outcome: RITUAL_OUTCOME.RESPONDED,
+        metadata: { source: 'user_drop_it_or_disable' },
+      });
     });
 
     logger.info(
@@ -154,22 +172,32 @@ async function routeRefusal(
     // "not now" deferral — set adjustment_mute_until = now + 7 days
     const sevenDaysFromNow = new Date(Date.now() + 7 * 24 * 3600 * 1000);
 
-    await db
-      .update(rituals)
-      .set({
-        config: sql`jsonb_set(${rituals.config}, ${sql.raw("'{adjustment_mute_until}'")}, ${String(JSON.stringify(sevenDaysFromNow.toISOString()))}::jsonb, true)`,
-      })
-      .where(eq(rituals.id, ritualId));
+    await db.transaction(async (tx) => {
+      await tx
+        .update(rituals)
+        .set({
+          skipCount: 0,
+          config: sql`jsonb_set(${rituals.config}, ${sql.raw("'{adjustment_mute_until}'")}, ${String(JSON.stringify(sevenDaysFromNow.toISOString()))}::jsonb, true)`,
+        })
+        .where(eq(rituals.id, ritualId));
 
-    await db.insert(ritualConfigEvents).values({
-      ritualId,
-      actor: 'adjustment_dialogue_refusal',
-      patch: {
-        kind: 'apply',
-        field: 'adjustment_mute_until',
-        new_value: sevenDaysFromNow.toISOString(),
-        source: 'user_not_now',
-      },
+      await tx.insert(ritualConfigEvents).values({
+        ritualId,
+        actor: 'adjustment_dialogue_refusal',
+        patch: {
+          kind: 'apply',
+          field: 'adjustment_mute_until',
+          new_value: sevenDaysFromNow.toISOString(),
+          source: 'user_not_now',
+        },
+      });
+
+      await tx.insert(ritualFireEvents).values({
+        ritualId,
+        firedAt: new Date(),
+        outcome: RITUAL_OUTCOME.RESPONDED,
+        metadata: { source: 'user_not_now' },
+      });
     });
 
     logger.info(
@@ -280,10 +308,14 @@ async function classifyAdjustmentReply(
 export async function fireAdjustmentDialogue(
   ritual: typeof rituals.$inferSelect,
 ): Promise<RitualFireOutcome> {
-  const cadence = ritual.type === 'weekly' ? 'weekly' : 'daily';
-  const messageText =
-    `This ${cadence} ${ritual.name} ritual isn't working — what should change? ` +
-    `Reply with what to change, or 'no change' / 'drop it' if you'd prefer to keep skipping or stop entirely.`;
+  // Phase 41 ADJ-01 / ADJ-02 (D-41-02 + D-41-03 BL-01 fix):
+  // Observational copy with display-name substitution. Cadence is no longer
+  // prefixed — the display name already encodes it ("evening journal" not
+  // "daily evening journal"). The WR-01 cadence ternary was here; removed
+  // because the slug fallback is monthly/quarterly-safe and metadata.cadence
+  // now uses ritual.type directly (forward-compat for M013).
+  const dispName = displayName(ritual.name, 'English');
+  const messageText = `I noticed we've missed the ${dispName} a few times. Want to adjust something, or keep it as is?`;
 
   const chatId = BigInt(config.telegramAuthorizedUserId);
 
@@ -304,8 +336,8 @@ export async function fireAdjustmentDialogue(
       promptText: messageText,
       metadata: {
         kind: 'adjustment_dialogue',
-        cadence,
-        ritualName: ritual.name,
+        cadence: ritual.type, // WR-01 / WR-11 forward-compat — passthrough, no ternary
+        ritualName: dispName, // ADJ-02 — display string, not slug
       },
     })
     .returning({ id: ritualPendingResponses.id });
@@ -526,25 +558,61 @@ export async function handleConfirmationReply(
   }
 
   // STEP 4: Apply or abort
+  // Phase 41 ADJ-04 (D-41-05): each completion path resets skip_count = 0
+  // and emits a paired RESPONDED fire-event inside a transaction so
+  // computeSkipCount replay stays consistent. sendMessage stays OUTSIDE the
+  // transaction per state-then-send pattern (BL-11 outbox rework deferred to v2.7).
   if (isYes) {
-    await confirmConfigPatch(pending.ritualId, proposedChange, 'user');
-    await bot.api.sendMessage(chatId, `Applied: ${proposedChange.field} = ${proposedChange.new_value}`);
+    await db.transaction(async (tx) => {
+      await confirmConfigPatch(pending.ritualId, proposedChange, 'user');
+      await tx
+        .update(rituals)
+        .set({ skipCount: 0 })
+        .where(eq(rituals.id, pending.ritualId));
+      await tx.insert(ritualFireEvents).values({
+        ritualId: pending.ritualId,
+        firedAt: new Date(),
+        outcome: RITUAL_OUTCOME.RESPONDED,
+        metadata: { confirmationId: pending.id, source: 'user_yes' },
+      });
+    });
+    // ADJ-02 / WR-09: use display label, not raw slug, in the applied ack.
+    await bot.api.sendMessage(
+      chatId,
+      `Applied: ${configFieldLabel(proposedChange.field, 'English')} = ${proposedChange.new_value}`,
+    );
     logger.info(
       { ritualId: pending.ritualId, field: proposedChange.field, actor: 'user' },
       'chris.adjustment.applied',
     );
   } else {
     // No (or anything else) — abort
-    await db.insert(ritualConfigEvents).values({
-      ritualId: pending.ritualId,
-      actor: 'user',
-      patch: {
-        kind: 'abort',
-        field: proposedChange.field,
-        source: 'user_explicit_no',
-      },
+    await db.transaction(async (tx) => {
+      await tx.insert(ritualConfigEvents).values({
+        ritualId: pending.ritualId,
+        actor: 'user',
+        patch: {
+          kind: 'abort',
+          field: proposedChange.field,
+          source: 'user_explicit_no',
+        },
+      });
+      await tx
+        .update(rituals)
+        .set({ skipCount: 0 })
+        .where(eq(rituals.id, pending.ritualId));
+      await tx.insert(ritualFireEvents).values({
+        ritualId: pending.ritualId,
+        firedAt: new Date(),
+        outcome: RITUAL_OUTCOME.RESPONDED,
+        metadata: { confirmationId: pending.id, source: 'user_no' },
+      });
     });
-    await bot.api.sendMessage(chatId, `OK, keeping current config`);
+    // ADJ-02 / BL-02 polish: name what was declined, not just "current config".
+    await bot.api.sendMessage(
+      chatId,
+      `OK, keeping ${configFieldLabel(proposedChange.field, 'English')} as is`,
+    );
     logger.info(
       { ritualId: pending.ritualId, field: proposedChange.field },
       'chris.adjustment.aborted',
@@ -728,9 +796,10 @@ async function queueConfigPatchConfirmation(
   const expiresAt = new Date(firedAt.getTime() + CONFIRMATION_WINDOW_SECONDS * 1000);
 
   // Send confirmation echo before inserting pending row (mirrors journal sequencing)
+  // Phase 41 ADJ-02 / WR-09: use display label, not raw slug, in the confirmation echo.
   await bot.api.sendMessage(
     chatId,
-    `Change ${proposedChange.field} to ${proposedChange.new_value} — OK? (auto-applies in 60s if no reply)`,
+    `Change ${configFieldLabel(proposedChange.field, 'English')} to ${proposedChange.new_value} — OK? (auto-applies in 60s if no reply)`,
   );
 
   await db.insert(ritualPendingResponses).values({

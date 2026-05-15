@@ -107,10 +107,13 @@ describe('Phase 28 Plan 03 SKIP-04 — adjustment dialogue + Haiku classificatio
     // 1. Returns in_dialogue outcome
     expect(outcome).toBe('in_dialogue');
 
-    // 2. Telegram message sent containing ritual name and cadence
+    // 2. Telegram message sent in the Phase 41 ADJ-01 observational form,
+    // referencing the ritual by its display name. The FIXTURE_RITUAL_NAME slug
+    // is not present in RITUAL_DISPLAY_NAMES, so displayName() falls back to
+    // the slug per the `?? slug` contract.
     expect(mockSendMessage).toHaveBeenCalledOnce();
     const [, sentText] = mockSendMessage.mock.calls[0]!;
-    expect(sentText).toContain('daily');
+    expect(sentText).toContain("I noticed we've missed");
     expect(sentText).toContain(FIXTURE_RITUAL_NAME);
 
     // 3. ritual_pending_responses row created with metadata.kind = 'adjustment_dialogue'
@@ -172,10 +175,11 @@ describe('Phase 28 Plan 03 SKIP-04 — adjustment dialogue + Haiku classificatio
     expect(expiresMs - firedMs).toBeGreaterThanOrEqual(55_000);
     expect(expiresMs - firedMs).toBeLessThanOrEqual(65_000);
 
-    // 2. Telegram echo sent
+    // 2. Telegram echo sent. Phase 41 ADJ-02 / WR-09 routes the slug through
+    // configFieldLabel — fire_at → "fire time" in the EN locale slot.
     expect(mockSendMessage).toHaveBeenCalledTimes(1);
     const echoText = mockSendMessage.mock.calls[0]![1] as string;
-    expect(echoText).toContain('fire_at');
+    expect(echoText).toContain('fire time');
     expect(echoText).toContain('19:30');
 
     // 3. Original pending row consumed
