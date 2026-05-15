@@ -213,13 +213,33 @@ async function readOneProfile<T>(
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function stripMetadataColumns(row: Record<string, any>): Record<string, unknown> {
+  // CONTRACT-01 scope NOTE (Phase 43 / D-09 — deviation from plan):
+  // The plan asked to add `dataConsistency: _dataConsistency` to this destructure
+  // alongside the shared.ts copy. That edit BROKE the v3 Zod re-validate path:
+  // JurisdictionalProfileSchemaV3 / Capital / Health / Family all declare
+  // `data_consistency: z.number()...` at top level under `.strict()`, so the
+  // reader's safeParse REQUIRES the field. Stripping it produces an "unknown
+  // key" rejection that null-routes every read.
+  //
+  // The CONTRACT-01 *semantic* — "host-computes-not-emits, prevState handed to
+  // Sonnet must not leak dataConsistency" — only applies to the prompt-builder
+  // path. That path lives in src/memory/profiles/shared.ts:stripMetadataColumns
+  // (CONTRACT-01 fully applied there). This reader-side helper feeds the v3
+  // schema parse, where data_consistency is a required field — discarding it
+  // here is a no-op against the threat model and breaks reads.
+  //
+  // The `confidence: _confidence` rename below DOES align with the plan-locked
+  // pattern (`_` prefix marks intentional discard) — `confidence` is the host-
+  // computed final value the reader exposes as ProfileRow.confidence, not part
+  // of the parsed data shape.
   const {
-    id, name, schemaVersion, substrateHash, confidence,
+    id, name, schemaVersion, substrateHash,
+    confidence: _confidence,
     lastUpdated, createdAt,
     ...rest
   } = row;
   void id; void name; void schemaVersion; void substrateHash;
-  void confidence; void lastUpdated; void createdAt;
+  void _confidence; void lastUpdated; void createdAt;
 
   // Drizzle returns camelCase keys; Zod schemas expect snake_case. Convert.
   const snakeRest: Record<string, unknown> = {};

@@ -359,12 +359,13 @@ export function sanitizeSubstrateText(text: string): string {
  */
 function stripMetadataColumns(row: Record<string, unknown>): Record<string, unknown> {
   const {
-    id, name, schemaVersion, substrateHash, confidence: _confidence,
+    id, name, schemaVersion, substrateHash,
+    confidence: _confidence, dataConsistency: _dataConsistency,
     lastUpdated, createdAt,
     ...rest
   } = row;
   void id; void name; void schemaVersion; void substrateHash;
-  void _confidence; void lastUpdated; void createdAt;
+  void _confidence; void _dataConsistency; void lastUpdated; void createdAt;
 
   // Drizzle returns camelCase keys; Zod schemas expect snake_case. Convert.
   const snakeRest: Record<string, unknown> = {};

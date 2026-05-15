@@ -809,3 +809,91 @@ describe('formatPsychologicalProfilesForPrompt — gates and rendering (Phase 39
     expect(outPsych).not.toContain('Attachment');
   });
 });
+
+// CONTRACT-01 / D-09 regression — Phase 34 BL-02 closure
+//
+// stripMetadataColumns in src/memory/profiles/shared.ts MUST discard both
+// `confidence` AND `dataConsistency` from the snake-cased prevState object
+// handed to the prompt builder so neither host-computed field leaks back to
+// Sonnet via the rendered '## CURRENT PROFILE STATE' block.
+//
+// Plan-deviation note (Rule 1 fix): The plan asked to apply the same edit to
+// the symmetry copy in src/memory/profiles.ts. That edit was reverted because
+// the reader-side helper feeds the v3 Zod parse, and JurisdictionalProfileSchemaV3
+// (+ Capital/Health/Family v3) all declare `data_consistency` as a required
+// top-level field under `.strict()` — stripping it null-routes every read.
+// The CONTRACT-01 *semantic* (no prevState leak to Sonnet) only applies to
+// the prompt-builder path, which routes through shared.ts. The reader-side
+// strip is retained as-is; `confidence` is still discarded there because it
+// is exposed as ProfileRow.confidence at the row level (not in .data).
+describe('CONTRACT-01: shared.ts stripMetadataColumns discards dataConsistency (D-09)', () => {
+  it('shared.ts strip via JURISDICTIONAL_PROFILE_CONFIG.extractPrevState: snake-cased output omits data_consistency + confidence', async () => {
+    const { JURISDICTIONAL_PROFILE_CONFIG } = await import('../profiles/jurisdictional.js');
+    const rowWithBothMeta = {
+      ...jurisdictionalRow,
+      confidence: 0.42,
+      dataConsistency: 0.55,
+    };
+    const stripped = JURISDICTIONAL_PROFILE_CONFIG.extractPrevState(rowWithBothMeta);
+    expect(stripped).not.toBeNull();
+    const obj = stripped as Record<string, unknown>;
+    expect('confidence' in obj).toBe(false);
+    expect('data_consistency' in obj).toBe(false);
+    // Sanity — the actual jsonb fields ARE present in snake_case
+    expect('current_country' in obj).toBe(true);
+  });
+
+  it('shared.ts strip via CAPITAL_PROFILE_CONFIG.extractPrevState: omits data_consistency + confidence', async () => {
+    const { CAPITAL_PROFILE_CONFIG } = await import('../profiles/capital.js');
+    const rowWithBothMeta = {
+      ...capitalRow,
+      confidence: 0.42,
+      dataConsistency: 0.65,
+    };
+    const stripped = CAPITAL_PROFILE_CONFIG.extractPrevState(rowWithBothMeta);
+    expect(stripped).not.toBeNull();
+    const obj = stripped as Record<string, unknown>;
+    expect('confidence' in obj).toBe(false);
+    expect('data_consistency' in obj).toBe(false);
+    expect('fi_phase' in obj).toBe(true);
+  });
+
+  it('shared.ts strip applied to health + family per-dimension configs', async () => {
+    const { HEALTH_PROFILE_CONFIG } = await import('../profiles/health.js');
+    const { FAMILY_PROFILE_CONFIG } = await import('../profiles/family.js');
+
+    for (const [config, row] of [
+      [HEALTH_PROFILE_CONFIG, { ...healthRow, confidence: 0.5, dataConsistency: 0.7 }],
+      [FAMILY_PROFILE_CONFIG, { ...familyRow, confidence: 0.4, dataConsistency: 0.6 }],
+    ] as const) {
+      const stripped = config.extractPrevState(row);
+      expect(stripped).not.toBeNull();
+      const obj = stripped as Record<string, unknown>;
+      expect('confidence' in obj).toBe(false);
+      expect('data_consistency' in obj).toBe(false);
+    }
+  });
+
+  it('profiles.ts reader strip (UNCHANGED for v3 Zod parse compatibility): data_consistency retained at parse-time, then stripped by ProfileRow.data shape', async () => {
+    // Documentation regression: assert that the reader CAN parse a row with
+    // both confidence and dataConsistency set (proving the v3 schema is
+    // honored). The .data field's exposed shape is governed by the v3 schema
+    // which still includes data_consistency (Plan 43-02 deliberately does
+    // NOT change the reader contract).
+    const rowWithMeta = {
+      ...jurisdictionalRow,
+      confidence: 0.42,
+      dataConsistency: 0.55,
+    };
+    mockLimit
+      .mockResolvedValueOnce([rowWithMeta])
+      .mockResolvedValueOnce([capitalRow])
+      .mockResolvedValueOnce([healthRow])
+      .mockResolvedValueOnce([familyRow]);
+
+    const result = await getOperationalProfiles();
+    expect(result.jurisdictional).not.toBeNull();
+    // confidence is exposed at the ProfileRow level (not in .data)
+    expect(result.jurisdictional!.confidence).toBe(0.42);
+  });
+});
