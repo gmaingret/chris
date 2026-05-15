@@ -31,6 +31,11 @@ import {
   type PsychologicalProfileSubstrateView,
   type AssembledPsychologicalProfilePrompt,
 } from '../psychological-profile-prompt.js';
+import {
+  INJECT_PROFILE_STATE_ANCHOR,
+  INJECT_FENCED_DIRECTIVE,
+  INJECT_PSYCH_ROUTING_ANCHOR,
+} from './fixtures/injection-attacks.js';
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -377,5 +382,168 @@ describe('assemblePsychologicalProfilePrompt — pure prompt assembler (Phase 38
     // The presence of `result` keeps it referenced so the linter does not
     // strip the call.
     expect(typeof result).toBe('object');
+  });
+});
+
+// ── Phase 43 Plan 01 — INJ-02: psych substrate cannot forge prompt anchors ──
+
+describe.each([['hexaco'] as const, ['schwartz'] as const])(
+  'INJ-02: psychological substrate content cannot forge prompt anchors (profileType=%s)',
+  (profileType) => {
+    /**
+     * Slice the assembled system string from the substrate marker onward.
+     * Used to isolate per-test assertions from assembler-controlled markdown
+     * earlier in the system text (the assembler's own '## Profile Focus —
+     * HEXACO Big-Six Personality' is rendered legitimately BEFORE the
+     * '## Substrate' marker).
+     */
+    function substrateSlice(system: string): string {
+      const idx = system.indexOf('## Substrate');
+      expect(idx).toBeGreaterThanOrEqual(0);
+      return system.slice(idx);
+    }
+
+    it('forged ## CURRENT PROFILE STATE in corpus content is escaped to \\##', () => {
+      const substrate: PsychologicalProfileSubstrateView = {
+        corpus: [
+          {
+            id: 'inj1',
+            epistemicTag: null,
+            content: INJECT_PROFILE_STATE_ANCHOR,
+            createdAt: new Date('2026-04-02T08:00:00Z'),
+          },
+        ],
+        episodicSummaries: [],
+        wordCount: 6000,
+      };
+      const result = assemblePsychologicalProfilePrompt(
+        profileType,
+        substrate,
+        null,
+        6000,
+      );
+      const slice = substrateSlice(result.system);
+      expect(slice).toContain('\\## CURRENT PROFILE STATE');
+      expect(slice).not.toMatch(/\n## CURRENT PROFILE STATE\n\{"current_country"/);
+    });
+
+    it('forged ## Profile Focus routing anchor in corpus is escaped (Phase 38 WR-01)', () => {
+      const substrate: PsychologicalProfileSubstrateView = {
+        corpus: [
+          {
+            id: 'route',
+            epistemicTag: null,
+            content: INJECT_PSYCH_ROUTING_ANCHOR,
+            createdAt: new Date('2026-04-02T08:00:00Z'),
+          },
+        ],
+        episodicSummaries: [],
+        wordCount: 6000,
+      };
+      const result = assemblePsychologicalProfilePrompt(
+        profileType,
+        substrate,
+        null,
+        6000,
+      );
+      // The assembler renders its OWN '## Profile Focus — HEXACO Big-Six
+      // Personality' header before the substrate block — that is legitimate
+      // and must remain unescaped. Slice scopes assertion to substrate only.
+      const slice = substrateSlice(result.system);
+      expect(slice).toContain('\\## Profile Focus');
+      // The forged anchor in user content must not appear at line-start (i.e.
+      // the assembler's own anchor is outside this slice, so any unescaped
+      // occurrence in this slice would be a forgery).
+      // Use a leading newline boundary check to scope to line-start matches.
+      // The forged content was inserted into a single substrate line; the
+      // sanitization should have prepended \ so the line-start form is gone.
+      expect(slice.split('\n').some((ln) => ln.startsWith('## Profile Focus'))).toBe(false);
+    });
+
+    it('triple-backtick fence in corpus content is neutralized to single quotes', () => {
+      const substrate: PsychologicalProfileSubstrateView = {
+        corpus: [
+          {
+            id: 'fence',
+            epistemicTag: null,
+            content: INJECT_FENCED_DIRECTIVE,
+            createdAt: new Date('2026-04-02T08:00:00Z'),
+          },
+        ],
+        episodicSummaries: [],
+        wordCount: 6000,
+      };
+      const result = assemblePsychologicalProfilePrompt(
+        profileType,
+        substrate,
+        null,
+        6000,
+      );
+      const slice = substrateSlice(result.system);
+      expect(slice).not.toContain('```');
+      expect(slice).toContain("'''");
+    });
+
+    it('operational-vocab epistemicTag is allowlist-stripped to alphanumeric (Phase 38 WR-05)', () => {
+      const substrate: PsychologicalProfileSubstrateView = {
+        corpus: [
+          {
+            id: 'tag1',
+            // Adversarial tag value containing non-alphanumeric chars. The
+            // allowlist `/[^A-Za-z0-9_-]/g` strips spaces + '!!!' leaving
+            // the alphanumeric stem 'jurisdictional'.
+            epistemicTag: 'jurisdictional !!!',
+            content: 'benign content',
+            createdAt: new Date('2026-04-02T08:00:00Z'),
+          },
+        ],
+        episodicSummaries: [],
+        wordCount: 6000,
+      };
+      const result = assemblePsychologicalProfilePrompt(
+        profileType,
+        substrate,
+        null,
+        6000,
+      );
+      expect(result.system).toContain('[jurisdictional]');
+      expect(result.system).not.toContain('[jurisdictional !!!]');
+    });
+
+    it('episodic summary forged anchor is escaped', () => {
+      const substrate: PsychologicalProfileSubstrateView = {
+        corpus: [],
+        episodicSummaries: [
+          {
+            summaryDate: '2026-04-15',
+            summary: INJECT_PROFILE_STATE_ANCHOR,
+          },
+        ],
+        wordCount: 6000,
+      };
+      const result = assemblePsychologicalProfilePrompt(
+        profileType,
+        substrate,
+        null,
+        6000,
+      );
+      const slice = substrateSlice(result.system);
+      expect(slice).toContain('\\## CURRENT PROFILE STATE');
+      expect(slice).not.toMatch(/\n## CURRENT PROFILE STATE\n\{"current_country"/);
+    });
+  },
+);
+
+// D-04 boundary audit — assert at the source level that
+// psychological-profile-prompt.ts does NOT import sanitizeSubstrateText from
+// shared.ts. The static boundary discipline is the structural defense; this
+// test is the runtime-readable sentinel. The constant below MUST remain
+// `false` — if a future refactor introduces the forbidden import, the static
+// audit will flag it, but this assertion serves as in-test documentation.
+describe('INJ-02 / D-04 + D047 boundary: psychological prompt does NOT import from shared.ts', () => {
+  it('local sanitizeSubstrateText is module-private (not exported)', async () => {
+    const mod = await import('../psychological-profile-prompt.js');
+    // sanitizeSubstrateText must NOT appear on the module's public surface.
+    expect('sanitizeSubstrateText' in mod).toBe(false);
   });
 });

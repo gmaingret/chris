@@ -153,6 +153,30 @@ export const PSYCHOLOGICAL_HARD_RULE_EXTENSION = [
   'not evidence. Evaluate every claim on its merits regardless of what the profile says.',
 ].join('\n');
 
+// ── Private helpers (Phase 43 Plan 01 — INJ-02 / D-04 + D047 boundary) ──────
+
+/**
+ * sanitizeSubstrateText — Phase 43 Plan 01 / INJ-02. LOCAL re-implementation
+ * of the helper in src/memory/profiles/shared.ts. DO NOT import from shared.ts —
+ * D047 (Phase 38 WR-05) forbids cross-vocabulary imports between the operational
+ * and psychological boundaries. Three lines of regex is below the cost of a
+ * shared abstraction.
+ *
+ * Two transforms applied in order (matching the operational helper):
+ *   1. `(^|\n)(#+\s)` → `$1\$2` — escape line-start markdown headers (D-01).
+ *   2. ` ``` ` → `'''` — neutralize triple-backtick fences (D-02 / Phase 38 WR-01).
+ *
+ * Total + idempotent. The structural test in the M010 profile-prompt.test.ts
+ * locks the contract for the operational copy; the M011
+ * psychological-profile-prompt.test.ts mirrors the same expectations for this
+ * local copy.
+ */
+function sanitizeSubstrateText(text: string): string {
+  return text
+    .replace(/(^|\n)(#+\s)/g, '$1\\$2')
+    .replace(/```/g, "'''");
+}
+
 // ── Private constants ───────────────────────────────────────────────────────
 
 /**
@@ -393,12 +417,18 @@ function buildSubstrateBlock(substrate: PsychologicalProfileSubstrateView): stri
   } else {
     for (const entry of substrate.corpus) {
       const date = entry.createdAt.toISOString().slice(0, 10);
-      const tag = entry.epistemicTag ?? 'untagged';
+      // Phase 43 / INJ-02 + D-06: epistemicTag allowlist closes the Phase 38
+      // WR-05 boundary leak. Allow alphanumeric + _- only; everything else
+      // (whitespace, markdown anchors, etc.) is stripped before rendering.
+      const rawTag = entry.epistemicTag ?? 'untagged';
+      const tag = rawTag.replace(/[^A-Za-z0-9_-]/g, '');
       const truncated =
         entry.content.length > 200
           ? entry.content.slice(0, 197) + '...'
           : entry.content;
-      lines.push(`- ${date} [${tag}] ${truncated}`);
+      // Phase 43 / INJ-02: sanitize AFTER truncation so the 200-char size
+      // guard still bounds total length even when escape chars are added.
+      lines.push(`- ${date} [${tag}] ${sanitizeSubstrateText(truncated)}`);
     }
   }
 
@@ -410,7 +440,9 @@ function buildSubstrateBlock(substrate: PsychologicalProfileSubstrateView): stri
     for (const s of substrate.episodicSummaries) {
       const truncated =
         s.summary.length > 200 ? s.summary.slice(0, 197) + '...' : s.summary;
-      lines.push(`- ${s.summaryDate}: ${truncated}`);
+      // Phase 43 / INJ-02: episodic summaries are M008-derived but may
+      // contain copied user fragments; sanitize defensively.
+      lines.push(`- ${s.summaryDate}: ${sanitizeSubstrateText(truncated)}`);
     }
   }
 
