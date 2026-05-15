@@ -140,6 +140,20 @@ if (!FIXTURE_PRESENT) {
   );
 }
 
+// Phase 44 CI-02: REQUIRE_FIXTURES=1 env-gated hard-fail.
+// FIXTURE_NAME = 'm011-1000words-5days' (Phase 45 FIX-02b alignment with
+// synthesize-delta.ts:964 `${milestone}-${targetDays}days` output dir).
+if (!FIXTURE_PRESENT && process.env.REQUIRE_FIXTURES === '1') {
+  describe('[CI-GATE] fixture present', () => {
+    it(`${FIXTURE_PATH} must exist when REQUIRE_FIXTURES=1`, () => {
+      throw new Error(
+        `Milestone-gate fixture missing: ${FIXTURE_PATH}. ` +
+          `Regenerate via: npx tsx scripts/regenerate-primed.ts --milestone m011-1000words --target-days 5 --psych-profile-bias --force --seed 42`,
+      );
+    });
+  });
+}
+
 const skipIfAbsent = FIXTURE_PRESENT ? describe : describe.skip;
 
 // ── NOW anchor — within fixture date range ─────────────────────────────────
