@@ -37,14 +37,14 @@
 
 ### INJ — Prompt-injection mitigation (T4, 1 BLOCKER + 1 WARNING from Phases 34/38)
 
-- [ ] **INJ-01**: Operational profile prompt escapes user-controlled content before interpolation — Pensieve `content`, episodic `summary`, decision `decisionText`/`resolution` cannot reproduce `## CURRENT PROFILE STATE` or other reserved anchors. Forged profiles can no longer hijack the structured-output contract and persist via `onConflictDoUpdate`. Source: `src/memory/profile-prompt.ts:312-345`.
-- [ ] **INJ-02**: Psychological profile prompt applies the same defense-in-depth mitigation at `src/memory/psychological-profile-prompt.ts:393-403`.
+- [x] **INJ-01**: Operational profile prompt escapes user-controlled content before interpolation — Pensieve `content`, episodic `summary`, decision `decisionText`/`resolution` cannot reproduce `## CURRENT PROFILE STATE` or other reserved anchors. Forged profiles can no longer hijack the structured-output contract and persist via `onConflictDoUpdate`. Source: `src/memory/profile-prompt.ts:312-345`. **Shipped Phase 43-01 (commits 54979c4 + 1e00beb, 2026-05-15).**
+- [x] **INJ-02**: Psychological profile prompt applies the same defense-in-depth mitigation at `src/memory/psychological-profile-prompt.ts:393-403`. **Shipped Phase 43-01 (commit a7cd006, 2026-05-15).**
 
 ### CONTRACT — Inference contract enforcement (T5, 2 BLOCKERs + 1 WARNING from Phases 34/38)
 
-- [ ] **CONTRACT-01**: `stripMetadataColumns` strips `dataConsistency` at `src/memory/profiles/shared.ts:321-337` — every non-first fire no longer shows Sonnet its prior `data_consistency` value alongside the anti-drift directive. "Host computes, you don't emit" contract restored.
-- [ ] **CONTRACT-02**: `extract<X>PrevState` for jurisdictional/capital/health/family returns `null` (omits the prevState section entirely) when `substrateHash === ''` — first-fire after deploy no longer shows Sonnet empty fields + anti-drift directive (worst-case anchoring for the M010-03 profile-drift threat). 4 files: `jurisdictional.ts:59-66` + 3 siblings.
-- [ ] **CONTRACT-03**: Sonnet's `data_consistency` field from psychological inference persists in a new `data_consistency real NOT NULL DEFAULT 0` column (CHECK 0..1) on `profile_hexaco`, `profile_schwartz`, `profile_attachment` — currently logged then discarded at `psychological-shared.ts:619-628`. Migration `0014_psychological_data_consistency_column`. `profile_history` snapshot picks it up automatically since it copies full rows. Unblocks future CONS-01 host-side consistency math.
+- [x] **CONTRACT-01**: `stripMetadataColumns` strips `dataConsistency` at `src/memory/profiles/shared.ts:321-337` — every non-first fire no longer shows Sonnet its prior `data_consistency` value alongside the anti-drift directive. "Host computes, you don't emit" contract restored. **Shipped Phase 43-02 (commit e74e795, 2026-05-15).** Note: reader-side strip in `src/memory/profiles.ts` intentionally NOT modified (would null-route v3 Zod parses).
+- [x] **CONTRACT-02**: `extract<X>PrevState` for jurisdictional/capital/health/family returns `null` (omits the prevState section entirely) when `substrateHash === ''` — first-fire after deploy no longer shows Sonnet empty fields + anti-drift directive (worst-case anchoring for the M010-03 profile-drift threat). 4 files: `jurisdictional.ts:59-66` + 3 siblings. **Shipped Phase 43-02 (commit bee4bae, 2026-05-15).**
+- [x] **CONTRACT-03**: Sonnet's `data_consistency` field from psychological inference persists in a new `data_consistency real NOT NULL DEFAULT 0` column (CHECK 0..1) on `profile_hexaco`, `profile_schwartz`, `profile_attachment` — currently logged then discarded at `psychological-shared.ts:619-628`. Migration `0014_psychological_data_consistency_column`. `profile_history` snapshot picks it up automatically since it copies full rows. Unblocks future CONS-01 host-side consistency math. **Shipped Phase 43-02 (commits 99e80df + 34b3b46, 2026-05-15).**
 
 ### L10N — FR/RU localization (T6, 6 sub-areas)
 
@@ -134,11 +134,11 @@
 | RACE-04 | Phase 42 | Done (2026-05-15) |
 | RACE-05 | Phase 42 | Done (2026-05-15) |
 | RACE-06 | Phase 42 | Done (2026-05-15) |
-| INJ-01 | Phase 43 | Pending |
-| INJ-02 | Phase 43 | Pending |
-| CONTRACT-01 | Phase 43 | Pending |
-| CONTRACT-02 | Phase 43 | Pending |
-| CONTRACT-03 | Phase 43 | Pending |
+| INJ-01 | Phase 43 | Done (2026-05-15) |
+| INJ-02 | Phase 43 | Done (2026-05-15) |
+| CONTRACT-01 | Phase 43 | Done (2026-05-15) |
+| CONTRACT-02 | Phase 43 | Done (2026-05-15) |
+| CONTRACT-03 | Phase 43 | Done (2026-05-15) |
 | CI-01 | Phase 44 | Pending |
 | CI-02 | Phase 44 | Pending |
 | CI-03 | Phase 44 | Pending |

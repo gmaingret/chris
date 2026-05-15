@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.6.1
 milestone_name: Code Review Cleanup
 status: executing
-last_updated: "2026-05-15T07:05:00.000Z"
+last_updated: "2026-05-15T07:35:00.000Z"
 last_activity: 2026-05-15
 progress:
   total_phases: 7
-  completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
-  percent: 29
+  completed_phases: 3
+  total_plans: 7
+  completed_plans: 7
+  percent: 43
 ---
 
 # Project State
@@ -25,10 +25,23 @@ See: .planning/PROJECT.md (symlink to /home/claude/chris/PLAN.md).
 
 ## Current Position
 
-Phase: Phase 42 (Atomicity & Race Fixes) — COMPLETE (Wave 2 of 7)
-Plans shipped: 42-01 + 42-02 + 42-03 (3 plans, 7 tasks, 8 commits)
-Status: All 6 RACE requirements green; full rituals suite 220/220 + 1 pre-existing skip. Awaiting Wave 3 orchestrator dispatch (Phase 43 — Inference Security & Contract Enforcement).
-Last activity: 2026-05-15 — Phase 42 ships 6/6 RACE requirements; concurrent-harness helper extracted; Docker harness 220/220 green.
+Phase: Phase 43 (Inference Security & Contract Enforcement) — COMPLETE (Wave 3 of 7)
+Plans shipped: 43-01 + 43-02 (2 plans, 10 tasks, 9 commits + 1 docs commit)
+Status: All 5 v2.6.1 Phase 43 requirements green (INJ-01 / INJ-02 / CONTRACT-01 / CONTRACT-02 / CONTRACT-03). Migration 0014_psychological_data_consistency_column shipped via HARD CO-LOC bundle; data_consistency column live on profile_hexaco + profile_schwartz + profile_attachment; CHECK 0..1 enforced. Full src/memory/__tests__/ Docker gate 242/242 green; rituals/pensieve/episodic 427/427 green. Awaiting Wave 4 orchestrator dispatch — note: NEXT phase is Phase **45** (not 44) because Phase 44 depends on Phase 45's FIX-02 fixture-path bug fix.
+Last activity: 2026-05-15 — Phase 43 ships 5/5 requirements; migration 0014 applied cleanly; 47+ new test assertions added.
+
+### Phase 43 commits
+
+- `b3b20da` test(43-01): add canonical injection-attack fixtures (D-07)
+- `54979c4` feat(43-01): add sanitizeSubstrateText helper + contract tests (D-01..D-04)
+- `1e00beb` fix(43-01): INJ-01 — escape user-controlled substrate strings in operational prompt
+- `a7cd006` fix(43-01): INJ-02 — escape user-controlled substrate in psychological prompt
+- `7991dba` docs(43-01): plan 01 summary + deferred-items (INJ-01 + INJ-02 shipped)
+- `e74e795` fix(43-02): CONTRACT-01 — strip dataConsistency from prevState (D-09)
+- `bee4bae` fix(43-02): CONTRACT-02 — extract<X>PrevState null on seed-row sentinel (D-10)
+- `99e80df` feat(43-02): CONTRACT-03 — migration 0014_psychological_data_consistency_column (D-15)
+- `34b3b46` fix(43-02): CONTRACT-03 — persist data_consistency in psychological upsert (D-14)
+- `1924813` fix(43-02): cascade fixes from CONTRACT-01 + CONTRACT-02 + CONTRACT-03 (Rule 1/2)
 
 ### Phase 42 commits
 
