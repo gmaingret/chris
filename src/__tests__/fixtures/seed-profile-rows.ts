@@ -156,6 +156,15 @@ export async function seedProfileRows(
   );
 
   // ── profile_health (confidence 0, all "insufficient data") ────────────
+  // Phase 45-04 FIX-06 (v2.6.1, 2026-05-15): wellbeing_trend uses the
+  // post-migration-0016 v3-Zod-conformant shape (energy/mood/anxiety
+  // nullable means) instead of the bare `'{}'::jsonb` shape from
+  // migration 0012's original DEFAULT. The reader's
+  // `HealthProfileSchemaV3.parent.wellbeing_trend` is a `.strict()`
+  // object requiring three nullable-number keys; the bare `{}` shape
+  // triggers `chris.profile.read.schema_mismatch` at PMT-06 read time.
+  // Mirrors migration 0016's backfill UPDATE so test-time seed state
+  // matches prod-time backfilled state. See migrations/0016 + D-13/D-14.
   await client.unsafe(
     `INSERT INTO profile_health
        (name, schema_version, substrate_hash, confidence, data_consistency,
@@ -168,7 +177,7 @@ export async function seedProfileRows(
         '[]'::jsonb,
         '[]'::jsonb,
         '"insufficient data"'::jsonb,
-        '{}'::jsonb,
+        '{"energy_30d_mean":null,"mood_30d_mean":null,"anxiety_30d_mean":null}'::jsonb,
         NOW())
      ON CONFLICT (name) DO UPDATE SET
        schema_version = EXCLUDED.schema_version,
@@ -185,6 +194,12 @@ export async function seedProfileRows(
   );
 
   // ── profile_family (confidence 0, all "insufficient data") ────────────
+  // Phase 45-04 FIX-06 (v2.6.1, 2026-05-15): parent_care_responsibilities
+  // uses the post-migration-0016 v3-Zod-conformant shape (notes/dependents)
+  // instead of bare `'{}'::jsonb`. Mirrors migration 0016 backfill so
+  // test-time seed state matches prod-time backfilled state. Closes the
+  // `family.parent_care_responsibilities` schema_mismatch warn surface at
+  // PMT-06 read time. See migrations/0016 + D-13/D-14.
   await client.unsafe(
     `INSERT INTO profile_family
        (name, schema_version, substrate_hash, confidence, data_consistency,
@@ -196,7 +211,7 @@ export async function seedProfileRows(
         '"insufficient data"'::jsonb,
         '[]'::jsonb,
         '"insufficient data"'::jsonb,
-        '{}'::jsonb,
+        '{"notes":null,"dependents":[]}'::jsonb,
         '"insufficient data"'::jsonb,
         '[]'::jsonb,
         '[]'::jsonb,
