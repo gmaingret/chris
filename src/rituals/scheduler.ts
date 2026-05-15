@@ -372,56 +372,86 @@ export async function ritualResponseWindowSweep(now: Date = new Date()): Promise
   let emittedCount = 0;
 
   for (const row of expired) {
-    // STEP 2: Atomic-consume via UPDATE...RETURNING (mirrors journal.ts:184-204).
-    // If no row returned, a concurrent sweep or PP#5 deposit consumed it first.
-    // Race is handled silently — continue to next iteration.
-    const [consumed] = await db
-      .update(ritualPendingResponses)
-      .set({ consumedAt: now })
-      .where(
-        and(
-          eq(ritualPendingResponses.id, row.id),
-          isNull(ritualPendingResponses.consumedAt),
-        ),
-      )
-      .returning({
-        id: ritualPendingResponses.id,
+    // Phase 42 RACE-02 (D-42-04 + D-42-05): wrap the per-row atomic-consume +
+    // paired-insert + skip_count UPDATE in a single db.transaction. Mid-row
+    // throw (e.g., second fire_event INSERT fails) rolls back the consume
+    // claim, both audit-log INSERTs, AND the skip_count increment — no
+    // half-state where the bot moved on but the audit log is missing.
+    //
+    // The OUTER per-row try/catch is OUTSIDE the transaction (D-42-05): if
+    // one row's transaction throws, log + continue to the next row. The
+    // transaction is per-row, NOT per-sweep, so a single bad row does NOT
+    // roll back the entire sweep — preserves per-row error isolation
+    // (the "PAIRED EMIT" claim of "unique-PK retry idempotency" in the
+    // pre-RACE-02 code was wrong — there is no retry loop in the sweep,
+    // so the only way to guarantee paired commit-or-rollback was a
+    // transaction; mirrors src/proactive/state.ts:setEscalationState
+    // precedent — D-42-16).
+    try {
+      const committed = await db.transaction(async (tx) => {
+        // STEP 2 (in-tx): Atomic-consume via UPDATE...RETURNING
+        // (mirrors journal.ts:184-204). If no row returned, a concurrent
+        // sweep or PP#5 deposit consumed it first — return false to skip
+        // the paired emit (the empty transaction commits as a no-op).
+        const [consumed] = await tx
+          .update(ritualPendingResponses)
+          .set({ consumedAt: now })
+          .where(
+            and(
+              eq(ritualPendingResponses.id, row.id),
+              isNull(ritualPendingResponses.consumedAt),
+            ),
+          )
+          .returning({
+            id: ritualPendingResponses.id,
+          });
+
+        if (!consumed) {
+          // Race lost — peer (PP#5 or concurrent sweep) consumed first.
+          return false;
+        }
+
+        // STEP 3 (in-tx): PAIRED EMIT inside db.transaction — both INSERTs
+        // commit-or-rollback together with the consume claim and the
+        // skip_count increment. Mid-tx throw rolls all four writes back.
+        const pendingResponseId = row.id;
+        const expiresAtIso = row.expiresAt.toISOString();
+
+        await tx.insert(ritualFireEvents).values({
+          ritualId: row.ritualId,
+          firedAt: now,
+          outcome: RITUAL_OUTCOME.WINDOW_MISSED,
+          metadata: { pendingResponseId, expiresAt: expiresAtIso },
+        });
+
+        await tx.insert(ritualFireEvents).values({
+          ritualId: row.ritualId,
+          firedAt: now,
+          outcome: RITUAL_OUTCOME.FIRED_NO_RESPONSE,
+          metadata: { pendingResponseId, expiresAt: expiresAtIso },
+        });
+
+        // STEP 4 (in-tx): Increment denormalized skip_count by 1 (D-28-03).
+        // Inside the tx so a thrown INSERT above rolls this back too.
+        await tx
+          .update(rituals)
+          .set({ skipCount: sql`${rituals.skipCount} + 1` })
+          .where(eq(rituals.id, row.ritualId));
+
+        return true;
       });
 
-    if (!consumed) {
-      // Race lost — peer (PP#5 or concurrent sweep) consumed first. Silently skip.
-      continue;
+      if (committed) {
+        emittedCount++;
+      }
+    } catch (rowErr) {
+      // Per-row transaction failed — log and continue to the next row
+      // (preserves sweep-wide error isolation per D-42-05).
+      logger.warn(
+        { err: rowErr, pendingResponseId: row.id, ritualId: row.ritualId },
+        'rituals.window_sweep.row_failed',
+      );
     }
-
-    // STEP 3: PAIRED EMIT — window_missed (fact) + fired_no_response (policy).
-    // Two sequential inserts, NOT a transaction — both are idempotent under
-    // retry because each has a unique uuid PK. D-28-03 accepts this tradeoff.
-    const pendingResponseId = row.id;
-    const expiresAtIso = row.expiresAt.toISOString();
-
-    await db.insert(ritualFireEvents).values({
-      ritualId: row.ritualId,
-      firedAt: now,
-      outcome: RITUAL_OUTCOME.WINDOW_MISSED,
-      metadata: { pendingResponseId, expiresAt: expiresAtIso },
-    });
-
-    await db.insert(ritualFireEvents).values({
-      ritualId: row.ritualId,
-      firedAt: now,
-      outcome: RITUAL_OUTCOME.FIRED_NO_RESPONSE,
-      metadata: { pendingResponseId, expiresAt: expiresAtIso },
-    });
-
-    // STEP 4: Increment denormalized skip_count by 1 (D-28-03).
-    // Idempotent: each fired_no_response event is unique, so increment count
-    // matches event count after replay from ritual_fire_events.
-    await db
-      .update(rituals)
-      .set({ skipCount: sql`${rituals.skipCount} + 1` })
-      .where(eq(rituals.id, row.ritualId));
-
-    emittedCount++;
   }
 
   logger.info(

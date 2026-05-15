@@ -28,8 +28,14 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { eq, inArray } from 'drizzle-orm';
 import { db, sql } from '../../db/connection.js';
-import { rituals, proactiveState } from '../../db/schema.js';
+import {
+  rituals,
+  ritualPendingResponses,
+  ritualFireEvents,
+  proactiveState,
+} from '../../db/schema.js';
 import { hasReachedRitualDailyCap } from '../../proactive/state.js';
+import { logger } from '../../utils/logger.js';
 
 // Phase 29 D-29-08: mock fireWeeklyReview at module level so the dispatch
 // case in scheduler.ts is exercised without invoking the real Sonnet pipeline.
@@ -38,8 +44,15 @@ vi.mock('../weekly-review.js', () => ({
   fireWeeklyReview: vi.fn().mockResolvedValue('fired'),
 }));
 
-import { runRitualSweep } from '../scheduler.js';
+import { runRitualSweep, ritualResponseWindowSweep } from '../scheduler.js';
 import { fireWeeklyReview } from '../weekly-review.js';
+
+// File-level cleanup: close the postgres pool after BOTH describe blocks
+// (runRitualSweep + ritualResponseWindowSweep) have run. Closing inside
+// either describe's afterAll would race the sibling describe's tests.
+afterAll(async () => {
+  await sql.end();
+});
 
 const FIXTURE_PREFIX = 'sched-test-';
 const COUNTER_KEY = 'ritual_daily_count';
@@ -81,7 +94,9 @@ describe('runRitualSweep', () => {
       .update(rituals)
       .set({ nextRunAt: farFuture })
       .where(eq(rituals.name, 'weekly_review'));
-    await sql.end();
+    // NOTE: sql.end() lives in the FILE-LEVEL afterAll below — closing the
+    // pool here would break sibling describe blocks (RACE-02 transactional
+    // tests) that share this file.
   });
 
   it('returns empty array against clean DB without throwing (RIT-09 success criterion 3)', async () => {
@@ -402,4 +417,194 @@ describe('runRitualSweep', () => {
     expect(errMsg).toContain(`${FIXTURE_PREFIX}unmapped`);
   });
 
+});
+
+// ── Phase 42 RACE-02 — ritualResponseWindowSweep transactional rollback ─────
+
+describe('ritualResponseWindowSweep — RACE-02 transactional paired-insert (D-42-04)', () => {
+  // Trigger that throws when a FIRED_NO_RESPONSE INSERT happens against
+  // ritual_fire_events. Used to force a mid-tx throw inside the per-row
+  // transaction of ritualResponseWindowSweep so we can verify the rollback
+  // contract: consumedAt stays NULL, neither audit row is written, and
+  // skip_count is unchanged.
+  // Use the raw postgres-js `sql` tagged template directly (not via
+  // db.execute(...) which goes through drizzle's SQL builder and chokes on
+  // dollar-quoted PL/pgSQL bodies). `sql.unsafe` accepts arbitrary SQL text
+  // including $$ blocks.
+  async function installFiredNoResponseBlocker(): Promise<void> {
+    await sql.unsafe(`
+      CREATE OR REPLACE FUNCTION race_02_block_fnr_fn()
+      RETURNS trigger AS $$
+      BEGIN
+        IF NEW.outcome = 'fired_no_response' THEN
+          RAISE EXCEPTION 'RACE-02 test forced throw on fired_no_response INSERT';
+        END IF;
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+    `);
+    await sql.unsafe(
+      `DROP TRIGGER IF EXISTS race_02_block_fnr ON ritual_fire_events;`,
+    );
+    await sql.unsafe(`
+      CREATE TRIGGER race_02_block_fnr
+      BEFORE INSERT ON ritual_fire_events
+      FOR EACH ROW EXECUTE FUNCTION race_02_block_fnr_fn();
+    `);
+  }
+
+  async function removeFiredNoResponseBlocker(): Promise<void> {
+    await sql.unsafe(
+      `DROP TRIGGER IF EXISTS race_02_block_fnr ON ritual_fire_events;`,
+    );
+    await sql.unsafe(`DROP FUNCTION IF EXISTS race_02_block_fnr_fn() CASCADE;`);
+  }
+
+  beforeEach(async () => {
+    // FK order: ritual_pending_responses + ritual_fire_events reference
+    // rituals — must delete children FIRST before cleanFixtures wipes
+    // rituals rows.
+    const allRituals = await db.select().from(rituals);
+    const ids = allRituals
+      .filter((r) => r.name.startsWith(FIXTURE_PREFIX))
+      .map((r) => r.id);
+    if (ids.length > 0) {
+      await db
+        .delete(ritualFireEvents)
+        .where(inArray(ritualFireEvents.ritualId, ids));
+      await db
+        .delete(ritualPendingResponses)
+        .where(inArray(ritualPendingResponses.ritualId, ids));
+    }
+    await cleanFixtures();
+  });
+
+  afterAll(async () => {
+    await removeFiredNoResponseBlocker();
+  });
+
+  it('RACE-02: mid-row INSERT throw rolls back consumedAt + skip_count + emits ZERO ritual_fire_events (D-42-04)', async () => {
+    // Seed a fixture ritual + pending response with expires_at in the past
+    const [ritual] = await db
+      .insert(rituals)
+      .values({
+        name: `${FIXTURE_PREFIX}race02`,
+        type: 'daily',
+        nextRunAt: new Date(),
+        enabled: true,
+        config: validConfigJson,
+        skipCount: 7, // arbitrary non-zero starting value to detect mutation
+      })
+      .returning();
+    expect(ritual).toBeDefined();
+    const ritualId = ritual!.id;
+    const skipCountBefore = ritual!.skipCount;
+
+    const expired = new Date(Date.now() - 60_000);
+    const [pending] = await db
+      .insert(ritualPendingResponses)
+      .values({
+        ritualId,
+        chatId: 99999n,
+        firedAt: expired,
+        expiresAt: expired,
+        consumedAt: null,
+        promptText: 'RACE-02 fixture',
+      })
+      .returning();
+    expect(pending).toBeDefined();
+    const pendingId = pending!.id;
+
+    // Install the trigger that forces the second INSERT (fired_no_response)
+    // to throw mid-transaction
+    await installFiredNoResponseBlocker();
+
+    // Spy on logger.warn to verify the per-row error-isolation log fires
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+
+    try {
+      // The sweep should NOT throw — outer try/catch isolates per-row failures
+      const emitted = await ritualResponseWindowSweep(new Date());
+
+      // (d) sweep returns 0 emitted (no successful transaction committed)
+      expect(emitted).toBe(0);
+
+      // (a) zero ritual_fire_events for this ritual (rollback)
+      const events = await db
+        .select()
+        .from(ritualFireEvents)
+        .where(eq(ritualFireEvents.ritualId, ritualId));
+      expect(events).toHaveLength(0);
+
+      // (b) consumedAt rolled back to NULL
+      const [pendingAfter] = await db
+        .select()
+        .from(ritualPendingResponses)
+        .where(eq(ritualPendingResponses.id, pendingId));
+      expect(pendingAfter!.consumedAt).toBeNull();
+
+      // (c) rituals.skip_count unchanged
+      const [ritualAfter] = await db
+        .select()
+        .from(rituals)
+        .where(eq(rituals.id, ritualId));
+      expect(ritualAfter!.skipCount).toBe(skipCountBefore);
+
+      // (e) per-row warn log emitted with row_failed event
+      const rowFailedCalls = warnSpy.mock.calls.filter(
+        (c) => c[1] === 'rituals.window_sweep.row_failed',
+      );
+      expect(rowFailedCalls.length).toBeGreaterThanOrEqual(1);
+    } finally {
+      warnSpy.mockRestore();
+      await removeFiredNoResponseBlocker();
+    }
+  });
+
+  it('RACE-02 happy path: without the trigger, paired-insert commits + skip_count increments', async () => {
+    // Sanity test — confirm the standard path still works after the
+    // transactional wrap. Insert a pending row, sweep, expect:
+    //   - 2 fire_events (window_missed + fired_no_response)
+    //   - consumedAt set
+    //   - skip_count +1
+    const [ritual] = await db
+      .insert(rituals)
+      .values({
+        name: `${FIXTURE_PREFIX}race02ok`,
+        type: 'daily',
+        nextRunAt: new Date(),
+        enabled: true,
+        config: validConfigJson,
+        skipCount: 2,
+      })
+      .returning();
+    const ritualId = ritual!.id;
+
+    const expired = new Date(Date.now() - 60_000);
+    await db.insert(ritualPendingResponses).values({
+      ritualId,
+      chatId: 99999n,
+      firedAt: expired,
+      expiresAt: expired,
+      consumedAt: null,
+      promptText: 'RACE-02 happy fixture',
+    });
+
+    const emitted = await ritualResponseWindowSweep(new Date());
+    expect(emitted).toBe(1);
+
+    const events = await db
+      .select()
+      .from(ritualFireEvents)
+      .where(eq(ritualFireEvents.ritualId, ritualId));
+    expect(events.map((e) => e.outcome).sort()).toEqual(
+      ['fired_no_response', 'window_missed'].sort(),
+    );
+
+    const [ritualAfter] = await db
+      .select()
+      .from(rituals)
+      .where(eq(rituals.id, ritualId));
+    expect(ritualAfter!.skipCount).toBe(3);
+  });
 });
