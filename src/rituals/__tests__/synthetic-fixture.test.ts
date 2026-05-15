@@ -100,7 +100,7 @@ vi.mock('../../utils/logger.js', () => ({
 
 // ── 3. AFTER all vi.mock — real imports (Pitfall 6) ────────────────────
 import { existsSync } from 'node:fs';
-import { sql as drizzleSql, eq, inArray } from 'drizzle-orm';
+import { and, sql as drizzleSql, eq, inArray } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 import { db, sql } from '../../db/connection.js';
 import {
@@ -625,8 +625,30 @@ skipIfAbsent('M009 synthetic fixture (14 days; TEST-23..30)', () => {
     expect(wbRitual).toBeDefined();
     const wbId = wbRitual!.id;
 
-    // Day 0: fire wellbeing at 09:00, then simulate 3 callback taps.
-    const day0 = fixtureDates[0]!;
+    // Phase 42 RACE-05 (D-42-10): the production findOpenWellbeingRow now
+    // additionally requires `fired_at >= now() - interval '24 hours'`
+    // (postgres-server clock). The pre-RACE-05 TEST-28 used fixture-window
+    // dates (~30 days in the past) via vi.setSystemTime — that worked
+    // because `todayLocalDate()` honors the JS-faked clock, so date_trunc
+    // matched. But postgres `now()` is NOT JS-faked; the 24h filter would
+    // reject those rows. To keep TEST-28 black-box-correct for the wellbeing
+    // callback handler, anchor the JS-faked day0/day1 to real today + real
+    // today-1d so the date_trunc filter (JS-faked today) AND the 24h
+    // absolute-window filter (postgres-real now) BOTH match.
+    //
+    // CRITICAL: vi.setSystemTime from prior tests persists across tests in
+    // the same describe block. To get the actual wall-clock date, drop into
+    // real timers temporarily.
+    vi.useRealTimers();
+    const realTodayIso = DateTime.now().setZone(FIXTURE_TZ).toISODate()!;
+    const realYesterdayIso = DateTime.now()
+      .setZone(FIXTURE_TZ)
+      .minus({ days: 1 })
+      .toISODate()!;
+
+    // Day 0: fire wellbeing at 09:00 today (real-time-anchored), then
+    // simulate 3 callback taps.
+    const day0 = realTodayIso;
     vi.setSystemTime(dateAtLocalHour(day0, FIXTURE_TZ, 9, 0));
     await db
       .update(rituals)
@@ -645,6 +667,20 @@ skipIfAbsent('M009 synthetic fixture (14 days; TEST-23..30)', () => {
       .orderBy(drizzleSql`fired_at DESC`)
       .limit(1);
     expect(day0OpenRow, 'fireWellbeing inserted ritual_responses row for day 0').toBeDefined();
+
+    // Phase 42 RACE-05 (D-42-10) test-fixture alignment: the production
+    // `findOpenWellbeingRow` filter now requires `fired_at >= now() - 24 hours`
+    // (postgres-server clock). The fixture flow above uses vi.setSystemTime
+    // to fake the JS clock to a 30-day-old fixture date, so fireWellbeing
+    // inserts ritual_responses.fired_at at the FAKED date. To allow the
+    // callback handler's findOpenWellbeingRow lookup to match, bump the
+    // row's fired_at to real-now (server-side). The wellbeing_snapshots
+    // snapshot_date (computed from `todayLocalDate()` = JS-faked) still
+    // gets the fixture date, so the per-day assertions below stay intact.
+    await db
+      .update(ritualResponses)
+      .set({ firedAt: drizzleSql`now()` })
+      .where(eq(ritualResponses.id, day0OpenRow!.id));
 
     // Simulate 3 button taps (energy=3, mood=4, anxiety=2).
     // Callback data shape per Phase 27 wellbeing.ts: 'r:w:e:N' / 'r:w:m:N' / 'r:w:a:N'.
@@ -665,7 +701,14 @@ skipIfAbsent('M009 synthetic fixture (14 days; TEST-23..30)', () => {
     /* eslint-enable @typescript-eslint/no-explicit-any */
 
     // Day 1: same flow with different values (e=5, m=1, a=5).
-    const day1 = fixtureDates[1]!;
+    // RACE-05 alignment: use real yesterday (within the 24h window) so
+    // findOpenWellbeingRow matches; JS-faked clock controls snapshot_date.
+    //
+    // NOTE: setting day1 = yesterday (real) means the day0 row's fired_at
+    // (which is also real-now) and day1 row's fired_at will land closely in
+    // wall-clock time — both within the 24h window. The date_trunc filter
+    // is what disambiguates them (JS-faked today = day1).
+    const day1 = realYesterdayIso;
     vi.setSystemTime(dateAtLocalHour(day1, FIXTURE_TZ, 9, 0));
     await db
       .update(rituals)
@@ -675,6 +718,30 @@ skipIfAbsent('M009 synthetic fixture (14 days; TEST-23..30)', () => {
       .delete(proactiveState)
       .where(eq(proactiveState.key, 'ritual_daily_count'));
     await runRitualSweep(new Date());
+
+    // RACE-05 fixture-alignment for day 1 (see comment block above for day 0).
+    // For day 1 (JS-faked to "yesterday"), fired_at must be ≤24h ago AND its
+    // date_trunc(AT TIME ZONE 'Europe/Paris') must equal yesterday's date.
+    // Set fired_at to `now() - 18 hours` — well within the 24h window AND
+    // (assuming local time-of-day) past midnight backwards into yesterday.
+    // The 18h offset is robust for any time-of-day fire within a 6-hour
+    // tolerance band (10:00 Paris fire → 16:00 prior-day = yesterday).
+    const [day1OpenRow] = await db
+      .select()
+      .from(ritualResponses)
+      .where(
+        and(
+          eq(ritualResponses.ritualId, wbId),
+          drizzleSql`responded_at IS NULL`,
+        ),
+      )
+      .orderBy(drizzleSql`fired_at DESC`)
+      .limit(1);
+    expect(day1OpenRow, 'fireWellbeing inserted ritual_responses row for day 1').toBeDefined();
+    await db
+      .update(ritualResponses)
+      .set({ firedAt: drizzleSql`now() - interval '18 hours'` })
+      .where(eq(ritualResponses.id, day1OpenRow!.id));
 
     /* eslint-disable @typescript-eslint/no-explicit-any */
     await handleWellbeingCallback(
