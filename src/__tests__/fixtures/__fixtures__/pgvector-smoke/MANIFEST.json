@@ -1,0 +1,13 @@
+{
+  "organic_stamp": "pgvector-smoke-organic",
+  "seed": 42,
+  "target_days": 1,
+  "milestone": "pgvector-smoke",
+  "synthetic_date_range": null,
+  "generated_at": "2026-05-14T00:00:00.000Z",
+  "schema_note": "FIX-05 (Phase 45 v2.6.1 D-12) — minimal 1024-dim embedding fixture proving staging-table CAST round-trips vector(1024). Single pensieve_entries row + single pensieve_embeddings row referencing it.",
+  "table_counts": {
+    "pensieve_entries": 1,
+    "pensieve_embeddings": 1
+  }
+}

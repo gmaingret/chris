@@ -262,6 +262,57 @@ export async function loadPrimedFixture(
     );
   }
 
+  // FIX-05 (Phase 45 v2.6.1 D-11 + 24-REVIEW.md §BL-06 line 63):
+  // pensieve_embeddings.embedding is vector(1024). The straight
+  // jsonb_populate_recordset path used by insertTable() cannot coerce a
+  // JSONB array into vector — Postgres raises "cannot cast type jsonb to
+  // vector" on first non-empty embeddings JSONL regen. Solution: stage
+  // into a TEMP table where the embedding column is TEXT, then explicit
+  // ::vector CAST in the final INSERT projection. Local helper keeps the
+  // surface area minimal (CONTEXT D-12 "Claude's discretion").
+  async function insertPensieveEmbeddings(): Promise<void> {
+    const rows = await loadJsonl<Record<string, unknown>>(
+      join(fixtureDir, 'pensieve_embeddings.jsonl'),
+    );
+    counts['pensieve_embeddings'] = rows.length;
+    if (rows.length === 0) return;
+
+    // Stage into a TEMP table modeled on pensieve_embeddings — INCLUDING
+    // DEFAULTS pulls the column DEFAULTs across so we don't have to
+    // hand-specify gen_random_uuid(), but we explicitly EXCLUDE INDEXES
+    // and CONSTRAINTS: the hnsw `vector_cosine_ops` index on the embedding
+    // column requires vector type, but we're about to retype the column
+    // to TEXT for the bulk load. Carrying the index over would trip
+    // `operator class vector_cosine_ops does not accept data type text`
+    // on the subsequent ALTER COLUMN (Rule 1 bug surfaced during FIX-05
+    // smoke test development).
+    await client.unsafe(
+      `CREATE TEMP TABLE IF NOT EXISTS pensieve_embeddings_staging (LIKE pensieve_embeddings INCLUDING DEFAULTS EXCLUDING CONSTRAINTS EXCLUDING INDEXES)`,
+    );
+    // Override the embedding column type to TEXT in the staging table so
+    // jsonb_populate_recordset can land the JSONB-array value verbatim.
+    await client.unsafe(
+      `ALTER TABLE pensieve_embeddings_staging ALTER COLUMN embedding TYPE text USING embedding::text`,
+    );
+    // Bulk-load JSONL into staging — embedding column is TEXT here.
+    await client.unsafe(
+      `INSERT INTO pensieve_embeddings_staging SELECT * FROM jsonb_populate_recordset(NULL::pensieve_embeddings_staging, $1::jsonb)`,
+      [JSON.stringify(rows)],
+    );
+    // Final INSERT with explicit ::vector cast in the projection.
+    // Column list must be explicit (NOT SELECT *) because the staging
+    // embedding column type is TEXT but the destination is vector(1024).
+    await client.unsafe(
+      `INSERT INTO pensieve_embeddings (id, entry_id, chunk_index, embedding, model, created_at)
+       SELECT id, entry_id, chunk_index, embedding::vector AS embedding, model, created_at
+       FROM pensieve_embeddings_staging`,
+    );
+    // Cleanup — TEMP tables auto-drop at session end, but explicit DROP
+    // keeps the staging name available for repeated loadPrimedFixture
+    // invocations within the same test session.
+    await client.unsafe(`DROP TABLE pensieve_embeddings_staging`);
+  }
+
   await insertTable('relational_memory.jsonl', 'relational_memory');
   if (hasWellbeing) {
     await insertTable('wellbeing_snapshots.jsonl', 'wellbeing_snapshots');
@@ -271,7 +322,7 @@ export async function loadPrimedFixture(
   await insertTable('decisions.jsonl', 'decisions');
   await insertTable('decision_capture_state.jsonl', 'decision_capture_state');
   await insertTable('decision_events.jsonl', 'decision_events');
-  await insertTable('pensieve_embeddings.jsonl', 'pensieve_embeddings');
+  await insertPensieveEmbeddings();
   await insertTable('contradictions.jsonl', 'contradictions');
   await insertTable('episodic_summaries.jsonl', 'episodic_summaries');
   if (hasConversations) {
