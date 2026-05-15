@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.6.1
 milestone_name: Code Review Cleanup
-status: "All 3 v2.6.1 Phase 44 requirements green (CI-01 / CI-02 / CI-03). REQUIRE_FIXTURES=1 env-gated hard-fail injected across 10 M009/M010/M011 milestone-gate test files (12 [CI-GATE] blocks: 8 Family A + 4 Family B). Local-dev UX byte-identical (env unset → skip-with-hint); CI (env=1) → 1 named failure per missing fixture with regen pointer + vitest exit non-zero. scripts/test.sh contract documented; REQUIREMENTS.md cross-link added. End-to-end verified via real vitest invocation (m009-21days moved aside → [CI-GATE] failure surfaced with full regen command, exit=1)."
-stopped_at: Phase 44 complete (12 commits 463bac6..fd13d6f); awaiting orchestrator dispatch of Phase 46 (Phase 45 already shipped pre-44 per dependency sequencing)
-last_updated: "2026-05-15T11:55:00.000Z"
-last_activity: 2026-05-15 — Phase 44 ships 3/3 CI requirements; 12 atomic per-task commits; 10 test files + scripts/test.sh + REQUIREMENTS.md modified.
+status: "All 6 v2.6.1 Phase 46 requirements green (L10N-01..06). 4 plans shipped: 46-01 locale-strings infra (canonical qualifierFor + normalizeForInterrogativeCheck); 46-02 /profile 21 EN-only sites localized (HEXACO/Schwartz dim labels + scoreLine template + qualifier import) — FR/RU golden snapshots added, EN snapshots byte-identical; 46-03 weekly-review cluster (WEEKLY_REVIEW_HEADER per-Lang + INTERROGATIVE_REGEX gibberish fix + curly-apostrophe normalize + TEMPLATED_FALLBACK per-Lang); 46-04 daily journal PROMPTS per-Lang with cron-context getLastUserLanguageFromDb (CAP-01 cardinality lock, PROMPT_SET_VERSION stays v1). Sunday 2026-05-17 20:00 Paris first fire will ship FR header + FR observation + FR question end-to-end. 4 plan-check warnings addressed inline (decimal format consistency, depends_on note, translation review table in 46-02 summary, T2/T4 invariant via L10N-03c direct regex assertion). 772 tests pass across 43 files (live-integration.test.ts unreachable here — requires Anthropic key)."
+stopped_at: Phase 46 complete (10 commits 6185b0f..685678b); awaiting orchestrator dispatch of Phase 47 (Display Polish — depends on Phase 46 qualifierFor)
+last_updated: "2026-05-15T12:25:00.000Z"
+last_activity: 2026-05-15 — Phase 46 ships 6/6 L10N requirements; 10 atomic commits across 4 plans; 11 production files + tests modified.
 progress:
   total_phases: 7
-  completed_phases: 5
-  total_plans: 18
-  completed_plans: 12
-  percent: 72
+  completed_phases: 6
+  total_plans: 22
+  completed_plans: 16
+  percent: 86
 ---
 
 # Project State
@@ -26,10 +26,28 @@ See: .planning/PROJECT.md (symlink to /home/claude/chris/PLAN.md).
 
 ## Current Position
 
-Phase: Phase 44 (CI Milestone-Gate Hardening) — COMPLETE (Wave 5 of 7)
-Plans shipped: 44-01 (1 plan, 12 tasks, 12 atomic commits)
-Status: All 3 v2.6.1 Phase 44 requirements green (CI-01 / CI-02 / CI-03). REQUIRE_FIXTURES=1 env-gated hard-fail injected across 10 milestone-gate test files (12 [CI-GATE] gate-test blocks total: 8 Family A single-fixture + 4 Family B dual-fixture). Family C live-* tests gate ORTHOGONALLY to RUN_LIVE_TESTS (no paid Anthropic call possible from CI gate, D-07). scripts/test.sh contract documented; REQUIREMENTS.md cross-link added under CI section. End-to-end verified via real vitest run (m009-21days moved aside → [CI-GATE] failure surfaced with regen command + vitest exit=1). Local-dev UX byte-identical (env unset → existing skip-with-hint preserved).
-Last activity: 2026-05-15 — Phase 44 ships 3/3 CI requirements via 12 atomic commits; 12 files modified (10 test files + scripts/test.sh + REQUIREMENTS.md).
+Phase: Phase 46 (FR/RU Localization Comprehensive) — COMPLETE (Wave 6 of 7)
+Plans shipped: 46-01 (4 tasks) + 46-02 (4 tasks) + 46-03 (4 tasks) + 46-04 (4 tasks) = 16 tasks, 10 atomic commits
+Status: All 6 v2.6.1 Phase 46 requirements green (L10N-01..06). 4 plans shipped end-to-end. Sunday 2026-05-17 20:00 Paris first fire will ship FR header + FR observation + FR question via `getLastUserLanguageFromDb` cron-context detection; daily 21:00 Paris journal fires now route to French prompts by default. Plan-check 4 warnings addressed inline:
+- W#1 decimal format consistency: EN keeps toFixed(1) byte-identical; FR/RU use toFixed(1).replace('.', ',') for consistent comma decimals
+- W#2 46-04 depends_on note: acknowledged in 46-04 SUMMARY (over-conservative in plan frontmatter; no practical impact under sequential execution)
+- W#3 D-06 translation review table: included in 46-02 SUMMARY as a 20-row table for Greg's /gsd-verify-work red-pen pass
+- W#4 T2/T4 invariant asymmetry: resolved via L10N-03c direct INTERROGATIVE_REGEX match-count assertion + L10N-03c2 stage1Check end-to-end behavior change test (parent addendum from commit 9da2c42)
+Last activity: 2026-05-15 — Phase 46 ships 6/6 L10N requirements via 10 atomic commits; 11 files modified.
+
+### Phase 46 commits
+
+- `6185b0f` feat(46-01): T1+T2 — locale strings module with qualifierFor + normalizeForInterrogativeCheck (L10N-05 + L10N-03 infra)
+- `8baa3f8` refactor(46-01): T3 — remove duplicate qualifierFor from memory/profiles.ts (L10N-05)
+- `a79f81d` test(46-01): T4 — unit tests for qualifierFor + normalizeForInterrogativeCheck
+- `b092029` docs(46-01): plan 01 summary — locale-strings module + qualifierFor canonical (L10N-05)
+- `2ccdad1` feat(46-02): L10N-01 — /profile psychological section fully localized (21 sites)
+- `688d612` docs(46-02): plan 02 summary — /profile 21-site localization (L10N-01)
+- `90ac212` feat(46-03): weekly-review localization cluster — L10N-02 + L10N-03 + L10N-06
+- `284c831` docs(46-03): plan 03 summary — weekly-review localization cluster (L10N-02/03/06)
+- `fb3fe65` feat(46-04): L10N-04 — daily journal PROMPTS locale-aware (FR/RU fire-time selection)
+- `685678b` docs(46-04): plan 04 summary — daily journal PROMPTS localization (L10N-04)
+
 
 ### Phase 44 commits
 

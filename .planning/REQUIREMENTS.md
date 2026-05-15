@@ -50,12 +50,12 @@
 
 ### L10N — FR/RU localization (T6, 6 sub-areas)
 
-- [ ] **L10N-01**: `/profile` Telegram output localized for FR/RU — 21 EN-only sites in `src/bot/handlers/profile.ts`: qualifier strings (lines 705, 706, 707), HEXACO dim labels (715-720), Schwartz dim labels (728-737), score-line tokens "/ 5.0" + "confidence" (791, 806). Folds in WR-02 (EN-tokens leak from v2.5 carry-forward).
-- [ ] **L10N-02**: `WEEKLY_REVIEW_HEADER` localized for FR/RU at `src/rituals/weekly-review.ts:68, 621` — the first M009 weekly review (2026-05-10 20:00 Paris) shipped an EN header above the FR body; subsequent fires get a locale-matched header.
-- [ ] **L10N-03**: Weekly-review FR regex at `src/rituals/weekly-review-sources.ts` handles curly apostrophes and rejects gibberish (current `qu['e]?est-ce que` matches `queest-ce que`, misses `qu'est-ce que` / `qu'est-ce que`). Use a canonical apostrophe-normalize step + strict pattern.
-- [ ] **L10N-04**: Daily journal PROMPTS in `src/rituals/journal.ts` respect Greg's detected locale — currently EN-only, sent without language detection. Pattern matches L10N-01 detection layer.
-- [ ] **L10N-05**: `qualifierFor` consolidated to single source of truth — currently duplicated at `src/memory/profiles.ts:675-679` and `src/bot/handlers/profile.ts:704-708`. Drift risk for the D027 mitigation surface eliminated; one canonical function, locale-aware.
-- [ ] **L10N-06**: `TEMPLATED_FALLBACK_EN` at `weekly-review.ts:357-360` becomes per-locale variants — first-fire didn't exercise this path (Sonnet succeeded), but the v2.4 carry-forward is closed.
+- [x] **L10N-01**: `/profile` Telegram output localized for FR/RU — 21 EN-only sites in `src/bot/handlers/profile.ts`: qualifier strings (lines 705, 706, 707), HEXACO dim labels (715-720), Schwartz dim labels (728-737), score-line tokens "/ 5.0" + "confidence" (791, 806). Folds in WR-02 (EN-tokens leak from v2.5 carry-forward).
+- [x] **L10N-02**: `WEEKLY_REVIEW_HEADER` localized for FR/RU at `src/rituals/weekly-review.ts:68, 621` — the first M009 weekly review (2026-05-10 20:00 Paris) shipped an EN header above the FR body; subsequent fires get a locale-matched header.
+- [x] **L10N-03**: Weekly-review FR regex at `src/rituals/weekly-review-sources.ts` handles curly apostrophes and rejects gibberish (current `qu['e]?est-ce que` matches `queest-ce que`, misses `qu'est-ce que` / `qu'est-ce que`). Use a canonical apostrophe-normalize step + strict pattern.
+- [x] **L10N-04**: Daily journal PROMPTS in `src/rituals/journal.ts` respect Greg's detected locale — currently EN-only, sent without language detection. Pattern matches L10N-01 detection layer.
+- [x] **L10N-05**: `qualifierFor` consolidated to single source of truth — currently duplicated at `src/memory/profiles.ts:675-679` and `src/bot/handlers/profile.ts:704-708`. Drift risk for the D027 mitigation surface eliminated; one canonical function, locale-aware.
+- [x] **L10N-06**: `TEMPLATED_FALLBACK_EN` at `weekly-review.ts:357-360` becomes per-locale variants — first-fire didn't exercise this path (Sonnet succeeded), but the v2.4 carry-forward is closed.
 
 ### FIX — Fixture-pipeline cleanup (T7, supersedes original LOAD-01/FK-01/FIX-01)
 
@@ -154,12 +154,12 @@
 | FIX-06 | Phase 45 | Complete |
 | FIX-07 | Phase 45 | Pending |
 | FIX-08 | Phase 45 | Pending |
-| L10N-01 | Phase 46 | Pending |
-| L10N-02 | Phase 46 | Pending |
-| L10N-03 | Phase 46 | Pending |
-| L10N-04 | Phase 46 | Pending |
-| L10N-05 | Phase 46 | Pending |
-| L10N-06 | Phase 46 | Pending |
+| L10N-01 | Phase 46 | Complete |
+| L10N-02 | Phase 46 | Complete |
+| L10N-03 | Phase 46 | Complete |
+| L10N-04 | Phase 46 | Complete |
+| L10N-05 | Phase 46 | Complete |
+| L10N-06 | Phase 46 | Complete |
 | DISP-01 | Phase 47 | Pending |
 | DISP-02 | Phase 47 | Pending |
 
