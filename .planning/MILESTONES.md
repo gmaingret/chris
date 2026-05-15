@@ -1,5 +1,39 @@
 # Milestones
 
+## v2.6.1 Code Review Cleanup (Shipped: 2026-05-15)
+
+**Phases completed:** 7 phases, 17 plans, 39/39 requirements, 79 commits
+
+**Genesis:** Triggered 2026-05-14 by a live UX defect — adjustment-dialogue prompt asserted "This daily daily_journal ritual isn't working" to Greg (FR locale). A 14-phase parallel `gsd-code-reviewer` sweep across v2.3 → v2.6 surfaced 45 BLOCKERs + 97 WARNINGs. 39 of those organized into 9 thematic categories (T1–T8 + display polish) shipped via wave-based execution.
+
+**Key accomplishments:**
+
+- **Phase 41 (P0 live-fix):** Adjustment-dialogue rework — observational copy replaces "isn't working"; `src/rituals/display-names.ts` constant map eliminates slug exposure ("daily journal" not "daily daily_journal"); skip_count resets on yes/no/refusal completion paths (5 sites); `mute_until` removed from Haiku-controllable whitelist (privilege escalation closed); per-field type validation on `confirmConfigPatch`.
+- **Phase 42:** Six atomicity/race fixes via shared `src/__tests__/helpers/concurrent-harness.ts`. M009 second-fire bug class permanently closed via `sql\`now()\``-driven postgres-clock predicates; `ritualResponseWindowSweep` paired-insert transactional; wellbeing rapid-tap idempotent via completion-claim UPDATE + nested jsonb_set merge on skip; DST-edge 24h cutoff on findOpenWellbeingRow; weekly-review transactional fire (Telegram failure rolls back state).
+- **Phase 43:** `sanitizeSubstrateText` helper escapes `## ` line-start anchors in both operational and psychological inference prompts; `data_consistency real NOT NULL DEFAULT 0` (CHECK 0..1) column on psych tables via migration `0014_psychological_data_consistency_column`; `stripMetadataColumns` removes dataConsistency from prevState; `extract<X>PrevState` returns null on first-fire across 4 operational dimensions.
+- **Phase 44:** `REQUIRE_FIXTURES=1` env-gated inline single-failing-test pattern across 10 milestone-gate test files (M009 ×3, M010 ×4, M011 ×3); 12 `[CI-GATE] fixture present` describe blocks; Family C (live-anti-hallucination) orthogonal to RUN_LIVE_TESTS (no paid Anthropic call from CI gate); byte-identical local-dev UX preserved.
+- **Phase 45:** Migration `0015_psychological_check_constraints` (19 jsonb-path CHECKs); migration `0016_phase33_seed_defaults_backfill` (UPDATE seed rows + ALTER COLUMN SET DEFAULT for wellbeing_trend + parent_care_responsibilities) — root-cause of M010 schema_mismatch warns; contradictions FK pre-filter at synthesize-delta:934; bias-prompt phrasesClause decoupled from dimensionHint; SSH `StrictHostKeyChecking=accept-new` + repo-vetted `scripts/.ssh-known-hosts`; pgvector(1024) staging-table CAST; AbortController + `process.exitCode=130` SIGINT pattern across 3 operator scripts; M010 fixture refresh (FIX-06) via `regenerate-primed.ts --milestone m010 --force` (~75s end-to-end).
+- **Phase 46:** New `src/chris/locale/strings.ts` exports `qualifierFor(c, lang)` + `LANG_QUALIFIER_BANDS` + `normalizeForInterrogativeCheck` — `qualifierFor` consolidated from 2 duplicates to 1 canonical home. 21 EN-only sites in `bot/handlers/profile.ts` localized for FR/RU (qualifier + HEXACO 6 dims + Schwartz 10 dims + score template); `WEEKLY_REVIEW_HEADER` + `TEMPLATED_FALLBACK` per-locale; FR regex curly-apostrophe + NFC normalize fix; daily-journal PROMPTS locale-aware. Golden snapshots per locale (EN/FR/RU) lock the output.
+- **Phase 47:** `SCHWARTZ_CIRCUMPLEX_ORDER` canonical clockwise 10-element array (opposing pairs at ring distance ≥4); `CROSS_VALIDATION_RULES` hardcoded 16-rule table for HEXACO × Schwartz cross-validation observations (preserves Phase 39 D-22 reader-never-throw — no Sonnet at /profile read path); 0.3 confidence floor; locale-aware observation strings (EN/FR/RU); observational tone on negative observations.
+
+**Key decisions locked:** Migration sequencing 0014 → 0015 → 0016; no new locale-detection layer (both Phase 41 and Phase 46 reuse existing `src/chris/language.ts`); `MSG`-shape pattern for slug-keyed `Record<Lang, T>` co-located with consumer; hardcoded rule table over Sonnet-at-call-time for cross-validation observations.
+
+**Notable inline recoveries:**
+- Plan 45-03 sibling agent rate-limited mid-plan → parent orchestrator completed Tasks 2-4 inline (snapshot + journal + test.sh + integration test, 4/4 green)
+- Migration-number conflict between Phase 43 and Phase 45 discuss-phase agents → reconciled to 0014/0015/0016
+- Phase 46 plan-checker BLOCKER (L10N-03c regression false-positive) → fixed inline (direct INTERROGATIVE_REGEX assertion + new L10N-03c2 multi-interrogative test)
+- Phase 47 distance-5 invariant relaxed to ≥4 when geometry didn't match CONTEXT narrative
+
+**Live trigger evidence:** the buggy adjustment-dialogue fired AGAIN on prod at 17:00 Paris 2026-05-15 (`8adeb85` still deployed); deploy of v2.6.1 closes the user-visible regression.
+
+**Known deferred items at close** (v2.6.2 candidates):
+- PTEST-03 three-cycle date-window fragility (test pins NOW assumption)
+- psychological-profiles.test.ts:171 — test-injection now rejected by migration 0015 CHECK (test needs different invalid value)
+- M011 HARN gates regen (Plan 45-04 only ran m010; m011 needs separate `--milestone m011` regen)
+- FR/RU translation review pass (20-row table in 46-02 SUMMARY for `/gsd-verify-work`)
+
+---
+
 ## v2.6 M011 Psychological Profiles (Shipped: 2026-05-14)
 
 **Phases completed:** 4 phases, 9 plans, 28/28 requirements

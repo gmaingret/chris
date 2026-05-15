@@ -323,15 +323,17 @@ Execution runs inside GSD v1 (`get-shit-done-cc`), not v2. GSD v1 operates as Cl
 
 ## Current State
 
-**Shipped:** v1.0 (2026-04-13), v2.0 M006 Trustworthy Chris (2026-04-15), v2.1 M007 Decision Archive (2026-04-18), v2.2 M008 Episodic Consolidation (2026-04-19), v2.3 Test Data Infrastructure (2026-04-20, archived 2026-04-25), v2.4 M009 Ritual Infrastructure + Daily Note + Weekly Review (2026-05-11), v2.5 M010 Operational Profiles (2026-05-13), **v2.6 M011 Psychological Profiles (2026-05-14)**.
+**Shipped:** v1.0 (2026-04-13), v2.0 M006 Trustworthy Chris (2026-04-15), v2.1 M007 Decision Archive (2026-04-18), v2.2 M008 Episodic Consolidation (2026-04-19), v2.3 Test Data Infrastructure (2026-04-20, archived 2026-04-25), v2.4 M009 Ritual Infrastructure + Daily Note + Weekly Review (2026-05-11), v2.5 M010 Operational Profiles (2026-05-13), v2.6 M011 Psychological Profiles (2026-05-14), **v2.6.1 Code Review Cleanup (2026-05-15)**.
 
 v2.5 closed: 22/22 requirements (PROF-01..05 + GEN-01..07 + SURF-01..05 + PTEST-01..05) satisfied across 4 phases / 10 plans / 54 tasks. Profile substrate (5 tables + reader API + Zod v3+v4 dual schemas + confidence helpers) shipped Phase 33. Sunday 22:00 Paris cron + 4 per-dimension generators with SHA-256 substrate-hash idempotency + Promise.allSettled isolation shipped Phase 34. REFLECT/COACH/PSYCHOLOGY profile injection via `PROFILE_INJECTION_MAP` per-mode subset + `/profile` Telegram command with golden-output formatter shipped Phase 35. Test pyramid (primed fixture + 3-cycle idempotency + sparse threshold + live 3-of-3 anti-hallucination against real Sonnet 4.6) shipped Phase 36. PTEST-05 milestone-gate confirmed 2026-05-13T11:30Z: 3-of-3 atomic GREEN with zero hallucinated facts. Container deployed to Proxmox 2026-05-13 01:43 UTC; first Sunday cron fire ETA 2026-05-17 22:00 Paris.
 
 Chris is deployed on self-hosted Proxmox (192.168.1.50) with profile inference live. The full reflection loop is now grounded: M008 episodic summaries + M007 resolved decisions + M009 daily journal + wellbeing + weekly review + M010 operational profile injection into REFLECT/COACH/PSYCHOLOGY.
 
-**Active milestone: v2.6.1 Code Review Cleanup** — kicked off 2026-05-14 via `/gsd-new-milestone` after a 14-phase parallel `gsd-code-reviewer` sweep surfaced 45 BLOCKERs + 97 WARNINGs (`.planning/milestones/v2.6.1-REVIEW-SYNTHESIS.md`). Triggered by a live UX defect observed on 2026-05-14 17:00 Paris: the adjustment-dialogue prompt asserted "This daily daily_journal ritual isn't working" to Greg (FR locale). See `## Current Milestone` below.
+v2.6.1 closed 2026-05-15: 39/39 requirements satisfied across 7 phases / 17 plans / 79 commits. Triggered by a live UX defect (adjustment-dialogue asserting "This daily daily_journal ritual isn't working" to Greg in FR locale) at 17:00 Paris 2026-05-14. A 14-phase parallel `gsd-code-reviewer` sweep over v2.3 → v2.6 surfaced 45 BLOCKERs + 97 WARNINGs; 39 organized into 9 thematic categories shipped. P0 live-fix in Phase 41 (observational copy + display-name map + skip_count reset); 6 atomicity/race fixes in Phase 42; prompt-injection escaping + `data_consistency` column (migration 0014) in Phase 43; `REQUIRE_FIXTURES=1` CI gates in Phase 44; migrations 0015 + 0016 + 8 fixture-pipeline fixes in Phase 45; new `src/chris/locale/strings.ts` + 30+ FR/RU localizations in Phase 46; Schwartz circumplex + HEXACO×Schwartz cross-val (16-rule table) in Phase 47. Audit passed 2026-05-15 (8/8 cross-phase wiring checks WIRED, 2/2 E2E flows wired).
 
-**Tech debt carried into v2.6.1+ (most folded into v2.6.1 themes T1–T8):**
+**No active milestone.** Ready for `/gsd-new-milestone` when next milestone is scoped.
+
+**Tech debt carried into v2.6.2 / v2.7+:**
 - **Phase 34 first-Sunday cron fire observation pending 2026-05-17** — naturally future-dated; container deployed and cron registered. Operator observes via `ssh chris@192.168.1.50 'docker logs chris-chris-1 | grep chris.profile'` after 22:00 Paris on 2026-05-17.
 - **First M011 cron fire pending 2026-06-01 09:00 Paris** — monthly psychological profile inference.
 - **v2.5.1 backlog from M010 deferred items** (DIFF-2..7): auto-detection of profile-change moments (DIFF-2), per-profile narrative summaries (DIFF-4), profile consistency checker (DIFF-5), wellbeing-anchored health updates (DIFF-6). SATURATION constant requires 4-8 weeks of real M010 operation to calibrate.
@@ -341,9 +343,26 @@ Chris is deployed on self-hosted Proxmox (192.168.1.50) with profile inference l
 
 Archived detail: `.planning/milestones/v2.0-*`, `.planning/milestones/v2.1-*`, `.planning/milestones/v2.2-*`, `.planning/milestones/v2.3-*`, `.planning/milestones/v2.4-*`, `.planning/milestones/v2.5-*`, `.planning/milestones/v2.X-phases/` (phase directories for v2.0–v2.5; v2.3 phase archival is the only outstanding archive task).
 
-## Current Milestone: v2.6.1 Code Review Cleanup
+<details>
+<summary>v2.6.1 Code Review Cleanup (shipped 2026-05-15 — historical)</summary>
 
 **Goal:** Eliminate the production-correctness, security, contract, localization, fixture, schema, and test-gate defects surfaced by a 14-phase parallel code-review sweep on 2026-05-14. Triggered by a live UX defect at 17:00 Paris where the adjustment-dialogue prompt asserted "This daily daily_journal ritual isn't working" to Greg (FR locale) — investigation surfaced 7 cascading bugs around that one surface alone, plus 45 BLOCKERs and 97 WARNINGs across 14 unreviewed phases (v2.3 → v2.6). This is a cleanup pass, not a feature milestone.
+
+**Delivered (39/39 requirements, 7 phases, 17 plans, 79 commits):**
+- **Phase 41 Adjustment-Dialogue (ADJ-01..07):** observational copy + `display-names.ts` slug map + skip_count reset + Haiku `mute_until` whitelist removal + per-field type validation
+- **Phase 42 Atomicity & Races (RACE-01..06):** `sql\`now()\`` postgres-clock predicates + transactional paired-inserts + completion-claim UPDATE + jsonb_set merge + DST-edge 24h cutoff + transactional weekly-review
+- **Phase 43 Inference Security (INJ-01..02, CONTRACT-01..03):** sanitizeSubstrateText + migration 0014 data_consistency column + stripMetadataColumns + null-on-first-fire prevState
+- **Phase 44 CI Hardening (CI-01..03):** REQUIRE_FIXTURES=1 env-gated single-failing-test across 10 milestone-gate test files
+- **Phase 45 Schema & Fixtures (SCHEMA-01..02, FIX-01..08):** migrations 0015 + 0016 + 8 fixture-pipeline fixes + m010 fixture refresh
+- **Phase 46 FR/RU Localization (L10N-01..06):** `src/chris/locale/strings.ts` + qualifierFor consolidation + 30+ EN-only sites localized
+- **Phase 47 Display Polish (DISP-01..02):** Schwartz circumplex ordering + HEXACO×Schwartz cross-val 16-rule table
+
+Audit: `.planning/milestones/v2.6.1-MILESTONE-AUDIT.md` — PASSED (8/8 cross-phase wiring, 2/2 E2E flows).
+
+</details>
+
+<details>
+<summary>v2.6.1 themes + scope (collapsed)</summary>
 
 **Target themes (T1–T8 from synthesis):**
 - **T1 — Adjustment-dialogue rework:** remove "isn't working" wrongful assertion + slug-doubling (4 sites) + EN-only sends in FR locale (8 sites + Haiku judge); reset `skip_count` on yes/no/refusal completion paths (currently re-fires every tick after threshold); remove `mute_until` from Haiku-controllable field whitelist (privilege escalation); add per-field type validation on Haiku config patches
@@ -373,6 +392,8 @@ Archived detail: `.planning/milestones/v2.0-*`, `.planning/milestones/v2.1-*`, `
 - **Live bug is patient zero:** the adjustment-dialogue copy bug from 2026-05-14 17:00 Paris is the trigger but not the goal. T1 is one of nine themes; the goal is to land all P0 findings before v2.7 feature work.
 - **No new features:** v2.6.1 is purely cleanup. Display polish (CIRC-01, CROSS-VAL-01) is the only user-visible addition; everything else is correctness, hardening, or quality.
 - **Adjustment-dialogue still fires daily after threshold:** `skip_count` reset bug means today's bad message could re-fire on the next sweep tick. T1 ADJ-04 is the highest-priority ship — first phase of v2.6.1.
+
+</details>
 
 ---
 
@@ -537,4 +558,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-14 — v2.6.1 Code Review Cleanup kicked off via `/gsd-new-milestone`. Triggered by live UX defect (adjustment-dialogue "isn't working" message to Greg). 14 parallel `gsd-code-reviewer` agents on v2.3 → v2.6 unreviewed phases surfaced 45 BLOCKERs + 97 WARNINGs. T1–T8 themes folded into current milestone scope; T9/T10 deferred. v2.6 M011 details collapsed to historical block; phase numbering continues from 40 → starts at Phase 41. Awaiting REQUIREMENTS.md scoping then ROADMAP.md.*
+*Last updated: 2026-05-15 — v2.6.1 Code Review Cleanup SHIPPED. 39/39 requirements across 7 phases / 17 plans / 79 commits. Audit PASSED. Triggered by live UX defect 2026-05-14 17:00 Paris (adjustment-dialogue "isn't working" message to Greg in FR); P0 fix shipped in Phase 41. v2.6.1 collapsed to historical block. Awaiting deploy + next milestone scope.*
