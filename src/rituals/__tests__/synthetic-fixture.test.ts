@@ -586,8 +586,16 @@ skipIfAbsent('M009 synthetic fixture (14 days; TEST-23..30)', () => {
     expect(mockSendMessage, 'adjustment dialogue sent telegram message').toHaveBeenCalled();
     const sendCalls = mockSendMessage.mock.calls;
     const sentText = String(sendCalls[0]?.[1] ?? '');
-    expect(sentText, 'adjustment-dialogue text contains the canonical phrasing').toContain(
-      "isn't working — what should change?",
+    // Phase 41 ADJ-01 (BL-01 fix): observational copy replaced the wrongful
+    // "isn't working" assertion. Canonical EN phrasing is now: "I noticed
+    // we've missed the {displayName} a few times. Want to adjust something,
+    // or keep it as is?" The slug `daily_journal` resolves to display name
+    // "evening journal" via RITUAL_DISPLAY_NAMES (CLAUDE.md evening_journal_naming).
+    expect(sentText, 'adjustment-dialogue text uses Phase 41 observational copy').toContain(
+      "I noticed we've missed",
+    );
+    expect(sentText, 'adjustment-dialogue text preserves user agency').toContain(
+      'Want to adjust something, or keep it as is',
     );
   });
 
