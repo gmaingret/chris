@@ -31,6 +31,8 @@
 
 ### CI — Test gate hardening (T3, 3 BLOCKERs from Phases 30/36/40)
 
+> **Mechanism:** `REQUIRE_FIXTURES=1` env-gated hard-fail per inline check pattern — see `.planning/phases/44-ci-milestone-gate-hardening/` for design and `scripts/test.sh` header comment for operator UX.
+
 - [ ] **CI-01**: M010 milestone-gate test files fail CI when fixtures absent — replaces `existsSync(MANIFEST) ? describe : describe.skip` across `integration-m010-30days.test.ts:125-137`, `integration-m010-5days.test.ts:105-120`, `primed-sanity-m010.test.ts:171,239`, `live-anti-hallucination.test.ts:136`. CI environment variable `REQUIRE_FIXTURES=1` hard-fails when missing; local dev still skips.
 - [ ] **CI-02**: M011 milestone-gate tests fail CI when fixtures absent (same pattern); `scripts/synthesize-delta.ts:937` output-dir path bug fixed (`m011-1000words-5days` collision eliminated — operator regen lands at `m011-1000words` matching test reads).
 - [ ] **CI-03**: M009 milestone-gate tests fail CI when fixtures absent — D045 silent-skip pattern in `primed-sanity.test.ts` + `synthetic-fixture.test.ts` no longer hides regressions.
